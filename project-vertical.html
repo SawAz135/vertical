@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#090B0F"><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PROJECT VERTICAL</title>
+<style>
+:root{--bg:#090B0F;--bg2:#11151C;--card:#171C25;--bd:#252D39;--or:#FF7A1A;--or2:#FF9B45;--tx:#F5F7FA;--mu:#9AA5B3;--ok:#42D392;--wa:#F5C451;--er:#F06A6A}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:15px/1.4 Inter,Manrope,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+#app{max-width:480px;margin:0 auto;height:100%;display:flex;flex-direction:column;position:relative}
+#main{flex:1;overflow-y:auto;padding:calc(env(safe-area-inset-top) + 14px) 16px 24px;animation:in .3s}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+nav{display:flex;background:var(--bg2);border-top:1px solid var(--bd);padding:6px 4px calc(env(safe-area-inset-bottom) + 6px)}
+nav button{flex:1;background:none;border:0;color:var(--mu);font:600 11px inherit;padding:6px 0;min-height:48px}
+nav button b{display:block;font-size:20px;font-weight:400}
+nav button.on{color:var(--or)}
+h1{font-size:22px;margin:4px 0 2px;letter-spacing:.3px}h2{font-size:13px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);margin:20px 0 8px}
+h3{margin:0 0 4px;font-size:17px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:14px;margin-bottom:10px;animation:in .4s}
+.mu{color:var(--mu);font-size:13px}.sm{fill:var(--mu);font-size:10px}
+.row{display:flex;gap:8px;align-items:center}.sp{justify-content:space-between}.g{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+button.b,.b{display:block;width:100%;min-height:50px;border-radius:14px;border:1px solid var(--bd);background:var(--card);color:var(--tx);font:700 14px inherit;letter-spacing:.5px;margin:6px 0;text-align:center;padding:0 12px}
+.b.p{background:var(--or);border-color:var(--or);color:#1a0d00}
+.b.d{color:var(--er)}.b:active{transform:scale(.97);filter:brightness(1.15)}.b:disabled{opacity:.4}
+.chips{display:flex;gap:8px;overflow-x:auto;margin:8px 0}.chip{flex:none;border:1px solid var(--bd);background:var(--card);color:var(--mu);border-radius:20px;padding:9px 14px;font:600 13px inherit}
+.chip.on{color:var(--or);border-color:var(--or)}
+input,select,textarea{width:100%;background:var(--bg2);border:1px solid var(--bd);border-radius:12px;color:var(--tx);padding:12px;font:16px inherit;margin:4px 0 8px}
+label{font-size:12px;color:var(--mu)}
+.big{font-size:34px;font-weight:800}.or{color:var(--or)}.ok{color:var(--ok)}.wa{color:var(--wa)}
+.li{display:flex;justify-content:space-between;gap:8px;padding:11px 0;border-bottom:1px solid var(--bd)}.li:last-child{border:0}
+.tag{font-size:11px;border:1px solid var(--bd);border-radius:8px;padding:2px 7px;color:var(--mu)}
+.tank{width:56px;height:96px;border:2px solid var(--bd);border-radius:12px 12px 22px 22px;overflow:hidden;display:flex;align-items:flex-end}
+.tank i{display:block;width:100%;background:linear-gradient(var(--or2),var(--or));transition:height .8s}
+.ch{width:100%;background:var(--bg2);border-radius:12px}
+#md{position:fixed;inset:0;background:#000c;display:none;align-items:flex-end;z-index:9}
+#md>div{background:var(--bg);width:100%;max-width:480px;margin:auto;max-height:92%;overflow:auto;border-radius:20px 20px 0 0;padding:16px 16px calc(env(safe-area-inset-bottom) + 16px)}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 76px);transform:translateX(-50%);background:var(--card);border:1px solid var(--or);border-radius:12px;padding:10px 14px;z-index:20;max-width:90%;opacity:0;pointer-events:none;transition:opacity .3s;font-size:13px}
+#toast.on{opacity:1}
+.ring{position:relative;width:220px;height:220px;margin:12px auto}.ring svg{transform:rotate(-90deg)}.ring div{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.an path,.an circle{stroke:var(--or);stroke-width:5;fill:none;stroke-linecap:round}.an-sq .fg{transform-origin:60px 100px;animation:sq 2.4s ease-in-out infinite}.an-jp .fg{animation:jp 1.6s ease-in-out infinite}.an-pu .fg{transform-origin:60px 100px;animation:pu 1.8s ease-in-out infinite}.an-co .fg{transform-origin:60px 100px;transform:rotate(80deg);animation:co 3s ease-in-out infinite}.an-rs .fg{animation:rs 1.8s ease-in-out infinite}@keyframes co{50%{transform:rotate(80deg) translateY(-6px)}}@keyframes rs{50%{transform:translateY(-10px)}}.an-rn .fg{animation:rn .55s ease-in-out infinite}.an-br .fg{transform-origin:60px 100px;animation:br 4s ease-in-out infinite}@keyframes rn{50%{transform:translateY(-6px)}}@keyframes br{50%{transform:scale(1.05)}}.ps *{animation-play-state:paused!important}@keyframes sq{50%{transform:translateY(20px) scaleY(.8)}}@keyframes jp{40%{transform:translateY(-24px)}}@keyframes pu{0%,100%{transform:rotate(80deg)}50%{transform:rotate(80deg) translateX(10px)}}
+.cg{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:8px 0;text-align:center}.cd{background:var(--card);border:1px solid var(--bd);border-radius:10px;color:var(--tx);min-height:46px;font:600 14px inherit;display:flex;flex-direction:column;align-items:center;justify-content:center}.cd.on{border-color:var(--or)}.cd small{font-size:10px;color:var(--mu)}.cf{position:fixed;top:-14px;width:8px;height:12px;z-index:30;border-radius:2px;animation:cf 1.7s ease-in forwards;pointer-events:none}@keyframes cf{to{transform:translateY(105vh) rotate(540deg);opacity:.3}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"><div id="main"></div><nav id="nav"></nav></div>
+<div id="md"><div id="mdc"></div></div><div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s),K='pv1';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=id=>{const v=parseFloat(String($(id).value).replace(',','.'));return isFinite(v)?v:null};
+const val=id=>$(id).value.trim();
+const day=(d=new Date())=>new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+const mmss=s=>{s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+const fr=(d)=>new Date(d+'T12:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+let D=load(),T='home',V={tr:'sess',pg:'jump'};
+function load(){try{const j=JSON.parse(localStorage.getItem(K));if(j&&j.v===1)return j}catch(e){}
+return{v:1,start:Date.now(),mo:0,prof:{age:16,h:'',w:''},hist:[],water:[],meals:[],jumps:[],sprints:[],runs:[],rec:[],play:null,snd:true,kcal:false,ov:'',saved:0,ob:0,obs:0,scanUrl:''}}
+function save(){D.saved=Date.now();if(IDB){try{const t=IDB.transaction('kv','readwrite');t.objectStore('kv').put(D,'D');t.onabort=t.onerror=()=>toast('La sauvegarde n’a pas été confirmée. Tes données restent affichées. Réessaie avant de fermer cette page.');return true}catch(e){toast('La sauvegarde n’a pas été confirmée. Tes données restent affichées.');return false}}
+try{localStorage.setItem(K,JSON.stringify(D));return true}catch(e){toast('La sauvegarde n’a pas été confirmée. Tes données restent affichées.');return false}}
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),3200)}
+function modal(h){$('#mdc').innerHTML=h;$('#md').style.display='flex';trDom($('#mdc'))}function closeM(){$('#md').style.display='none';$('#mdc').innerHTML=''}
+$('#md').onclick=e=>{if(e.target.id==='md')closeM()};
+function beep(){if(!D.snd)return;try{const a=new(window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=.15;o.start();o.stop(a.currentTime+.25)}catch(e){}try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}
+
+/* ---- Contenu : exercices (types s=force j=saut c=tronc m=libre) ---- */
+const E={
+warm:{n:'Échauffement dynamique',t:'m',sets:1,reps:'8 à 12 min',rest:0,steps:['Marche rapide ou course légère','Mobilité chevilles puis hanches','Montées de genoux modérées','Squats sans charge, fentes contrôlées','2-3 accélérations progressives si séance de sprint/saut'],tip:'Ne saute jamais cette étape avant les sauts.'},
+cool:{n:'Retour au calme',t:'m',sets:1,reps:'5 à 8 min',rest:0,steps:['Marche douce','Respiration lente','Mobilité douce chevilles et hanches','Étirements confortables, sans forcer']},
+sq:{n:'Squat poids du corps',t:'s',sets:3,m1:2,reps:'8 à 12',rest:90,steps:['Pieds à largeur d’épaules','Hanches vers l’arrière, genoux fléchis','Talons au sol, genoux alignés avec les pieds','Remonte en expirant'],tip:'Mouvement lent et contrôlé. Garde 2-3 répétitions en réserve.',easy:'Squat vers une chaise stable',stop:'Douleur au genou ou à la hanche'},
+fe:{n:'Fente arrière',t:'s',sets:3,m1:2,reps:'8 / jambe',rest:90,steps:['Recule une jambe','Fléchis les deux genoux, bassin stable','Genou avant aligné avec le pied','Reviens debout'],easy:'Petite amplitude, appui léger au mur',stop:'Perte d’équilibre répétée, douleur'},
+pf:{n:'Pont fessier une jambe',t:'s',sets:2,reps:'8 / jambe',rest:60,steps:['Sur le dos, un pied au sol','Pousse le bassin vers le haut','Sans cambrer le bas du dos'],easy:'Pont à deux jambes',stop:'Douleur lombaire'},
+mo:{n:'Mollets debout',t:'s',sets:3,m1:2,reps:'12 à 15',rest:60,steps:['Monte sur la pointe des pieds','Pause courte en haut','Redescends lentement, sans rebondir']},
+ga:{n:'Gainage avant',t:'c',sets:3,m1:2,reps:'30 s',rest:60,u:'s',steps:['Appui avant-bras, corps aligné','Ventre serré, respiration continue'],easy:'Genoux au sol',stop:'Douleur au dos ou à l’épaule'},
+pu:{n:'Pompes',t:'s',sets:3,m1:2,reps:'6 à 10',rest:90,steps:['Mains sous les épaules, corps aligné','Descends de façon contrôlée','Pousse le sol'],tip:'Garde ~2 répétitions en réserve. Compte seulement les pompes propres.',easy:'Pompes inclinées ou sur genoux',stop:'Douleur au poignet ou à l’épaule'},
+pi:{n:'Pike push-ups',t:'s',sets:2,reps:'5 à 8',rest:90,steps:['Position en V inversé','Plie les coudes, tête vers le sol','Remonte sans effondrer les épaules'],easy:'Mains sur une surface plus haute',stop:'Douleur cervicale ou d’épaule'},
+su:{n:'Superman alterné',t:'s',sets:2,reps:'8 / côté',rest:60,steps:['Sur le ventre','Lève un bras et la jambe opposée','Alterne doucement, sans cambrer'],stop:'Gêne lombaire'},
+sn:{n:'Reverse snow angels',t:'s',sets:2,reps:'10',rest:60,steps:['Sur le ventre','Bras en arc lent, épaules basses'],stop:'Gêne à l’épaule'},
+pl:{n:'Planche latérale',t:'c',sets:2,reps:'25 s / côté',rest:60,u:'s',steps:['Appui sur l’avant-bras','Bassin levé, corps aligné'],easy:'Genoux au sol',stop:'Douleur épaule ou dos'},
+db:{n:'Dead bug',t:'s',sets:3,reps:'8 / côté',rest:60,steps:['Sur le dos, bras au plafond, genoux fléchis','Étends bras et jambe opposés lentement','Bas du dos stable'],stop:'Perte de contrôle du bassin'},
+po:{n:'Pogo jumps bas',t:'j',sets:2,reps:'10',rest:150,steps:['Petits rebonds, genoux souples','Contacts courts et silencieux','Pas de hauteur maximale'],tip:'Arrête si les contacts deviennent lourds.',stop:'Douleur ou réceptions bruyantes'},
+cm:{n:'Saut vertical (contre-mouvement)',t:'j',sets:3,m1:2,reps:'3',rest:150,steps:['Descends vite mais contrôlé, bras en arrière','Saute verticalement','Réception souple, genoux alignés'],tip:'Une seule bonne qualité par saut. Stop si la hauteur baisse.',stop:'Hauteur en baisse, douleur'},
+ap:{n:'Saut avec approche',t:'j',sets:4,m1:3,reps:'2',rest:180,steps:['Approche courte et contrôlée','Dernier appui coordonné, bras en élan','Saute et amortis'],tip:'Repos complet. Surface plane et sûre.',stop:'Baisse de hauteur, douleur'},
+ho:{n:'Saut horizontal',t:'j',sets:2,reps:'3',rest:150,steps:['Pousse des deux pieds vers l’avant','Réception stable, genoux alignés'],easy:'Réduis la distance'},
+si:{n:'Split squat isométrique',t:'c',sets:2,reps:'20 s / jambe',rest:60,u:'s',steps:['Position décalée, amplitude confortable','Tiens la position, bassin stable']},
+ru:{n:'Course facile',t:'m',sets:1,reps:'20 à 45 min',rest:0,steps:['Allure où tu peux parler en phrases','Pas de vitesse','Marche rapide si les jambes sont lourdes'],tip:'Enregistre-la ensuite dans Progress › Course.'}};
+const P={1:{n:'Force jambes',g:'Force et renforcement',min:45,i:'Modérée',ex:['warm','sq','fe','pf','mo','ga']},
+2:{n:'Haut du corps + tronc',g:'Poussée et gainage',min:40,i:'Modérée',ex:['warm','pu','pi','su','sn','pl']},
+3:{n:'Course facile',g:'Endurance conversationnelle',min:35,i:'Facile',ex:['ru']},
+4:{n:'Vertical Power',g:'Détente et explosivité',min:45,i:'Soutenue',ex:['warm','po','cm','ap','ho','si','mo']},
+5:{n:'Haut du corps + tronc',g:'Poussée et contrôle du tronc',min:40,i:'Modérée',ex:['warm','pu','pi','su','db','pl']},
+6:{n:'Endurance facile',g:'Course 30 à 45 min',min:40,i:'Facile',ex:['ru']}};
+const MO=[['Adaptation et technique','Apprendre les mouvements, stabiliser les réceptions'],['Base de force','Augmenter progressivement les répétitions'],['Force unilatérale','Contrôle bassin et genoux'],['Consolidation','Volume réduit, technique, sommeil'],['Force et puissance','Mouvements plus rapides et propres'],['Bilan','Tests comparables, fatigue réduite'],['Approche et coordination','Course d’approche, bras, appuis'],['Développement et récupération','Intensité sans fatigue cumulée'],['Qualité des sauts','Essais proches du max, de qualité'],['Spécificité basket','Transfert vers le geste du dunk'],['Affûtage','Arriver frais et explosif'],['Bilan et test','Comparer les mesures, tester dans de bonnes conditions']];
+const DUNK=['Atteindre le cercle du bout des doigts','Toucher le cercle de façon répétable','Saisir le cercle si possible','Contrôler un ballon léger près du cercle','Contrôler un ballon intermédiaire','Timing avec ballon réglementaire','Dunk réglementaire avec contrôle','Dunk à deux mains'];
+const MEALS=[['Gruau, lait, banane et noix','Glucides + protéines pour démarrer'],['Poulet, riz et légumes','Un repas complet pour récupérer'],['Yogourt, céréales et fruit','Collation simple et digeste']];
+const month=()=>D.mo||Math.min(12,Math.floor((Date.now()-D.start)/(30.44*864e5))+1);
+const setsFor=(id,mode)=>{const e=E[id];let s=month()===1&&e.m1?e.m1:e.sets;if(mode==='light')s=Math.max(1,Math.round(s*.65));return s};
+function items(dw,mode){const p=P[dw];if(!p)return[];let ids=p.ex.filter(i=>!(mode==='light'&&E[i].t==='j'));if(p.ex[0]!=='ru')ids=[...ids,'cool'];return ids.map(id=>({id,sets:setsFor(id,mode)}))}
+
+/* ---- Moteur prudent : règles de sécurité codées ---- */
+function coach(){const t=day(),dw=new Date().getDay(),r=[...D.rec].reverse().find(x=>x.d===t);
+if(!P[dw])return{m:'rest',why:'Aujourd’hui, la récupération fait partie du programme. Un jour de repos prévu est une bonne journée.'};
+if(r&&(r.pain==='modérée'||r.pain==='importante'))return{m:'rest',pain:1,why:'Tu as signalé une douleur '+r.pain+'. Arrête l’activité concernée et parles-en à un adulte et à un professionnel de santé. Pas de séance intense aujourd’hui.'};
+if(r&&r.pain==='légère')return{m:'light',pain:1,why:'Douleur légère signalée : sauts retirés, volume réduit. Évite le mouvement qui gêne.'};
+if(r&&(r.fat>=4||r.en<=2)&&D.ov!==t)return{m:'light',why:'Fatigue élevée ou énergie basse signalée : séance allégée (sauts retirés, ~35 % de séries en moins). La séance complète reste disponible, à toi de choisir.'};
+return{m:'normal',why:r?'Récupération habituelle : séance prévue au programme.':'Séance prévue au programme. Fais ton check-in pour que je puisse l’adapter.'}}
+
+/* ---- Navigation ---- */
+const TABS=[['home','⌂','Home'],['train','🏋','Train'],['nut','🍽','Nutrition'],['pg','📈','Progress'],['pf','👤','Profile']];
+function go(t){T=t;$('#main').scrollTop=0;R()}
+function R(){if(!D.ob){$('#nav').innerHTML='';$('#main').innerHTML=onb();trDom($('#app'));return}$('#nav').innerHTML=TABS.map(x=>`<button class="${T===x[0]?'on':''}" onclick="go('${x[0]}')" aria-label="${x[2]}"><b>${x[1]}</b>${x[2]}</button>`).join('');
+$('#main').innerHTML=({home,train,nut,pg,pf})[T]();trDom($('#app'))}
+const chips=(arr,cur,fn)=>`<div class="chips">${arr.map(a=>`<button class="chip ${a[0]===cur?'on':''}" onclick="${fn}('${a[0]}')">${a[1]}</button>`).join('')}</div>`;
+
+/* ---- HOME ---- */
+function home(){const n=new Date(),dw=n.getDay(),c=coach(),p=P[dw],t=day(),w=D.water.filter(x=>x.d===t).reduce((a,x)=>a+x.ml,0),done=D.hist.some(h=>h.d===t),rc=D.rec.some(x=>x.d===t);
+const wk=Math.floor((Date.now()-D.start)/6048e5)+1,lj=[...D.jumps].reverse(),ls=D.sprints[D.sprints.length-1],lr=D.runs[D.runs.length-1];
+const jn=lj.find(x=>x.type==='sans'),ja=lj.find(x=>x.type==='appr');
+return`<div class="mu">${n.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})} · Semaine ${wk}</div>
+<h1>${n.getHours()<18?'Bonjour':'Bonsoir'} 👋</h1><div class="mu">Chaque effort te rapproche du dunk.</div>
+<div class="card" style="margin-top:14px"><div class="mu">ENTRAÎNEMENT DU JOUR</div>
+${p&&c.m!=='rest'?`<h3>${c.m==='light'?'Version légère · ':''}${p.n}</h3><div class="mu">${p.g}</div><div class="row mu" style="margin:8px 0">⏱ ${p.min} min · ${items(dw,c.m).length} blocs · ${p.i}</div>
+${D.play?`<button class="b p" onclick="go('train')">REPRENDRE LA SÉANCE</button>`:(c.pain?'':`<button class="b p" onclick="startS()">COMMENCER</button>`)}
+<button class="b" onclick="V.tr='sess';go('train')">DÉTAILS</button>`:`<h3>Rest &amp; Recovery</h3><div class="mu">${esc(c.why)}</div>`}
+<div class="mu" style="margin-top:8px">💡 ${esc(c.why)}</div></div>
+<h2>Tes objectifs du jour</h2><div class="g">
+<div class="card"><div class="mu">Entraînement</div><b class="${done?'ok':''}">${done?'✓ Terminé':p&&c.m!=='rest'?'Prévu':'Repos prévu ✓'}</b></div>
+<div class="card" onclick="go('nut')"><div class="mu">Hydratation</div><b>${(w/1000).toFixed(2).replace('.',',')} L</b></div>
+<div class="card" onclick="go('pf')"><div class="mu">Récupération</div><b>${rc?'✓ Check-in fait':'Check-in à faire'}</b></div>
+<div class="card" onclick="go('pg')"><div class="mu">Mesures</div><b>${D.jumps.length+D.sprints.length+D.runs.length} enregistrées</b></div></div>
+<h2>Aperçu des performances</h2><div class="card">
+<div class="li"><span>Détente sans élan</span><b>${jn?jn.h+' cm':'—'}</b></div>
+<div class="li"><span>Détente avec approche</span><b>${ja?ja.h+' cm':'—'}</b></div>
+<div class="li"><span>Dernier sprint</span><b>${ls?ls.dist+' m · '+ls.t.toFixed(2)+' s':'—'}</b></div>
+<div class="li"><span>Dernière course</span><b>${lr?lr.km+' km · '+mmss(lr.s/lr.km)+'/km':'—'}</b></div></div>
+<h2>Actions rapides</h2><div class="g"><button class="b" onclick="addW(250)">💧 +250 ml</button><button class="b" onclick="scan()">📷 Scanner un repas</button><button class="b" onclick="V.pg='jump';go('pg')">⬆ Enregistrer un saut</button><button class="b" onclick="V.pg='sprint';go('pg')">⚡ Enregistrer un sprint</button></div>
+<h2>Plan de jeu</h2><div class="card mu">• Suis la séance prévue si ta récupération est bonne : la qualité prime.<br>• Prépare un repas avec protéines, glucides, fruits/légumes et un peu de matières grasses : ils soutiennent ta croissance.<br>• Bois régulièrement selon ta soif et l’activité.<br>• Prévois un coucher assez tôt : 8 à 10 h aident la récupération.</div>`}
+
+/* ---- TRAIN ---- */
+function train(){if(D.play)return player();
+return`<h1>Entraînement</h1>`+chips([['sess','Séance'],['cal','Calendrier'],['mine','Mes séances'],['week','Semaine'],['plan','12 mois'],['lib','Exercices'],['his','Historique']],V.tr,'setTr')+({sess,cal,mine,week,plan,lib,his})[V.tr]()}
+const setTr=v=>{V.tr=v;R()};
+function exRow(id,s){const e=E[id];return`<div class="li" onclick="exInfo('${id}')"><div><b>${e.n}</b><div class="mu">${s?s+' × ':''}${e.reps}${s?' · repos '+e.rest+' s':''}</div></div><span class="mu">›</span></div>`}
+function sess(){const dw=new Date().getDay(),p=P[dw],c=coach();if(!p)return`<div class="card"><h3>Rest &amp; Recovery</h3><div class="mu">Repos complet. Marche légère facultative. Pas de pliométrie ni de séance intense.</div></div>`;
+const it=items(dw,c.m);
+return`<div class="card"><h3>${p.n}</h3><div class="mu">${p.g} · ${p.min} min · ${p.i}</div><div class="mu" style="margin-top:6px">💡 ${esc(c.why)}</div></div>
+<div class="card">${it.map(x=>exRow(x.id,x.sets)).join('')}</div>
+${c.pain&&c.m==='rest'?'<div class="card wa">Séance non proposée aujourd’hui à cause de la douleur signalée.</div>':`<button class="b p" onclick="startS()">▶ COMMENCER L’ENTRAÎNEMENT</button>`}
+${c.m==='light'&&!c.pain?`<button class="b" onclick="D.ov=day();save();R()">Choisir la version complète</button>`:''}
+<div class="mu">Sécurité : surface plane et non glissante. Pas de sauts maximaux tous les jours (48-72 h entre séances de pliométrie). À 16 ans, fais vérifier ta technique de saut par un adulte compétent ou un entraîneur.</div>`}
+function exInfo(id){const e=E[id];modal(`<h3>${e.n}</h3><div class="mu">${e.sets} × ${e.reps}${e.rest?' · repos '+e.rest+' s':''}</div>${anim(id)}<h2>Étapes</h2><div>${e.steps.map((s,i)=>`${i+1}. ${s}`).join('<br>')}</div>${e.tip?`<h2>Conseil</h2><div>${e.tip}</div>`:''}${e.easy?`<h2>Variante plus facile</h2><div>${e.easy}</div>`:''}${e.stop?`<h2>Arrête si</h2><div>${e.stop}</div>`:''}<div class="mu" style="margin-top:10px">Illustration générique : elle ne remplace pas un entraîneur.</div><button class="b" onclick="closeM()">Fermer</button>`)}
+function week(){const nm=['','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'],td=new Date().getDay()||7;
+return`<div class="card">${[1,2,3,4,5,6,7].map(d=>`<div class="li"><span><b ${d===td?'class=or':''}>${nm[d]}</b><div class="mu">${P[d%7]?P[d%7].n:'Repos complet'}</div></span><span class="tag">${P[d%7]?P[d%7].i:'Repos'}</span></div>`).join('')}</div><div class="mu">Aucune séance manquée ne se rattrape en doublant la suivante.</div>`}
+function plan(){const m=month();return`<div class="mu">Mois actuel : ${m} (modifiable dans Profile). Un dunk n’est jamais garanti à une date : le plan s’adapte à tes progrès réels.</div><div class="card" style="margin-top:8px">${MO.map((x,i)=>`<div class="li"><span><b ${i+1===m?'class=or':''}>Mois ${i+1} · ${x[0]}</b><div class="mu">${x[1]}</div></span></div>`).join('')}</div><div class="mu">Semaine allégée environ toutes les 4 semaines (−30 à 40 % de séries).</div>`}
+function lib(){return`<div class="card">${Object.keys(E).map(i=>exRow(i,0)).join('')}</div>`}
+function his(){if(!D.hist.length)return`<div class="card mu">Aucune séance enregistrée pour l’instant.</div>`;return`<div class="card">${[...D.hist].reverse().map(h=>`<div class="li"><span><b>${esc(h.title)}</b><div class="mu">${fr(h.d)} · ${h.dur} min · ${h.done.filter(x=>!x.skip).length} séries · difficulté ${h.rpe}/5${h.pain?' · gêne signalée':''}${h.note?'<br>“'+esc(h.note)+'”':''}</div></span><button class="chip" onclick="delH('${h.id}')">Suppr.</button></span></div>`).join('')}</div>`}
+function delH(id){if(confirm('Supprimer cette séance ?')){D.hist=D.hist.filter(h=>h.id!==id);save();R()}}
+
+/* ---- Lecteur de séance ---- */
+function startS(){if(D.play)return go('train');const dw=new Date().getDay(),c=coach();if(!P[dw]||c.m==='rest')return toast('Pas de séance prévue ou conseillée aujourd’hui.');
+D.play={id:uid(),title:P[dw].n+(c.m==='light'?' (légère)':''),items:items(dw,c.m),i:0,set:1,done:[],rest:null,t0:Date.now(),tap:0};save();go('train')}
+const defv=e=>parseInt(e.reps)||0;
+function player(){const p=D.play,it=p.items;if(p.i>=it.length)return fin();const x=it[p.i],e=E[x.id],tot=it.reduce((a,b)=>a+b.sets,0),dn=p.done.length;
+if(p.rest){const nx=p.set>1&&p.items[p.i]?E[x.id].n+' · série '+p.set:E[x.id].n;return`<div class="row sp"><b>${esc(p.title)}</b><span class="mu">${dn}/${tot}</span></div>
+<div class="ring"><svg width="220" height="220"><circle cx="110" cy="110" r="100" fill="none" stroke="#252D39" stroke-width="10"/><circle id="rg" cx="110" cy="110" r="100" fill="none" stroke="#FF7A1A" stroke-width="10" stroke-linecap="round" stroke-dasharray="628.3" stroke-dashoffset="0"/></svg><div><span class="big" id="tm">0:00</span><span class="mu" id="tl">Repos</span></div></div>
+<div class="g"><button class="b" onclick="addR(15)">+15 s</button><button class="b" onclick="addR(30)">+30 s</button></div>
+<button class="b" onclick="pauseR()" id="pb">${p.rest.paused?'▶ Reprendre':'⏸ Pause'}</button><button class="b p" onclick="endR(false)">PASSER LE REPOS</button>
+<div class="card"><div class="mu">Prochain</div><b>${esc(nx)}</b><div class="mu">${x.sets} × ${e.reps}</div></div><div class="mu">Si tu changes d’application, le temps est recalculé au retour. iOS peut suspendre la page : aucun réveil n’est garanti si l’app est fermée.</div>`}
+const unit=e.u==='s'?'secondes':'répétitions';
+return`<div class="row sp"><b>${esc(p.title)}</b><span class="mu">Exercice ${p.i+1}/${it.length}</span></div>
+<div class="card" style="margin-top:12px"><h1>${e.n}</h1><div class="mu">Série ${p.set}/${x.sets} · cible ${e.reps}${e.rest?' · repos '+e.rest+' s':''}</div>
+${anim(x.id)}<div style="margin:12px 0">${e.steps.map((s,i)=>`${i+1}. ${s}`).join('<br>')}</div>${e.tip?`<div class="mu">💡 ${e.tip}</div>`:''}${e.stop?`<div class="mu wa">Arrête si : ${e.stop}</div>`:''}</div>
+${e.t==='m'?'':`<label>${unit} réellement faites (modifiable)</label><input id="rp" type="number" inputmode="numeric" value="${defv(e)}">`}
+<button class="b p" onclick="doSet()">${e.t==='m'?'TERMINÉ':'SÉRIE TERMINÉE'}</button>
+<div class="g"><button class="b" onclick="skipEx()">Passer l’exercice</button><button class="b" onclick="exInfo('${x.id}')">Détails</button></div>
+<button class="b d" onclick="abort()">Abandonner la séance</button>`}
+function doSet(){const p=D.play;if(!p||Date.now()-p.tap<600)return;p.tap=Date.now();const x=p.items[p.i],e=E[x.id];
+const v=e.t==='m'?null:(num('#rp')??defv(e));if(v!==null&&v<0)return toast('Valeur invalide.');
+p.done.push({id:x.id,set:p.set,v});beep();let more=true;
+if(p.set<x.sets)p.set++;else{p.i++;p.set=1;more=p.i<p.items.length}
+if(more&&e.rest){p.rest={end:Date.now()+e.rest*1e3,total:e.rest,paused:false,left:e.rest}}save();toast('✓ Série enregistrée');R()}
+function skipEx(){const p=D.play,x=p.items[p.i];p.done.push({id:x.id,set:p.set,v:null,skip:true});p.i++;p.set=1;p.rest=null;save();R()}
+function addR(s){const r=D.play.rest;if(!r)return;r.total+=s;if(r.paused)r.left+=s;else r.end+=s*1e3;save();tick()}
+function pauseR(){const r=D.play.rest;if(r.paused){r.end=Date.now()+r.left*1e3;r.paused=false}else{r.left=Math.ceil((r.end-Date.now())/1e3);r.paused=true}save();R()}
+function endR(auto){D.play.rest=null;save();if(auto)beep();R()}
+function abort(){if(confirm('Abandonner la séance en cours ? Les séries enregistrées seront perdues.')){D.play=null;save();R()}}
+let lastT=Date.now();
+function tick(){const p=D.play,n=Date.now();if(n-lastT>3000&&p&&p.rest&&!p.rest.paused)toast('Le navigateur a pu suspendre l’application en arrière-plan. Vérifie le temps affiché.');lastT=n;
+if(!p||!p.rest||p.i>=p.items.length)return;const r=p.rest,l=r.paused?r.left:Math.ceil((r.end-n)/1e3);if(l<=0&&!r.paused)return endR(true);
+const tm=$('#tm');if(tm){tm.textContent=mmss(l);$('#rg').style.strokeDashoffset=628.3*(1-Math.max(0,l)/r.total)}}
+setInterval(tick,250);document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick()});
+function fin(){const p=D.play,mins=Math.max(1,Math.round((Date.now()-p.t0)/6e4)),ds=p.done.filter(x=>!x.skip).length,tot=p.items.reduce((a,b)=>a+b.sets,0);
+return`<h1>🏆 Bravo !</h1><div class="mu">Séance terminée. Ton résultat est prêt à être enregistré.</div>
+<div class="g" style="margin-top:12px"><div class="card"><div class="mu">Durée</div><b class="big">${mins}</b> min</div><div class="card"><div class="mu">Séries</div><b class="big">${ds}/${tot}</b></div></div>
+<label>Difficulté ressentie</label><select id="df">${[1,2,3,4,5].map(i=>`<option ${i===3?'selected':''}>${i}</option>`).join('')}</select>
+<label>Douleur ou gêne ?</label><select id="pn"><option value="">Non</option><option value="1">Oui, à signaler</option></select>
+<label>Note (facultative)</label><textarea id="nt" rows="3" placeholder="Comment te sens-tu après cette séance ?"></textarea>
+<button class="b p" onclick="saveW(${mins})">ENREGISTRER</button>`}
+function saveW(m){const p=D.play;if(!p||p.saved)return;p.saved=1;D.hist.push({id:p.id,d:day(),title:p.title,dur:m,done:p.done,rpe:+val('#df'),pain:!!val('#pn'),note:val('#nt')});D.play=null;save();toast('Séance sauvegardée. Prends le temps de récupérer.');R()}
+
+/* ---- NUTRITION ---- */
+function nut(){const t=day(),w=D.water.filter(x=>x.d===t),ml=w.reduce((a,x)=>a+x.ml,0),ms=D.meals.filter(m=>m.d===t);
+const sum=k=>ms.reduce((a,m)=>a+(m[k]||0),0),has=k=>ms.some(m=>m[k]!=null);
+return`<h1>Nutrition</h1><div class="mu">Manger suffisamment et régulièrement soutient ta croissance et ta récupération.</div>
+<button class="b p" onclick="scan()" style="margin-top:12px">📷 SCANNER UN REPAS</button><button class="b" onclick="mealForm()">＋ Ajouter un repas manuellement</button>
+<h2>Repas du jour</h2><div class="card">${ms.length?ms.map(m=>`<div class="li"><span><b>${esc(m.name)}</b> <span class="tag">${m.type}</span><div class="mu">${m.p!=null?'P '+m.p+' g ':''}${m.c!=null?'G '+m.c+' g ':''}${m.f!=null?'L '+m.f+' g ':''}${D.kcal&&m.k!=null?'· '+m.k+' kcal ':''}${m.p!=null||m.c!=null||m.f!=null?'(valeurs saisies, approximatives)':''}</div></span><button class="chip" onclick="delM('${m.id}')">Suppr.</button></div>`).join(''):'<span class="mu">Aucun repas enregistré. Un repas non saisi n’est pas un repas sauté.</span>'}</div>
+${ms.length?`<div class="mu">Total saisi aujourd’hui : ${has('p')?'protéines '+sum('p')+' g · ':''}${has('c')?'glucides '+sum('c')+' g · ':''}${has('f')?'lipides '+sum('f')+' g':''} — estimations, champs vides non comptés.</div>`:''}
+<h2>Hydratation</h2><div class="card"><div class="row"><div class="tank"><i style="height:${Math.min(100,ml/30)}%"></i></div><div><div class="big">${(ml/1000).toFixed(2).replace('.',',')} L</div><div class="mu">Bois régulièrement selon ta soif, la chaleur et l’activité. Repère visuel, pas un objectif.</div></div></div>
+<div class="g" style="margin-top:8px"><button class="b" onclick="addW(150)">+150 ml</button><button class="b" onclick="addW(250)">+250 ml</button><button class="b" onclick="addW(500)">+500 ml</button><button class="b" onclick="addW(0)">Autre…</button></div>
+${w.length?`<button class="b" onclick="undoW()">↶ Annuler la dernière (${w[w.length-1].ml} ml)</button>`:''}</div>
+<h2>Idées de repas</h2>${MEALS.map(m=>`<div class="card"><b>${m[0]}</b><div class="mu">${m[1]}. Idée, pas une prescription : adapte-la à tes goûts, allergies et à ce que tu as.</div></div>`).join('')}
+<div class="mu">Pour des besoins précis, parles-en à un parent/tuteur et à un diététiste du sport.</div>`}
+function addW(ml){if(!ml){ml=parseInt(prompt('Quantité en ml ?'));if(!(ml>0&&ml<=2000))return toast('Quantité invalide.')}D.water.push({id:uid(),d:day(),t:Date.now(),ml});save();toast('💧 +'+ml+' ml');R()}
+function undoW(){const t=day(),l=[...D.water].reverse().find(x=>x.d===t);if(l){D.water=D.water.filter(x=>x!==l);save();R()}}
+function mealForm(pre){modal(`<h3>Ajouter un repas</h3><label>Type</label><select id="mt">${['Breakfast','Lunch','Dinner','Snack','Autre'].map(x=>`<option>${x}</option>`).join('')}</select><label>Aliments / nom</label><input id="mn" value="${esc(pre||'')}" placeholder="Poulet, riz, brocoli">
+<div class="g"><div><label>Protéines (g)</label><input id="mp" type="number" inputmode="decimal"></div><div><label>Glucides (g)</label><input id="mc" type="number" inputmode="decimal"></div><div><label>Lipides (g)</label><input id="mf" type="number" inputmode="decimal"></div>${D.kcal?'<div><label>Calories (estimation)</label><input id="mk" type="number" inputmode="numeric"></div>':''}</div>
+<div class="mu">Tout est facultatif sauf le nom. Les valeurs sont des estimations.</div><button class="b p" onclick="addM()">AJOUTER AU JOURNAL</button><button class="b" onclick="closeM()">Annuler</button>`)}
+function addM(){const name=val('#mn');if(!name)return toast('Ajoute au moins un nom d’aliment.');const g=id=>$(id)&&$(id).value!==''?Math.max(0,num(id)):null;
+D.meals.push({id:uid(),d:day(),type:val('#mt'),name,p:g('#mp'),c:g('#mc'),f:g('#mf'),k:g('#mk')});save();closeM();toast('Repas ajouté');R()}
+function delM(id){if(confirm('Supprimer ce repas ?')){D.meals=D.meals.filter(m=>m.id!==id);save();R()}}
+/* ---- PROGRESS ---- */
+function pg(){return`<h1>Progress</h1>`+chips([['jump','Détente'],['sprint','Sprint'],['run','Course'],['rec','Records'],['dunk','Dunk']],V.pg,'setPg')+({jump,sprint,run,rec,dunk})[V.pg]()}
+const setPg=v=>{V.pg=v;R()};
+function chart(ss){const all=ss.flatMap(s=>s.p);if(!all.length)return'<div class="card mu">Aucune mesure pour l’instant.</div>';
+const xs=all.map(p=>p.x),ys=all.map(p=>p.y),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys)-2,y1=Math.max(...ys)+2,X=v=>x1===x0?160:30+(v-x0)/(x1-x0)*270,Y=v=>130-(v-y0)/(y1-y0)*110;
+return`<svg viewBox="0 0 320 150" class="ch" role="img" aria-label="Graphique des mesures">`+ss.map(s=>`<polyline fill="none" stroke="${s.c}" stroke-width="2" points="${s.p.map(p=>X(p.x)+','+Y(p.y)).join(' ')}"/>`+s.p.map(p=>`<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="4" fill="${s.c}"/>`).join('')).join('')+`<text x="2" y="16" class="sm">${Math.round(y1)}</text><text x="2" y="140" class="sm">${Math.round(y0)}</text></svg>`}
+const dx=d=>new Date(d+'T12:00').getTime();
+function listH(arr,fmt,key){return arr.length?`<div class="card">${[...arr].reverse().slice(0,15).map(x=>`<div class="li"><span>${fr(x.d)} · ${fmt(x)}</span><button class="chip" onclick="delX('${key}','${x.id}')">Suppr.</button></div>`).join('')}</div>`:''}
+function delX(k,id){if(confirm('Supprimer cette mesure ?')){D[k]=D[k].filter(x=>x.id!==id);save();R()}}
+function jump(){const a=D.jumps.filter(j=>j.type==='sans'),b=D.jumps.filter(j=>j.type==='appr'),l=D.jumps[D.jumps.length-1];
+return`<div class="card"><div class="mu">Dernière détente</div><div class="big or">${l?l.h+' cm':'—'}</div><div class="mu">${l?(l.type==='sans'?'sans élan':'avec approche')+' · '+fr(l.d)+' · '+esc(l.method):'Enregistre ton premier test.'}</div></div>
+${chart([{c:'#FF7A1A',p:a.map(j=>({x:dx(j.d),y:j.h}))},{c:'#42D392',p:b.map(j=>({x:dx(j.d),y:j.h}))}])}<div class="mu">● orange : sans élan · ● vert : avec approche (non reliés entre eux). Données réelles saisies.</div>
+<div class="card" style="margin-top:10px"><h3>Test de détente</h3><div class="mu">Échauffe-toi, fais 3 essais avec 60-90 s de repos, note le meilleur. Refais le test environ toutes les 4 semaines, même méthode.</div>
+<label>Atteinte debout (cm)</label><input id="jr" type="number" inputmode="decimal"><label>Point le plus haut touché (cm)</label><input id="jt" type="number" inputmode="decimal"><label>Type de saut</label><select id="jy"><option value="sans">Sans élan</option><option value="appr">Avec approche</option></select><label>Méthode</label><select id="jm"><option>Mur + craie/marque</option><option>Panneau/cercle</option><option>Autre</option></select>
+<button class="b p" onclick="addJ()">ENREGISTRER</button></div>${listH(D.jumps,j=>j.h+' cm · '+(j.type==='sans'?'sans élan':'approche'),'jumps')}`}
+function addJ(){const r=num('#jr'),t=num('#jt');if(r==null||t==null||r<=0||t<=r)return toast('Vérifie les valeurs : le point touché doit être supérieur à l’atteinte debout.');
+const h=Math.round((t-r)*10)/10,ty=val('#jy'),m=val('#jm'),pr=Math.max(0,...D.jumps.filter(j=>j.type===ty&&j.method===m).map(j=>j.h));
+D.jumps.push({id:uid(),d:day(),reach:r,touch:t,h,type:ty,method:m});save();(h>pr&&pr>0&&confetti(),toast(h>pr&&pr>0?'Nouveau record enregistré. Belle progression !':'Ton résultat est enregistré.'));R()}
+function sprint(){const ds=[10,20,30,40],f=window.sd||20,l=D.sprints.filter(s=>s.dist===f);
+return`${chips(ds.map(d=>[d,d+' m']),f,'setSd')}${chart([{c:'#FF7A1A',p:l.map(s=>({x:dx(s.d),y:s.t}))}])}<div class="mu">Un temps plus bas = temps amélioré. Un chrono manuel n’est pas comparé à un chrono électronique.</div>
+<div class="card" style="margin-top:10px"><h3>Enregistrer un sprint ${f} m</h3><div class="mu">Surface plane et dégagée, échauffement complet, repos complet entre répétitions. Arrête si douleur.</div><label>Temps (secondes)</label><input id="st" type="number" inputmode="decimal" step="0.01"><label>Méthode de chronométrage</label><select id="sm"><option>Manuel (téléphone)</option><option>Manuel (personne)</option><option>Électronique</option><option>Vidéo</option></select><label>Surface</label><input id="ss" placeholder="Terrain, piste, herbe…"><button class="b p" onclick="addS(${f})">ENREGISTRER</button></div>${listH(l,s=>s.t.toFixed(2)+' s · '+esc(s.method),'sprints')}`}
+const setSd=v=>{window.sd=+v;R()};
+function addS(d){const t=num('#st');if(!(t>0&&t<30))return toast('Temps invalide.');const m=val('#sm'),pr=Math.min(1e9,...D.sprints.filter(s=>s.dist===d&&s.method===m).map(s=>s.t));
+D.sprints.push({id:uid(),d:day(),dist:d,t,method:m,surf:val('#ss')});save();(t<pr&&pr<1e9&&confetti(),toast(t<pr&&pr<1e9?'Nouveau record enregistré (temps amélioré) !':'Ton résultat est enregistré.'));R()}
+function run(){return`${gpsCard()}${chart([{c:'#FF7A1A',p:D.runs.map(r=>({x:dx(r.d),y:Math.round(r.s/r.km)}))}])}<div class="mu">Allure moyenne en secondes/km (plus bas = plus rapide). Compare des courses similaires.</div>
+<div class="card" style="margin-top:10px"><h3>Enregistrer une course</h3><label>Distance</label><select id="rk"><option>1</option><option>3</option><option selected>5</option><option>10</option><option value="0">Autre</option></select><input id="rc" type="number" inputmode="decimal" placeholder="Si autre : distance en km"><div class="g"><div><label>Minutes</label><input id="rm" type="number" inputmode="numeric"></div><div><label>Secondes</label><input id="rs" type="number" inputmode="numeric" value="0"></div></div>
+<label>Type</label><select id="rt"><option>Facile</option><option>Récupération</option><option>Sortie longue</option><option>Autre</option></select><button class="b p" onclick="addR2()">ENREGISTRER</button><div class="mu">Pas de suivi GPS dans cette version : saisie manuelle.</div></div>${listH(D.runs,r=>r.km+' km · '+mmss(r.s)+' · '+mmss(r.s/r.km)+'/km','runs')}`}
+function addR2(){let km=+val('#rk');const std=km>0;if(!std)km=num('#rc');const s=(num('#rm')||0)*60+(num('#rs')||0);if(!(km>0&&s>0))return toast('Distance ou durée invalide.');
+D.runs.push({id:uid(),d:day(),km,s,std,type:val('#rt')});save();toast('Course enregistrée.');R()}
+function rec(){const b=(arr,f)=>arr.length?f(arr):null,best=(ty)=>b(D.jumps.filter(j=>j.type===ty),a=>a.reduce((m,x)=>x.h>m.h?x:m));
+const R2=[['Saut sans élan',best('sans'),j=>j.h+' cm · '+esc(j.method)],['Saut avec approche',best('appr'),j=>j.h+' cm · '+esc(j.method)]];
+[10,20,30,40].forEach(d=>{[...new Set(D.sprints.filter(s=>s.dist===d).map(s=>s.method))].forEach(m=>R2.push(['Sprint '+d+' m',D.sprints.filter(s=>s.dist===d&&s.method===m).reduce((a,x)=>x.t<a.t?x:a),s=>s.t.toFixed(2)+' s · '+esc(s.method)]))});
+[5,10].forEach(k=>R2.push([k+' km',b(D.runs.filter(r=>r.std&&r.km===k),a=>a.reduce((m,x)=>x.s<m.s?x:m)),r=>mmss(r.s)]));
+const pu=D.hist.flatMap(h=>h.done.filter(x=>x.id==='pu'&&x.v!=null).map(x=>({d:h.d,v:x.v})));R2.push(['Pompes propres (max série)',b(pu,a=>a.reduce((m,x)=>x.v>m.v?x:m)),x=>x.v+' rép.']);
+return`<div class="card">${R2.map(r=>`<div class="li"><span>${r[0]}</span><span>${r[1]?`<b>${r[2](r[1])}</b> <span class="mu">${fr(r[1].d)}</span>`:'—'}</span></div>`).join('')}</div><div class="mu">Chaque record garde sa date et sa méthode ; des méthodes différentes ne sont pas comparées entre elles.</div>
+<h2>Badges</h2><div class="card">${[['First Workout',D.hist.length>=1],['10 Workouts',D.hist.length>=10],['First Jump Test',D.jumps.length>=1],['First Sprint Logged',D.sprints.length>=1],['First 5K Logged',D.runs.some(r=>r.std&&r.km===5)],['First 10K Logged',D.runs.some(r=>r.std&&r.km===10)],['Hydration Habit',new Set(D.water.map(w=>w.d)).size>=7]].map(x=>`<div class="li"><span>${x[0]}</span><span class="${x[1]?'ok':'mu'}">${x[1]?'✓ Obtenu':'À venir'}</span></div>`).join('')}</div>`}
+function dunk(){D.dk=D.dk||0;return`<div class="card"><h3>Progression vers le dunk</h3><div class="mu">Tu confirmes toi-même chaque étape. Aucune date garantie.</div></div><div class="card">${DUNK.map((s,i)=>`<div class="li"><span>${i+1}. ${s}</span>${i<D.dk?'<b class="ok">✓</b>':i===D.dk?`<button class="chip" onclick="D.dk++;save();toast('Étape confirmée.');R()">Valider</button>`:''}</div>`).join('')}</div>${D.dk?'<button class="b" onclick="if(confirm(\'Annuler la dernière étape ?\')){D.dk--;save();R()}">↶ Annuler la dernière étape</button>':''}`}
+
+/* ---- PROFILE ---- */
+function pf(){const t=day(),sv=D.saved?new Date(D.saved).toLocaleString('fr-FR'):'—';
+return`<h1>Profil</h1>
+<div class="card"><h3>Check-in récupération</h3><div class="mu">Moins d’une minute. Ce sont des ressentis, pas des diagnostics.</div><label>Sommeil (heures)</label><input id="rs1" type="number" inputmode="decimal" step="0.5"><div class="g"><div><label>Énergie (1-5)</label><select id="re">${[1,2,3,4,5].map(i=>`<option ${i===3?'selected':''}>${i}</option>`).join('')}</select></div><div><label>Fatigue musculaire (1-5)</label><select id="rf">${[1,2,3,4,5].map(i=>`<option ${i===3?'selected':''}>${i}</option>`).join('')}</select></div></div>
+<label>Douleur ou gêne</label><select id="rp1"><option>aucune</option><option>légère</option><option>modérée</option><option>importante</option></select><label>Commentaire</label><input id="rn"><button class="b p" onclick="addRec()">ENREGISTRER</button>
+${D.rec.some(x=>x.d===t)?'<div class="mu ok">✓ Check-in du jour fait</div>':''}</div>
+<div class="card"><h3>Profil</h3><label>Âge</label><input id="pa" type="number" inputmode="numeric" value="${D.prof.age}"><label>Taille (cm, facultatif)</label><input id="ph" type="number" inputmode="numeric" value="${D.prof.h}"><label>Poids (kg, facultatif — jamais affiché ailleurs)</label><input id="pw" type="number" inputmode="decimal" value="${D.prof.w}"><label>Mois du programme (1-12)</label><input id="pm" type="number" inputmode="numeric" value="${month()}"><button class="b" onclick="saveP()">Enregistrer le profil</button></div>
+<div class="card"><div class="li"><span>Sons et vibration (app ouverte)</span><input type="checkbox" style="width:auto" ${D.snd?'checked':''} onchange="D.snd=this.checked;save()"></div><div class="li"><span>Confettis pour les records</span><input type="checkbox" style="width:auto" ${D.nocf?'':'checked'} onchange="D.nocf=!this.checked;save()"></div><div class="li"><span>Afficher le suivi des calories (facultatif)</span><input type="checkbox" style="width:auto" ${D.kcal?'checked':''} onchange="D.kcal=this.checked;save()"></div></div>
+<div class="card"><h3>Langue / Language</h3><select id="lg" onchange="D.lang=this.value;save();R()"><option value="fr" ${D.lang==='en'?'':'selected'}>Français</option><option value="en" ${D.lang==='en'?'selected':''}>English (partiel)</option></select><div class="mu">English : libellés des écrans principaux seulement. Messages, exercices et textes longs restent en français.</div></div>
+<div class="card"><h3>Rappels</h3><div class="mu">Actifs seulement quand l’app est ouverte : iOS ne garantit aucune alarme si elle est fermée ou suspendue.</div>${rm().map((r,i)=>`<div class="li"><span>${r.n}<br><input type="time" value="${r.t}" style="width:130px" onchange="rmTime(${i},this.value)"></span><input type="checkbox" style="width:auto" ${r.on?'checked':''} onchange="rmSet(${i},this.checked)"></div>`).join('')}</div>
+<div class="card"><h3>Notifications push (serveur requis)</h3><div class="mu">Pour un rappel app fermée : ton propre serveur (backend-push-example.js) et l’app installée sur l’écran d’accueil (iOS 16.4+). L’heure exacte n’est pas garantie.</div>${D.push?'<div class="ok mu">✓ Activé</div><button class="b d" onclick="pushOff()">Désactiver</button>':'<input id="pu" type="url" placeholder="URL du serveur"><input id="pk" placeholder="Clé publique VAPID"><button class="b" onclick="pushOn()">Activer</button>'}</div>
+<div class="card"><h3>Service de scan (facultatif)</h3><div class="mu">URL de ton propre serveur (voir backend-example.js). Aucune clé API dans l’app.</div><input id="su" type="url" value="${esc(D.scanUrl)}" placeholder="https://…/recognize"><button class="b" onclick="try{D.scanUrl=val('#su')?new URL(val('#su')).href:'';save();toast('Enregistré')}catch(e){toast('URL invalide')}">Enregistrer</button></div>
+<div class="card"><h3>Données</h3><div class="mu">Stockées uniquement sur cet appareil (${IDB?'IndexedDB':'localStorage de secours'}). Dernière sauvegarde locale : ${sv}. Aucune sauvegarde cloud.</div><button class="b" onclick="exp()">Exporter (JSON)</button><label class="b" style="display:flex;align-items:center;justify-content:center">Importer (JSON)<input type="file" accept="application/json" style="display:none" onchange="imp(this)"></label><button class="b d" onclick="wipe()">Supprimer toutes mes données</button></div>
+<div class="card"><h3>Limites de cette version</h3><div class="mu">Le scan IA et le push exigent ton propre serveur. Anglais partiel. Animations génériques, pas d’analyse de posture. Sur iPhone, une page web ne peut pas garantir un son ou une alarme si l’app est fermée ou suspendue. Ne remplace pas un entraîneur ni un professionnel de santé : en cas de douleur vive ou persistante, arrête et demande conseil.</div></div><div class="mu" style="text-align:center">PROJECT VERTICAL v0.1</div>`}
+function addRec(){const s=num('#rs1');D.rec.push({id:uid(),d:day(),sleep:s,en:+val('#re'),fat:+val('#rf'),pain:val('#rp1'),note:val('#rn')});save();toast('Check-in enregistré.');R()}
+function saveP(){const a=num('#pa'),m=num('#pm');if(!(a>=10&&a<=99))return toast('Âge invalide.');D.prof={age:a,h:val('#ph'),w:val('#pw')};if(m>=1&&m<=12)D.mo=Math.round(m);save();toast('Profil enregistré.');R()}
+function exp(){const b=new Blob([JSON.stringify({...D,exportedAt:new Date().toISOString(),units:'cm,s,km,ml'},null,1)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='project-vertical-'+day()+'.json';a.click()}
+function imp(i){const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const j=JSON.parse(r.result);if(j.v!==1||!['hist','water','meals','jumps','sprints','runs','rec'].every(k=>Array.isArray(j[k])))throw 0;
+if(!confirm('Remplacer tes données actuelles par ce fichier ('+j.hist.length+' séances, '+j.jumps.length+' sauts, '+j.meals.length+' repas) ? Une copie de sécurité sera téléchargée.'))return;exp();D=j;save();toast('Import terminé.');R()}catch(e){toast('Fichier invalide ou version incompatible.')}};r.readAsText(f)}
+function wipe(){if(confirm('Supprimer définitivement TOUTES tes données ?')&&confirm('Dernière confirmation : cette action est irréversible.')){localStorage.removeItem(K);D=load();save();T='home';R()}}
+/* ---- Animations génériques ---- */
+function anim(id){const k={sq:'sq',fe:'sq',si:'sq',po:'jp',cm:'jp',ap:'jp',ho:'jp',pu:'pu',pi:'pu',ga:'co',pl:'co',db:'co',su:'co',sn:'co',pf:'co',mo:'rs',warm:'rn',ru:'rn',cool:'br'}[id];if(!k)return'';
+return`<div style="text-align:center"><svg viewBox="0 0 120 120" width="120" height="120" class="an an-${k}" onclick="this.classList.toggle('ps')" role="img" aria-label="Illustration du mouvement"><g class="fg"><circle cx="60" cy="26" r="9"/><path d="M60 35V72M60 45L44 62M60 45L76 62M60 72L48 100M60 72L72 100"/></g></svg><div class="mu">Illustration générique · touche pour pause</div></div>`}
+/* ---- Onboarding ---- */
+function onb(){const s=D.obs||0;
+if(s===0)return`<div style="text-align:center;padding-top:14vh"><h1 class="or" style="font-size:30px">PROJECT VERTICAL</h1><h1>BUILD YOUR NEXT LEVEL.</h1><p class="mu">Ton entraînement, ton alimentation et tes progrès au même endroit.</p><button class="b p" onclick="D.obs=1;R()">COMMENCER</button><button class="b" onclick="D.ob=1;save();R()">Passer</button></div>`;
+if(s===1)return`<h1>Ton profil</h1><div class="mu">Tout est facultatif sauf l’âge.</div><label>Âge</label><input id="oa" type="number" inputmode="numeric" value="${D.prof.age}"><label>Taille (cm)</label><input id="oh" type="number" inputmode="numeric"><label>Poids (kg)</label><input id="ow" type="number" inputmode="decimal"><label>Douleur ou blessure actuelle ?</label><select id="ob1"><option>aucune</option><option>légère</option><option>modérée</option><option>importante</option></select><div class="mu">En cas de douleur, l’app n’impose aucune séance intense.</div><button class="b p" onclick="obNext()">SUIVANT</button>`;
+return`<h1>Avant de commencer</h1><div class="card mu">• Tes données restent sur cet appareil.<br>• Installation iPhone : Safari › Partager › Sur l’écran d’accueil.<br>• Rappels : à activer dans Profile ; la permission n’est demandée qu’à ce moment, et iOS ne garantit aucune alarme app fermée.<br>• Caméra : demandée uniquement dans le scanner de repas.<br>• Ni régime, ni pression : la récupération et les repas suffisants comptent autant que l’entraînement.</div><button class="b p" onclick="D.ob=1;save();R()">TERMINER</button>`}
+function obNext(){const a=num('#oa');if(!(a>=10&&a<=99))return toast('Âge invalide.');D.prof={age:a,h:val('#oh'),w:val('#ow')};const p=val('#ob1');if(p!=='aucune')D.rec.push({id:uid(),d:day(),sleep:null,en:3,fat:3,pain:p,note:'Onboarding'});D.obs=2;save();R()}
+/* ---- Rappels (app ouverte) ---- */
+const RM0=[{k:'train',n:'Entraînement',t:'17:00',on:0,m:'Ta séance du jour est prête. Consulte ton échauffement avant de commencer.'},{k:'water',n:'Hydratation',t:'11:00',on:0,m:'Petite pause : pense à boire si tu as soif.'},{k:'sleep',n:'Coucher',t:'21:30',on:0,m:'Prépare ton sommeil : une bonne nuit aide la récupération.'}];
+const rm=()=>D.rm=D.rm||JSON.parse(JSON.stringify(RM0));
+async function rmSet(i,on){rm()[i].on=on;if(on&&'Notification' in window&&Notification.permission==='default'){try{await Notification.requestPermission()}catch(e){}}save();if(on)toast('Rappel actif tant que l’app est ouverte.')}
+function rmTime(i,v){rm()[i].t=v;save()}
+setInterval(()=>{const n=new Date(),hm=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'),t=day();rm().forEach(r=>{D.rl=D.rl||{};if(!r.on||r.t!==hm||D.rl[r.k]===t+hm)return;if(r.k==='train'&&(!P[n.getDay()]||D.hist.some(h=>h.d===t)))return;D.rl[r.k]=t+hm;toast('🔔 '+r.m);beep();try{if(Notification.permission==='granted')new Notification('PROJECT VERTICAL',{body:r.m})}catch(e){}})},20000);
+/* ---- Scanner (backend facultatif) ---- */
+let PH=null,SC=[];
+function scan(){PH=null;modal(`<h3>Scanner un repas</h3><div class="card mu">${D.scanUrl?'Un service d’analyse est configuré. La photo n’est envoyée qu’après ton accord, et n’est pas conservée par l’app.':'<b class="wa">Aucun service de reconnaissance configuré</b> (Profile › Service de scan). La photo reste sur ton appareil et n’est pas analysée.'}</div><input id="ph" type="file" accept="image/*" capture="environment" onchange="phSel(this)"><div id="pv"></div><div id="sr"></div><button class="b p" onclick="closeM();mealForm()">Saisir manuellement</button><button class="b" onclick="closeM()">Fermer</button>`)}
+function phSel(i){const f=i.files[0];if(!f)return;PH=f;$('#pv').innerHTML=`<img src="${URL.createObjectURL(f)}" alt="Photo du repas" style="width:100%;border-radius:12px">`+(D.scanUrl?`<label style="display:flex;gap:8px;align-items:center"><input id="cs" type="checkbox" style="width:auto"> J’accepte d’envoyer cette photo à ${esc(new URL(D.scanUrl).host)}.</label><button class="b p" onclick="analyse()">ANALYSER</button>`:'<div class="mu">Photo non enregistrée.</div>')}
+async function analyse(){if(!$('#cs').checked)return toast('Coche ton accord pour envoyer la photo.');if(!navigator.onLine)return toast('Tu es hors ligne. Le scan reprendra avec la connexion ; la saisie manuelle reste disponible.');
+$('#sr').innerHTML='<div class="card mu">Analyse en cours…</div>';
+try{const im=await createImageBitmap(PH),k=Math.min(1,1024/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+const r=await fetch(D.scanUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:c.toDataURL('image/jpeg',.8),lang:'fr',consent:true})});if(!r.ok)throw 0;const j=await r.json();if(!Array.isArray(j.items)||!j.items.length)throw 1;
+SC=j.items.slice(0,10).map(x=>({name:String(x.name||'?'),g:+x.g||0,g0:+x.g||0,p:x.p,c:x.c,f:x.f,k:x.k,b:{p:x.p,c:x.c,f:x.f,k:x.k}}));scList()}catch(e){$('#sr').innerHTML=`<div class="card wa">${e===1?'Certains aliments sont difficiles à identifier. Reprends la photo ou saisis ton repas manuellement.':'Le service est indisponible. Réessaie ou ajoute ton repas manuellement.'}</div>`}}
+function scG(i,v){const x=SC[i];x.g=+v;if(x.g0>0)['p','c','f','k'].forEach(k=>x.b[k]!=null&&(x[k]=Math.round(x.b[k]*x.g/x.g0*10)/10));scList()}
+function scList(){$('#sr').innerHTML=`<h2>Aliments possibles — à confirmer</h2>`+SC.map((x,i)=>`<div class="card"><input value="${esc(x.name)}" onchange="SC[${i}].name=this.value"><div class="mu">Identification probable · portion estimée (g)</div><input type="number" inputmode="numeric" value="${x.g||''}" onchange="scG(${i},this.value)"><div class="mu">${x.p!=null?'P '+x.p+' g ':''}${x.c!=null?'G '+x.c+' g ':''}${x.f!=null?'L '+x.f+' g':''} (estimation)</div><button class="chip" onclick="SC.splice(${i},1);scList()">Retirer</button></div>`).join('')+`<div class="mu">Une photo ne donne ni le poids exact, ni l’huile, ni les ingrédients cachés : corrige avant d’enregistrer.</div><button class="b p" onclick="scOk()">AJOUTER AU JOURNAL</button>`}
+function scOk(){if(!SC.length)return;const s=k=>SC.some(x=>x[k]!=null)?Math.round(SC.reduce((a,x)=>a+(+x[k]||0),0)):null;D.meals.push({id:uid(),d:day(),type:'Autre',name:SC.map(x=>x.name).join(', ')+' (scan, estimé)',p:s('p'),c:s('c'),f:s('f'),k:s('k')});save();closeM();toast('Repas ajouté (estimation)');R()}
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+/* ---- Calendrier ---- */
+function cal(){const n=new Date(),b=new Date(n.getFullYear(),n.getMonth()+(V.cm||0),1),y=b.getFullYear(),m=b.getMonth(),len=new Date(y,m+1,0).getDate(),off=(b.getDay()+6)%7,td=day();let c='';for(let i=0;i<off;i++)c+='<div></div>';
+for(let d=1;d<=len;d++){const dt=new Date(y,m,d),k=day(dt),dn=D.hist.some(h=>h.d===k),pl=P[dt.getDay()];c+=`<button class="cd ${k===td?'on':''}" onclick="dayInfo('${k}')" aria-label="${k}">${d}<small>${dn?'✓':pl?'•':'R'}</small></button>`}
+return`<div class="row sp"><button class="chip" onclick="V.cm=(V.cm||0)-1;R()" aria-label="Mois précédent">‹</button><b>${b.toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</b><button class="chip" onclick="V.cm=(V.cm||0)+1;R()" aria-label="Mois suivant">›</button></div><div class="cg">${['L','M','M','J','V','S','D'].map(x=>`<small class="mu">${x}</small>`).join('')}${c}</div><div class="mu">✓ séance terminée · • séance prévue · R repos prévu (un repos prévu est une bonne journée).</div>`}
+function dayInfo(k){const dt=new Date(k+'T12:00'),p=P[dt.getDay()],f=a=>a.filter(x=>x.d===k);
+modal(`<h3>${dt.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</h3><div class="mu">Prévu : ${p?p.n:'Repos complet'}</div>${f(D.hist).map(x=>`<div class="li"><span>✓ ${esc(x.title)}<div class="mu">${x.dur} min · difficulté ${x.rpe}/5${x.note?' · “'+esc(x.note)+'”':''}</div></span></div>`).join('')}<div class="mu" style="margin-top:8px">Journal : ${f(D.meals).length} repas · ${f(D.water).reduce((a,x)=>a+x.ml,0)} ml · ${f(D.jumps).length} sauts · ${f(D.sprints).length} sprints · ${f(D.runs).length} courses · ${f(D.rec).length} check-in</div><button class="b" onclick="closeM()">Fermer</button>`)}
+/* ---- Séances personnelles ---- */
+function mine(){const cs=D.cs=D.cs||[];return`<button class="b p" onclick="csForm()">＋ Créer une séance</button>`+(cs.length?cs.map(s=>`<div class="card"><h3>${esc(s.name)}</h3><div class="mu">${s.ex.map(x=>E[x.id].n+' ×'+x.sets).join(' · ')}</div><button class="b p" onclick="startC('${s.id}')">▶ Démarrer</button><div class="g"><button class="b" onclick="csDup('${s.id}')">Dupliquer</button><button class="b d" onclick="csDel('${s.id}')">Suppr.</button></div></div>`).join(''):'<div class="card mu">Aucune séance personnelle. Elles gardent les mêmes règles de sécurité (douleur, repos du dimanche).</div>')}
+function csForm(){modal(`<h3>Nouvelle séance</h3><label>Nom</label><input id="cn"><div class="mu">Coche les exercices et règle les séries.</div>${Object.keys(E).map(i=>`<div class="li"><label style="display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" id="c_${i}" style="width:auto;margin:0">${E[i].n}</label><input id="s_${i}" type="number" inputmode="numeric" value="${E[i].sets}" style="width:64px;margin:0" aria-label="Séries"></div>`).join('')}<button class="b p" onclick="csSave()">ENREGISTRER</button><button class="b" onclick="closeM()">Annuler</button>`)}
+function csSave(){const name=val('#cn'),ex=Object.keys(E).filter(i=>$('#c_'+i).checked).map(i=>({id:i,sets:Math.min(8,Math.max(1,parseInt($('#s_'+i).value)||1))}));if(!name||!ex.length)return toast('Ajoute un nom et au moins un exercice.');
+const ct=ex.filter(x=>E[x.id].t==='j').reduce((a,x)=>a+x.sets*(parseInt(E[x.id].reps)||0),0);if(ct>35&&!confirm('Cette séance contient environ '+ct+' contacts de saut. 20 à 35 contacts de qualité sont recommandés au début. Enregistrer quand même ?'))return;
+D.cs.push({id:uid(),name,ex});save();closeM();R()}
+function csDup(id){const s=D.cs.find(x=>x.id===id);D.cs.push({id:uid(),name:s.name+' (copie)',ex:JSON.parse(JSON.stringify(s.ex))});save();R()}
+function csDel(id){if(confirm('Supprimer cette séance ?')){D.cs=D.cs.filter(x=>x.id!==id);save();R()}}
+function startC(id){if(D.play)return go('train');const s=D.cs.find(x=>x.id===id),c=coach();if(c.pain&&c.m==='rest')return toast('Douleur signalée : pas de séance aujourd’hui. Parles-en à un adulte.');
+let it=s.ex.map(x=>({id:x.id,sets:x.sets}));if(c.pain||new Date().getDay()===0)it=it.filter(x=>E[x.id].t!=='j');if(!it.length)return toast('Rien à faire en version prudente aujourd’hui.');
+D.play={id:uid(),title:s.name,items:it,i:0,set:1,done:[],rest:null,t0:Date.now(),tap:0};save();go('train')}
+/* ---- Confettis légers (désactivables) ---- */
+function confetti(){if(D.nocf||matchMedia('(prefers-reduced-motion:reduce)').matches)return;for(let i=0;i<22;i++){const e=document.createElement('i');e.className='cf';e.style.cssText=`left:${Math.random()*100}vw;background:${['#FF7A1A','#FF9B45','#42D392','#F5C451'][i%4]};animation-delay:${Math.random()*.4}s`;document.body.appendChild(e);setTimeout(()=>e.remove(),2200)}}
+
+/* ---- Course GPS (opt-in, app ouverte) ---- */
+let G=null,gw=null,wl=null;
+const hav=(a,b)=>{const r=Math.PI/180,x=(b.lat-a.lat)*r,y=(b.lon-a.lon)*r,h=Math.sin(x/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(y/2)**2;return 12742000*Math.asin(Math.sqrt(h))};
+const gEl=()=>G?G.acc+(G.paused?0:(Date.now()-G.t0)/1e3):0;
+function gpsCard(){if(!G)return`<div class="card"><h3>Course avec GPS</h3><div class="mu">La position n’est demandée que lorsque tu appuies sur Démarrer. Elle sert seulement pendant la course et n’est ni envoyée ni conservée : seules la distance et la durée sont enregistrées. Garde l’app ouverte (iOS peut suspendre le suivi en arrière-plan). Les courses GPS ne comptent pas pour les records 5/10 km.</div><button class="b p" onclick="gStart()">▶ Démarrer</button></div>`;
+return`<div class="card"><div class="row sp"><div><div class="mu">Durée</div><div class="big" id="gt">0:00</div></div><div><div class="mu">Distance (km)</div><div class="big" id="gd">0,00</div></div></div><div class="mu" id="gp">Allure : —</div><div class="mu" id="gs">${esc(G.msg)}</div><button class="b" onclick="gPause()">${G.paused?'▶ Reprendre':'⏸ Pause'}</button><button class="b p" onclick="gStop()">TERMINER</button></div>`}
+function gStart(){if(!navigator.geolocation)return toast('La géolocalisation n’est pas disponible. Saisis ta course manuellement.');G={t0:Date.now(),acc:0,paused:false,d:0,last:null,msg:'Recherche du signal…'};
+gw=navigator.geolocation.watchPosition(gPos,gErr,{enableHighAccuracy:true,maximumAge:2000});try{navigator.wakeLock&&navigator.wakeLock.request('screen').then(l=>wl=l).catch(()=>{})}catch(e){}R()}
+function gPos(p){if(!G||G.paused)return;const c=p.coords;if(c.accuracy>40){G.msg='Signal imprécis…';return}const pt={lat:c.latitude,lon:c.longitude};
+if(!G.last)G.last=pt;else{const d=hav(G.last,pt);if(d>=100)G.last=pt;else if(d>3){G.d+=d;G.last=pt}}G.msg='GPS actif'}
+function gErr(e){const m=e.code===1?'La localisation n’est pas autorisée. Tu peux saisir ta course manuellement.':'Signal GPS indisponible pour le moment.';if(e.code===1){gClean();R()}else if(G)G.msg=m;toast(m)}
+function gClean(){if(gw!=null)navigator.geolocation.clearWatch(gw);gw=null;try{wl&&wl.release()}catch(e){}wl=null;G=null}
+function gPause(){if(G.paused){G.t0=Date.now();G.paused=false}else{G.acc=gEl();G.paused=true}R()}
+function gStop(){const s=gEl(),km=G.d/1000;gClean();if(km<.1||s<30)toast('Course trop courte pour être enregistrée.');
+else if(confirm('Enregistrer '+km.toFixed(2)+' km en '+mmss(s)+' ? (distance GPS approximative)')){D.runs.push({id:uid(),d:day(),km:Math.round(km*100)/100,s:Math.round(s),std:false,type:'Facile',src:'GPS'});save();toast('Course enregistrée.')}R()}
+setInterval(()=>{if(!G)return;const s=gEl(),km=G.d/1000,t=$('#gt');if(!t)return;t.textContent=mmss(s);$('#gd').textContent=km.toFixed(2).replace('.',',');$('#gp').textContent=km>.05?'Allure : '+mmss(s/km)+' /km':'Allure : —'},1000);
+
+/* ---- Stockage IndexedDB (migration depuis localStorage) ---- */
+let IDB=null;
+const idbOpen=()=>new Promise((ok,ko)=>{try{const r=indexedDB.open('project-vertical',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error);r.onblocked=()=>ko('blocked')}catch(e){ko(e)}});
+const idbGet=()=>new Promise((ok,ko)=>{const q=IDB.transaction('kv').objectStore('kv').get('D');q.onsuccess=()=>ok(q.result);q.onerror=()=>ko(q.error)});
+const idbPut=()=>new Promise((ok,ko)=>{const t=IDB.transaction('kv','readwrite');t.objectStore('kv').put(D,'D');t.oncomplete=ok;t.onerror=t.onabort=()=>ko(t.error)});
+function fixD(){['hist','water','meals','jumps','sprints','runs','rec'].forEach(k=>{if(!Array.isArray(D[k]))D[k]=[]});D.prof=D.prof||{age:16,h:'',w:''}}
+async function boot(){$('#main').innerHTML='<div style="text-align:center;padding-top:30vh"><h1 class="or">PROJECT VERTICAL</h1><div class="mu">Chargement…</div></div>';
+try{IDB=await idbOpen();const r=await idbGet();if(r&&r.v===1&&!(D.saved>r.saved))D=r;else await idbPut();try{localStorage.removeItem(K)}catch(e){}
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}}
+catch(e){IDB=null;setTimeout(()=>toast('IndexedDB indisponible : stockage de secours (localStorage).'),600)}
+fixD();R()}
+
+/* ---- Anglais (libellés d'interface) ---- */
+const EN={'Bonjour 👋':'Good morning 👋','Bonsoir 👋':'Good evening 👋','Chaque effort te rapproche du dunk.':'Every effort brings you closer to the dunk.','ENTRAÎNEMENT DU JOUR':'WORKOUT OF THE DAY','COMMENCER':'START WORKOUT','DÉTAILS':'VIEW SESSION','REPRENDRE LA SÉANCE':'RESUME WORKOUT','Tes objectifs du jour':"Today's goals",'Entraînement':'Training','Hydratation':'Hydration','Récupération':'Recovery','Mesures':'Measurements','✓ Terminé':'✓ Done','Prévu':'Planned','Repos prévu ✓':'Rest day ✓','✓ Check-in fait':'✓ Check-in done','Check-in à faire':'Check-in to do','Aperçu des performances':'Performance snapshot','Détente sans élan':'Standing vertical','Détente avec approche':'Approach vertical','Dernier sprint':'Last sprint','Dernière course':'Last run','Actions rapides':'Quick actions','📷 Scanner un repas':'📷 Scan a meal','⬆ Enregistrer un saut':'⬆ Log a jump','⚡ Enregistrer un sprint':'⚡ Log a sprint','Plan de jeu':"Today's game plan",
+'Séance':'Session','Calendrier':'Calendar','Mes séances':'My sessions','Semaine':'Week','12 mois':'12 months','Exercices':'Exercises','Historique':'History','▶ COMMENCER L’ENTRAÎNEMENT':'▶ START WORKOUT','SÉRIE TERMINÉE':'COMPLETE SET','TERMINÉ':'DONE','PASSER LE REPOS':'SKIP REST','Repos':'Rest','⏸ Pause':'⏸ Pause','▶ Reprendre':'▶ Resume','Passer l’exercice':'Skip exercise','Détails':'Details','Abandonner la séance':'Quit workout','ENREGISTRER':'SAVE','🏆 Bravo !':'🏆 Well done!','Difficulté ressentie':'Perceived difficulty','Fermer':'Close','Annuler':'Cancel','Suppr.':'Delete','＋ Créer une séance':'＋ Create a session','▶ Démarrer':'▶ Start','Dupliquer':'Duplicate','Nouvelle séance':'New session','Nom':'Name','Prochain':'Next','Durée':'Duration','Séries':'Sets','Étapes':'Steps','Conseil':'Tip','Variante plus facile':'Easier variant','Arrête si':'Stop if',
+'Repas du jour':'Meals today','Idées de repas':'Meal ideas','📷 SCANNER UN REPAS':'📷 SCAN FOOD','＋ Ajouter un repas manuellement':'＋ Add a meal manually','Autre…':'Other…','AJOUTER AU JOURNAL':'ADD TO LOG','Saisir manuellement':'Enter manually','Ajouter un repas':'Add a meal','Scanner un repas':'Scan a meal','Aliments / nom':'Foods / name','Protéines (g)':'Protein (g)','Glucides (g)':'Carbs (g)','Lipides (g)':'Fat (g)',
+'Détente':'Vertical','Course':'Running','Test de détente':'Vertical jump test','Atteinte debout (cm)':'Standing reach (cm)','Point le plus haut touché (cm)':'Highest point touched (cm)','Type de saut':'Jump type','Méthode':'Method','Sans élan':'No step','Avec approche':'With approach','Temps (secondes)':'Time (seconds)','Enregistrer une course':'Log a run','Course avec GPS':'GPS run','Progression vers le dunk':'Dunk progression','Valider':'Confirm','Minutes':'Minutes','Secondes':'Seconds','Distance':'Distance','Type':'Type',
+'Profil':'Profile','Check-in récupération':'Recovery check-in','Sommeil (heures)':'Sleep (hours)','Énergie (1-5)':'Energy (1-5)','Fatigue musculaire (1-5)':'Muscle fatigue (1-5)','Douleur ou gêne':'Pain or discomfort','Commentaire':'Comment','Âge':'Age','Enregistrer le profil':'Save profile','Rappels':'Reminders','Données':'Data','Exporter (JSON)':'Export (JSON)','Importer (JSON)':'Import (JSON)','Supprimer toutes mes données':'Delete all my data','Limites de cette version':'Limits of this version','aucune':'none','légère':'mild','modérée':'moderate','importante':'severe',
+'Passer':'Skip','SUIVANT':'NEXT','TERMINER':'FINISH','Ton profil':'Your profile','Ton entraînement, ton alimentation et tes progrès au même endroit.':'Your training, nutrition and progress in one place.','Avant de commencer':'Before you start'};
+function trDom(r){if(D.lang!=='en')return;const w=document.createTreeWalker(r,NodeFilter.SHOW_TEXT);let n;while(n=w.nextNode()){const t=n.nodeValue.trim();if(EN[t])n.nodeValue=n.nodeValue.replace(t,EN[t])}}
+/* ---- Push (serveur requis) ---- */
+const b64=s=>{const r=atob((s+'='.repeat((4-s.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...r].map(c=>c.charCodeAt(0)))};
+const pUrl=(u,p)=>new URL(p,u.replace(/\/?$/,'/'));
+async function pushOn(){const u=val('#pu'),k=val('#pk');if(!u||!k)return toast('Renseigne l’URL du serveur et la clé publique VAPID.');
+if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window))return toast('Le push n’est pas disponible ici. Installe l’app sur l’écran d’accueil (iOS 16.4 ou plus).');
+try{if(await Notification.requestPermission()!=='granted')return toast('Notifications refusées. Tes rappels restent visibles dans l’application.');
+const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64(k)});
+const r=await fetch(pUrl(u,'subscribe'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sub:sub.toJSON(),tz:Intl.DateTimeFormat().resolvedOptions().timeZone,reminders:rm()})});if(!r.ok)throw 0;D.push={u,k};save();toast('Push activé. Réactive-le après avoir changé tes rappels.');R()}catch(e){toast('Activation impossible. Vérifie le serveur et la clé, puis réessaie.')}}
+async function pushOff(){try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();if(sub){const ep=sub.endpoint;await sub.unsubscribe();if(D.push)fetch(pUrl(D.push.u,'unsubscribe'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:ep})}).catch(()=>{})}}catch(e){}D.push=null;save();toast('Push désactivé.');R()}
+
+boot();
+</script>
+</body>
+</html>
