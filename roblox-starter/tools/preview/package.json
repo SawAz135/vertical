@@ -1,0 +1,10 @@
+{
+  "name": "roblox-course-preview",
+  "private": true,
+  "description": "Renders a still preview of the generated course with three.js (approximation of Roblox lighting).",
+  "type": "module",
+  "dependencies": {
+    "playwright": "1.49.1",
+    "three": "0.169.0"
+  }
+}
