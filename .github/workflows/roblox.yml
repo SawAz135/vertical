@@ -1,0 +1,108 @@
+# (Copy for the 'vertical' repo: the project lives in roblox-starter/.)
+# Build, lint, publish and test the Roblox place with no Roblox Studio.
+# Runs on GitHub's free Linux runners (no payment method needed on GitHub Free).
+#
+# Needs, in the repository settings (Settings > Secrets and variables > Actions):
+#   Secret    ROBLOX_API_KEY      Open Cloud API key
+#   Variable  ROBLOX_UNIVERSE_ID  experience id
+#   Variable  ROBLOX_PLACE_ID     place id
+# Without them the workflow still builds, lints and uploads the .rbxl file.
+
+name: Roblox
+
+on:
+  push:
+    paths:
+      - "roblox-starter/**"
+      - ".github/workflows/roblox.yml"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to Roblox and run the cloud smoke test"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: roblox-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ROJO_VERSION: 7.7.1
+  SELENE_VERSION: 0.31.0
+  LUNE_VERSION: 0.11.1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: roblox-starter
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      ROBLOX_UNIVERSE_ID: ${{ vars.ROBLOX_UNIVERSE_ID }}
+      ROBLOX_PLACE_ID: ${{ vars.ROBLOX_PLACE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache tools
+        id: tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: tools-rojo-${{ env.ROJO_VERSION }}-selene-${{ env.SELENE_VERSION }}-lune-${{ env.LUNE_VERSION }}
+
+      - name: Install Rojo, Selene and Lune from crates.io (first run ~10 min, then cached)
+        if: steps.tools.outputs.cache-hit != 'true'
+        run: |
+          cargo install rojo --version "$ROJO_VERSION" --locked
+          cargo install selene --version "$SELENE_VERSION" --locked
+          cargo install lune --version "$LUNE_VERSION" --locked
+
+      - name: Lint (selene, Roblox API)
+        run: |
+          selene generate-roblox-std
+          selene src tests
+
+      - name: Build place file
+        run: |
+          mkdir -p build
+          rojo build default.project.json -o build/place.rbxl
+
+      - name: Offline tests (place structure, smoke test, every jump possible)
+        run: lune run tests/lune/run.luau build/place.rbxl
+
+      - name: Render preview images
+        run: |
+          lune run tools/preview/export.luau build/place.rbxl build/course.json
+          cd tools/preview
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          node render.mjs ../../build/course.json ../../build/preview
+
+      - name: Keep the place file and previews (download them from this run's page)
+        uses: actions/upload-artifact@v4
+        with:
+          name: place-${{ github.sha }}
+          path: |
+            roblox-starter/build/place.rbxl
+            roblox-starter/build/preview-hero.png
+            roblox-starter/build/preview-overview.png
+          retention-days: 30
+
+      - name: Publish to Roblox
+        if: >-
+          env.ROBLOX_API_KEY != '' &&
+          (github.event_name == 'workflow_dispatch' && inputs.publish ||
+           github.event_name == 'push' && github.ref == 'refs/heads/main')
+        run: python3 tools/roblox_cloud.py publish build/place.rbxl
+
+      - name: Cloud smoke test (runs on Roblox servers)
+        if: >-
+          env.ROBLOX_API_KEY != '' &&
+          (github.event_name == 'workflow_dispatch' && inputs.publish ||
+           github.event_name == 'push' && github.ref == 'refs/heads/main')
+        run: python3 tools/roblox_cloud.py run tests/smoke.luau
