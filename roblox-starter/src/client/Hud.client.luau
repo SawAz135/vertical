@@ -89,7 +89,7 @@ strokeGradient.Parent = pillStroke
 
 local stageText = label(pill, "STAGE 0 / " .. Config.STAGES, FONT, 22)
 stageText.Size = UDim2.new(1, -40, 0, 24)
-stageText.Position = UDim2.new(0, 20, 0, 8)
+stageText.Position = UDim2.fromOffset(20, 8)
 
 local track = Instance.new("Frame")
 track.Name = "Track"
@@ -102,7 +102,7 @@ corner(track, UDim.new(1, 0))
 
 local fill = Instance.new("Frame")
 fill.Name = "Fill"
-fill.Size = UDim2.new(0, 0, 1, 0)
+fill.Size = UDim2.fromScale(0, 1)
 fill.BackgroundColor3 = Color3.new(1, 1, 1)
 fill.Parent = track
 corner(fill, UDim.new(1, 0))
@@ -120,7 +120,7 @@ end)
 
 local function setStage(stage: number, animate: boolean)
 	stageText.Text = string.format("STAGE %d / %d", stage, Config.STAGES)
-	local goal = UDim2.new(math.clamp(stage / Config.STAGES, 0, 1), 0, 1, 0)
+	local goal = UDim2.fromScale(math.clamp(stage / Config.STAGES, 0, 1), 1)
 	if animate then
 		tween(fill, 0.7, { Size = goal }, Enum.EasingStyle.Back)
 		-- Pill "breathes" in on progress.

@@ -36,8 +36,8 @@ jobs:
     timeout-minutes: 30
     env:
       ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
-      ROBLOX_UNIVERSE_ID: ${{ vars.ROBLOX_UNIVERSE_ID }}
-      ROBLOX_PLACE_ID: ${{ vars.ROBLOX_PLACE_ID }}
+      ROBLOX_UNIVERSE_ID: ${{ vars.ROBLOX_UNIVERSE_ID || '3980498024' }}
+      ROBLOX_PLACE_ID: ${{ vars.ROBLOX_PLACE_ID || '11126920356' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -90,12 +90,12 @@ jobs:
         if: >-
           env.ROBLOX_API_KEY != '' &&
           (github.event_name == 'workflow_dispatch' && inputs.publish ||
-           github.event_name == 'push' && github.ref == 'refs/heads/main')
+           github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/animation-skills-setup-fowxdi'))
         run: python3 tools/roblox_cloud.py publish build/place.rbxl
 
       - name: Cloud smoke test (runs on Roblox servers)
         if: >-
           env.ROBLOX_API_KEY != '' &&
           (github.event_name == 'workflow_dispatch' && inputs.publish ||
-           github.event_name == 'push' && github.ref == 'refs/heads/main')
+           github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/animation-skills-setup-fowxdi'))
         run: python3 tools/roblox_cloud.py run tests/smoke.luau
