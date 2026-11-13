@@ -860,10 +860,12 @@ const XP_TPL = 'zrAmzrEpzrErzrIrz7Iqz7Mp0LMr0LMt0LMwz7Mzz7I0zrBAza5Czq9Izq5Ozq5V
       8 échelles, recherche grossier → fin avec plusieurs pics par gabarit
    3) chaque candidat est vérifié par un petit réseau de neurones (MLP 2 couches) sur une fenêtre 76×32
    4) gabarits personnels appris automatiquement sur TA télé (banque positive) et erreurs mémorisées (banque négative) */
-const XP_REG = { x: .35, y: .02, w: .6, h: .58 }, XP_W = 480, XP_H = 261;
-const XP_P = { prob: .88, gap: 1300, off: 1500, ghost: 2000, dist: 16, every: 3, solo: .99, ncc: .2, top: 4, maxC: 12 };
+/* zone surveillée : tout le centre de l'écran (le message peut apparaître plus bas selon le cadrage) */
+const XP_REG = { x: .22, y: .04, w: .74, h: .84 }, XP_W = 592, XP_H = 378;
+const XP_P = { prob: .9, gap: 900, off: 1500, ghost: 2200, dist: 16, every: 3, need: 3, ncc: .2, top: 4, maxC: 12 };
 const XPDet = {
-  ready: false, SC: [.66, .75, .85, .95, 1.06, 1.18, 1.32, 1.48], fam: [], bank: [], neg: [], net: null, PW: 76, PH: 32,
+  /* SC : échelles d'un niveau ; SK : échelles réelles (niveau 0 = SC, niveau 1 = image ½ → SC × 2), soit ×0,66 à ×2,96 */
+  ready: false, SC: [.66, .75, .85, .95, 1.06, 1.18, 1.32, 1.48], SK: [.66, .75, .85, .95, 1.06, 1.18, 1.32, 1.48, 1.32, 1.5, 1.7, 1.9, 2.12, 2.36, 2.64, 2.96], fam: [], bank: [], neg: [], net: null, PW: 76, PH: 32,
   b64(s) { if (typeof atob === 'function') { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; } return new Uint8Array(Buffer.from(s, 'base64')); },
   textmap(d, w, h, ch) {
     const n = w * h, mx = new Float32Array(n), mn = new Float32Array(n), out = new Float32Array(n), I = new Float64Array((w + 1) * (h + 1));
@@ -957,7 +959,7 @@ const XPDet = {
     // énergie absolue : un vrai texte blanc a des traits nets (le moiré / le bruit normalisés peuvent tromper le réseau)
     { const s = this.SC[c.k], raw = this.resample(m, w, h, this.PW, this.PH, c.x - 6 * s, c.y - 5 * s, this.PW * s, this.PH * s); raw.sort(); c.e = raw[Math.floor(raw.length * .98)]; }
     let pr = c.p0 ?? this.prob(p, c.v, c.agree);
-    if (this.bank.length) { const b = this.bankScore(p, this.bank); if (b > .8) pr = Math.max(pr, Math.min(.99, .5 + (b - .8) * 2.5)); c.bk = b; }
+    if (this.bank.length) { const b = this.bankScore(p, this.bank); if (b > .8 && pr >= .5) pr = Math.max(pr, Math.min(.99, .5 + (b - .8) * 2.5)); c.bk = b; }
     if (this.neg.length) { const b = this.bankScore(p, this.neg); if (b > .9 && b > (c.bk || 0) + .05) pr *= .3; }
     if (c.e < 6) pr *= Math.max(0, (c.e - 2) / 4);
     c.p = pr; return c;
@@ -1011,11 +1013,11 @@ const XPDet = {
     return pk;
   },
   /* candidats : pics de corrélation des 3 familles de gabarits (message entier, EXP+COFFRE, COFFRE seul) */
-  coarse(m, w, h, G, nz, region) {
+  coarse(m, w, h, G, nz, region, ks) {
     const out = [];
     for (const f of this.fam) {
       const pk = [];
-      for (let k = 0; k < this.SC.length; k += 2) {
+      for (const k of ks) {
         const T = f.F[k], s = this.SC[k];
         const rg = region ? { x0: Math.round(region.x + f.ox * s) - 12, x1: Math.round(region.x + f.ox * s) + 12, y0: Math.round(region.y + f.oy * s) - 18, y1: Math.round(region.y + f.oy * s) + 10 } : null;
         for (const r of this.nccSparse(w, h, G, nz, T, XP_P.top, rg)) pk.push({ v: r.v, x: r.x - f.ox * s, y: r.y - f.oy * s, k, f: f.id });
@@ -1027,15 +1029,44 @@ const XPDet = {
     }
     return out;
   },
-  /* full = recherche sur toute la zone ; anchor = {x,y,k} position mémorisée du message (recherche locale). */
+  /* chevauchement de deux fenêtres de message (fraction de la plus petite) : un même message vu décalé / à une autre
+     échelle reste UN message */
+  ov(a, b) {
+    const sa = this.SK[a.k] || 1, sb = this.SK[b.k] || 1;
+    const ax0 = a.x - 6 * sa, ax1 = a.x + 70 * sa, ay0 = a.y - 5 * sa, ay1 = a.y + 27 * sa, bx0 = b.x - 6 * sb, bx1 = b.x + 70 * sb, by0 = b.y - 5 * sb, by1 = b.y + 27 * sb;
+    const iw = Math.min(ax1, bx1) - Math.max(ax0, bx0), ih = Math.min(ay1, by1) - Math.max(ay0, by0);
+    return iw <= 0 || ih <= 0 ? 0 : iw * ih / Math.min((ax1 - ax0) * (ay1 - ay0), (bx1 - bx0) * (by1 - by0));
+  },
+  /* image RGBA → moitié (moyenne 2×2) : le niveau 1 de la pyramide voit les GRANDS messages (télé proche / zoom) */
+  half(d, w, h) {
+    const W = w >> 1, H = h >> 1, o = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = ((2 * y) * w + 2 * x) * 4, j = i + w * 4, q = (y * W + x) * 4;
+      for (let c = 0; c < 3; c++) o[q + c] = (d[i + c] + d[i + 4 + c] + d[j + c] + d[j + 4 + c] + 2) >> 2;
+      o[q + 3] = 255;
+    }
+    return { d: o, w: W, h: H };
+  },
+  /* full = recherche sur toute la zone ; anchor = {x,y,k} position mémorisée du message (recherche locale).
+     Pyramide 2 niveaux : niveau 0 = petits/moyens messages (×0,66–1,18), niveau 1 = grands (×1,32–2,96).
+     k ≥ 8 = candidat du niveau 1 (coordonnées remises à l'échelle de l'image complète). */
   scan(d, w, h, anchor = null, full = true) {
     this.init();
-    const m = this.textmap(d, w, h, 4), out = { g: null, a: null, all: [] }; this.lastMap = m;
+    const a0 = anchor && anchor.k < 8 ? anchor : null, a1 = anchor && anchor.k >= 8 ? { x: anchor.x / 2, y: anchor.y / 2, k: anchor.k - 8 } : null;
+    let all = [];
+    if (full || a0) all = this.scanL(d, w, h, a0, full, [0, 2, 4]);
+    if (full || a1) { const H = this.half(d, w, h); for (const c of this.scanL(H.d, H.w, H.h, a1, full, [0, 2, 4, 6])) all.push({ ...c, x: c.x * 2, y: c.y * 2, k: c.k + 8 }); }
+    // un même message trouvé par deux candidats (ou deux niveaux) : on garde le meilleur
+    all = all.sort((a, b) => b.p - a.p).filter((c, i, A) => !A.slice(0, i).some(o => this.ov(o, c) > .3));
+    return { all };
+  },
+  scanL(d, w, h, anchor, full, ks) {
+    const m = this.textmap(d, w, h, 4), out = { all: [] };
     const G = this.integ(m, w, h), nz = { x: new Int16Array(w * h), y: new Int16Array(w * h), v: new Float32Array(w * h), n: 0 };
     for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) if (m[i] > 4) { nz.x[nz.n] = x; nz.y[nz.n] = y; nz.v[nz.n++] = m[i]; }
     let cands = [];
-    if (anchor) cands.push(...this.coarse(m, w, h, G, nz, anchor), { v: .5, x: anchor.x, y: anchor.y, k: anchor.k, f: 'anchor' });
-    if (full) cands.push(...this.coarse(m, w, h, G, nz, null));
+    if (anchor) cands.push(...this.coarse(m, w, h, G, nz, anchor, [0, 2, 4, 6]), { v: .5, x: anchor.x, y: anchor.y, k: anchor.k, f: 'anchor' });
+    if (full) cands.push(...this.coarse(m, w, h, G, nz, null, ks));
     // regroupement : plusieurs familles d'accord au même endroit = plus fiable
     const merged = [];
     for (const c of cands.sort((a, b) => b.v - a.v)) {
@@ -1043,17 +1074,15 @@ const XPDet = {
       if (o) { if (!o.fams.includes(c.f)) { o.fams.push(c.f); o.agree++; } continue; }
       merged.push({ ...c, fams: [c.f], agree: 1 });
     }
-    let best = null, bestA = null;
     for (const c0 of merged.slice(0, XP_P.maxC)) {
-      const c = this.refine(m, w, h, c0); this.judge(m, w, h, c); out.all.push(c);
-      const isA = anchor && Math.abs(c.x - anchor.x) < 14 && Math.abs(c.y - anchor.y) < 16;
-      if (isA) { if (!bestA || c.p > bestA.p) bestA = c; }
-      else if (!best || c.p > best.p) best = c;
+      const c = this.refine(m, w, h, c0); this.judge(m, w, h, c);
+      // contrôle final « +600 EXP / COFFRE » : le message ENTIER doit ressembler au gabarit à cet endroit et cette échelle
+      // (vrais messages ≥ 0,32 mesuré ; textes/décors qui trompent le réseau ≤ 0,29)
+      c.nf = this.ncc(m, w, h, G, this.fam[0].F[c.k], c.x - 3, c.y - 3, c.x + 3, c.y + 3).v;
+      if (c.nf < .3) c.p *= Math.max(0, (c.nf - .15) / .15);
+      out.all.push(c);
     }
-    // un même message trouvé par deux candidats : on garde le meilleur
-    out.all = out.all.sort((a, b) => b.p - a.p).filter((c, i, A) => !A.slice(0, i).some(o => { const s = this.SC[o.k]; return Math.abs(o.x - c.x) < 24 * s && Math.abs(o.y - c.y) < 9 * s; }));
-    out.a = bestA; out.g = best || (full ? { v: -1, p: 0, x: 0, y: 0, k: 3 } : null);
-    return out;
+    return out.all;
   }
 };
 /* Décision : suivi multi-messages. Chaque message « COFFRE » est suivi tant qu'il reste à l'écran (il peut remonter quand
@@ -1067,29 +1096,33 @@ const XPCount = {
   step(t, r) {
     const all = r.all || [], hits = all.filter(c => c.p >= XP_P.prob).sort((a, b) => b.p - a.p), used = new Set();
     this.lastV = all.reduce((m, c) => Math.max(m, c.p || 0), 0);
-    const col = (P, c, up) => { const s = XPDet.SC[P.k]; return Math.abs(c.x - P.x) <= 40 * s && c.y - P.y <= 14 * s && P.y - c.y <= up; };
+    const col = (P, c, up) => { const s = XPDet.SK[P.k]; return Math.abs(c.x - P.x) <= 40 * s && c.y - P.y <= 14 * s && P.y - c.y <= up; };
     for (const P of this.pops) {
-      let best = null; const up = 46 * XPDet.SC[P.k];
+      let best = null; const up = 46 * XPDet.SK[P.k];
       for (const c of hits) if (!used.has(c) && col(P, c, up) && (!best || Math.abs(c.y - P.y) < Math.abs(best.y - P.y))) best = c;
       if (best) { used.add(best); P.x = best.x; P.y = best.y; P.t = t; P.hits.push(best); }
       // autres candidats sur le même message (cadrage voisin) : déjà comptés avec lui
-      const s = XPDet.SC[P.k];
-      for (const c of hits) if (!used.has(c) && Math.abs(c.x - P.x) <= 40 * s && Math.abs(c.y - P.y) <= 12 * s) used.add(c);
+      const s = XPDet.SK[P.k];
+      for (const c of hits) if (!used.has(c) && ((Math.abs(c.x - P.x) <= 40 * s && Math.abs(c.y - P.y) <= 12 * s) || XPDet.ov(P, c) > .2)) used.add(c);
     }
     // un vrai message SURGIT ; un motif du décor qui ressemble au message est là depuis longtemps
-    const near = (a, c) => { const s = XPDet.SC[c.k]; return Math.abs(a.x - c.x) <= 24 * s && Math.abs(a.y - c.y) <= 10 * s; };
+    const near = (a, c) => { const s = XPDet.SK[c.k]; return Math.abs(a.x - c.x) <= 24 * s && Math.abs(a.y - c.y) <= 10 * s; };
     const isStatic = (c, t0) => this.heat.some(h => h.t < t0 - 300 && t - h.t < 3500 && near(h, c));
     let fire = 0;
     for (const c of hits) {
       if (used.has(c)) continue;
-      if (this.ghosts.some(g => t - g.t < XP_P.ghost && col(g, c, 46 * XPDet.SC[g.k]))) continue;
-      const qi = this.pend.findIndex(q => t - q.t <= XP_P.gap && t > q.t && Math.abs(q.x - c.x) <= XP_P.dist && Math.abs(q.y - c.y) <= XP_P.dist + 6);
-      const sure = c.p >= XP_P.solo && (c.agree || 1) >= 2;
-      if (qi >= 0 || sure) {
-        const q = qi >= 0 ? this.pend.splice(qi, 1)[0] : null;
-        if (isStatic(c, q ? q.t : t)) continue;
-        this.pops.push({ x: c.x, y: c.y, k: c.k, t, hits: q ? [q, c] : [c] }); this.fireHit = c; fire++;
-      } else if (!this.pend.some(q => q.t === t && Math.abs(q.x - c.x) <= XP_P.dist && Math.abs(q.y - c.y) <= XP_P.dist)) this.pend.push({ x: c.x, y: c.y, k: c.k, t, p: c.p });
+      if (this.ghosts.some(g => t - g.t < XP_P.ghost && (col(g, c, 46 * XPDet.SK[g.k]) || XPDet.ov(g, c) > .2))) continue;
+      if (this.pops.some(P => XPDet.ov(P, c) > .2)) continue;
+      // le message doit être vu sur `need` images au même endroit (il peut monter un peu) avant de compter
+      const sd = XP_P.dist * Math.max(1, XPDet.SK[c.k]);
+      const qi = this.pend.findIndex(q => t - q.t <= XP_P.gap && t > q.t && Math.abs(q.x - c.x) <= sd && Math.abs(q.y - c.y) <= sd + 6);
+      if (qi >= 0) {
+        const q = this.pend[qi]; q.n++; q.x = c.x; q.y = c.y; q.k = c.k; q.t = t;
+        if (q.n < XP_P.need) continue;
+        this.pend.splice(qi, 1);
+        if (isStatic(c, q.t0)) continue;
+        this.pops.push({ x: c.x, y: c.y, k: c.k, t, hits: [q, c] }); this.fireHit = c; fire++;
+      } else if (!this.pend.some(q => q.t === t && Math.abs(q.x - c.x) <= sd && Math.abs(q.y - c.y) <= sd)) this.pend.push({ x: c.x, y: c.y, k: c.k, t, t0: t, n: 1, p: c.p });
     }
     this.pend = this.pend.filter(q => t - q.t <= XP_P.gap);
     for (const c of all) if (c.p >= .6) this.heat.push({ t, x: c.x, y: c.y, k: c.k });
@@ -1981,7 +2014,7 @@ const Yolo = {
    Vidéo de test : la lecture ralentit toute seule si le pool ne suit pas → 100 % des images analysées. */
 const XPC = document.createElement('canvas'); XPC.width = XP_W; XPC.height = XP_H; const XPCX = XPC.getContext('2d', { willReadFrequently: true });
 const XPBank = {
-  K: 'fcs.xpbank.v1', pos: [], neg: [],
+  K: 'fcs.xpbank.v2', pos: [], neg: [], // v2 : on repart d'une mémoire propre (l'ancienne a pu apprendre de faux messages)
   enc(a) { let m = 0; for (const v of a) m = Math.max(m, Math.abs(v)); const sc = m / 127 || 1, q = new Int8Array(a.length); for (let i = 0; i < a.length; i++) q[i] = Math.round(a[i] / sc); let b = ''; const u = new Uint8Array(q.buffer); for (let i = 0; i < u.length; i++) b += String.fromCharCode(u[i]); return { s: sc, q: btoa(b) }; },
   dec(o) { const b = atob(o.q), a = new Float32Array(b.length); for (let i = 0; i < b.length; i++) { const v = b.charCodeAt(i); a[i] = (v > 127 ? v - 256 : v) * o.s; } let n = 0; for (const v of a) n += v * v; n = Math.sqrt(n) || 1; for (let i = 0; i < a.length; i++) a[i] /= n; return a; },
   load() { try { const j = JSON.parse(localStorage.getItem(this.K) || '{}'); this.pos = (j.pos || []).map(o => this.dec(o)); this.neg = (j.neg || []).map(o => this.dec(o)); } catch {} },
@@ -2591,7 +2624,7 @@ function drawRoiTo(cv, lw) {
     x.strokeStyle = 'rgba(120,220,255,.22)'; x.lineWidth = Math.max(1, lw * .5); x.setLineDash([lw * 2, lw * 3]); x.strokeRect(zx, zy, zw, zh); x.setLineDash([]);
     for (const c of XPLoop.cands) {
       if (c.p < .3) continue;
-      const sc = XPDet.SC[c.k] || 1, bx = zx + c.x / XP_W * zw, by = zy + c.y / XP_H * zh, bw = 64 * sc / XP_W * zw, bh = 22 * sc / XP_H * zh, ok = c.p >= XP_P.prob, recent = tn - XPLoop.lastFire < 1500;
+      const sc = XPDet.SK[c.k] || 1, bx = zx + c.x / XP_W * zw, by = zy + c.y / XP_H * zh, bw = 64 * sc / XP_W * zw, bh = 22 * sc / XP_H * zh, ok = c.p >= XP_P.prob, recent = tn - XPLoop.lastFire < 1500;
       const col = ok && recent ? '#5fff7a' : ok ? '#7fe8ff' : 'rgba(127,232,255,.55)';
       x.strokeStyle = col; x.lineWidth = lw; x.shadowColor = col; x.shadowBlur = ok ? lw * 4 : 0; x.strokeRect(bx, by, bw, bh); x.shadowBlur = 0;
       if (lw > 2) { x.font = `800 ${Math.round(lw * 5)}px system-ui`; const tx = `EXP ${Math.round(c.p * 100)}%`; x.fillStyle = col; x.fillRect(bx, by + bh + lw, x.measureText(tx).width + lw * 3, lw * 7); x.fillStyle = '#061232'; x.fillText(tx, bx + lw * 1.5, by + bh + lw * 6); }
@@ -2665,7 +2698,7 @@ const Scanner = {
     $('#scanState').textContent = reason === 'hidden' ? 'En pause — page suspendue par iOS' : 'Scan arrêté';
     $('#liveCls').textContent = '—'; $('#liveCls').dataset.c = ''; $('#confBar').style.width = '0';
     $('#confTxt').textContent = 'Confiance IA —'; defaultNote(); renderStats();
-    if (wasTest) { const msg = `Test terminé : ${this.testCount} coffre${this.testCount > 1 ? 's' : ''} détecté${this.testCount > 1 ? 's' : ''}${this.testLog.length ? ' : ' + this.testLog.join(', ') : ''} · coffre vu sur ${Yolo.nF ? Math.round(Yolo.nD / Yolo.nF * 100) : 0}% des images`; $('#scanState').textContent = msg; toast(msg, 6000); }
+    if (wasTest) { const msg = `Test terminé : ${this.testCount} coffre${this.testCount > 1 ? 's' : ''} détecté${this.testCount > 1 ? 's' : ''}${this.testLog.length ? ' : ' + this.testLog.join(', ') : ''}` + (Store.settings.mode === 'xp' ? ` · ${XPLoop.n} images analysées` : ` · coffre vu sur ${Yolo.nF ? Math.round(Yolo.nD / Yolo.nF * 100) : 0}% des images`); $('#scanState').textContent = msg; toast(msg, 6000); }
   }
 };
 const Wake = {
