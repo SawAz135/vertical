@@ -30,6 +30,9 @@
 .adm-code em.f::after{transform:scale(1)}
 .adm-code em.cur{box-shadow:inset 0 0 0 2px #ffe94d,0 0 16px rgba(255,233,77,.45);animation:caret 1s ease-in-out infinite}
 .admbox.bad .adm-code{animation:shake .45s}
+.admbox.chk .adm-code em{animation:chkPulse .6s ease-in-out infinite}
+.admbox.chk .adm-code em:nth-child(2){animation-delay:.1s}.admbox.chk .adm-code em:nth-child(3){animation-delay:.2s}.admbox.chk .adm-code em:nth-child(4){animation-delay:.3s}
+@keyframes chkPulse{50%{box-shadow:inset 0 0 0 2px #7fe8ff,0 0 16px rgba(127,232,255,.6)}}
 .admbox.bad .adm-code em{box-shadow:inset 0 0 0 2px #ff4d5e;background:rgba(255,40,60,.2)}
 .admbox.good .adm-code em{background:linear-gradient(180deg,#fff7c0,#ffd84a);box-shadow:0 0 18px rgba(255,220,60,.8)}
 .admbox.good .adm-code em::after{background:#1a1200;box-shadow:none}
@@ -2925,6 +2928,23 @@ const BG = {
 /* Serveur partagé gratuit (Firebase Realtime Database, sans SDK, via REST).
    Colle ici l'URL de ta base, ex. "https://mon-projet-default-rtdb.firebaseio.com" */
 const FIREBASE_URL = 'https://chest-scanner-default-rtdb.firebaseio.com';
+/* Serveur principal : Supabase (tables + fonctions créées par supabase/chest-scanner.sql). Clé publique = lecture seule,
+   les écritures passent par des fonctions sécurisées côté base. */
+const SUPABASE_URL = 'https://oeexlllocmiizxseafik.supabase.co', SUPABASE_KEY = 'sb_publishable_Ldzp33ZRNi0EUz33hnkq5Q_s2AEBRts';
+async function sb(path, body, ms = 10000) {
+  const ctl = new AbortController(), tt = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { method: body === undefined ? 'GET' : 'POST', cache: 'no-store', signal: ctl.signal,
+      headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json', Accept: 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+    if (!r.ok) throw Object.assign(new Error('supabase ' + r.status), { status: r.status });
+    const t = await r.text(); return t ? JSON.parse(t) : null;
+  } finally { clearTimeout(tt); }
+}
+function playerSecret() {
+  let k = ''; try { k = localStorage.getItem('fcs.psec.v1') || ''; } catch {}
+  if (k.length < 24) { const a = new Uint8Array(24); crypto.getRandomValues(a); k = Array.from(a, b => b.toString(16).padStart(2, '0')).join(''); try { localStorage.setItem('fcs.psec.v1', k); } catch {} }
+  return k;
+}
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const int = v => { const n = Math.floor(Number(v)); return Number.isFinite(n) && n > 0 ? Math.min(n, 9999999) : 0; };
 function playerId() {
@@ -2939,7 +2959,11 @@ const Board = {
   base() { return FIREBASE_URL.replace(/\/+$/, ''); },
   async init() {
     this.render();
-    if (FIREBASE_URL) {
+    if (SUPABASE_URL && SUPABASE_KEY) {
+      try { await sb('players?select=id&limit=1', undefined, 8000); this.backend = 'supabase'; this.me = playerId(); await this.fetchBans(); this.poll(); Admin.verify(); }
+      catch (e) { console.warn('Supabase indisponible', e); }
+    }
+    if (!this.backend && FIREBASE_URL) {
       let ok = false;
       try { const ctl = new AbortController(), tt = setTimeout(() => ctl.abort(), 8000); const r = await fetch(this.base() + '/players.json?shallow=true', { cache: 'no-store', signal: ctl.signal }); clearTimeout(tt); ok = r.ok; } catch {}
       const inClaude = window.claude && typeof window.claude.use === 'function';
@@ -2975,12 +2999,17 @@ const Board = {
     this.render(); Admin.render();
   },
   async fetchBans() {
+    if (this.backend === 'supabase') {
+      try { const L = await sb('banned?select=id,name,all_time,at'); const b = {}; for (const x of L || []) b[x.id] = { name: x.name, allTime: x.all_time, at: Number(x.at) || 0 }; this.setBans(b); } catch {}
+      return;
+    }
     try { const r = await fetch(this.base() + '/banned.json', { cache: 'no-store' }); if (r.ok) this.setBans((await r.json()) || {}); } catch {}
   },
   async ban(r) {
     const rec = { name: r.name, allTime: r.allTime, at: now(), by: Setup.name() };
     try {
-      if (this.backend === 'claude') { await this.db.doc('banned/' + r.id).set(rec); try { const ref = this.db.doc('players/' + r.id); if (typeof ref.delete === 'function') await ref.delete(); } catch {} }
+      if (this.backend === 'supabase') { const ok = await sb('rpc/admin_ban', { p_token: Admin.token(), p_target: r.id, p_by: Setup.name() }); if (ok !== true) { if (ok === false) Admin.lost(); return false; } }
+      else if (this.backend === 'claude') { await this.db.doc('banned/' + r.id).set(rec); try { const ref = this.db.doc('players/' + r.id); if (typeof ref.delete === 'function') await ref.delete(); } catch {} }
       else if (this.backend === 'firebase') {
         const a = await fetch(`${this.base()}/banned/${encodeURIComponent(r.id)}.json`, { method: 'PUT', body: JSON.stringify(rec) }); if (!a.ok) throw new Error(a.status);
         await fetch(`${this.base()}/players/${encodeURIComponent(r.id)}.json`, { method: 'DELETE' }).catch(() => {});
@@ -2991,7 +3020,8 @@ const Board = {
   },
   async unban(id) {
     try {
-      if (this.backend === 'claude') { const ref = this.db.doc('banned/' + id); if (typeof ref.delete === 'function') await ref.delete(); else return false; }
+      if (this.backend === 'supabase') { const ok = await sb('rpc/admin_unban', { p_token: Admin.token(), p_target: id }); if (ok !== true) { if (ok === false) Admin.lost(); return false; } }
+      else if (this.backend === 'claude') { const ref = this.db.doc('banned/' + id); if (typeof ref.delete === 'function') await ref.delete(); else return false; }
       else if (this.backend === 'firebase') { const a = await fetch(`${this.base()}/banned/${encodeURIComponent(id)}.json`, { method: 'DELETE' }); if (!a.ok) throw new Error(a.status); }
       else return false;
     } catch (e) { console.warn(e); return false; }
@@ -3004,10 +3034,16 @@ const Board = {
     if (!document.hidden) {
       this.fetchBans();
       try {
-        const r = await fetch(this.base() + '/players.json', { cache: 'no-store' });
-        if (!r.ok) throw new Error(r.status);
-        const j = (await r.json()) || {}, mine = this.rows.find(x => x.id === this.me);
-        this.rows = Object.entries(j).slice(0, 2000).map(([id, d]) => cleanRow(id, d));
+        const mine = this.rows.find(x => x.id === this.me);
+        if (this.backend === 'supabase') {
+          const L = await sb('players?select=id,name,all_time,today,day,updated_at&order=all_time.desc&limit=2000');
+          this.rows = (L || []).map(d => cleanRow(d.id, { name: d.name, allTime: d.all_time, today: d.today, day: d.day, updatedAt: Number(d.updated_at) }));
+        } else {
+          const r = await fetch(this.base() + '/players.json', { cache: 'no-store' });
+          if (!r.ok) throw new Error(r.status);
+          const j = (await r.json()) || {};
+          this.rows = Object.entries(j).slice(0, 2000).map(([id, d]) => cleanRow(id, d));
+        }
         if (mine) { const i = this.rows.findIndex(x => x.id === this.me); if (i < 0) this.rows.push(mine); else if (mine.at > this.rows[i].at) this.rows[i] = mine; }
         this.status = 'on';
       } catch { this.status = this.rows.length ? 'slow' : 'err'; }
@@ -3015,7 +3051,7 @@ const Board = {
     }
     this.pollT = setTimeout(() => this.poll(), $('#tab-board').classList.contains('active') ? 12000 : 45000);
   },
-  wake() { if (this.backend === 'firebase') this.poll(); },
+  wake() { if (this.backend === 'firebase' || this.backend === 'supabase') this.poll(); },
   data() { const s = Store.stats; return { name: Setup.name(), allTime: s.allTime, today: s.today, day: s.todayDate, updatedAt: now() }; },
   push(soon) {
     if (!this.backend || !this.me || !Setup.name() || this.ro || this.banned) return;
@@ -3025,7 +3061,13 @@ const Board = {
     clearTimeout(this.pushT);
     this.pushT = setTimeout(async () => {
       try {
-        if (this.backend === 'claude') await this.db.doc('players/' + this.me).set(this.data());
+        if (this.backend === 'supabase') {
+          const d = this.data(), res = await sb('rpc/submit_score', { p_id: this.me, p_secret: playerSecret(), p_name: d.name, p_all: d.allTime, p_today: d.today, p_day: d.day });
+          if (res === 'banned') this.fetchBans();
+          else if (res === 'reserved') { toast('Ce pseudo est réservé à l\'admin', 3500); Admin.lost(); }
+          else if (res === 'forbidden') { try { localStorage.removeItem('fcs.pid.v1'); } catch {} this.me = playerId(); this.push(true); }
+        }
+        else if (this.backend === 'claude') await this.db.doc('players/' + this.me).set(this.data());
         else { const r = await fetch(`${this.base()}/players/${this.me}.json`, { method: 'PUT', body: JSON.stringify(this.data()) }); if (!r.ok) throw Object.assign(new Error('http'), { code: r.status === 401 || r.status === 403 ? 'not_granted' : 'http' }); }
       } catch (e) { if (e && e.code === 'not_granted') { this.ro = true; this.render(); } }
     }, soon ? 300 : 1200);
@@ -3078,7 +3120,15 @@ const HAMMER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 const Admin = {
   tab: 'players', q: '', pending: null,
   isName(n) { return cleanName(n).toLowerCase() === ADMIN_NAME; },
-  on() { try { return localStorage.getItem('fcs.admin.v1') === ADMIN_KEY && this.isName(Setup.name()); } catch { return false; } },
+  token() { try { return localStorage.getItem('fcs.admtok.v1') || ''; } catch { return ''; } },
+  on() {
+    if (!this.isName(Setup.name())) return false;
+    if (this.token()) return true;
+    // repli hors Supabase (ancien serveur) : vérification locale
+    try { return Board.backend !== 'supabase' && localStorage.getItem('fcs.admin.v1') === ADMIN_KEY; } catch { return false; }
+  },
+  async verify() { const t = this.token(); if (!t) return; try { if ((await sb('rpc/admin_check', { p_token: t })) === false) this.lost(); } catch {} },
+  lost() { try { localStorage.removeItem('fcs.admtok.v1'); localStorage.removeItem('fcs.admin.v1'); } catch {} this.close(); this.sync(); toast('Accès admin expiré : retape le code', 3500); },
   watchName() {
     const box = $('#admBox'), show = this.isName($('#setupName').value);
     if (show === !box.hidden) return;
@@ -3087,20 +3137,33 @@ const Admin = {
     if (show) { Sfx.unlock(); Sfx.tick(); setTimeout(() => $('#admCode').focus(), 250); }
   },
   paintCode() { const v = $('#admCode').value; document.querySelectorAll('.adm-code em').forEach((e, i) => { e.classList.toggle('f', i < v.length); e.classList.toggle('cur', i === v.length); }); },
-  tryCode() {
+  async tryCode() {
     const box = $('#admBox'), v = $('#admCode').value;
-    if (fnv('fcs|' + v) === ADMIN_KEY) { box.classList.remove('bad'); box.classList.add('good'); this.enable(); return true; }
+    let ok = false, msg = v.length < 4 ? 'Entre le code à 4 chiffres' : 'Code incorrect';
+    if (v.length === 4) {
+      $('#nameWarn').textContent = 'Vérification…'; box.classList.add('chk');
+      try {
+        const tok = await sb('rpc/admin_login', { p_code: v, p_device: playerId() });
+        if (tok === 'locked') msg = 'Trop d\'essais : réessaie dans 10 min';
+        else if (typeof tok === 'string' && tok.length >= 32) { try { localStorage.setItem('fcs.admtok.v1', tok); } catch {} ok = true; }
+      } catch (e) {
+        // serveur Supabase injoignable : repli sur la vérification locale (ancien serveur)
+        if (fnv('fcs|' + v) === ADMIN_KEY) { try { localStorage.setItem('fcs.admin.v1', ADMIN_KEY); } catch {} ok = true; }
+        else msg = 'Serveur injoignable ou code incorrect';
+      }
+      box.classList.remove('chk');
+    }
+    if (ok) { box.classList.remove('bad'); box.classList.add('good'); $('#nameWarn').textContent = 'Accès autorisé'; this.enable(); return true; }
     box.classList.remove('bad'); void box.offsetWidth; box.classList.add('bad');
-    $('#nameWarn').textContent = v.length < 4 ? 'Entre le code à 4 chiffres' : 'Code incorrect';
+    $('#nameWarn').textContent = msg;
     if (navigator.vibrate) navigator.vibrate([40, 40, 40]);
     $('#admCode').value = ''; this.paintCode(); $('#admCode').focus(); return false;
   },
   enable() {
-    try { localStorage.setItem('fcs.admin.v1', ADMIN_KEY); } catch {}
     Sfx.unlock(); Sfx.saved(); BG.boost(); FX.burst(60);
     toast('🛡 Mode admin activé — onglet TOP pour modérer', 3500); this.sync();
   },
-  disable(silent) { try { localStorage.removeItem('fcs.admin.v1'); } catch {} this.close(); this.sync(); if (!silent) toast('Mode admin désactivé'); },
+  disable(silent) { try { localStorage.removeItem('fcs.admin.v1'); localStorage.removeItem('fcs.admtok.v1'); } catch {} this.close(); this.sync(); if (!silent) toast('Mode admin désactivé'); },
   sync() { const on = this.on(); $('#admChip').hidden = !on; document.body.classList.toggle('is-admin', on); Board.animKey = ''; Board.render(); },
   open() { if (!this.on()) return; const sh = $('#admSheet'); sh.hidden = false; requestAnimationFrame(() => requestAnimationFrame(() => sh.classList.add('in'))); Board.wake(); this.render(); },
   close() { const sh = $('#admSheet'); sh.classList.remove('in'); setTimeout(() => { if (!sh.classList.contains('in')) sh.hidden = true; }, 400); },
@@ -3109,7 +3172,7 @@ const Admin = {
     const bans = Board.bans, rows = Board.rows.filter(r => !bans[r.id]), q = this.q.toLowerCase();
     $('#admNP').textContent = rows.length; $('#admNB').textContent = Object.keys(bans).length; $('#admNT').textContent = rows.reduce((a, r) => a + r.allTime, 0).toLocaleString('fr-CA');
     $('#admSeg').dataset.m = this.tab; document.querySelectorAll('#admSeg button').forEach(b => b.classList.toggle('on', b.dataset.m === this.tab));
-    $('#admSub').textContent = Board.backend ? `Serveur ${Board.backend === 'firebase' ? 'Firebase' : 'Claude'} · ${Board.status === 'on' ? 'en ligne' : 'connexion…'}` : 'Classement non connecté';
+    $('#admSub').textContent = Board.backend ? `Serveur ${{ supabase: 'Supabase', firebase: 'Firebase', claude: 'Claude' }[Board.backend]} · ${Board.status === 'on' ? 'en ligne' : 'connexion…'}` : 'Classement non connecté';
     let h = '';
     if (this.tab === 'players') {
       const L = rows.filter(r => !q || r.name.toLowerCase().includes(q)).sort((a, b) => b.allTime - a.allTime);
@@ -3191,11 +3254,12 @@ const Setup = {
     Admin.watchName();
     if (this._bound) return; this._bound = true;
     ni.addEventListener('input', () => Admin.watchName());
-    $('#nameOk').addEventListener('click', () => {
+    $('#nameOk').addEventListener('click', async () => {
+      if (this.busy) return;
       const n = cleanName(ni.value);
       if (n.length < 2) { $('#nameWarn').textContent = 'Il faut au moins 2 caractères'; ni.focus(); return; }
       const wasAdmin = Admin.on();
-      if (Admin.isName(n)) { if (!Admin.tryCode()) return; }
+      if (Admin.isName(n)) { this.busy = true; const ok = await Admin.tryCode(); this.busy = false; if (!ok) return; }
       else if (wasAdmin) { Admin.disable(true); }
       try { localStorage.setItem('fcs.name.v1', n); } catch {}
       Admin.sync(); Sfx.unlock(); Sfx.tick();
