@@ -1,0 +1,853 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07060f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Roblox Push">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Roblox Push</title>
+<link rel="icon" href="data:,">
+<style>
+:root{
+  --bg:#07060f; --bg2:#0e0b1f; --card:rgba(22,18,44,.62); --card-strong:rgba(30,24,60,.82);
+  --line:rgba(160,140,255,.16); --line-strong:rgba(160,140,255,.32);
+  --text:#f2efff; --muted:#a49cc8; --faint:#6f6896;
+  --violet:#7a5cff; --cyan:#40e0ff; --gold:#ffd65c; --red:#ff4d6d; --green:#4dffb0;
+  --r:22px; --pad:16px;
+  --shadow:0 18px 50px -18px rgba(0,0,0,.8), 0 0 0 1px var(--line) inset;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;overflow-x:hidden;padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 40px)}
+button,input,textarea,select{font:inherit;color:inherit}
+
+/* ---------- animated backdrop: aurora + slow star drift ---------- */
+.sky{position:fixed;inset:0;z-index:-2;overflow:hidden;background:radial-gradient(120% 80% at 50% 0%,#1c1440 0%,var(--bg) 60%)}
+.sky::before,.sky::after{content:"";position:absolute;width:140vmax;height:140vmax;left:50%;top:-60vmax;border-radius:50%;
+  background:conic-gradient(from 0deg,transparent 0 20%,rgba(122,92,255,.35) 30%,transparent 42%,rgba(64,224,255,.22) 60%,transparent 72%,rgba(255,214,92,.12) 84%,transparent 92%);
+  filter:blur(60px);transform:translateX(-50%) rotate(0deg);animation:spin 38s linear infinite}
+.sky::after{animation-duration:61s;animation-direction:reverse;opacity:.7;top:-70vmax}
+.stars{position:fixed;inset:-50% 0 0;z-index:-1;pointer-events:none;
+  background-image:radial-gradient(1px 1px at 12% 22%,#fff8 50%,transparent 51%),radial-gradient(1px 1px at 68% 12%,#fff6 50%,transparent 51%),
+  radial-gradient(1.4px 1.4px at 38% 64%,#fff7 50%,transparent 51%),radial-gradient(1px 1px at 86% 48%,#fff5 50%,transparent 51%),
+  radial-gradient(1.2px 1.2px at 22% 86%,#fff6 50%,transparent 51%),radial-gradient(1px 1px at 54% 38%,#fff4 50%,transparent 51%);
+  background-size:340px 340px;animation:drift 90s linear infinite;opacity:.7}
+@keyframes spin{to{transform:translateX(-50%) rotate(360deg)}}
+@keyframes drift{to{transform:translateY(340px)}}
+
+/* ---------- layout ---------- */
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+header{display:flex;align-items:center;gap:14px;padding:22px 2px 18px}
+.logo{width:48px;height:48px;border-radius:15px;position:relative;flex:none;
+  background:linear-gradient(140deg,var(--violet),#3a2a9a 60%,var(--cyan));box-shadow:0 10px 30px -8px rgba(122,92,255,.8),0 0 0 1px #fff2 inset;
+  display:grid;place-items:center;overflow:hidden}
+.logo svg{width:26px;height:26px;transform:rotate(-12deg)}
+.logo::after{content:"";position:absolute;inset:-40%;background:linear-gradient(115deg,transparent 40%,#fff7 50%,transparent 60%);animation:sheen 4.5s ease-in-out infinite}
+@keyframes sheen{0%,60%{transform:translateX(-60%)}100%{transform:translateX(60%)}}
+h1{margin:0;font-size:24px;letter-spacing:-.02em;font-weight:800}
+h1 span{background:linear-gradient(90deg,var(--cyan),var(--violet) 55%,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--muted);font-size:13px;margin-top:1px}
+
+.card{background:var(--card);backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);
+  border-radius:var(--r);box-shadow:var(--shadow);padding:var(--pad);margin:0 0 14px;
+  opacity:0;transform:translateY(14px) scale(.985);animation:rise .7s cubic-bezier(.2,.8,.2,1) forwards}
+.card:nth-of-type(2){animation-delay:.06s}.card:nth-of-type(3){animation-delay:.12s}.card:nth-of-type(4){animation-delay:.18s}
+.card:nth-of-type(5){animation-delay:.24s}.card:nth-of-type(6){animation-delay:.30s}
+@keyframes rise{to{opacity:1;transform:none}}
+.card h2{margin:0;font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px}
+.num{width:24px;height:24px;border-radius:8px;display:grid;place-items:center;font-size:12px;font-weight:800;
+  background:linear-gradient(140deg,#2a2160,#1a1440);box-shadow:0 0 0 1px var(--line-strong) inset;color:var(--cyan)}
+.card.ok .num{background:linear-gradient(140deg,#1f6b50,#123d30);color:var(--green)}
+.head{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;user-select:none}
+.chip{font-size:12px;font-weight:600;padding:4px 10px;border-radius:99px;background:#ffffff0d;color:var(--muted);box-shadow:0 0 0 1px var(--line) inset;white-space:nowrap}
+.chip.good{color:var(--green);background:#4dffb014;box-shadow:0 0 0 1px #4dffb040 inset}
+.chip.bad{color:var(--red);background:#ff4d6d14;box-shadow:0 0 0 1px #ff4d6d40 inset}
+.chip.busy{color:var(--cyan)}
+.body{display:grid;grid-template-rows:1fr;transition:grid-template-rows .45s cubic-bezier(.2,.8,.2,1),opacity .35s}
+.body>div{overflow:hidden}
+.card.collapsed .body{grid-template-rows:0fr;opacity:0}
+.inner{padding-top:14px}
+p.help{margin:0 0 12px;color:var(--muted);font-size:13.5px}
+p.help b{color:var(--text)}
+ol.steps{margin:0 0 12px;padding-left:20px;color:var(--muted);font-size:13.5px}
+ol.steps li{margin:3px 0}
+ol.steps code,p.help code{color:var(--gold);background:#ffd65c12;padding:1px 6px;border-radius:6px;font-size:12.5px}
+
+label.f{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 6px;letter-spacing:.02em}
+.field{position:relative}
+input.t,textarea.t{width:100%;background:rgba(5,4,14,.55);border:0;border-radius:14px;padding:13px 14px;
+  box-shadow:0 0 0 1px var(--line) inset;outline:none;transition:box-shadow .25s,background .25s;font-size:16px}
+input.t:focus,textarea.t:focus{box-shadow:0 0 0 1.5px var(--violet) inset,0 0 0 5px rgba(122,92,255,.16);background:rgba(10,8,26,.75)}
+input.t.pw{padding-right:52px;font-family:ui-monospace,Menlo,monospace;font-size:14px}
+textarea.t{min-height:110px;resize:vertical;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;padding:8px;border-radius:10px;color:var(--muted)}
+.row{display:flex;gap:10px}.row>*{flex:1;min-width:0}
+.check{display:flex;gap:10px;align-items:flex-start;margin-top:12px;font-size:13px;color:var(--muted)}
+.check input{width:20px;height:20px;accent-color:var(--violet);flex:none;margin:0}
+
+.btn{appearance:none;border:0;border-radius:14px;padding:13px 16px;font-weight:700;font-size:15px;cursor:pointer;
+  background:#ffffff10;box-shadow:0 0 0 1px var(--line-strong) inset;transition:transform .15s,background .2s,box-shadow .2s,opacity .2s;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:12px;text-decoration:none;color:var(--text)}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.45;pointer-events:none}
+.btn.primary{background:linear-gradient(135deg,var(--violet),#5236d6);box-shadow:0 10px 30px -10px rgba(122,92,255,.9),0 0 0 1px #ffffff25 inset}
+.btn.ghost{background:transparent}
+a.link{color:var(--cyan);text-decoration:none;font-weight:600}
+.spinner{width:16px;height:16px;border-radius:50%;border:2px solid #fff4;border-top-color:#fff;animation:spin2 .8s linear infinite}
+@keyframes spin2{to{transform:rotate(360deg)}}
+
+/* drop zone */
+.drop{margin-top:4px;border-radius:18px;padding:22px 16px;text-align:center;cursor:pointer;position:relative;overflow:hidden;
+  background:linear-gradient(180deg,rgba(122,92,255,.08),rgba(64,224,255,.04));transition:transform .2s,background .3s}
+.drop::before{content:"";position:absolute;inset:0;border-radius:18px;padding:1.5px;
+  background:repeating-linear-gradient(90deg,var(--violet) 0 10px,transparent 10px 18px);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+  animation:march 1.2s linear infinite;opacity:.65}
+@keyframes march{to{background-position:18px 0}}
+.drop.over{transform:scale(1.015);background:linear-gradient(180deg,rgba(122,92,255,.18),rgba(64,224,255,.08))}
+.drop .ico{width:52px;height:52px;margin:0 auto 10px;border-radius:16px;display:grid;place-items:center;
+  background:#ffffff0c;box-shadow:0 0 0 1px var(--line) inset;animation:bob 3s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-4px)}}
+.drop b{display:block;font-size:15px}
+.drop small{color:var(--muted)}
+.file{display:none;align-items:center;gap:12px;margin-top:12px;padding:12px;border-radius:16px;background:rgba(5,4,14,.5);box-shadow:0 0 0 1px var(--line) inset;animation:pop .45s cubic-bezier(.2,1.4,.4,1)}
+.file.show{display:flex}
+@keyframes pop{from{transform:scale(.9);opacity:0}}
+.badge{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;font-size:11px;font-weight:800;letter-spacing:.04em;flex:none;
+  background:linear-gradient(140deg,var(--violet),#2c1f86);box-shadow:0 0 0 1px #fff2 inset}
+.badge.zip{background:linear-gradient(140deg,#ff9f43,#a4521a)}
+.file .meta{flex:1;min-width:0}.file .name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file .info{font-size:12.5px;color:var(--muted)}
+.x{border:0;background:#ffffff0f;width:34px;height:34px;border-radius:11px;flex:none}
+
+.seg{display:flex;background:rgba(5,4,14,.55);border-radius:14px;padding:4px;box-shadow:0 0 0 1px var(--line) inset;position:relative}
+.seg button{flex:1;border:0;background:none;padding:10px;border-radius:11px;font-weight:700;font-size:14px;color:var(--muted);position:relative;z-index:1;transition:color .25s}
+.seg button.on{color:var(--text)}
+.seg i{position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:11px;background:linear-gradient(135deg,#3a2a9a,#2a1f70);
+  box-shadow:0 0 0 1px var(--line-strong) inset;transition:transform .4s cubic-bezier(.3,1.4,.4,1)}
+.seg.right i{transform:translateX(100%)}
+
+.games{display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;margin-top:10px;scrollbar-width:none}
+.games::-webkit-scrollbar{display:none}
+.game{flex:none;border:0;border-radius:12px;padding:8px 12px;background:#ffffff0c;box-shadow:0 0 0 1px var(--line) inset;font-size:13px;font-weight:600;color:var(--muted)}
+.game.on{color:var(--text);box-shadow:0 0 0 1.5px var(--violet) inset;background:rgba(122,92,255,.14)}
+
+/* the big publish button */
+.go{position:relative;width:100%;border:0;border-radius:20px;padding:20px;margin:6px 0 14px;font-size:18px;font-weight:800;letter-spacing:.06em;
+  background:linear-gradient(120deg,var(--violet),#4a2fd0 40%,#2b8fd6 80%,var(--cyan));background-size:220% 100%;color:#fff;
+  box-shadow:0 18px 40px -14px rgba(122,92,255,.95),0 0 0 1px #ffffff30 inset;overflow:hidden;cursor:pointer;
+  animation:flow 6s ease-in-out infinite,rise .7s .3s cubic-bezier(.2,.8,.2,1) both;transition:transform .15s,filter .3s}
+.go:active{transform:scale(.975)}
+.go:disabled{filter:grayscale(.7) brightness(.7);animation:none}
+.go::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 35%,#ffffff55 50%,transparent 65%);transform:translateX(-100%);animation:sheen2 3.2s 1s ease-in-out infinite}
+.go:disabled::after{display:none}
+@keyframes flow{50%{background-position:100% 0}}
+@keyframes sheen2{0%{transform:translateX(-100%)}45%,100%{transform:translateX(100%)}}
+
+/* timeline */
+.tl{list-style:none;margin:6px 0 0;padding:0;position:relative}
+.tl li{display:flex;gap:12px;align-items:flex-start;padding:9px 0;position:relative;opacity:.5;transition:opacity .4s}
+.tl li::before{content:"";position:absolute;left:15px;top:38px;bottom:-9px;width:2px;background:var(--line)}
+.tl li:last-child::before{display:none}
+.tl li::after{content:"";position:absolute;left:15px;top:38px;width:2px;height:0;background:linear-gradient(var(--violet),var(--cyan));transition:height .6s cubic-bezier(.2,.8,.2,1)}
+.tl li.done::after,.tl li.skip::after{height:calc(100% - 29px)}
+.tl li:last-child::after{display:none}
+.tl li.active,.tl li.done,.tl li.error,.tl li.skip{opacity:1}
+.tl li.skip{opacity:.55}
+.dot{width:32px;height:32px;border-radius:11px;flex:none;display:grid;place-items:center;background:#ffffff0a;box-shadow:0 0 0 1px var(--line) inset;position:relative;transition:background .35s,box-shadow .35s}
+.tl li.active .dot{box-shadow:0 0 0 1.5px var(--cyan) inset,0 0 18px -2px rgba(64,224,255,.6);animation:pulse 1.6s ease-in-out infinite}
+.tl li.done .dot{background:linear-gradient(140deg,#25c48a,#127a57);box-shadow:0 0 0 1px #ffffff30 inset}
+.tl li.error .dot{background:linear-gradient(140deg,#ff4d6d,#a31a36);animation:shake .5s}
+@keyframes pulse{50%{box-shadow:0 0 0 1.5px var(--cyan) inset,0 0 28px 2px rgba(64,224,255,.45)}}
+@keyframes shake{20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+.dot svg{width:16px;height:16px}
+.dot .sp{width:14px;height:14px;border-radius:50%;border:2px solid #40e0ff40;border-top-color:var(--cyan);animation:spin2 .8s linear infinite}
+.tl .lbl{font-weight:700;font-size:14.5px;padding-top:5px}
+.tl .det{font-size:12.5px;color:var(--muted);margin-top:2px;word-break:break-word}
+.bar{height:4px;border-radius:4px;background:#ffffff12;margin-top:7px;overflow:hidden;display:none}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--violet),var(--cyan));transition:width .25s}
+.tl li.active .bar.on{display:block}
+
+/* result */
+.result{display:none;text-align:center;padding:22px 16px 18px;position:relative;overflow:hidden}
+.result.show{display:block;animation:pop .6s cubic-bezier(.2,1.4,.4,1)}
+.result .ring{width:84px;height:84px;margin:4px auto 14px;border-radius:50%;display:grid;place-items:center;position:relative;
+  background:radial-gradient(circle,#ffd65c33,transparent 70%)}
+.result .ring::before{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid var(--gold);opacity:.8;animation:ring 1.8s cubic-bezier(.2,.8,.2,1) infinite}
+.result.fail .ring{background:radial-gradient(circle,#ff4d6d33,transparent 70%)}.result.fail .ring::before{border-color:var(--red)}
+@keyframes ring{from{transform:scale(.7);opacity:1}to{transform:scale(1.5);opacity:0}}
+.result .big{font-size:44px;font-weight:900;letter-spacing:-.03em;background:linear-gradient(180deg,#fff,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;line-height:1.05}
+.result.fail .big{font-size:24px;background:linear-gradient(180deg,#fff,#ff9db0);-webkit-background-clip:text;background-clip:text}
+.result .what{color:var(--muted);margin:6px 0 14px;font-size:14px}
+.result .fix{text-align:left;background:rgba(5,4,14,.55);border-radius:14px;padding:12px 14px;font-size:13.5px;box-shadow:0 0 0 1px var(--line) inset;margin-top:10px}
+.result pre{text-align:left;white-space:pre-wrap;word-break:break-word;font-size:11.5px;color:var(--muted);background:rgba(5,4,14,.6);border-radius:12px;padding:10px;max-height:220px;overflow:auto;margin:10px 0 0}
+canvas.fx{position:fixed;inset:0;pointer-events:none;z-index:50}
+
+.hist{list-style:none;margin:8px 0 0;padding:0}
+.hist li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:13px}
+.hist li:first-child{border-top:0}
+.hist .s{width:8px;height:8px;border-radius:50%;flex:none;background:var(--green);box-shadow:0 0 10px var(--green)}
+.hist .s.no{background:var(--red);box-shadow:0 0 10px var(--red)}
+.hist .m{flex:1;min-width:0;color:var(--muted)}.hist .m b{color:var(--text)}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 18px);transform:translate(-50%,140%);background:var(--card-strong);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding:12px 16px;border-radius:14px;box-shadow:var(--shadow);font-size:14px;font-weight:600;
+  transition:transform .45s cubic-bezier(.2,1.3,.4,1);z-index:60;max-width:calc(100% - 32px)}
+.toast.show{transform:translate(-50%,0)}
+.foot{text-align:center;color:var(--faint);font-size:12px;margin-top:10px}
+.hidden{display:none!important}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.card{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="sky"></div><div class="stars"></div>
+<canvas class="fx" id="fx"></canvas>
+
+<div class="wrap">
+  <header>
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+    </div>
+    <div>
+      <h1><span>Roblox</span> Push</h1>
+      <div class="sub">Publie un jeu Roblox depuis ton iPhone</div>
+    </div>
+  </header>
+
+  <!-- 1. GitHub -->
+  <section class="card" id="cGh">
+    <div class="head" data-toggle><h2><span class="num">1</span>Connexion GitHub</h2><span class="chip" id="ghChip">non connecté</span></div>
+    <div class="body"><div><div class="inner">
+      <p class="help">GitHub sert de relais gratuit : Safari ne peut pas parler directement à Roblox. Il faut un <b>jeton</b> GitHub (une seule fois).</p>
+      <ol class="steps">
+        <li>Ouvre <a class="link" href="https://github.com/settings/personal-access-tokens/new?name=Roblox%20Push&amp;description=Roblox%20Push%20app" target="_blank" rel="noopener">github.com › nouveau jeton</a></li>
+        <li><b>Repository access</b> : <code>Only select repositories</code> › ton dépôt</li>
+        <li><b>Permissions</b> : <code>Actions</code> Read · <code>Contents</code> Read and write · <code>Secrets</code> Read and write · <code>Workflows</code> Read and write</li>
+        <li><b>Generate token</b>, copie-le et colle-le ici</li>
+      </ol>
+      <label class="f" for="token">Jeton GitHub</label>
+      <div class="field"><input class="t pw" id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"><button class="eye" type="button" data-eye="token" aria-label="Afficher">👁</button></div>
+      <label class="f" for="repo">Dépôt</label>
+      <input class="t" id="repo" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="pseudo/nom-du-depot">
+      <label class="check"><input type="checkbox" id="remember"> <span>Mémoriser le jeton sur cet iPhone (sinon il faudra le recoller à chaque ouverture)</span></label>
+      <button class="btn primary" id="btnConnect">Se connecter</button>
+    </div></div></div>
+  </section>
+
+  <!-- 2. Install -->
+  <section class="card" id="cInstall">
+    <div class="head" data-toggle><h2><span class="num">2</span>Installation dans le dépôt</h2><span class="chip" id="instChip">—</span></div>
+    <div class="body"><div><div class="inner">
+      <p class="help">Crée la branche <code>roblox-push</code> avec le robot de publication. À refaire seulement si l'app te le demande.</p>
+      <button class="btn" id="btnInstall">Installer / mettre à jour</button>
+    </div></div></div>
+  </section>
+
+  <!-- 3. Roblox key -->
+  <section class="card" id="cKey">
+    <div class="head" data-toggle><h2><span class="num">3</span>Clé Roblox</h2><span class="chip" id="keyChip">—</span></div>
+    <div class="body"><div><div class="inner">
+      <ol class="steps">
+        <li>Ouvre <a class="link" href="https://create.roblox.com/dashboard/credentials" target="_blank" rel="noopener">create.roblox.com › Credentials</a> › <b>Create API Key</b></li>
+        <li><b>Access Permissions</b> : <code>universe-places</code> › ton jeu › <code>write</code>. Pour le test Luau, ajoute aussi <code>luau-execution-sessions</code> › <code>write</code></li>
+        <li><b>Security</b> : laisse <code>Restrict IP addresses</code> <b>désactivé</b></li>
+        <li><b>Save &amp; Generate Key</b> › <b>Copy</b>, colle ici</li>
+      </ol>
+      <label class="f" for="rkey">Clé API Roblox</label>
+      <div class="field"><input class="t pw" id="rkey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="colle la clé ici"><button class="eye" type="button" data-eye="rkey" aria-label="Afficher">👁</button></div>
+      <p class="help" style="margin-top:10px">La clé est <b>chiffrée sur ton iPhone</b> puis rangée dans les secrets GitHub. Elle n'est jamais gardée par l'app.</p>
+      <button class="btn" id="btnKey">Enregistrer la clé dans GitHub</button>
+    </div></div></div>
+  </section>
+
+  <!-- 4. Game + file -->
+  <section class="card" id="cGame">
+    <div class="head"><h2><span class="num">4</span>Jeu et fichier</h2><span class="chip" id="gameChip">—</span></div>
+    <div class="inner">
+      <div class="games" id="games"></div>
+      <label class="f" for="placeUrl">Lien ou numéro de la place</label>
+      <input class="t" id="placeUrl" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://www.roblox.com/games/123…">
+      <div class="row">
+        <div><label class="f" for="placeId">Place ID</label><input class="t" id="placeId" inputmode="numeric" placeholder="auto"></div>
+        <div><label class="f" for="universeId">Universe ID</label><input class="t" id="universeId" inputmode="numeric" placeholder="auto (optionnel)"></div>
+      </div>
+
+      <label class="f">Fichier du jeu</label>
+      <div class="drop" id="drop" role="button" tabindex="0">
+        <div class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#a49cc8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M6 10l6-6 6 6"/><path d="M4 20h16"/></svg></div>
+        <b>Choisir un fichier</b>
+        <small>.rbxl · .rbxlx · .zip (projet Rojo ou place)</small>
+      </div>
+      <input type="file" id="file" accept=".rbxl,.rbxlx,.zip,application/zip,application/octet-stream" class="hidden">
+      <div class="file" id="fileBox"><div class="badge" id="fileBadge">RBXL</div><div class="meta"><div class="name" id="fileName"></div><div class="info" id="fileInfo"></div></div><button class="x" id="fileClear" aria-label="Retirer">✕</button></div>
+
+      <label class="f">Type de version</label>
+      <div class="seg" id="seg"><i></i><button type="button" class="on" data-v="Published">Publiée (live)</button><button type="button" data-v="Saved">Enregistrée</button></div>
+
+      <div class="head" style="margin-top:14px" id="luauHead"><span class="f" style="margin:0">Test Luau sur les serveurs Roblox (optionnel)</span><span class="chip" id="luauChip">désactivé</span></div>
+      <div class="body" id="luauBody" style="grid-template-rows:0fr;opacity:0"><div>
+        <textarea class="t" id="luau" spellcheck="false" placeholder='print("Bonjour depuis Roblox")&#10;return workspace:GetChildren()'></textarea>
+      </div></div>
+    </div>
+  </section>
+
+  <button class="go" id="go" disabled>PUBLIER</button>
+
+  <!-- progress -->
+  <section class="card hidden" id="cRun" style="animation:none;opacity:1;transform:none">
+    <div class="head"><h2><span class="num">⚡</span>Publication</h2><a class="link chip" id="runLink" target="_blank" rel="noopener" style="display:none">voir sur GitHub</a></div>
+    <ul class="tl" id="tl"></ul>
+    <div class="result" id="result"></div>
+  </section>
+
+  <section class="card" id="cHist">
+    <div class="head" data-toggle><h2><span class="num">↺</span>Historique</h2><span class="chip" id="histChip">0</span></div>
+    <div class="body"><div><ul class="hist" id="hist"></ul></div></div>
+  </section>
+
+  <div class="foot">Gratuit · GitHub Actions + Roblox Open Cloud · aucune donnée envoyée ailleurs</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="vendor/nacl-fast.min.js"></script>
+<script src="vendor/blake2b.min.js"></script>
+<script src="sealed-box.js"></script>
+<script>
+'use strict';
+/* =========================================================================
+   Roblox Push - client. Talks only to api.github.com.
+   Flow: commit {request.json, game file} to branch roblox-push (orphan commit,
+   force-updated so old uploads do not pile up) -> GitHub Actions publishes
+   with the ROBLOX_API_KEY secret -> app follows the run and reads result.json.
+   ========================================================================= */
+const BRANCH = 'roblox-push';
+const API = 'https://api.github.com';
+const KIT = { workflow: 'kit/roblox-push.yml', script: 'kit/push.py' };
+const PATHS = { workflow: '.github/workflows/roblox-push.yml', script: '.roblox-push/push.py', request: '.roblox-push/request.json' };
+const MAX_BYTES = 75 * 1024 * 1024;
+const $ = (id) => document.getElementById(id);
+
+/* ---------------- storage (never throws, never stores the Roblox key) ---- */
+const Store = {
+  get(k, d) { try { const v = localStorage.getItem('rp.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('rp.' + k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem('rp.' + k); } catch {} },
+};
+let sessionToken = '';
+
+/* ---------------- UI helpers ------------------------------------------- */
+function toast(msg, ms = 2600) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms);
+}
+function chip(id, text, kind) { const c = $(id); c.textContent = text; c.className = 'chip' + (kind ? ' ' + kind : ''); }
+function busy(btn, on, label) {
+  if (on) { btn.dataset.label = btn.innerHTML; btn.innerHTML = '<span class="spinner"></span>' + (label || ''); btn.disabled = true; }
+  else { btn.innerHTML = btn.dataset.label || btn.innerHTML; btn.disabled = false; }
+}
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function fmtBytes(n) { return n < 1024 ? n + ' o' : n < 1048576 ? (n / 1024).toFixed(1) + ' Ko' : (n / 1048576).toFixed(2) + ' Mo'; }
+function setDone(card, ok) { $(card).classList.toggle('ok', !!ok); }
+document.querySelectorAll('[data-toggle]').forEach((h) => h.addEventListener('click', () => h.parentElement.classList.toggle('collapsed')));
+document.querySelectorAll('[data-eye]').forEach((b) => b.addEventListener('click', () => {
+  const i = $(b.dataset.eye); i.type = i.type === 'password' ? 'text' : 'password';
+}));
+
+/* ---------------- GitHub API ------------------------------------------- */
+class GhError extends Error { constructor(status, message, path) { super(message); this.status = status; this.path = path; } }
+function token() { return ($('token').value || '').trim(); }
+function repo() { return ($('repo').value || '').trim().replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '').replace(/\/+$/, ''); }
+async function gh(method, path, body, accept) {
+  const res = await fetch(API + path, {
+    method,
+    headers: Object.assign({ Authorization: 'Bearer ' + token(), Accept: accept || 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+      body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    cache: 'no-store',
+  });
+  if (res.status === 204) return null;
+  const text = await res.text();
+  let data = null; try { data = text ? JSON.parse(text) : null; } catch { data = { message: text }; }
+  if (!res.ok) throw new GhError(res.status, (data && data.message) || res.statusText, path);
+  return data;
+}
+/* Upload a blob with real progress (fetch has no upload progress; XHR does). */
+function ghBlob(base64, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API}/repos/${repo()}/git/blobs`);
+    xhr.setRequestHeader('Authorization', 'Bearer ' + token());
+    xhr.setRequestHeader('Accept', 'application/vnd.github+json');
+    xhr.setRequestHeader('X-GitHub-Api-Version', '2022-11-28');
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+    xhr.onload = () => {
+      let data = null; try { data = JSON.parse(xhr.responseText); } catch {}
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new GhError(xhr.status, (data && data.message) || 'upload failed', '/git/blobs'));
+    };
+    xhr.onerror = () => reject(new GhError(0, 'network', '/git/blobs'));
+    xhr.send(JSON.stringify({ content: base64, encoding: 'base64' }));
+  });
+}
+function explainGh(err, action) {
+  const m = (err && err.message) || '';
+  if (err.status === 0 || /Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Pas de connexion à GitHub. Vérifie le réseau.';
+  if (err.status === 401) return 'Jeton GitHub refusé (expiré ou mal collé). Crée un nouveau jeton.';
+  if (err.status === 404) return `Dépôt introuvable ou le jeton n'y a pas accès. Vérifie « ${repo()} » et « Repository access » du jeton.`;
+  if (err.status === 409 && /empty/i.test(m)) return 'Le dépôt est vide. Ajoute un README sur GitHub (Add file › Create new file), puis réessaie.';
+  if (err.status === 403 || (err.status === 422 && /workflow/i.test(m))) {
+    const need = { install: 'Contents + Workflows (Read and write)', key: 'Secrets (Read and write)', publish: 'Contents + Workflows (Read and write)', follow: 'Actions (Read)' }[action] || 'les permissions listées';
+    if (/rate limit/i.test(m)) return 'Trop de requêtes GitHub. Attends une minute.';
+    return `Le jeton n'a pas la permission nécessaire : ${need}. Modifie le jeton sur GitHub.`;
+  }
+  return `GitHub a répondu ${err.status || ''} : ${m}`;
+}
+
+/* ---------------- state + persistence ---------------------------------- */
+const state = { connected: false, installed: false, keyOk: false, file: null, versionType: 'Published', luauOn: false, running: false };
+function loadSettings() {
+  const s = Store.get('settings', {});
+  $('repo').value = s.repo || '';
+  $('remember').checked = !!s.remember;
+  if (s.remember && s.token) $('token').value = s.token;
+  const g = Store.get('lastGame', null);
+  if (g) { $('placeId').value = g.place || ''; $('universeId').value = g.universe || ''; }
+}
+function saveSettings() {
+  const remember = $('remember').checked;
+  Store.set('settings', { repo: repo(), remember, token: remember ? token() : undefined });
+}
+$('remember').addEventListener('change', saveSettings);
+
+function refreshGo() {
+  const ready = state.connected && state.installed && state.file && /^\d+$/.test(($('placeId').value || '').trim()) && !state.running;
+  $('go').disabled = !ready;
+  const missing = [];
+  if (!state.connected) missing.push('connexion'); else if (!state.installed) missing.push('installation');
+  if (!/^\d+$/.test(($('placeId').value || '').trim())) missing.push('place');
+  if (!state.file) missing.push('fichier');
+  $('go').textContent = state.running ? 'PUBLICATION…' : missing.length ? 'Manque : ' + missing.join(', ') : 'PUBLIER';
+}
+
+/* ---------------- 1. connect -------------------------------------------- */
+async function connect(silent) {
+  if (!token() || !/^[\w.-]+\/[\w.-]+$/.test(repo())) { if (!silent) toast('Colle le jeton et le dépôt (pseudo/nom).'); return; }
+  const btn = $('btnConnect'); busy(btn, true, 'Connexion…'); chip('ghChip', 'connexion…', 'busy');
+  try {
+    const r = await gh('GET', `/repos/${repo()}`);
+    if (r.permissions && r.permissions.push === false) throw new GhError(403, 'no push permission');
+    state.connected = true; saveSettings();
+    chip('ghChip', r.full_name, 'good'); setDone('cGh', true); $('cGh').classList.add('collapsed');
+    await Promise.all([checkInstall(), checkKey()]);
+  } catch (e) {
+    state.connected = false; chip('ghChip', 'erreur', 'bad'); setDone('cGh', false);
+    if (!silent) toast(explainGh(e, 'connect'), 5200);
+  } finally { busy(btn, false); refreshGo(); }
+}
+$('btnConnect').addEventListener('click', () => connect(false));
+
+/* ---------------- 2. install -------------------------------------------- */
+async function kitFiles() {
+  const [wf, py] = await Promise.all([KIT.workflow, KIT.script].map(async (p) => {
+    const r = await fetch(p, { cache: 'no-store' }); if (!r.ok) throw new Error('kit file missing: ' + p); return r.text();
+  }));
+  return { wf, py };
+}
+async function branchHead() {
+  try { const ref = await gh('GET', `/repos/${repo()}/git/ref/heads/${BRANCH}`); return ref.object.sha; }
+  catch (e) { if (e.status === 404) return null; throw e; }
+}
+async function installedTree() {
+  const head = await branchHead(); if (!head) return null;
+  const commit = await gh('GET', `/repos/${repo()}/git/commits/${head}`);
+  const tree = await gh('GET', `/repos/${repo()}/git/trees/${commit.tree.sha}?recursive=1`);
+  const find = (p) => (tree.tree.find((t) => t.path === p) || {}).sha;
+  return { head, workflow: find(PATHS.workflow), script: find(PATHS.script) };
+}
+async function gitSha(text) { // sha of a git blob, to know if the installed kit is current
+  const bytes = new TextEncoder().encode(text);
+  const header = new TextEncoder().encode(`blob ${bytes.length}\0`);
+  const all = new Uint8Array(header.length + bytes.length); all.set(header); all.set(bytes, header.length);
+  const h = await crypto.subtle.digest('SHA-1', all);
+  return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+async function checkInstall() {
+  chip('instChip', 'vérification…', 'busy');
+  try {
+    const [t, kit] = await Promise.all([installedTree(), kitFiles()]);
+    if (!t || !t.workflow || !t.script) { state.installed = false; chip('instChip', 'à installer', 'bad'); setDone('cInstall', false); return; }
+    const current = (await gitSha(kit.wf)) === t.workflow && (await gitSha(kit.py)) === t.script;
+    state.installed = true;
+    chip('instChip', current ? 'installé' : 'mise à jour dispo', current ? 'good' : '');
+    setDone('cInstall', true); if (current) $('cInstall').classList.add('collapsed');
+  } catch (e) { state.installed = false; chip('instChip', 'erreur', 'bad'); toast(explainGh(e, 'install'), 5200); }
+  finally { refreshGo(); }
+}
+async function makeOrphanCommit(entries, message) {
+  const tree = await gh('POST', `/repos/${repo()}/git/trees`, { tree: entries });
+  const commit = await gh('POST', `/repos/${repo()}/git/commits`, { message, tree: tree.sha, parents: [] });
+  const head = await branchHead();
+  if (head) await gh('PATCH', `/repos/${repo()}/git/refs/heads/${BRANCH}`, { sha: commit.sha, force: true });
+  else await gh('POST', `/repos/${repo()}/git/refs`, { ref: `refs/heads/${BRANCH}`, sha: commit.sha });
+  return commit.sha;
+}
+$('btnInstall').addEventListener('click', async () => {
+  if (!state.connected) return toast('Connecte-toi d\'abord (étape 1).');
+  const btn = $('btnInstall'); busy(btn, true, 'Installation…');
+  try {
+    const kit = await kitFiles();
+    await makeOrphanCommit([
+      { path: PATHS.workflow, mode: '100644', type: 'blob', content: kit.wf },
+      { path: PATHS.script, mode: '100644', type: 'blob', content: kit.py },
+    ], 'roblox-push install');
+    toast('Installé ✓'); await checkInstall();
+  } catch (e) { toast(explainGh(e, 'install'), 6000); }
+  finally { busy(btn, false); refreshGo(); }
+});
+
+/* ---------------- 3. Roblox key -> encrypted GitHub secret --------------- */
+async function checkKey() {
+  try {
+    const s = await gh('GET', `/repos/${repo()}/actions/secrets/ROBLOX_API_KEY`);
+    state.keyOk = true; chip('keyChip', 'enregistrée ' + new Date(s.updated_at).toLocaleDateString('fr-FR'), 'good'); setDone('cKey', true); $('cKey').classList.add('collapsed');
+  } catch (e) {
+    state.keyOk = false;
+    if (e.status === 404) chip('keyChip', 'à ajouter', 'bad'); else chip('keyChip', 'inconnu', '');
+  }
+}
+$('btnKey').addEventListener('click', async () => {
+  if (!state.connected) return toast('Connecte-toi d\'abord (étape 1).');
+  const key = ($('rkey').value || '').replace(/\s+/g, '');
+  if (key.length < 40) return toast('Cette clé semble incomplète. Recopie-la depuis Roblox.');
+  const btn = $('btnKey'); busy(btn, true, 'Chiffrement…');
+  try {
+    const pk = await gh('GET', `/repos/${repo()}/actions/secrets/public-key`);
+    const encrypted = SealedBox.encryptSecret(key, pk.key);
+    await gh('PUT', `/repos/${repo()}/actions/secrets/ROBLOX_API_KEY`, { encrypted_value: encrypted, key_id: pk.key_id });
+    $('rkey').value = ''; toast('Clé chiffrée et enregistrée ✓');
+    await checkKey();
+  } catch (e) { toast(explainGh(e, 'key'), 6000); }
+  finally { busy(btn, false); }
+});
+
+/* ---------------- 4. game ids + file ------------------------------------ */
+function parseIds(text) {
+  const t = (text || '').trim();
+  const place = t.match(/roblox\.com\/(?:[a-z]{2}\/)?games\/(\d+)/i) || t.match(/places\/(\d+)/i) || t.match(/^(\d{4,})$/);
+  const universe = t.match(/experiences\/(\d+)/i);
+  return { place: place && place[1], universe: universe && universe[1] };
+}
+$('placeUrl').addEventListener('input', () => {
+  const { place, universe } = parseIds($('placeUrl').value);
+  if (place) $('placeId').value = place;
+  if (universe) $('universeId').value = universe;
+  if (place || universe) { toast(place ? 'Place trouvée ✓' : 'Universe trouvé ✓', 1400); renderGames(); }
+  refreshGo();
+});
+['placeId', 'universeId'].forEach((id) => $(id).addEventListener('input', () => { $(id).value = $(id).value.replace(/\D/g, ''); renderGames(); refreshGo(); }));
+function games() { return Store.get('games', []); }
+function renderGames() {
+  const list = games(); const box = $('games'); box.innerHTML = '';
+  const cur = ($('placeId').value || '').trim();
+  list.forEach((g) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'game' + (g.place === cur ? ' on' : '');
+    b.textContent = g.name || ('Place ' + g.place);
+    b.addEventListener('click', () => { $('placeId').value = g.place; $('universeId').value = g.universe || ''; $('placeUrl').value = ''; renderGames(); refreshGo(); });
+    box.appendChild(b);
+  });
+  box.style.display = list.length ? 'flex' : 'none';
+  chip('gameChip', cur ? 'place ' + cur : '—', cur ? 'good' : '');
+}
+function rememberGame(place, universe, name) {
+  const list = games().filter((g) => g.place !== place);
+  list.unshift({ place, universe, name: name || (games().find((g) => g.place === place) || {}).name || 'Place ' + place });
+  Store.set('games', list.slice(0, 8)); Store.set('lastGame', { place, universe });
+}
+
+const drop = $('drop'), fileInput = $('file');
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) pickFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) pickFile(fileInput.files[0]); });
+$('fileClear').addEventListener('click', () => { state.file = null; fileInput.value = ''; $('fileBox').classList.remove('show'); drop.classList.remove('hidden'); refreshGo(); });
+
+async function sniff(file) { // check the real content, not just the name
+  const head = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+  const ascii = String.fromCharCode(...head);
+  if (head[0] === 0x50 && head[1] === 0x4b) return 'zip';
+  if (ascii.startsWith('<roblox!')) return 'rbxl';
+  if (/^\s*(<\?xml[^>]*>\s*)?<roblox/i.test(ascii)) return 'rbxlx';
+  return null;
+}
+async function pickFile(file) {
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const kind = await sniff(file);
+  if (!kind) return toast('Ce fichier n\'est pas un .rbxl, .rbxlx ou .zip valide.', 4200);
+  if (file.size > MAX_BYTES) return toast(`Fichier trop gros (${fmtBytes(file.size)}). Limite : 75 Mo.`, 4200);
+  state.file = { file, kind, ext };
+  $('fileName').textContent = file.name;
+  $('fileInfo').textContent = fmtBytes(file.size) + ' · ' + ({ zip: 'archive .zip (Rojo ou place)', rbxl: 'place binaire', rbxlx: 'place XML' })[kind];
+  const badge = $('fileBadge'); badge.textContent = kind.toUpperCase(); badge.className = 'badge' + (kind === 'zip' ? ' zip' : '');
+  $('fileBox').classList.remove('show'); void $('fileBox').offsetWidth; $('fileBox').classList.add('show');
+  drop.classList.add('hidden'); refreshGo();
+}
+
+$('seg').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.versionType = b.dataset.v;
+  [...$('seg').querySelectorAll('button')].forEach((x) => x.classList.toggle('on', x === b));
+  $('seg').classList.toggle('right', b.dataset.v === 'Saved');
+});
+$('luauHead').addEventListener('click', () => {
+  state.luauOn = !state.luauOn;
+  const body = $('luauBody'); body.style.gridTemplateRows = state.luauOn ? '1fr' : '0fr'; body.style.opacity = state.luauOn ? 1 : 0;
+  chip('luauChip', state.luauOn ? 'activé' : 'désactivé', state.luauOn ? 'good' : '');
+});
+
+/* ---------------- timeline ---------------------------------------------- */
+const ICON_OK = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>';
+const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const ICON_SKIP = '<svg viewBox="0 0 24 24" fill="none" stroke="#a49cc8" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14"/></svg>';
+const STEPS = [
+  ['upload', 'Envoi du fichier'], ['commit', 'Préparation sur GitHub'], ['queue', 'Démarrage du serveur'],
+  ['prepare', 'Lecture du jeu'], ['build', 'Construction du projet Rojo'], ['publish', 'Publication sur Roblox'],
+  ['luau', 'Test Luau sur Roblox'], ['result', 'Résultat'],
+];
+function buildTimeline(withBuild, withLuau) {
+  const tl = $('tl'); tl.innerHTML = '';
+  STEPS.forEach(([id, label]) => {
+    if (id === 'build' && !withBuild) return; if (id === 'luau' && !withLuau) return;
+    const li = document.createElement('li'); li.id = 'st-' + id;
+    li.innerHTML = `<div class="dot"></div><div style="flex:1;min-width:0"><div class="lbl">${label}</div><div class="det"></div><div class="bar"><i></i></div></div>`;
+    tl.appendChild(li);
+  });
+}
+function mark(id, status, detail) {
+  const li = $('st-' + id); if (!li) return;
+  if (li.dataset.status === 'done' && status === 'active') return;
+  li.dataset.status = status; li.className = status;
+  li.querySelector('.dot').innerHTML = status === 'active' ? '<div class="sp"></div>' : status === 'done' ? ICON_OK : status === 'error' ? ICON_X : status === 'skip' ? ICON_SKIP : '';
+  if (detail !== undefined) li.querySelector('.det').textContent = detail;
+  if (status === 'active') li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function progress(id, frac) { const li = $('st-' + id); if (!li) return; const b = li.querySelector('.bar'); b.classList.add('on'); b.querySelector('i').style.width = Math.round(frac * 100) + '%'; }
+
+/* ---------------- publish ---------------------------------------------- */
+function readBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] || '');
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const JOB_STEP = { 'Read the request': 'prepare', 'Build the Rojo project': 'build', 'Install Rojo (first Rojo project only, ~3 min)': 'build', 'Publish to Roblox': 'publish', 'Run Luau on Roblox servers': 'luau', 'Save the result for the app': 'result' };
+
+$('go').addEventListener('click', publish);
+async function publish() {
+  if (state.running) return;
+  const place = ($('placeId').value || '').trim(), universe = ($('universeId').value || '').trim();
+  if (!state.keyOk) await checkKey();
+  if (!state.keyOk && !confirm('Aucune clé Roblox trouvée dans ce dépôt (étape 3). Publier quand même ?')) return;
+  if (state.versionType === 'Published' && !confirm(`Remplacer la version en ligne de la place ${place} par ce fichier ?\nL'ancienne version reste dans l'historique Roblox.`)) return;
+
+  state.running = true; refreshGo();
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const luau = state.luauOn ? ($('luau').value || '').trim() : '';
+  const f = state.file;
+  const safeName = 'game.' + f.kind;
+  const card = $('cRun'); card.classList.remove('hidden'); $('result').className = 'result'; $('result').innerHTML = ''; $('runLink').style.display = 'none';
+  buildTimeline(f.kind === 'zip', !!luau);
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const started = Date.now();
+  let failedAt = 'upload';
+  try {
+    // 1. upload the game as a git blob (with progress)
+    mark('upload', 'active', `${f.file.name} · ${fmtBytes(f.file.size)}`);
+    const tInstalled = await installedTree();
+    if (!tInstalled || !tInstalled.workflow || !tInstalled.script) throw new GhError(-1, 'not installed');
+    const b64 = await readBase64(f.file);
+    const blob = await ghBlob(b64, (p) => progress('upload', p));
+    mark('upload', 'done', `${f.file.name} · ${fmtBytes(f.file.size)} envoyé`);
+
+    // 2. orphan commit: kit + request + game, force-updated on the branch
+    failedAt = 'commit'; mark('commit', 'active', 'commit sur la branche ' + BRANCH);
+    const request = { id, universeId: universe || null, placeId: place, versionType: state.versionType, file: safeName, luau, original: f.file.name, at: new Date().toISOString() };
+    const sha = await makeOrphanCommit([
+      { path: PATHS.workflow, mode: '100644', type: 'blob', sha: tInstalled.workflow },
+      { path: PATHS.script, mode: '100644', type: 'blob', sha: tInstalled.script },
+      { path: PATHS.request, mode: '100644', type: 'blob', content: JSON.stringify(request, null, 2) },
+      { path: '.roblox-push/' + safeName, mode: '100644', type: 'blob', sha: blob.sha },
+    ], `roblox-push publish ${id} (${f.file.name})`);
+    mark('commit', 'done', 'commit ' + sha.slice(0, 7));
+
+    // 3. find the Actions run for exactly this commit
+    failedAt = 'queue'; mark('queue', 'active', 'en attente de GitHub Actions…');
+    let run = null;
+    for (let i = 0; i < 60 && !run; i++) {
+      await sleep(i < 5 ? 2000 : 3000);
+      const runs = await gh('GET', `/repos/${repo()}/actions/runs?branch=${BRANCH}&head_sha=${sha}&per_page=5`);
+      run = (runs.workflow_runs || []).find((r) => r.head_sha === sha) || null;
+    }
+    if (!run) throw new GhError(-2, 'no run');
+    $('runLink').href = run.html_url; $('runLink').style.display = '';
+
+    // 4. follow the job's steps live
+    let job = null, last = '';
+    for (let i = 0; i < 600; i++) {
+      const jobs = await gh('GET', `/repos/${repo()}/actions/runs/${run.id}/jobs`);
+      job = (jobs.jobs || [])[0] || null;
+      if (job && job.status !== 'queued') mark('queue', 'done', 'serveur prêt');
+      if (job && job.steps) {
+        for (const s of job.steps) {
+          const key = JOB_STEP[s.name]; if (!key) continue;
+          if (s.status === 'in_progress') { mark(key, 'active'); failedAt = key; }
+          else if (s.status === 'completed') {
+            if (s.conclusion === 'success') mark(key, 'done');
+            else if (s.conclusion === 'skipped') { if (key !== 'build' || f.kind !== 'zip') mark(key, 'skip', 'non nécessaire'); }
+            else if (s.conclusion === 'failure') { mark(key, 'error'); failedAt = key; }
+          }
+        }
+        const sig = job.steps.map((s) => s.status + s.conclusion).join();
+        if (sig !== last) last = sig;
+      }
+      if (job && job.status === 'completed') break;
+      const r = await gh('GET', `/repos/${repo()}/actions/runs/${run.id}`);
+      if (r.status === 'completed' && (!job || job.status === 'completed')) break;
+      await sleep(2500);
+    }
+    if (f.kind === 'zip' && $('st-build') && !$('st-build').dataset.status) mark('build', 'skip', 'le .zip contenait une place');
+
+    // 5. read result.json written by the workflow
+    mark('result', 'active', 'lecture du résultat…');
+    let result = null;
+    for (let i = 0; i < 8 && !result; i++) {
+      try {
+        const c = await gh('GET', `/repos/${repo()}/contents/.roblox-push/result.json?ref=${BRANCH}`);
+        const r = JSON.parse(decodeURIComponent(escape(atob(c.content.replace(/\n/g, '')))));
+        if (r.id === id) result = r;
+      } catch (e) { if (e.status && e.status !== 404) throw e; }
+      if (!result) await sleep(2000);
+    }
+    if (!result) {
+      mark('result', 'error', 'pas de résultat');
+      showFail('Le serveur n\'a pas renvoyé de résultat.', 'Ouvre « voir sur GitHub » pour lire le journal complet.', job && job.conclusion);
+    } else {
+      showResult(result, (Date.now() - started) / 1000);
+    }
+  } catch (e) {
+    mark(failedAt, 'error');
+    if (e.status === -1) showFail('L\'app n\'est pas installée dans ce dépôt.', 'Étape 2 : touche « Installer / mettre à jour ».');
+    else if (e.status === -2) showFail('GitHub Actions n\'a pas démarré.', 'Sur GitHub : dépôt › onglet Actions › active les workflows s\'il le demande, puis republie.');
+    else showFail('Erreur GitHub', explainGh(e, failedAt === 'queue' ? 'follow' : 'publish'));
+  } finally {
+    state.running = false; refreshGo();
+  }
+}
+
+/* ---------------- result screens --------------------------------------- */
+const ROBLOX_FIX = {
+  UNAUTHORIZED: 'Roblox refuse la clé. Sur create.roblox.com › Credentials : vérifie que la clé est <b>Active</b> et que <b>Restrict IP addresses</b> est désactivé, ou régénère-la puis réenregistre-la à l\'étape 3.',
+  FORBIDDEN: 'La clé n\'a pas la permission pour ce jeu. Dans la clé : <b>universe-places › ton jeu › write</b> (et <b>luau-execution-sessions › write</b> pour le test Luau). Pas besoin de régénérer.',
+  NOT_FOUND: 'Place ou universe introuvable. Recolle le lien roblox.com/games/… du bon jeu.',
+  NO_KEY: 'Aucune clé Roblox dans ce dépôt. Étape 3 : colle la clé et enregistre-la.',
+  BAD_IDS: 'Numéro de place invalide. Recolle le lien roblox.com/games/….',
+  BAD_ZIP: 'Le .zip doit contenir un projet Rojo (default.project.json) ou un fichier .rbxl / .rbxlx.',
+  BAD_FILE: 'Envoie un fichier .rbxl, .rbxlx ou .zip.',
+  BUILD_FAILED: 'Rojo n\'a pas pu construire le projet. Le détail est ci-dessous.',
+  TOO_LARGE: 'Fichier trop gros pour Roblox.',
+  UNREACHABLE: 'Roblox ne répond pas. Réessaie dans quelques minutes.',
+};
+function showResult(r, seconds) {
+  const box = $('result');
+  const published = r.published;
+  if (r.ok || (published && !r.luau)) {
+    mark('result', 'done', `${seconds.toFixed(0)} s au total`);
+    const v = Number(r.version) || 0;
+    box.className = 'result show';
+    box.innerHTML = `<div class="ring">${ICON_OK.replace('#fff', '#ffd65c')}</div>
+      <div class="big">v<span id="vnum">0</span></div>
+      <div class="what">${r.versionType === 'Saved' ? 'Version enregistrée (pas encore en ligne)' : 'En ligne sur Roblox'} · place ${esc(r.placeId)}</div>
+      ${r.luau && r.luau.ran ? `<div class="fix">Test Luau ✓<pre>${esc((r.luau.logs || []).join('\n') || JSON.stringify(r.luau.results))}</pre></div>` : ''}
+      <a class="btn primary" href="${esc(r.playUrl)}" target="_blank" rel="noopener">▶ Jouer dans Roblox</a>`;
+    countUp($('vnum'), v); celebrate();
+    rememberGame(String(r.placeId), String(r.universeId || ''));
+  } else if (published) { // published but Luau failed
+    mark('result', 'error', 'publié, test Luau en échec');
+    const code = (r.error && r.error.code) || '';
+    showFail(`Publié (v${r.version}) mais le test Luau a échoué`, ROBLOX_FIX[code] || 'Erreur dans le script Luau : voir ci-dessous.', (r.luau && (r.luau.error + '\n' + (r.luau.logs || []).join('\n'))) || (r.error && r.error.message), true);
+    rememberGame(String(r.placeId), String(r.universeId || ''));
+  } else {
+    mark('result', 'error');
+    const code = (r.error && r.error.code) || '';
+    showFail('Publication refusée', ROBLOX_FIX[code] || 'Voir le détail ci-dessous.', r.error && r.error.message, true);
+  }
+  addHistory({ ok: !!r.ok || (published && !r.luau), place: r.placeId, version: r.version, at: Date.now(), name: (state.file && state.file.file.name) || '' });
+}
+function showFail(title, fixHtml, raw, noHistory) {
+  const box = $('result'); box.className = 'result show fail';
+  box.innerHTML = `<div class="ring">${ICON_X}</div><div class="big">${esc(title)}</div>
+    <div class="fix">${fixHtml}</div>${raw ? `<pre>${esc(raw)}</pre>` : ''}`;
+  if (!noHistory) addHistory({ ok: false, place: ($('placeId').value || '').trim(), at: Date.now(), name: (state.file && state.file.file.name) || '' });
+}
+function countUp(el, to) {
+  const t0 = performance.now(), dur = 1100;
+  (function f(t) { const k = Math.min(1, (t - t0) / dur); const e = 1 - Math.pow(1 - k, 4); el.textContent = Math.round(to * e); if (k < 1) requestAnimationFrame(f); })(t0);
+}
+
+/* ---------------- confetti: gold + violet sparks with gravity + drag --- */
+function celebrate() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const c = $('fx'), ctx = c.getContext('2d'), dpr = Math.min(2, devicePixelRatio || 1);
+  c.width = innerWidth * dpr; c.height = innerHeight * dpr; ctx.scale(dpr, dpr);
+  const colors = ['#ffd65c', '#7a5cff', '#40e0ff', '#ffffff', '#ff9f43'];
+  const ps = [];
+  for (let i = 0; i < 140; i++) {
+    const a = -Math.PI / 2 + (Math.random() - .5) * 1.6, s = 6 + Math.random() * 9;
+    ps.push({ x: innerWidth / 2, y: innerHeight * .55, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: 2 + Math.random() * 4, rot: Math.random() * 6, vr: (Math.random() - .5) * .4, c: colors[i % colors.length], life: 1, sq: Math.random() < .5 });
+  }
+  let last = performance.now();
+  (function tick(t) {
+    const dt = Math.min(2, (t - last) / 16.67); last = t;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    let alive = 0;
+    for (const p of ps) {
+      if (p.life <= 0) continue; alive++;
+      p.vy += .28 * dt; p.vx *= Math.pow(.985, dt); p.vy *= Math.pow(.985, dt);
+      p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; p.life -= .008 * dt;
+      ctx.save(); ctx.globalAlpha = Math.max(0, p.life); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.c;
+      if (p.sq) ctx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r); else { ctx.beginPath(); ctx.arc(0, 0, p.r * .7, 0, 7); ctx.fill(); }
+      ctx.restore();
+    }
+    if (alive) requestAnimationFrame(tick); else ctx.clearRect(0, 0, innerWidth, innerHeight);
+  })(last);
+}
+
+/* ---------------- history ---------------------------------------------- */
+function addHistory(h) { const l = Store.get('history', []); l.unshift(h); Store.set('history', l.slice(0, 15)); renderHistory(); }
+function renderHistory() {
+  const l = Store.get('history', []); const ul = $('hist'); ul.innerHTML = '';
+  chip('histChip', String(l.length));
+  if (!l.length) { ul.innerHTML = '<li><span class="m">Aucune publication pour l\'instant.</span></li>'; return; }
+  l.forEach((h) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="s ${h.ok ? '' : 'no'}"></span><span class="m"><b>${h.version ? 'v' + esc(h.version) : 'échec'}</b> · place ${esc(h.place)} · ${esc(h.name)}</span><span class="m" style="flex:none">${new Date(h.at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>`;
+    ul.appendChild(li);
+  });
+}
+
+/* ---------------- boot ------------------------------------------------- */
+loadSettings(); renderGames(); renderHistory(); refreshGo();
+$('cHist').classList.add('collapsed');
+if (token() && repo()) connect(true);
+</script>
+</body>
+</html>
