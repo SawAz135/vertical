@@ -1073,7 +1073,7 @@ const XPCount = {
     }
     this.pend = this.pend.filter(q => t - q.t <= XP_P.gap);
     for (const c of all) if (c.p >= .6) this.heat.push({ t, x: c.x, y: c.y, k: c.k });
-    this.heat = this.heat.filter(h => t - h.t < 3500); if (this.heat.length > 400) this.heat.splice(0, this.heat.length - 400);
+    this.heat = this.heat.filter(h => t - h.t < 3500); if (this.heat.length > 2000) this.heat.splice(0, this.heat.length - 2000);
     this.pops = this.pops.filter(P => {
       if (t - P.t < XP_P.off) return true;
       if (P.hits.length >= 2) { const md = a => a.sort((p, q) => p - q)[a.length >> 1], h = P.hits.slice(0, 4);
@@ -1459,17 +1459,20 @@ const Cam = {
     v.srcObject = null; v.muted = true; v.loop = false; v.setAttribute('playsinline', ''); v.src = this.file;
     await new Promise((res, rej) => { v.onloadeddata = () => res(); v.onerror = () => rej(Object.assign(new Error('vidéo illisible'), { name: 'VideoError' })); setTimeout(res, 5000); });
     v.onended = () => { if (Scanner.running) Scanner.stop(); };
-    await v.play();
+    await v.play(); this.watchFps();
   },
   async start() {
     if (this.on) return;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('nomedia'), { name: 'NoMedia' });
-    const video = { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } };
+    // 60 images/s demandées en 1080p (repli automatique si l'appareil ne les accepte pas)
+    const base = { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } };
+    const tries = [{ ...base, frameRate: { ideal: 60, min: 50 } }, { ...base, frameRate: { ideal: 60 } }];
+    const gum = async audio => { let last; for (const video of tries) { try { return await navigator.mediaDevices.getUserMedia({ video, audio }); } catch (e) { last = e; if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e; } } throw last; };
     let s;
     if (Store.settings.mic) {
-      try { s = await navigator.mediaDevices.getUserMedia({ video, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }); }
-      catch (e) { if (e && e.name === 'NotAllowedError') { try { s = await navigator.mediaDevices.getUserMedia({ video, audio: false }); toast('Micro refusé : détection par l\'image seulement'); } catch (e2) { throw e2; } } else throw e; }
-    } else s = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+      try { s = await gum({ echoCancellation: false, noiseSuppression: false, autoGainControl: false }); }
+      catch (e) { if (e && e.name === 'NotAllowedError') { try { s = await gum(false); toast('Micro refusé : détection par l\'image seulement'); } catch (e2) { throw e2; } } else throw e; }
+    } else s = await gum(false);
     this.stream = s;
     const v = this.video; v.muted = true; v.setAttribute('playsinline', ''); v.srcObject = s;
     await v.play().catch(() => {});
@@ -1482,7 +1485,32 @@ const Cam = {
       if (caps.focusMode && caps.focusMode.includes('continuous')) adv.push({ focusMode: 'continuous' });
       if (caps.exposureMode && caps.exposureMode.includes('continuous')) adv.push({ exposureMode: 'continuous' });
       if (caps.whiteBalanceMode && caps.whiteBalanceMode.includes('continuous')) adv.push({ whiteBalanceMode: 'continuous' });
-      if (adv.length) vt.applyConstraints({ advanced: adv }).catch(() => {}); } catch {}
+      if (adv.length) await vt.applyConstraints({ advanced: adv }).catch(() => {}); } catch {}
+    await this.force60(vt);
+    this.watchFps();
+    const st = vt.getSettings ? vt.getSettings() : {};
+    toast(`Caméra ${st.width || v.videoWidth}×${st.height || v.videoHeight} · ${Math.round(st.frameRate || 0) || '?'} images/s`, 2600);
+  },
+  /* certains iPhone ne passent en 60 i/s qu'après coup, ou seulement en 720p : on essaie dans l'ordre */
+  async force60(vt) {
+    try {
+      const fr = () => (vt.getSettings ? vt.getSettings().frameRate : 0) || 0;
+      if (fr() >= 55) return;
+      const caps = vt.getCapabilities ? vt.getCapabilities() : {}, mx = caps.frameRate && caps.frameRate.max;
+      if (mx && mx < 55) return;
+      for (const c of [{ width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60, min: 50 } }, { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60, min: 50 } }]) {
+        try { await vt.applyConstraints(c); if (fr() >= 55) return; } catch {}
+      }
+      await vt.applyConstraints({ width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } }).catch(() => {});
+    } catch {}
+  },
+  /* cadence réelle : nombre d'images vraiment livrées par la caméra (requestVideoFrameCallback) */
+  fps: 0, frameN: 0, _fc: [],
+  watchFps() {
+    const v = this.video; if (this._wf === v.srcObject + '' + v.src) return; this._wf = v.srcObject + '' + v.src; this._fc = [];
+    const tickF = () => { const t = performance.now(); this.frameN++; this._fc.push(t); while (this._fc.length && t - this._fc[0] > 1000) this._fc.shift(); this.fps = this._fc.length; };
+    if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) { const f = () => { tickF(); if (this.on) v.requestVideoFrameCallback(f); else this._wf = null; }; v.requestVideoFrameCallback(f); }
+    else { let lt = -1; const f = () => { if (v.currentTime !== lt) { lt = v.currentTime; tickF(); } if (this.on) requestAnimationFrame(f); else this._wf = null; }; requestAnimationFrame(f); }
   },
   stop() { Aud.stop(); if (this.stream) this.stream.getTracks().forEach(t => t.stop()); this.stream = null; if (this.video) { this.video.srcObject = null; if (this.file) { this.video.pause(); this.video.removeAttribute('src'); this.video.load(); URL.revokeObjectURL(this.file); this.file = null; } } }
 };
@@ -1957,12 +1985,12 @@ onmessage = e => { const m = e.data;
     if (!this.on) return;
     if (!Scanner.running) { this.on = false; return; }
     const v = Cam.video;
-    if (Store.settings.mode !== 'precis' && !this.busy && Cam.on && v.readyState >= 2 && v.videoWidth && !Trainer.open && !document.hidden) {
+    if (Store.settings.mode !== 'precis' && !this.busy && Cam.frameN !== this.lastFrame && Cam.on && v.readyState >= 2 && v.videoWidth && !Trainer.open && !document.hidden) {
       try {
         const r = Store.settings.roi, vw = v.videoWidth, vh = v.videoHeight;
         XPCX.imageSmoothingEnabled = true; XPCX.imageSmoothingQuality = 'high';
         XPCX.drawImage(v, (r.x + XP_REG.x * r.w) * vw, (r.y + XP_REG.y * r.h) * vh, XP_REG.w * r.w * vw, XP_REG.h * r.h * vh, 0, 0, XP_W, XP_H);
-        const img = XPCX.getImageData(0, 0, XP_W, XP_H), t = now(); this.n++;
+        const img = XPCX.getImageData(0, 0, XP_W, XP_H), t = now(); this.n++; this.lastFrame = Cam.frameN;
         const w = this.worker();
         if (w) { this.busy = true; w.postMessage({ type: 'scan', id: ++this.seq, t, w: XP_W, h: XP_H, buf: img.data.buffer }, [img.data.buffer]); }
         else {
@@ -1971,7 +1999,7 @@ onmessage = e => { const m = e.data;
         }
       } catch (e) { console.warn(e); this.busy = false; }
     }
-    this.t = setTimeout(() => this.tick(), this.w ? 70 : Math.max(40, 220 - this.ms));
+    this.t = setTimeout(() => this.tick(), this.w ? 8 : Math.max(40, 220 - this.ms));
   }
 };
 
@@ -2485,7 +2513,7 @@ const Big = {
     drawRoiTo(cv, 2.5 * dpr);
     const v = Cam.video;
     $('#bigInfo').textContent = !Cam.on ? 'Caméra inactive — lance le scan' :
-      `${Cam.file ? 'Vidéo de test' : 'Caméra'} ${v.videoWidth}×${v.videoHeight} · Scan ${Loop.fps.toFixed(0)}/s · Modèle ${Yolo.state === 'ready' ? Yolo.fps.toFixed(1) + '/s (' + (Yolo.ep === 'webgpu' ? 'GPU' : 'CPU') + ')' : Yolo.state} · Coffre vu ${Yolo.nF ? Math.round(Yolo.nD / Yolo.nF * 100) : 0}% des images · EXP ${XPLoop.rate.toFixed(1)}/s (${XPLoop.w ? 'worker' : 'page'}) ${Math.round(XPLoop.lastV * 100)}% · messages vus ${XPLoop.seen} · Flash ${Math.round(Burst.score * 100)}%`;
+      `${Cam.file ? 'Vidéo de test' : 'Caméra'} ${v.videoWidth}×${v.videoHeight} · ${Cam.fps} images/s · Scan ${Loop.fps.toFixed(0)}/s · Modèle ${Yolo.state === 'ready' ? Yolo.fps.toFixed(1) + '/s (' + (Yolo.ep === 'webgpu' ? 'GPU' : 'CPU') + ')' : Yolo.state} · Coffre vu ${Yolo.nF ? Math.round(Yolo.nD / Yolo.nF * 100) : 0}% des images · EXP ${XPLoop.rate.toFixed(1)}/s (${XPLoop.w ? 'worker' : 'page'}) ${Math.round(XPLoop.lastV * 100)}% · messages vus ${XPLoop.seen} · Flash ${Math.round(Burst.score * 100)}%`;
     this.raf = requestAnimationFrame(() => this.loop());
   }
 };
@@ -2496,7 +2524,7 @@ function showLive(p) {
   $('#confBar').style.width = pc + '%';
   $('#confTxt').textContent = p.cls === 'inconnu' ? 'Image non reconnue' : `Confiance IA ${pc} %`;
   if (Tracker.state !== 'LOCKED' || $('#scanState').textContent.indexOf('ignoré') < 0)
-    $('#scanState').textContent = Yolo.state === 'ready' ? `Scan ${Loop.fps.toFixed(0)}/s · modèle ${Yolo.fps.toFixed(1)}/s` : `Scan · ${Loop.fps.toFixed(0)} img/s`;
+    $('#scanState').textContent = `Caméra ${Cam.fps} i/s · EXP ${XPLoop.rate.toFixed(0)}/s` + (Yolo.state === 'ready' ? ` · modèle ${Yolo.fps.toFixed(0)}/s` : '');
   $('#matchTxt').textContent = Match.text();
   $('#burstBar').style.width = Math.round(Burst.score * 100) + '%';
   const mp = $('#miniPv'); drawRoiTo(mp, 2);
