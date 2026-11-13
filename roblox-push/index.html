@@ -262,6 +262,91 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 12px);z-index:60;transform:translate(-50%,-180%);padding:12px 18px;border-radius:18px;font-size:14px;font-weight:650;max-width:calc(100% - 32px);
   background:rgba(22,18,44,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 14px 40px rgba(0,0,0,.5),0 0 0 1px var(--line2) inset;transition:transform .5s var(--spring)}
 .toast.on{transform:translate(-50%,0)}
+/* ===== tutorial carousel (mock screens + animated finger) ===== */
+.showme{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:12px;border:0;border-radius:16px;padding:13px;font-weight:800;font-size:15px;
+  color:#05040c;background:linear-gradient(90deg,var(--g),#ffb84d);box-shadow:0 12px 30px -12px rgba(255,212,92,.8)}
+.showme .pl{width:22px;height:22px;border-radius:50%;background:#05040c;color:var(--g);display:grid;place-items:center;font-size:10px}
+.howto{margin-top:14px;display:none}
+.howto.on{display:block;animation:up .5s var(--ease)}
+.hwin{overflow:hidden;border-radius:22px;touch-action:pan-y}
+.hrail{display:flex;transition:transform .55s var(--ease)}
+.hs{flex:0 0 100%;padding:2px}
+.mock{position:relative;border-radius:20px;overflow:hidden;background:#f6f8fa;color:#1f2328;box-shadow:0 0 0 1px #ffffff22,0 18px 40px -18px #000;font-size:12.5px;min-height:206px}
+.mock.rb{background:#191b1f;color:#e6e6e6}
+.mock .bar{display:flex;align-items:center;gap:6px;padding:8px 10px;background:#e9edf1;font-size:11px;color:#57606a;font-weight:600}
+.mock.rb .bar{background:#0f1012;color:#9aa0a6}
+.mock.app{background:linear-gradient(160deg,#1c1446,#0b0820);color:var(--text)}
+.mock.app .bar{background:#0c0920;color:var(--muted)}
+.mock .bar i{width:7px;height:7px;border-radius:50%;background:#c4cbd3}
+.mock.rb .bar i,.mock.app .bar i{background:#3a3d44}
+.mock .url{flex:1;text-align:center;background:#fff;border-radius:7px;padding:3px 6px;margin-left:6px}
+.mock.rb .url,.mock.app .url{background:#24262b}
+.mock .pg{padding:12px 12px 14px}
+.mock h5{margin:0 0 10px;font-size:13.5px;font-weight:750}
+.mr{margin:0 0 8px;border-radius:9px;position:relative}
+.mr .lb2{font-size:10.5px;font-weight:650;color:#57606a;margin-bottom:3px}
+.mock.rb .mr .lb2{color:#9aa0a6}
+.mr .in{background:#fff;border:1px solid #d0d7de;border-radius:7px;padding:6px 8px;font-weight:600}
+.mock.rb .in{background:#24262b;border-color:#3a3d44}
+.mock.app .in{background:rgba(3,2,10,.6);border-color:#ffffff22;font-family:ui-monospace,Menlo,monospace;color:var(--muted)}
+.mr.rad{display:flex;align-items:center;gap:8px;padding:5px 2px;font-weight:600}
+.mr.rad::before{content:"";width:13px;height:13px;border-radius:50%;border:1.5px solid #8c959f;flex:none}
+.mr.rad.on::before{border:4px solid #0969da}
+.mr.btn2{display:inline-block;padding:6px 10px;border:1px solid #d0d7de;border-radius:7px;background:#f6f8fa;font-weight:650}
+.mock.rb .mr.btn2{background:#2b2d33;border-color:#3a3d44}
+.mr.btn1{display:inline-block;padding:8px 14px;border-radius:8px;background:#1f883d;color:#fff;font-weight:750}
+.mock.rb .mr.btn1{background:#335fff}
+.mock.app .mr.btn1{background:linear-gradient(135deg,#ffffff2a,#ffffff10);color:#fff;box-shadow:0 0 0 1px #ffffff40 inset}
+.mr.perm{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border:1px solid #d0d7de;border-radius:7px;background:#fff;font-weight:650}
+.mock.rb .mr.perm{background:#24262b;border-color:#3a3d44}
+.mr.perm span{font-size:10.5px;padding:2px 7px;border-radius:6px;background:#ddf4ff;color:#0969da;font-weight:700}
+.mock.rb .mr.perm span{background:#335fff33;color:#8fa6ff}
+.mr.tok{display:flex;gap:8px;align-items:center;padding:7px 8px;border-radius:7px;background:#dafbe1;border:1px solid #aceebb;font-family:ui-monospace,Menlo,monospace;font-weight:600}
+.mr.tok b{margin-left:auto;font-family:-apple-system,sans-serif;font-size:14px}
+.mr.sw2{display:flex;justify-content:space-between;align-items:center;font-weight:650;padding:4px 0}
+.mr.sw2 em{width:34px;height:20px;border-radius:12px;background:#3a3d44;position:relative;font-style:normal}
+.mr.sw2 em::after{content:"";position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#9aa0a6}
+.mr.hl{animation:hl 1.6s ease-in-out infinite}
+@keyframes hl{0%,100%{box-shadow:0 0 0 2px rgba(255,212,92,.95),0 0 0 6px rgba(255,212,92,.25)}50%{box-shadow:0 0 0 2px rgba(255,212,92,.95),0 0 0 11px rgba(255,212,92,0)}}
+.finger{position:absolute;width:34px;height:34px;pointer-events:none;z-index:3;transition:left .5s var(--ease),top .5s var(--ease);filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))}
+.finger svg{width:34px;height:34px;animation:tap 1.6s ease-in-out infinite;transform-origin:30% 10%}
+.finger::before{content:"";position:absolute;left:4px;top:-2px;width:16px;height:16px;border-radius:50%;border:2px solid var(--g);opacity:0;animation:ripple 1.6s ease-out infinite}
+@keyframes tap{0%,100%{transform:translate(6px,8px)}40%{transform:translate(0,0) scale(.92)}55%{transform:translate(0,0) scale(.92)}}
+@keyframes ripple{40%{opacity:0;transform:scale(.4)}50%{opacity:1}100%{opacity:0;transform:scale(2.4)}}
+.cap{display:flex;gap:10px;align-items:flex-start;margin:12px 2px 0;font-size:14.5px;line-height:1.4;min-height:42px}
+.cap .no{flex:none;width:26px;height:26px;border-radius:9px;display:grid;place-items:center;font-weight:900;font-size:13px;color:#05040c;background:var(--g)}
+.hnav{display:flex;align-items:center;justify-content:space-between;margin-top:12px}
+.hnav .dots i{background:#ffffff25}
+.hnav button{border:0;border-radius:12px;padding:9px 14px;font-weight:750;font-size:14px;background:#ffffff12;box-shadow:0 0 0 1px var(--line2) inset}
+.hnav button.nx{background:linear-gradient(135deg,var(--v),#4b2fd6);box-shadow:0 0 0 1px #ffffff30 inset}
+.hnav button:disabled{opacity:.3}
+.note{font-size:11.5px;color:var(--faint);text-align:center;margin-top:8px}
+
+/* ===== coach marks (first visit spotlight tour) ===== */
+#coach{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:0;transition:opacity .4s}
+#coach.on{opacity:1;pointer-events:auto}
+#coach .spot{position:fixed;border-radius:24px;box-shadow:0 0 0 9999px rgba(3,2,10,.78),0 0 0 2px var(--g),0 0 30px 6px rgba(255,212,92,.35);
+  transition:left .55s var(--ease),top .55s var(--ease),width .55s var(--ease),height .55s var(--ease),border-radius .55s}
+#coach .spot::after{content:"";position:absolute;inset:-8px;border-radius:inherit;border:2px solid rgba(255,212,92,.5);animation:pulse2 1.6s ease-out infinite}
+@keyframes pulse2{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(1.12)}}
+#coach .bub{position:fixed;left:18px;right:18px;max-width:420px;margin:0 auto;padding:16px;border-radius:22px;background:rgba(22,18,44,.97);box-shadow:0 20px 50px rgba(0,0,0,.6),0 0 0 1px var(--line2) inset;
+  transition:top .55s var(--ease),opacity .3s}
+#coach .bub .k{font-size:11.5px;font-weight:800;letter-spacing:.14em;color:var(--g);text-transform:uppercase}
+#coach .bub h6{margin:4px 0 4px;font-size:18px;letter-spacing:-.01em}
+#coach .bub p{margin:0;color:var(--muted);font-size:14.5px}
+#coach .bub .row3{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+#coach .bub button{border:0;border-radius:12px;padding:10px 16px;font-weight:800;font-size:14.5px}
+#coach .bub .skip2{background:none;color:var(--muted);padding:10px 4px}
+#coach .bub .nx2{background:linear-gradient(135deg,var(--v),#4b2fd6);color:#fff;box-shadow:0 0 0 1px #ffffff30 inset}
+.help{width:42px;height:42px;border-radius:14px;border:0;background:#ffffff12;box-shadow:0 0 0 1px var(--line2) inset;font-weight:900;font-size:18px;color:var(--g)}
+.faq details{border-top:1px solid var(--line);padding:2px 0}
+.faq details:first-child{border-top:0}
+.faq summary{padding:12px 2px;font-weight:700;font-size:14.5px;list-style:none;display:flex;justify-content:space-between;gap:10px}
+.faq summary::after{content:"+";color:var(--muted);font-weight:400;font-size:20px;line-height:1;transition:transform .3s}
+.faq details[open] summary::after{transform:rotate(45deg)}
+.faq summary::-webkit-details-marker{display:none}
+.faq .a{padding:0 2px 12px;color:var(--muted);font-size:14px;line-height:1.5}
+.faq .a b{color:var(--text)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition-duration:.01s!important}}
 </style>
 </head>
@@ -298,7 +383,8 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
           <p class="sub">GitHub fait le lien avec Roblox. Crée un jeton une seule fois.</p>
           <button class="cta alt" id="openTok" style="margin-top:0">Créer mon jeton ↗</button>
           <div class="tick"><span>Repository access › <b>ton dépôt</b></span><span>Actions › <b>Read</b></span><span>Contents › <b>Read and write</b></span><span>Secrets › <b>Read and write</b></span><span>Workflows › <b>Read and write</b></span></div>
-          <div class="tip">Puis « Generate token », copie, reviens ici et touche Coller.</div>
+          <button class="showme" data-howto="ghHow"><span class="pl">▶</span>Montre-moi comment (6 étapes)</button>
+          <div class="howto" id="ghHow"></div>
           <div class="paste"><input id="tok" type="password" placeholder="github_pat_…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="chipbtn" id="pasteTok">Coller</button></div>
           <div class="repos hidden" id="repoList"></div>
           <div class="status" id="ghStatus"></div>
@@ -310,7 +396,8 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
           <p class="sub">Chiffrée sur ton iPhone puis rangée en secret chez GitHub. L'app ne la garde jamais.</p>
           <button class="cta alt" id="openKey" style="margin-top:0">Ouvrir Roblox Credentials ↗</button>
           <div class="tick"><span>Create API Key</span><span>universe-places › <b>ton jeu</b> › <b>write</b></span><span>Restrict IP addresses › <b>OFF</b></span></div>
-          <div class="tip">Puis « Save &amp; Generate key » › « Copy », reviens et touche Coller.</div>
+          <button class="showme" data-howto="rbHow"><span class="pl">▶</span>Montre-moi comment (6 étapes)</button>
+          <div class="howto" id="rbHow"></div>
           <div class="paste"><input id="rk" type="password" placeholder="colle la clé" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="chipbtn" id="pasteKey">Coller</button></div>
           <div class="status" id="keyStatus"></div>
         </div>
@@ -333,6 +420,7 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
     <div class="top">
       <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></div>
       <h1><span>Roblox</span> Push</h1>
+      <button class="help" id="helpBtn" aria-label="Aide">?</button>
       <button class="avatar" id="avatarBtn" aria-label="Réglages"><img id="avatar" alt=""></button>
     </div>
     <div class="label">Jeu</div>
@@ -393,6 +481,24 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
   <div class="sec"><div class="h"><span>Historique</span></div><ul class="hist" id="hist"></ul></div>
   <div class="sec"><button class="linkbtn danger" id="logout" style="margin:0">Se déconnecter de cet iPhone</button></div>
 </div>
+<div class="sheet" id="helpSheet">
+  <div class="grab"></div><h4>Aide<button class="done" data-close>OK</button></h4>
+  <button class="cta" id="replayTour" style="margin:0 0 12px">▶ Revoir la visite guidée</button>
+  <div class="sec faq">
+    <details><summary>Où trouver un fichier de jeu sur iPhone ?</summary><div class="a">
+      Dans l'app <b>Fichiers</b> d'Apple. Trois façons d'en avoir un :<br>
+      • <b>Demande à Claude</b> (onglet Code) : « crée-moi un jeu Roblox ». Il construit le jeu sur GitHub ; ouvre le dépôt › <b>Actions</b> › le dernier passage › <b>Artifacts</b> › télécharge le .zip. Dépose ce .zip directement ici, l'app sait le lire.<br>
+      • Un .rbxl qu'un ami t'envoie (AirDrop, Discord…) : enregistre-le dans Fichiers.<br>
+      • Un projet Rojo (dossier avec <b>default.project.json</b>) compressé en .zip : appui long sur le dossier dans Fichiers › <b>Compresser</b>.</div></details>
+    <details><summary>C'est vraiment gratuit ?</summary><div class="a">Oui, <b>0 €</b>. GitHub Actions est gratuit (2 000 minutes par mois pour un dépôt privé, illimité pour un dépôt public ; une publication prend environ 1 minute). L'API Roblox est gratuite. Aucune carte bancaire.</div></details>
+    <details><summary>« En ligne » ou « Brouillon » ?</summary><div class="a"><b>En ligne</b> : les joueurs voient la nouvelle version tout de suite. <b>Brouillon</b> : la version est enregistrée sur Roblox mais pas encore visible ; parfait pour tester.</div></details>
+    <details><summary>Je me suis trompé de version, je peux revenir en arrière ?</summary><div class="a">Oui. Roblox garde l'historique : <b>create.roblox.com</b> › ton jeu › <b>Places</b> › ta place › <b>Version History</b> › Restore. Ou republie l'ancien fichier avec l'app.</div></details>
+    <details><summary>« Roblox refuse la clé »</summary><div class="a">Sur <b>create.roblox.com › Credentials</b> : la clé doit être <b>Active</b>, avec <b>Restrict IP addresses</b> désactivé et <b>universe-places › ton jeu › write</b>. Si besoin, régénère-la puis colle-la dans Réglages › Clé Roblox.</div></details>
+    <details><summary>Les joueurs ne voient pas la mise à jour</summary><div class="a">Les serveurs déjà ouverts gardent l'ancienne version. Quitte le jeu et relance-le, ou attends que les anciens serveurs se ferment.</div></details>
+    <details><summary>Est-ce que c'est sûr ?</summary><div class="a">Ta clé Roblox est <b>chiffrée sur ton iPhone</b> avant d'aller chez GitHub, qui la garde en secret. L'app ne la garde jamais et ne parle qu'à GitHub. Le jeton GitHub reste sur ton iPhone ; « Se déconnecter » l'efface.</div></details>
+  </div>
+</div>
+<div id="coach" aria-live="polite"><div class="spot" id="spot"></div><div class="bub" id="bub"></div></div>
 <div class="toast" id="toast"></div>
 
 <script src="vendor/nacl-fast.min.js"></script>
@@ -567,7 +673,8 @@ $('rk').addEventListener('input', () => { clearTimeout(keyTimer); keyTimer = set
   try { await saveKey(v); $('rk').value = ''; setStatus('keyStatus', '✓ Clé chiffrée et enregistrée', 'good'); await sleep(700); go(3); }
   catch (e) { setStatus('keyStatus', e.status === -1 ? 'Clé incomplète, recopie-la.' : explain(e, 'Secrets › Read and write'), 'err'); }
 }, 400); });
-$('finishOnb').addEventListener('click', () => { Store.set('onboarded', true); showMain(); celebrate(innerWidth / 2, innerHeight * .45, 90); });
+$('finishOnb').addEventListener('click', () => { Store.set('onboarded', true); showMain(); celebrate(innerWidth / 2, innerHeight * .45, 90);
+  if (!Store.get('toured', false)) setTimeout(startTour, 1100); });
 
 /* ---------- main ---------- */
 function showMain() {
@@ -924,11 +1031,124 @@ function celebrate(x0, y0, n) {
   })(last);
 }
 
+/* ---------- illustrated tutorials ---------- */
+const FINGER = '<svg viewBox="0 0 24 24"><path fill="#fff" stroke="#05040c" stroke-width="1.1" stroke-linejoin="round" d="M8.5 2.6c.9 0 1.6.7 1.6 1.6v6.1l.7-.1c.4-.6 1-.9 1.7-.9.8 0 1.4.4 1.7 1 .3-.2.7-.3 1.1-.3.8 0 1.4.5 1.7 1.1.3-.2.6-.2.9-.2 1 0 1.8.8 1.8 1.8v4.1c0 3.1-2.5 5.6-5.6 5.6h-1.4c-1.9 0-3.6-.9-4.7-2.4l-3.4-4.7c-.5-.7-.4-1.7.3-2.2.7-.5 1.6-.4 2.2.2l1.3 1.4V4.2c0-.9.7-1.6 1.6-1.6z"/></svg>';
+const HOWTO = {
+  ghHow: { theme: '', url: 'github.com', steps: [
+    { h: 'New fine-grained personal access token', rows: [['f', 'Token name', 'Roblox Push'], ['f', 'Expiration', '90 days ▾'], ['f', 'Description', 'Publie des jeux Roblox']], hl: 1,
+      c: 'Le nom est déjà rempli. Choisis une <b>durée</b> (90 jours ou plus).' },
+    { h: 'Repository access', rows: [['r', 'Public repositories'], ['r', 'All repositories'], ['r*', 'Only select repositories'], ['f', '', 'Select repositories ▾ SawAz135/vertical']], hl: 2,
+      c: 'Coche <b>Only select repositories</b> puis choisis ton dépôt.' },
+    { h: 'Permissions', rows: [['b', '+ Add permissions'], ['p', 'Actions', 'Read-only'], ['p', 'Contents', 'Read and write'], ['p', 'Secrets', 'Read and write'], ['p', 'Workflows', 'Read and write']], hl: 0,
+      c: 'Touche <b>Add permissions</b>, ajoute ces <b>4 lignes</b> et règle les accès comme ici.' },
+    { h: 'Tout en bas de la page', rows: [['n', 'Le jeton aura accès à 1 dépôt.'], ['B', 'Generate token']], hl: 1,
+      c: 'Descends tout en bas : <b>Generate token</b>, puis confirme.' },
+    { h: 'Token created', rows: [['n', 'Copie-le maintenant, il ne sera plus affiché.'], ['t', 'github_pat_11AB…']], hl: 1,
+      c: 'Touche l\'icône <b>copier ⧉</b> à côté du jeton.' },
+    { app: true, h: '1 · Connecte GitHub', rows: [['f', '', 'github_pat_…'], ['B', 'Coller']], hl: 1,
+      c: 'Reviens dans Roblox Push et touche <b>Coller</b>. Fini ✓' },
+  ] },
+  rbHow: { theme: 'rb', url: 'create.roblox.com', steps: [
+    { h: 'API Extensions › API Keys', rows: [['n', 'Aucune clé pour l\'instant.'], ['B', 'Create API Key']], hl: 1,
+      c: 'Touche <b>Create API Key</b>.' },
+    { h: 'General Information', rows: [['f', 'Name', 'Roblox Push'], ['f', 'Description', '(facultatif)']], hl: 0,
+      c: 'Donne-lui un <b>nom</b>, par exemple Roblox Push.' },
+    { h: 'Access Permissions', rows: [['f', 'Select API System', 'universe-places ▾'], ['b', 'Add API System'], ['f', 'Experience', 'ton jeu ▾'], ['p', 'Operations', 'write ✓']], hl: 0,
+      c: 'Choisis <b>universe-places</b> › Add › choisis <b>ton jeu</b> › coche <b>write</b>.' },
+    { h: 'Security', rows: [['s', 'Restrict IP addresses'], ['f', 'Expiration date', '(facultatif)']], hl: 0,
+      c: 'Laisse <b>Restrict IP addresses</b> désactivé.' },
+    { h: 'Tout en bas', rows: [['B', 'Save & Generate key']], hl: 0,
+      c: 'Touche <b>Save &amp; Generate key</b>, puis <b>Copy Key to Clipboard</b>.' },
+    { app: true, h: '2 · Clé Roblox', rows: [['f', '', 'colle la clé'], ['B', 'Coller']], hl: 1,
+      c: 'Reviens ici et touche <b>Coller</b>. L\'app la chiffre et c\'est fini ✓' },
+  ] },
+};
+function rowHtml([t, a, b]) {
+  if (t === 'f') return `<div class="mr">${a ? `<div class="lb2">${esc(a)}</div>` : ''}<div class="in">${esc(b)}</div></div>`;
+  if (t === 'r' || t === 'r*') return `<div class="mr rad${t === 'r*' ? ' on' : ''}">${esc(a)}</div>`;
+  if (t === 'b') return `<div><div class="mr btn2">${esc(a)}</div></div>`;
+  if (t === 'B') return `<div><div class="mr btn1">${esc(a)}</div></div>`;
+  if (t === 'p') return `<div class="mr perm">${esc(a)}<span>${esc(b)}</span></div>`;
+  if (t === 't') return `<div class="mr tok">${esc(a)}<b>⧉</b></div>`;
+  if (t === 's') return `<div class="mr sw2">${esc(a)}<em></em></div>`;
+  return `<div class="mr" style="color:#8c959f;font-size:11.5px">${esc(a)}</div>`;
+}
+function buildHowto(id) {
+  const box = $(id), cfg = HOWTO[id];
+  box.innerHTML = `<div class="hwin"><div class="hrail">${cfg.steps.map((st) => `<div class="hs"><div class="mock ${st.app ? 'app' : cfg.theme}">
+      <div class="bar"><i></i><i></i><i></i><span class="url">${st.app ? 'Roblox Push' : cfg.url}</span></div>
+      <div class="pg"><h5>${esc(st.h)}</h5>${st.rows.map(rowHtml).join('')}</div><div class="finger">${FINGER}</div></div>
+      </div>`).join('')}</div></div>
+    <div class="cap"><span class="no">1</span><span class="tx"></span></div>
+    <div class="hnav"><button class="pv">‹ Retour</button><div class="dots">${cfg.steps.map(() => '<i></i>').join('')}</div><button class="nx">Suivant ›</button></div>
+    <div class="note">Les écrans peuvent varier un peu selon les mises à jour de GitHub / Roblox.</div>`;
+  box.querySelectorAll('.hs').forEach((hs, i) => hs.querySelectorAll('.mr')[cfg.steps[i].hl]?.classList.add('hl'));
+  let i = 0;
+  const show = (n) => {
+    i = Math.max(0, Math.min(cfg.steps.length - 1, n));
+    box.querySelector('.hrail').style.transform = `translateX(${-100 * i}%)`;
+    box.querySelector('.cap .no').textContent = i + 1; box.querySelector('.cap .tx').innerHTML = cfg.steps[i].c;
+    [...box.querySelectorAll('.hnav .dots i')].forEach((d, k) => d.classList.toggle('on', k === i));
+    box.querySelector('.pv').disabled = i === 0;
+    box.querySelector('.nx').textContent = i === cfg.steps.length - 1 ? 'Compris ✓' : 'Suivant ›';
+    requestAnimationFrame(() => { // put the finger on the highlighted element
+      const hs = box.querySelectorAll('.hs')[i], tgt = hs.querySelector('.mr.hl'), f = hs.querySelector('.finger'), m = hs.querySelector('.mock');
+      if (!tgt) return; const r = tgt.getBoundingClientRect(), mr = m.getBoundingClientRect();
+      f.style.left = (r.left - mr.left + Math.min(r.width * .55, r.width - 20)) + 'px'; f.style.top = (r.top - mr.top + r.height * .45) + 'px';
+    });
+  };
+  box.querySelector('.pv').onclick = () => show(i - 1);
+  box.querySelector('.nx').onclick = () => { if (i === cfg.steps.length - 1) { box.classList.remove('on'); box.previousElementSibling.classList.remove('hidden'); box.closest('.step-card').querySelector('.paste input').focus(); } else show(i + 1); };
+  let x0 = null; const win = box.querySelector('.hwin');
+  win.addEventListener('touchstart', (e) => (x0 = e.touches[0].clientX), { passive: true });
+  win.addEventListener('touchend', (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) show(i + (dx < 0 ? 1 : -1)); x0 = null; });
+  box._show = show;
+}
+document.querySelectorAll('[data-howto]').forEach((b) => b.addEventListener('click', () => {
+  const box = $(b.dataset.howto); if (!box.innerHTML) buildHowto(b.dataset.howto);
+  b.classList.add('hidden'); box.classList.add('on'); box._show(0);
+  setTimeout(() => box.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+}));
+
+/* ---------- spotlight tour on the main screen ---------- */
+const TOUR = [
+  { el: () => $('addTile') || $('tiles'), k: 'Étape 1', h: 'Ajoute ton jeu', p: 'Touche <b>+</b> et colle le lien de ton jeu (roblox.com/games/…). Il reste mémorisé en tuile.' },
+  { el: () => $('drop'), k: 'Étape 2', h: 'Choisis le fichier', p: 'Touche ici pour prendre ton <b>.rbxl</b>, <b>.rbxlx</b> ou <b>.zip</b> dans l\'app Fichiers.' },
+  { el: () => $('orb'), k: 'Étape 3', h: 'Maintiens pour publier', p: '<b>Garde le doigt</b> sur l\'orbe jusqu\'à ce que l\'anneau soit plein. Un simple toucher ne fait rien, pas d\'accident.', round: true },
+  { el: () => $('mode'), k: 'Astuce', h: 'En ligne ou brouillon', p: '<b>Brouillon</b> enregistre sans montrer aux joueurs. Parfait pour tester.' },
+  { el: () => $('helpBtn'), k: 'Besoin d\'aide ?', h: 'Le bouton ?', p: 'Revois cette visite et les réponses aux questions courantes. <b>Avatar</b> = réglages.' },
+];
+let tourI = -1;
+function placeTour() {
+  const st = TOUR[tourI]; const el = st.el(); if (!el) return;
+  const r = el.getBoundingClientRect(), pad = st.round ? 10 : 8, spot = $('spot'), bub = $('bub');
+  Object.assign(spot.style, { left: r.left - pad + 'px', top: r.top - pad + 'px', width: r.width + pad * 2 + 'px', height: r.height + pad * 2 + 'px', borderRadius: st.round ? '50%' : '24px' });
+  const below = r.top + r.height / 2 < innerHeight * .5;
+  const bh = bub.offsetHeight || 170;
+  bub.style.top = (below ? Math.min(innerHeight - bh - 16, r.bottom + pad + 16) : Math.max(16, r.top - pad - bh - 16)) + 'px';
+}
+function tourStep(n) {
+  tourI = n; if (n >= TOUR.length) return endTour();
+  const st = TOUR[n], el = st.el(); if (!el) return tourStep(n + 1);
+  el.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+  $('bub').innerHTML = `<div class="k">${st.k} · ${n + 1}/${TOUR.length}</div><h6>${st.h}</h6><p>${st.p}</p>
+    <div class="row3"><button class="skip2" id="tSkip">Passer</button><button class="nx2" id="tNext">${n === TOUR.length - 1 ? 'Compris ✓' : 'Suivant ›'}</button></div>`;
+  $('tSkip').onclick = endTour; $('tNext').onclick = () => tourStep(n + 1);
+  setTimeout(placeTour, reduced ? 0 : 380); placeTour();
+}
+function startTour() { closeSheets(); $('coach').classList.add('on'); tourStep(0); }
+function endTour() { $('coach').classList.remove('on'); tourI = -1; Store.set('toured', true); }
+addEventListener('resize', () => tourI >= 0 && placeTour());
+$('main').addEventListener('scroll', () => tourI >= 0 && placeTour(), { passive: true });
+$('helpBtn').addEventListener('click', () => openSheet('helpSheet'));
+$('replayTour').addEventListener('click', () => setTimeout(startTour, 350));
+
 /* ---------- boot ---------- */
 renderFile();
 (async function boot() {
   if (!(S.token && S.repo && Store.get('onboarded', false))) return;
   showMain();
+  if (!Store.get('toured', false)) setTimeout(startTour, 1200);
   try { await gh('GET', `/repos/${S.repo}`); ensureInstalled().catch(() => {}); }
   catch (e) { if (e.status === 401) { toast('Jeton expiré : reconnecte-toi.', 4000); Store.set('onboarded', false); setTimeout(() => location.reload(), 1600); } }
 })();
