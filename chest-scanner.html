@@ -14,6 +14,84 @@
 .det.fire b{color:#061232}
 @keyframes detFire{0%{background:#fffbe0;box-shadow:0 0 0 0 rgba(255,233,77,.9),0 0 30px #ffe94d}25%{background:#ffe94d;box-shadow:0 0 0 6px rgba(255,233,77,0),0 0 22px #ffd23d}100%{background:rgba(0,0,0,.32);box-shadow:inset 0 0 0 1px rgba(150,200,255,.16)}}
 @keyframes detPend{50%{box-shadow:inset 0 0 0 1px #ff9d2e,0 0 12px rgba(255,157,46,.6)}}
+
+/* ===== MODE ADMIN ===== */
+.admbox{margin:12px 0 4px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 12px 12px;border-radius:6px;position:relative;
+  background:radial-gradient(120% 90% at 50% 0%,rgba(255,60,80,.28),transparent 70%),linear-gradient(180deg,rgba(40,6,18,.75),rgba(10,4,20,.85));box-shadow:inset 0 0 0 1.5px rgba(255,90,110,.55),0 0 34px rgba(255,40,70,.25);animation:admIn .7s cubic-bezier(.2,1.3,.3,1) both}
+.admbox b{font-family:var(--disp);font-weight:400;font-size:20px;letter-spacing:.06em;color:#fff;text-shadow:0 2px 0 var(--ink),0 0 18px rgba(255,80,100,.8)}
+.admbox span{font-size:11.5px;color:#ffc2ca;font-weight:700}
+.adm-shield{position:relative;width:52px;height:60px;margin-bottom:2px;animation:shieldFloat 2.6s ease-in-out infinite;filter:drop-shadow(0 0 14px rgba(255,50,80,.7))}
+.adm-shield svg{width:100%;height:100%}
+.adm-shield i{position:absolute;left:50%;top:50%;width:76px;height:76px;margin:-38px;border-radius:50%;border:1.5px solid rgba(255,120,140,.6);animation:ringOut 2.2s ease-out infinite;pointer-events:none}
+.adm-shield i:nth-child(3){animation-delay:.73s}.adm-shield i:nth-child(4){animation-delay:1.46s}
+.adm-code{display:grid;grid-template-columns:repeat(4,44px);gap:9px;margin-top:8px;cursor:text}
+.adm-code em{height:52px;border-radius:4px;transform:skewX(-8deg);background:rgba(0,0,0,.45);box-shadow:inset 0 0 0 1.5px rgba(255,140,160,.35);display:flex;align-items:center;justify-content:center;transition:box-shadow .2s,background .2s}
+.adm-code em::after{content:"";width:13px;height:13px;border-radius:50%;background:#ffe94d;box-shadow:0 0 12px #ffe94d;transform:scale(0);transition:transform .25s cubic-bezier(.2,1.6,.4,1)}
+.adm-code em.f::after{transform:scale(1)}
+.adm-code em.cur{box-shadow:inset 0 0 0 2px #ffe94d,0 0 16px rgba(255,233,77,.45);animation:caret 1s ease-in-out infinite}
+.admbox.bad .adm-code{animation:shake .45s}
+.admbox.bad .adm-code em{box-shadow:inset 0 0 0 2px #ff4d5e;background:rgba(255,40,60,.2)}
+.admbox.good .adm-code em{background:linear-gradient(180deg,#fff7c0,#ffd84a);box-shadow:0 0 18px rgba(255,220,60,.8)}
+.admbox.good .adm-code em::after{background:#1a1200;box-shadow:none}
+#admCode{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+@keyframes admIn{from{opacity:0;transform:translateY(14px) scale(.92)}}
+@keyframes shieldFloat{50%{transform:translateY(-4px) rotate(-3deg)}}
+@keyframes ringOut{from{transform:scale(.5);opacity:.9}to{transform:scale(1.5);opacity:0}}
+@keyframes caret{50%{box-shadow:inset 0 0 0 2px rgba(255,233,77,.35)}}
+.stats-head .chip{white-space:nowrap}
+body.is-admin #tab-board .stats-head h2{font-size:19px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+body.is-admin #boardChip{padding:6px 8px;font-size:9px;letter-spacing:.04em;flex:none}
+body.is-admin .admchip{flex:none}
+.admchip{display:flex;align-items:center;gap:5px;padding:5px 10px 5px 7px;border-radius:3px;transform:skewX(-8deg);font-family:var(--disp);font-size:13px;color:#fff;text-shadow:0 2px 0 var(--ink);
+  background:linear-gradient(180deg,#ff6b7d,#d01c34 55%,#86081b);box-shadow:0 3px 0 var(--ink),0 0 18px rgba(255,40,70,.55),inset 0 1px 0 rgba(255,255,255,.5);animation:admPulse 2.4s ease-in-out infinite}
+.admchip svg{width:16px;height:19px;transform:skewX(8deg)}
+.admchip em{font-style:normal}
+@keyframes admPulse{50%{box-shadow:0 3px 0 var(--ink),0 0 28px rgba(255,40,70,.85),inset 0 1px 0 rgba(255,255,255,.5)}}
+.banb{width:30px;height:30px;border-radius:3px;transform:skewX(-8deg);display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#ff6b7d,#c0142b);box-shadow:0 2px 0 var(--ink),inset 0 1px 0 rgba(255,255,255,.45);color:#fff;flex:none}
+.banb svg{width:16px;height:16px;transform:skewX(8deg)}
+.banb:active{transform:skewX(-8deg) translateY(2px)}
+.row.admin{grid-template-columns:36px 1fr auto auto}
+.pod .banb{position:absolute;bottom:-12px;left:50%;margin-left:-15px;width:28px;height:26px;z-index:3}
+.row.out,.pod.out,.adm-it.out{animation:banOut .55s cubic-bezier(.6,0,.4,1) forwards}
+@keyframes banOut{0%{filter:none}25%{transform:translateX(-6px);filter:brightness(2) saturate(0)}45%{transform:translateX(6px)}100%{transform:translateX(60px) scale(.9);opacity:0;filter:grayscale(1)}}
+.meBar.banned{background:linear-gradient(90deg,#ff5a6c,#a3102a)!important;color:#fff}
+.sheet.adm .sheet-in{display:flex;flex-direction:column;background:radial-gradient(120% 40% at 50% 0%,rgba(255,40,70,.18),transparent 70%),linear-gradient(180deg,#14112e,#070718)}
+.sheet.adm .sheet-head h3{font-size:24px;font-style:italic;color:#fff;text-shadow:0 2px 0 var(--ink),0 0 20px rgba(255,60,90,.7)}
+.adm-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:4px 0 10px}
+.adm-stats div{padding:10px 6px;border-radius:4px;text-align:center;background:rgba(0,0,0,.3);box-shadow:inset 0 0 0 1px rgba(255,140,160,.22)}
+.adm-stats b{display:block;font-family:var(--disp);font-weight:400;font-size:26px;font-style:italic;color:#fff;text-shadow:0 2px 0 var(--ink)}
+.adm-stats span{font-size:10px;font-weight:800;letter-spacing:.14em;color:#ffb3bd}
+.adm-seg{margin-bottom:8px}
+.adm-search{width:100%;padding:11px 14px;border-radius:4px;border:0;outline:0;background:rgba(0,0,0,.4);box-shadow:inset 0 0 0 1.5px rgba(160,200,255,.2);color:#fff;font-size:15px;font-weight:700;margin-bottom:8px}
+.adm-search:focus{box-shadow:inset 0 0 0 2px #ffe94d}
+.adm-list{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:2px}
+.adm-it{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;border-radius:4px;background:rgba(4,14,44,.55);box-shadow:inset 0 0 0 1px rgba(130,190,255,.15);animation:slideIn .4s cubic-bezier(.2,.9,.2,1) both}
+.adm-it .nm{font-family:var(--disp);font-size:17px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-it .mt{display:block;font-size:11px;color:#9fbaf0;font-weight:700;margin-top:2px}
+.adm-it.me{box-shadow:inset 0 0 0 1.5px var(--fy)}
+.adm-it .tag{margin-left:6px;font-size:10px;padding:2px 6px;border-radius:2px;background:var(--fy);color:#1a1200;vertical-align:middle;font-family:system-ui;font-weight:900}
+.unb{padding:8px 12px;border-radius:3px;transform:skewX(-8deg);font-family:var(--disp);font-size:14px;color:#062212;background:linear-gradient(180deg,#b9ffcf,#33d17a);box-shadow:0 2px 0 var(--ink)}
+.adm-empty{padding:26px 10px;text-align:center;color:#c8d6f5;font-size:13px}
+.adm-quit{margin-top:10px;flex:none}
+.btn.danger{color:#fff;text-shadow:0 2px 0 var(--ink);background:linear-gradient(180deg,#ff9aa6,#ff3b52 35%,#b0102a);box-shadow:0 6px 0 #5e0614,0 0 0 2px var(--ink),0 14px 30px rgba(255,40,70,.4),inset 0 2px 0 rgba(255,255,255,.6)}
+.bandlg{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,0,6,.66);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);opacity:0;transition:opacity .25s}
+.bandlg.in{opacity:1}
+.ban-card{width:min(340px,100%);padding:22px 18px 18px;border-radius:8px;text-align:center;background:radial-gradient(100% 60% at 50% 0%,rgba(255,50,80,.35),transparent 70%),linear-gradient(180deg,#24102a,#0c0816);box-shadow:inset 0 0 0 1.5px rgba(255,110,130,.5),0 30px 80px rgba(0,0,0,.6);transform:scale(.85) translateY(20px);transition:transform .4s cubic-bezier(.2,1.4,.3,1)}
+.bandlg.in .ban-card{transform:none}
+.ban-card h3{font-family:var(--disp);font-weight:400;font-size:26px;color:#fff;font-style:italic;text-shadow:0 3px 0 var(--ink);margin:6px 0 4px;word-break:break-word}
+.ban-card p{font-size:13px;color:#ffcad1;margin-bottom:16px;line-height:1.4}
+.ban-card .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ban-card .btn{font-size:17px;padding:13px 8px}
+.ban-hammer{position:relative;width:86px;height:86px;margin:0 auto}
+.ban-hammer svg{width:100%;height:100%;overflow:visible}
+.ban-hammer .hm{transform-origin:24px 56px;transform:rotate(-28deg);animation:hmIdle 1.4s ease-in-out infinite}
+.ban-ring{position:absolute;left:50%;bottom:4px;width:10px;height:10px;margin-left:-5px;border-radius:50%;opacity:0}
+.bandlg.slam .hm{animation:hmSlam .5s cubic-bezier(.7,0,.3,1) forwards}
+.bandlg.slam .ban-ring{animation:slamRing .6s .32s ease-out forwards}
+.bandlg.slam .ban-card{animation:shake .4s .3s}
+@keyframes hmIdle{50%{transform:rotate(-38deg)}}
+@keyframes hmSlam{0%{transform:rotate(-38deg)}55%{transform:rotate(-60deg)}80%{transform:rotate(38deg)}100%{transform:rotate(30deg)}}
+@keyframes slamRing{0%{opacity:1;transform:scale(1);box-shadow:0 0 0 3px #ffe94d,0 0 30px #ff3b52}100%{opacity:0;transform:scale(14);box-shadow:0 0 0 1px #ffe94d,0 0 30px #ff3b52}}
 </style></head><body>
 <!DOCTYPE html>
 <html lang="fr">
@@ -472,7 +550,7 @@ body{background:radial-gradient(130% 75% at 50% -5%,#3d86ff 0%,#1a50c8 30%,#0c26
 .seg button{position:relative;z-index:2;padding:9px;font-family:var(--disp);font-size:16px;font-style:italic;letter-spacing:.03em;color:#a9c4f5;transition:color .3s}
 .seg button.on{color:#1a1200}
 .seg-ind{position:absolute;z-index:1;top:5px;bottom:5px;left:5px;width:calc(50% - 5px);border-radius:3px;transform:skewX(-10deg);background:linear-gradient(180deg,#fffbd0,#ffe94d 35%,#f7c600);box-shadow:0 3px 0 #a77a00;transition:transform .45s cubic-bezier(.3,1.3,.5,1)}
-.seg[data-m=day] .seg-ind{transform:translateX(100%) skewX(-10deg)}
+.seg[data-m=day] .seg-ind,.seg[data-m=bans] .seg-ind{transform:translateX(100%) skewX(-10deg)}
 .podium{display:grid;grid-template-columns:1fr 1.15fr 1fr;align-items:end;gap:8px;height:min(29vh,205px);padding-top:22px;flex:none}
 .pod{position:relative;display:flex;flex-direction:column;align-items:center;padding:8px 6px 9px;text-align:center;min-width:0;overflow:visible!important;clip-path:none!important;border-radius:4px 4px 0 0}
 .pod.p1{height:100%;background:radial-gradient(80% 50% at 50% 10%,rgba(255,255,220,.7),transparent 70%),linear-gradient(170deg,#ffe066,#f2a900 50%,#8a5200)}
@@ -650,7 +728,7 @@ body{background:radial-gradient(130% 75% at 50% -5%,#3d86ff 0%,#1a50c8 30%,#0c26
     </section>
     <!-- ================= ONGLET 3 : CLASSEMENT ================= -->
     <section id="tab-board" class="tab">
-      <div class="stats-head"><h2>CLASSEMENT</h2><span class="chip" id="boardChip"><i></i><em>CONNEXION…</em></span></div>
+      <div class="stats-head"><h2>CLASSEMENT</h2><button class="admchip" id="admChip" hidden aria-label="Panneau admin"><svg viewBox="0 0 48 56"><path d="M24 2 44 9v17c0 14-9 23-20 28C13 49 4 40 4 26V9z" fill="#e3243b" stroke="#061232" stroke-width="4" stroke-linejoin="round"/><path d="M24 14l3.5 7.6 8.2.9-6.1 5.5 1.7 8.1L24 32l-7.3 4.1 1.7-8.1-6.1-5.5 8.2-.9z" fill="#ffe94d"/></svg><em>ADMIN</em></button><span class="chip" id="boardChip"><i></i><em>CONNEXION…</em></span></div>
       <div class="seg" id="boardSeg" data-m="all"><i class="seg-ind"></i><button data-m="all" class="on">TOTAL</button><button data-m="day">AUJOURD'HUI</button></div>
       <div class="podium" id="podium"></div>
       <div class="card blist" id="boardList"></div>
@@ -706,6 +784,27 @@ body{background:radial-gradient(130% 75% at 50% -5%,#3d86ff 0%,#1a50c8 30%,#0c26
   </div>
 </div>
 
+<div id="admSheet" class="sheet adm" hidden>
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <div><h3>PANNEAU ADMIN</h3><p id="admSub">Modération du classement en ligne</p></div>
+      <button id="admClose" class="icon-btn" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="adm-stats"><div><b id="admNP">0</b><span>JOUEURS</span></div><div><b id="admNB">0</b><span>BANNIS</span></div><div><b id="admNT">0</b><span>COFFRES</span></div></div>
+    <div class="seg adm-seg" id="admSeg" data-m="players"><i class="seg-ind"></i><button data-m="players" class="on">JOUEURS</button><button data-m="bans">BANNIS</button></div>
+    <input id="admSearch" class="adm-search" type="search" placeholder="Rechercher un pseudo…" autocomplete="off" spellcheck="false">
+    <div class="adm-list" id="admList"></div>
+    <button id="admQuit" class="btn ghost adm-quit">Quitter le mode admin</button>
+  </div>
+</div>
+<div id="banDlg" class="bandlg" hidden>
+  <div class="ban-card">
+    <div class="ban-hammer"><svg viewBox="0 0 64 64"><g class="hm"><rect x="8" y="10" width="30" height="16" rx="3" fill="#c9d3e6" stroke="#061232" stroke-width="3"/><rect x="8" y="10" width="30" height="6" rx="3" fill="#fff" opacity=".6"/><rect x="20" y="24" width="7" height="34" rx="3" fill="#a0612a" stroke="#061232" stroke-width="3"/></g></svg><i class="ban-ring"></i></div>
+    <h3 id="banTitle">Bannir ?</h3>
+    <p id="banTxt">Il sera retiré du classement pour tout le monde.</p>
+    <div class="row2"><button id="banNo" class="btn ghost">ANNULER</button><button id="banYes" class="btn danger">BANNIR</button></div>
+  </div>
+</div>
 <div id="setup" class="setup" hidden>
   <div class="setup-card">
     <canvas id="setupIcon" width="168" height="168"></canvas>
@@ -714,6 +813,13 @@ body{background:radial-gradient(130% 75% at 50% -5%,#3d86ff 0%,#1a50c8 30%,#0c26
       <p>Il apparaîtra dans le <b style="color:var(--gold2)">classement en ligne</b> avec tes coffres.</p>
       <input id="setupName" type="text" maxlength="16" placeholder="Pseudo" autocomplete="nickname" autocapitalize="off" spellcheck="false">
       <div class="warn" id="nameWarn">2 à 16 caractères</div>
+      <div class="admbox" id="admBox" hidden>
+        <div class="adm-shield"><svg viewBox="0 0 48 56"><defs><linearGradient id="shg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8a8a"/><stop offset=".55" stop-color="#e3243b"/><stop offset="1" stop-color="#7a0718"/></linearGradient></defs><path d="M24 2 44 9v17c0 14-9 23-20 28C13 49 4 40 4 26V9z" fill="url(#shg)" stroke="#061232" stroke-width="3" stroke-linejoin="round"/><path d="M24 14l3.5 7.6 8.2.9-6.1 5.5 1.7 8.1L24 32l-7.3 4.1 1.7-8.1-6.1-5.5 8.2-.9z" fill="#ffe94d" stroke="#061232" stroke-width="2" stroke-linejoin="round"/></svg><i></i><i></i><i></i></div>
+        <b>ACCÈS ADMIN</b>
+        <span>Entre le code administrateur</span>
+        <label class="adm-code" for="admCode"><em></em><em></em><em></em><em></em></label>
+        <input id="admCode" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" aria-label="Code administrateur">
+      </div>
       <button id="nameOk" class="btn primary">SUIVANT</button>
     </div>
     <div id="stepCount" hidden>
@@ -2826,10 +2932,10 @@ function playerId() {
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(id)) { id = uid().replace(/[^A-Za-z0-9_-]/g, ''); try { localStorage.setItem('fcs.pid.v1', id); } catch {} }
   return id;
 }
-const cleanRow = (id, d) => ({ id: String(id), name: cleanName(d && d.name) || 'Joueur', allTime: int(d && d.allTime), today: int(d && d.today), day: String(d && d.day || '').slice(0, 10), at: int(d && d.updatedAt) });
+const cleanRow = (id, d) => ({ id: String(id), name: cleanName(d && d.name) || 'Joueur', allTime: int(d && d.allTime), today: int(d && d.today), day: String(d && d.day || '').slice(0, 10), at: Math.max(0, Math.floor(Number(d && d.updatedAt)) || 0) });
 const CROWN = '<svg class="crown" viewBox="0 0 34 26"><path d="M2 22 4 6l8 8 5-12 5 12 8-8 2 16z" fill="#ffe94d" stroke="#061232" stroke-width="2" stroke-linejoin="round"/><circle cx="17" cy="16" r="2.4" fill="#fff"/></svg>';
 const Board = {
-  mode: 'all', backend: null, db: null, me: null, rows: [], status: 'init', unsub: null, pushT: 0, pollT: 0, animKey: '', ro: false, lastRank: { all: 0, day: 0 },
+  mode: 'all', backend: null, db: null, me: null, rows: [], bans: {}, banned: false, status: 'init', unsub: null, pushT: 0, pollT: 0, animKey: '', ro: false, lastRank: { all: 0, day: 0 },
   base() { return FIREBASE_URL.replace(/\/+$/, ''); },
   async init() {
     this.render();
@@ -2837,13 +2943,13 @@ const Board = {
       let ok = false;
       try { const ctl = new AbortController(), tt = setTimeout(() => ctl.abort(), 8000); const r = await fetch(this.base() + '/players.json?shallow=true', { cache: 'no-store', signal: ctl.signal }); clearTimeout(tt); ok = r.ok; } catch {}
       const inClaude = window.claude && typeof window.claude.use === 'function';
-      if (ok || !inClaude) { this.backend = 'firebase'; this.me = playerId(); this.poll(); }
+      if (ok || !inClaude) { this.backend = 'firebase'; this.me = playerId(); await this.fetchBans(); this.poll(); }
     }
     if (!this.backend && window.claude && typeof window.claude.use === 'function') {
       let db = null, user = null;
       try { [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]); } catch {}
       if (db && user) { try { this.me = await user.id(); } catch {} }
-      if (db && this.me) { this.backend = 'claude'; this.db = db; this.subscribe(); }
+      if (db && this.me) { this.backend = 'claude'; this.db = db; this.subscribe(); this.subscribeBans(); }
     }
     if (!this.backend) this.status = 'off';
     this.render(); this.push(true);
@@ -2856,12 +2962,47 @@ const Board = {
       this.rows = snap.docs.filter(d => d.exists).map(d => cleanRow(d.id, d.data()));
       if (mine && !this.rows.some(r => r.id === this.me)) this.rows.push(mine);
       if (!snap.metadata.fromCache) { clearTimeout(tm); this.status = 'on'; }
-      this.render();
+      this.render(); Admin.render();
     }, () => { clearTimeout(tm); this.status = 'err'; this.render(); });
+  },
+  subscribeBans() {
+    try { this.db.collection('banned').onSnapshot(snap => { const b = {}; snap.docs.filter(d => d.exists).forEach(d => { b[d.id] = d.data() || {}; }); this.setBans(b); }, () => {}); } catch {}
+  },
+  setBans(b) {
+    const was = this.banned; this.bans = b || {}; this.banned = !!(this.me && this.bans[this.me]);
+    if (this.banned && !was) toast('Tu as été banni du classement par un admin', 4000);
+    if (!this.banned && was) { toast('Tu es de retour dans le classement'); this.push(true); }
+    this.render(); Admin.render();
+  },
+  async fetchBans() {
+    try { const r = await fetch(this.base() + '/banned.json', { cache: 'no-store' }); if (r.ok) this.setBans((await r.json()) || {}); } catch {}
+  },
+  async ban(r) {
+    const rec = { name: r.name, allTime: r.allTime, at: now(), by: Setup.name() };
+    try {
+      if (this.backend === 'claude') { await this.db.doc('banned/' + r.id).set(rec); try { const ref = this.db.doc('players/' + r.id); if (typeof ref.delete === 'function') await ref.delete(); } catch {} }
+      else if (this.backend === 'firebase') {
+        const a = await fetch(`${this.base()}/banned/${encodeURIComponent(r.id)}.json`, { method: 'PUT', body: JSON.stringify(rec) }); if (!a.ok) throw new Error(a.status);
+        await fetch(`${this.base()}/players/${encodeURIComponent(r.id)}.json`, { method: 'DELETE' }).catch(() => {});
+      } else return false;
+    } catch (e) { console.warn(e); return false; }
+    setTimeout(() => { this.rows = this.rows.filter(x => x.id !== r.id); this.bans = { ...this.bans, [r.id]: rec }; this.animKey = ''; this.render(); Admin.render(); }, 520);
+    return true;
+  },
+  async unban(id) {
+    try {
+      if (this.backend === 'claude') { const ref = this.db.doc('banned/' + id); if (typeof ref.delete === 'function') await ref.delete(); else return false; }
+      else if (this.backend === 'firebase') { const a = await fetch(`${this.base()}/banned/${encodeURIComponent(id)}.json`, { method: 'DELETE' }); if (!a.ok) throw new Error(a.status); }
+      else return false;
+    } catch (e) { console.warn(e); return false; }
+    const b = { ...this.bans }; delete b[id];
+    setTimeout(() => { this.bans = b; this.render(); Admin.render(); }, 480);
+    return true;
   },
   async poll() {
     clearTimeout(this.pollT);
     if (!document.hidden) {
+      this.fetchBans();
       try {
         const r = await fetch(this.base() + '/players.json', { cache: 'no-store' });
         if (!r.ok) throw new Error(r.status);
@@ -2870,14 +3011,14 @@ const Board = {
         if (mine) { const i = this.rows.findIndex(x => x.id === this.me); if (i < 0) this.rows.push(mine); else if (mine.at > this.rows[i].at) this.rows[i] = mine; }
         this.status = 'on';
       } catch { this.status = this.rows.length ? 'slow' : 'err'; }
-      this.render();
+      this.render(); Admin.render();
     }
     this.pollT = setTimeout(() => this.poll(), $('#tab-board').classList.contains('active') ? 12000 : 45000);
   },
   wake() { if (this.backend === 'firebase') this.poll(); },
   data() { const s = Store.stats; return { name: Setup.name(), allTime: s.allTime, today: s.today, day: s.todayDate, updatedAt: now() }; },
   push(soon) {
-    if (!this.backend || !this.me || !Setup.name() || this.ro) return;
+    if (!this.backend || !this.me || !Setup.name() || this.ro || this.banned) return;
     const d = this.data(), row = cleanRow(this.me, d), i = this.rows.findIndex(r => r.id === this.me);
     if (i >= 0) this.rows[i] = row; else this.rows.push(row);
     this.render();
@@ -2891,35 +3032,144 @@ const Board = {
   },
   render() {
     const chip = $('#boardChip'); if (!chip) return;
-    const today = dayKey(), all = this.mode === 'all';
+    const today = dayKey(), all = this.mode === 'all', adm = Admin.on(), banB = r => adm && r.id !== this.me ? `<button class="banb" data-ban="${esc(r.id)}" aria-label="Bannir ${esc(r.name)}">${HAMMER}</button>` : '';
     const st = { on: ['on', `EN LIGNE · ${this.rows.length}`], load: ['', 'CONNEXION…'], init: ['', 'CONNEXION…'], slow: ['', 'CONNEXION LENTE'], err: ['', 'HORS LIGNE'], off: ['', 'NON CONNECTÉ'] }[this.status];
     chip.classList.toggle('on', st[0] === 'on'); chip.querySelector('em').textContent = st[1];
     $('#boardSeg').dataset.m = this.mode;
     document.querySelectorAll('#boardSeg button').forEach(b => b.classList.toggle('on', b.dataset.m === this.mode));
-    const list = (all ? this.rows.filter(r => r.allTime > 0 || r.id === this.me).map(r => ({ ...r, v: r.allTime }))
-                      : this.rows.filter(r => r.day === today && (r.today > 0 || r.id === this.me)).map(r => ({ ...r, v: r.day === today ? r.today : 0 })))
+    const rows = this.rows.filter(r => !this.bans[r.id]);
+    const list = (all ? rows.filter(r => r.allTime > 0 || r.id === this.me).map(r => ({ ...r, v: r.allTime }))
+                      : rows.filter(r => r.day === today && (r.today > 0 || r.id === this.me)).map(r => ({ ...r, v: r.day === today ? r.today : 0 })))
       .sort((a, b) => b.v - a.v || a.name.localeCompare(b.name));
-    const key = this.mode + '|' + list.map(r => r.id).join(','), anim = key !== this.animKey; this.animKey = key;
+    const key = this.mode + '|' + adm + '|' + list.map(r => r.id).join(','), anim = key !== this.animKey; this.animKey = key;
     // podium (2e, 1er, 3e)
     $('#podium').innerHTML = [1, 0, 2].map(k => {
       const r = list[k], cls = `pod card p${k + 1}${r ? '' : ' empty'}${r && r.id === this.me ? ' me' : ''}${anim ? ' anim' : ''}`;
-      return `<div class="${cls}">${k === 0 && r ? CROWN : ''}<span class="rk">${k + 1}</span><span class="nm">${r ? esc(r.name) : '—'}</span><span class="vl">${r ? r.v : 0}</span></div>`;
+      return `<div class="${cls}"${r ? ` data-rid="${esc(r.id)}"` : ''}>${k === 0 && r ? CROWN : ''}<span class="rk">${k + 1}</span><span class="nm">${r ? esc(r.name) : '—'}</span><span class="vl">${r ? r.v : 0}</span>${r ? banB(r) : ''}</div>`;
     }).join('');
     // liste
     let html = '';
     if (!this.backend) html = `<div class="bempty"><b>Classement pas encore branché</b>Le serveur en ligne gratuit n'est pas encore configuré dans cette version du fichier. Tes coffres sont quand même comptés et seront envoyés dès qu'il le sera.</div>`;
     else if (this.status === 'err' && !this.rows.length) html = `<div class="bempty"><b>Hors ligne</b>Impossible de joindre le serveur. Vérifie ta connexion : le classement se met à jour tout seul.</div>`;
     else if (list.length <= 3) html = `<div class="bempty"><b>${list.length ? 'Les autres arrivent !' : 'Personne encore'}</b>${all ? 'Partage l\'app à tes amis pour remplir le classement.' : 'Aucun coffre ouvert aujourd\'hui. Lance une partie !'}</div>`;
-    else html = list.slice(3, 100).map((r, i) => `<div class="row${r.id === this.me ? ' me' : ''}${anim ? ' anim' : ''}" style="${anim ? `animation-delay:${Math.min(i, 12) * 35}ms` : ''}"><span class="r">${i + 4}</span><span class="n">${esc(r.name)}${r.id === this.me ? '<span class="tag">TOI</span>' : ''}</span><span class="v">${r.v}</span></div>`).join('');
+    else html = list.slice(3, 100).map((r, i) => `<div class="row${r.id === this.me ? ' me' : ''}${anim ? ' anim' : ''}${adm ? ' admin' : ''}" data-rid="${esc(r.id)}" style="${anim ? `animation-delay:${Math.min(i, 12) * 35}ms` : ''}"><span class="r">${i + 4}</span><span class="n">${esc(r.name)}${r.id === this.me ? '<span class="tag">TOI</span>' : ''}</span><span class="v">${r.v}</span>${banB(r)}</div>`).join('');
     $('#boardList').innerHTML = html;
     // ma position
     const me = $('#boardMe'), idx = list.findIndex(r => r.id === this.me), name = Setup.name() || 'Toi';
     const val = all ? Store.stats.allTime : Store.stats.today;
-    me.innerHTML = this.ro ? `<span class="r">—</span><span class="n">Lecture seule ici</span><span class="v">${val}</span>`
+    me.classList.toggle('banned', this.banned);
+    me.innerHTML = this.banned ? `<span class="r">⛔</span><span class="n">Banni du classement</span><span class="v">${val}</span>`
+      : this.ro ? `<span class="r">—</span><span class="n">Lecture seule ici</span><span class="v">${val}</span>`
       : `<span class="r">${idx >= 0 ? '#' + (idx + 1) : '—'}</span><span class="n">${esc(name)}</span><span class="v">${val}</span>`;
     const lr = this.lastRank[this.mode];
     if (idx >= 0 && lr && idx + 1 < lr) { me.classList.remove('pop'); void me.offsetWidth; me.classList.add('pop'); toast(`Tu montes à la place #${idx + 1} !`); }
     if (idx >= 0) this.lastRank[this.mode] = idx + 1;
+  }
+};
+
+
+/* ============================ MODE ADMIN ============================ */
+/* Pseudo « haydenV » → le champ du code admin apparaît ; bon code → mode admin sur cet appareil.
+   L'admin peut bannir / débannir des joueurs : le joueur est retiré du classement et inscrit dans « banned »,
+   que toutes les apps lisent pour le masquer (même s'il renvoie son score). */
+const ADMIN_NAME = 'haydenv', ADMIN_KEY = '00ca9e3f';
+const fnv = t => { let h = 0x811c9dc5; for (const c of String(t)) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); };
+const HAMMER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4l6 6M11 7l6 6M12.5 5.5l-5 5 6 6 5-5M9.5 13.5 3 20"/></svg>';
+const Admin = {
+  tab: 'players', q: '', pending: null,
+  isName(n) { return cleanName(n).toLowerCase() === ADMIN_NAME; },
+  on() { try { return localStorage.getItem('fcs.admin.v1') === ADMIN_KEY && this.isName(Setup.name()); } catch { return false; } },
+  watchName() {
+    const box = $('#admBox'), show = this.isName($('#setupName').value);
+    if (show === !box.hidden) return;
+    box.hidden = !show; box.classList.remove('bad', 'good'); $('#admCode').value = ''; this.paintCode();
+    $('#nameOk').textContent = show ? 'DÉVERROUILLER' : (Setup.renaming ? 'VALIDER' : 'SUIVANT');
+    if (show) { Sfx.unlock(); Sfx.tick(); setTimeout(() => $('#admCode').focus(), 250); }
+  },
+  paintCode() { const v = $('#admCode').value; document.querySelectorAll('.adm-code em').forEach((e, i) => { e.classList.toggle('f', i < v.length); e.classList.toggle('cur', i === v.length); }); },
+  tryCode() {
+    const box = $('#admBox'), v = $('#admCode').value;
+    if (fnv('fcs|' + v) === ADMIN_KEY) { box.classList.remove('bad'); box.classList.add('good'); this.enable(); return true; }
+    box.classList.remove('bad'); void box.offsetWidth; box.classList.add('bad');
+    $('#nameWarn').textContent = v.length < 4 ? 'Entre le code à 4 chiffres' : 'Code incorrect';
+    if (navigator.vibrate) navigator.vibrate([40, 40, 40]);
+    $('#admCode').value = ''; this.paintCode(); $('#admCode').focus(); return false;
+  },
+  enable() {
+    try { localStorage.setItem('fcs.admin.v1', ADMIN_KEY); } catch {}
+    Sfx.unlock(); Sfx.saved(); BG.boost(); FX.burst(60);
+    toast('🛡 Mode admin activé — onglet TOP pour modérer', 3500); this.sync();
+  },
+  disable(silent) { try { localStorage.removeItem('fcs.admin.v1'); } catch {} this.close(); this.sync(); if (!silent) toast('Mode admin désactivé'); },
+  sync() { const on = this.on(); $('#admChip').hidden = !on; document.body.classList.toggle('is-admin', on); Board.animKey = ''; Board.render(); },
+  open() { if (!this.on()) return; const sh = $('#admSheet'); sh.hidden = false; requestAnimationFrame(() => requestAnimationFrame(() => sh.classList.add('in'))); Board.wake(); this.render(); },
+  close() { const sh = $('#admSheet'); sh.classList.remove('in'); setTimeout(() => { if (!sh.classList.contains('in')) sh.hidden = true; }, 400); },
+  render() {
+    if ($('#admSheet').hidden) return;
+    const bans = Board.bans, rows = Board.rows.filter(r => !bans[r.id]), q = this.q.toLowerCase();
+    $('#admNP').textContent = rows.length; $('#admNB').textContent = Object.keys(bans).length; $('#admNT').textContent = rows.reduce((a, r) => a + r.allTime, 0).toLocaleString('fr-CA');
+    $('#admSeg').dataset.m = this.tab; document.querySelectorAll('#admSeg button').forEach(b => b.classList.toggle('on', b.dataset.m === this.tab));
+    $('#admSub').textContent = Board.backend ? `Serveur ${Board.backend === 'firebase' ? 'Firebase' : 'Claude'} · ${Board.status === 'on' ? 'en ligne' : 'connexion…'}` : 'Classement non connecté';
+    let h = '';
+    if (this.tab === 'players') {
+      const L = rows.filter(r => !q || r.name.toLowerCase().includes(q)).sort((a, b) => b.allTime - a.allTime);
+      h = L.map((r, i) => `<div class="adm-it${r.id === Board.me ? ' me' : ''}" data-id="${esc(r.id)}" style="animation-delay:${Math.min(i, 14) * 25}ms"><div><span class="nm">#${i + 1} ${esc(r.name)}${r.id === Board.me ? '<span class="tag">TOI</span>' : ''}</span><span class="mt">${r.allTime} coffres · ${r.day === dayKey() ? r.today : 0} aujourd'hui${r.at > 1e12 ? ' · vu ' + ago(r.at) : ''}</span></div>${r.id === Board.me ? '' : `<button class="banb" data-ban="${esc(r.id)}" aria-label="Bannir">${HAMMER}</button>`}</div>`).join('');
+      if (!L.length) h = `<div class="adm-empty">${q ? 'Aucun joueur ne correspond' : 'Aucun joueur dans le classement'}</div>`;
+    } else {
+      const L = Object.entries(bans).map(([id, b]) => ({ id, ...b })).filter(b => !q || String(b.name || '').toLowerCase().includes(q)).sort((a, b) => (b.at || 0) - (a.at || 0));
+      h = L.map((b, i) => `<div class="adm-it" data-id="${esc(b.id)}" style="animation-delay:${Math.min(i, 14) * 25}ms"><div><span class="nm">${esc(cleanName(b.name) || 'Joueur')}</span><span class="mt">${b.allTime ? b.allTime + ' coffres · ' : ''}banni ${b.at ? ago(b.at) : ''}</span></div><button class="unb" data-unban="${esc(b.id)}">DÉBANNIR</button></div>`).join('');
+      if (!L.length) h = '<div class="adm-empty">Personne n\'est banni</div>';
+    }
+    $('#admList').innerHTML = h;
+  },
+  ask(id) {
+    const r = Board.rows.find(x => x.id === id); if (!r || id === Board.me) return;
+    this.pending = r; $('#banTitle').textContent = `Bannir ${r.name} ?`;
+    $('#banTxt').textContent = `${r.allTime} coffres. Il disparaît du classement pour tout le monde et ne pourra plus y revenir (tu peux le débannir plus tard).`;
+    const d = $('#banDlg'); d.classList.remove('slam'); d.hidden = false; requestAnimationFrame(() => requestAnimationFrame(() => d.classList.add('in')));
+  },
+  hideDlg() { const d = $('#banDlg'); d.classList.remove('in'); setTimeout(() => { if (!d.classList.contains('in')) { d.hidden = true; d.classList.remove('slam'); } }, 300); },
+  async confirm() {
+    const r = this.pending; if (!r) return; this.pending = null;
+    const d = $('#banDlg'); d.classList.add('slam'); Sfx.unlock(); this.thud();
+    document.querySelectorAll(`[data-id="${CSS.escape(r.id)}"], .row[data-rid="${CSS.escape(r.id)}"], .pod[data-rid="${CSS.escape(r.id)}"]`).forEach(e => e.classList.add('out'));
+    const ok = await Board.ban(r);
+    setTimeout(() => { this.hideDlg(); toast(ok ? `${r.name} est banni du classement` : 'Le serveur a refusé le ban (règles de la base ?)', 3200); }, 650);
+  },
+  async unban(id) {
+    const b = Board.bans[id]; const el = document.querySelector(`.adm-it[data-id="${CSS.escape(id)}"]`); if (el) el.classList.add('out');
+    const ok = await Board.unban(id);
+    toast(ok ? `${cleanName(b && b.name) || 'Joueur'} est débanni` : 'Le serveur a refusé', 2600); if (ok) Sfx.saved();
+  },
+  thud() {
+    const c = Sfx.ctx; if (!c || !Store.settings.sound) return;
+    const t = c.currentTime + .3, o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(38, t + .35);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.7, t + .01); g.gain.exponentialRampToValueAtTime(.0008, t + .45);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + .5);
+    const len = c.sampleRate * .25 | 0, buf = c.createBuffer(1, len, c.sampleRate), ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    const n = c.createBufferSource(), f = c.createBiquadFilter(), ng = c.createGain(); n.buffer = buf; f.type = 'lowpass'; f.frequency.value = 1800; ng.gain.value = .5;
+    n.connect(f).connect(ng).connect(c.destination); n.start(t);
+  },
+  bind() {
+    const ci = $('#admCode');
+    ci.addEventListener('input', () => { ci.value = ci.value.replace(/\D/g, '').slice(0, 4); $('#admBox').classList.remove('bad'); $('#nameWarn').textContent = '2 à 16 caractères'; this.paintCode(); if (ci.value.length === 4) $('#nameOk').click(); });
+    ci.addEventListener('focus', () => this.paintCode()); ci.addEventListener('blur', () => document.querySelectorAll('.adm-code em').forEach(e => e.classList.remove('cur')));
+    $('#admChip').addEventListener('click', () => this.open());
+    $('#admClose').addEventListener('click', () => this.close());
+    $('#admQuit').addEventListener('click', () => { if (confirm('Quitter le mode admin sur cet appareil ?')) this.disable(); });
+    $('#admSearch').addEventListener('input', e => { this.q = e.target.value.trim(); this.render(); });
+    document.querySelectorAll('#admSeg button').forEach(b => b.addEventListener('click', () => { this.tab = b.dataset.m; this.render(); }));
+    $('#banNo').addEventListener('click', () => { this.pending = null; this.hideDlg(); });
+    $('#banYes').addEventListener('click', () => this.confirm());
+    $('#banDlg').addEventListener('click', e => { if (e.target.id === 'banDlg') { this.pending = null; this.hideDlg(); } });
+    document.addEventListener('click', e => {
+      const b = e.target.closest('[data-ban]'); if (b && this.on()) { e.stopPropagation(); this.ask(b.dataset.ban); return; }
+      const u = e.target.closest('[data-unban]'); if (u && this.on()) { this.unban(u.dataset.unban); }
+    });
+    $('#boardMe').addEventListener('click', () => { if (!Board.banned) Setup.rename(); });
+    this.sync();
   }
 };
 
@@ -2929,20 +3179,31 @@ const Setup = {
   done() { try { return !!localStorage.getItem('fcs.setup.v1'); } catch { return true; } },
   name() { try { return cleanName(localStorage.getItem('fcs.name.v1')); } catch { return ''; } },
   close() { const el = $('#setup'); el.classList.remove('in'); setTimeout(() => { el.hidden = true; }, 400); },
+  rename() { this.renaming = true; this.show(); setTimeout(() => { const i = $('#setupName'); i.focus(); i.select(); }, 450); },
   show() {
     const el = $('#setup'), inp = $('#setupNum'), ok = $('#setupOk');
     paintIcon($('#setupIcon'));
     el.hidden = false; requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
-    const needName = !this.name();
+    const needName = !this.name() || this.renaming;
     $('#stepName').hidden = !needName; $('#stepCount').hidden = needName;
     const ni = $('#setupName');
+    if (this.renaming) { ni.value = this.name(); $('#nameOk').textContent = 'VALIDER'; }
+    Admin.watchName();
+    if (this._bound) return; this._bound = true;
+    ni.addEventListener('input', () => Admin.watchName());
     $('#nameOk').addEventListener('click', () => {
       const n = cleanName(ni.value);
       if (n.length < 2) { $('#nameWarn').textContent = 'Il faut au moins 2 caractères'; ni.focus(); return; }
+      const wasAdmin = Admin.on();
+      if (Admin.isName(n)) { if (!Admin.tryCode()) return; }
+      else if (wasAdmin) { Admin.disable(true); }
       try { localStorage.setItem('fcs.name.v1', n); } catch {}
-      Sfx.unlock(); Sfx.tick();
-      if (this.done()) { this.close(); toast(`Bienvenue ${n} !`); Board.push(true); return; }
-      $('#stepName').hidden = true; $('#stepCount').hidden = false;
+      Admin.sync(); Sfx.unlock(); Sfx.tick();
+      const fin = () => {
+        if (this.done()) { const rn = this.renaming; this.renaming = false; this.close(); if (!Admin.on()) toast(rn ? `Pseudo changé : ${n}` : `Bienvenue ${n} !`); Board.push(true); Board.render(); return; }
+        $('#stepName').hidden = true; $('#stepCount').hidden = false;
+      };
+      if (Admin.isName(n)) setTimeout(fin, 900); else fin();
     });
     let armed = false;
     const val = () => Math.min(999999, parseInt(inp.value.replace(/\D/g, ''), 10) || 0);
@@ -2965,7 +3226,7 @@ const Setup = {
 /* ============================ DÉMARRAGE ============================ */
 (async function boot() {
   Cam.video = $('#video');
-  Store.load(); installMeta(); updateSoundBtn(); FX.init(); FX2.init(); BG.init(); bind(); XPBank.load(); XPLoop.syncBank(); HUD.init();
+  Store.load(); installMeta(); updateSoundBtn(); FX.init(); FX2.init(); BG.init(); bind(); XPBank.load(); XPLoop.syncBank(); HUD.init(); Admin.bind();
   renderStats(); setCam('off'); defaultNote();
   if (!Setup.done() || !Setup.name()) Setup.show();
   Board.init();
