@@ -1,0 +1,67 @@
+# Roblox Push - installed by the Roblox Push web app. Do not edit by hand:
+# the app re-installs it. It runs when the app commits a game with a message
+# starting with "roblox-push: publish", publishes it to Roblox Open Cloud with
+# the ROBLOX_API_KEY secret and writes .roblox-push/result.json for the app.
+
+name: Roblox Push
+
+on:
+  push:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: roblox-push-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: startsWith(github.event.head_commit.message, 'roblox-push publish')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ROJO_VERSION: 7.7.1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the request
+        id: prepare
+        run: python3 .roblox-push/push.py prepare
+
+      - name: Cache Rojo
+        if: steps.prepare.outputs.needs_rojo == 'true'
+        id: rojo-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/rojo
+          key: rojo-${{ env.ROJO_VERSION }}
+
+      - name: Install Rojo (first Rojo project only, ~3 min)
+        if: steps.prepare.outputs.needs_rojo == 'true' && steps.rojo-cache.outputs.cache-hit != 'true'
+        run: cargo install rojo --version "$ROJO_VERSION" --locked
+
+      - name: Build the Rojo project
+        if: steps.prepare.outputs.needs_rojo == 'true'
+        run: python3 .roblox-push/push.py build
+
+      - name: Publish to Roblox
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 .roblox-push/push.py publish
+
+      - name: Run Luau on Roblox servers
+        if: steps.prepare.outputs.has_luau == 'true'
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 .roblox-push/push.py luau
+
+      - name: Save the result for the app
+        if: always()
+        run: |
+          python3 .roblox-push/push.py finish
+          git config user.name "roblox-push"
+          git config user.email "roblox-push@users.noreply.github.com"
+          git add .roblox-push/result.json
+          git commit -m "roblox-push: result" || exit 0
+          for i in 1 2 3; do git push && break || { sleep $((i*2)); git pull --rebase; }; done
