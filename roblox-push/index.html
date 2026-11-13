@@ -322,6 +322,16 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 .hnav button:disabled{opacity:.3}
 .note{font-size:11.5px;color:var(--faint);text-align:center;margin-top:8px}
 
+.mini3{margin:14px 0 0;padding:0;list-style:none;counter-reset:m}
+.mini3 li{counter-increment:m;display:flex;gap:10px;align-items:flex-start;padding:8px 0;font-size:14.5px;line-height:1.35;border-top:1px solid var(--line)}
+.mini3 li:first-child{border-top:0}
+.mini3 li::before{content:counter(m);flex:none;width:24px;height:24px;border-radius:8px;display:grid;place-items:center;font-size:12.5px;font-weight:900;color:#05040c;background:var(--c)}
+.mini3 b{color:var(--text)}
+.openpg{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:10px;border:0;border-radius:14px;padding:12px;font-weight:800;font-size:14.5px;background:#ffffff14;box-shadow:0 0 0 1px var(--line2) inset;color:var(--text)}
+.mr.ok2::after{content:"✓ déjà rempli";position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:10px;font-weight:800;color:#1a7f37;background:#dafbe1;padding:2px 6px;border-radius:6px}
+.mr.perm.ok2::after{right:auto;left:auto;position:static;transform:none;margin-left:6px}
+.chipbtn.call{animation:call 1s ease-in-out infinite;background:linear-gradient(135deg,var(--g),#ffb84d);color:#05040c}
+@keyframes call{50%{box-shadow:0 0 0 6px rgba(255,212,92,.25),0 0 22px rgba(255,212,92,.6)}}
 /* ===== coach marks (first visit spotlight tour) ===== */
 #coach{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:0;transition:opacity .4s}
 #coach.on{opacity:1;pointer-events:auto}
@@ -380,10 +390,10 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
       <div class="slide" data-s="1">
         <div class="glass step-card">
           <h3>1 · Connecte GitHub</h3>
-          <p class="sub">GitHub fait le lien avec Roblox. Crée un jeton une seule fois.</p>
-          <button class="cta alt" id="openTok" style="margin-top:0">Créer mon jeton ↗</button>
-          <div class="tick"><span>Repository access › <b>ton dépôt</b></span><span>Actions › <b>Read</b></span><span>Contents › <b>Read and write</b></span><span>Secrets › <b>Read and write</b></span><span>Workflows › <b>Read and write</b></span></div>
-          <button class="showme" data-howto="ghHow"><span class="pl">▶</span>Montre-moi comment (6 étapes)</button>
+          <p class="sub">Le bouton ouvre GitHub avec <b>tout déjà rempli</b> (nom, durée, permissions). Il te reste 2 gestes.</p>
+          <button class="cta" id="openTok" style="margin-top:0">Ouvrir GitHub (déjà rempli) ↗</button>
+          <ol class="mini3"><li><span>Repository access › <b>Only select repositories</b> › choisis ton dépôt</span></li><li><span>Tout en bas : <b>Generate token</b> › copie ⧉</span></li><li><span>Reviens ici › <b>Coller</b></span></li></ol>
+          <button class="showme" data-howto="ghHow"><span class="pl">▶</span>Voir en images (4 étapes)</button>
           <div class="howto" id="ghHow"></div>
           <div class="paste"><input id="tok" type="password" placeholder="github_pat_…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="chipbtn" id="pasteTok">Coller</button></div>
           <div class="repos hidden" id="repoList"></div>
@@ -394,9 +404,9 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
         <div class="glass step-card">
           <h3>2 · Clé Roblox</h3>
           <p class="sub">Chiffrée sur ton iPhone puis rangée en secret chez GitHub. L'app ne la garde jamais.</p>
-          <button class="cta alt" id="openKey" style="margin-top:0">Ouvrir Roblox Credentials ↗</button>
-          <div class="tick"><span>Create API Key</span><span>universe-places › <b>ton jeu</b> › <b>write</b></span><span>Restrict IP addresses › <b>OFF</b></span></div>
-          <button class="showme" data-howto="rbHow"><span class="pl">▶</span>Montre-moi comment (6 étapes)</button>
+          <button class="cta" id="openKey" style="margin-top:0">Ouvrir les clés Roblox ↗</button>
+          <ol class="mini3"><li><span><b>Create API Key</b> › un nom</span></li><li><span><b>universe-places</b> › ton jeu › <b>write</b></span></li><li><span><b>Save &amp; Generate key</b> › <b>Copy</b> › reviens › <b>Coller</b></span></li></ol>
+          <button class="showme" data-howto="rbHow"><span class="pl">▶</span>Voir en images (5 étapes)</button>
           <div class="howto" id="rbHow"></div>
           <div class="paste"><input id="rk" type="password" placeholder="colle la clé" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="chipbtn" id="pasteKey">Coller</button></div>
           <div class="status" id="keyStatus"></div>
@@ -516,8 +526,12 @@ const BRANCH = 'roblox-push', API = 'https://api.github.com';
 const KIT = { workflow: 'kit/roblox-push.yml', script: 'kit/push.py' };
 const PATHS = { workflow: '.github/workflows/roblox-push.yml', script: '.roblox-push/push.py', request: '.roblox-push/request.json' };
 const MAX_BYTES = 75 * 1024 * 1024;
-const TOKEN_URL = 'https://github.com/settings/personal-access-tokens/new?name=Roblox%20Push&description=Publie%20des%20jeux%20Roblox%20depuis%20Roblox%20Push';
-const KEY_URL = 'https://create.roblox.com/dashboard/credentials';
+// GitHub pre-fills fine-grained tokens from URL parameters (documented):
+// name, description, expires_in (1-366 | none) and one parameter per permission.
+const TOKEN_URL = 'https://github.com/settings/personal-access-tokens/new?' + new URLSearchParams({
+  name: 'Roblox Push', description: 'Publie des jeux Roblox depuis l\'app Roblox Push (iPhone)', expires_in: '366',
+  actions: 'read', contents: 'write', secrets: 'write', workflows: 'write' }).toString();
+const KEY_URL = 'https://create.roblox.com/dashboard/credentials?activeTab=ApiKeysTab';
 const UPLOAD_ICON = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#c9c1ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M6 10l6-6 6 6"/><path d="M4 20h16"/></svg>';
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -633,8 +647,21 @@ function go(n) {
 }
 $('start').addEventListener('click', () => go(1));
 $('onbBack').addEventListener('click', () => go(Math.max(0, slide - 1)));
-$('openTok').addEventListener('click', () => window.open(TOKEN_URL, '_blank', 'noopener'));
-$('openKey').addEventListener('click', () => window.open(KEY_URL, '_blank', 'noopener'));
+let awaitingPaste = null; // the step card we sent the user away from
+function openExternal(url, card) { awaitingPaste = card || null; window.open(url, '_blank', 'noopener'); }
+$('openTok').addEventListener('click', () => openExternal(TOKEN_URL, $('openTok').closest('.step-card')));
+$('openKey').addEventListener('click', () => openExternal(KEY_URL, $('openKey').closest('.step-card')));
+function nudgePaste() {
+  if (!awaitingPaste || document.hidden) return;
+  const inp = awaitingPaste.querySelector('.paste input'), btn = awaitingPaste.querySelector('.paste .chipbtn');
+  if (inp.value) return;
+  btn.classList.add('call'); btn.textContent = 'Coller ✨';
+  awaitingPaste.querySelector('.paste').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  toast('Tu as copié ? Touche « Coller » ✨', 3200);
+}
+document.addEventListener('visibilitychange', nudgePaste);
+addEventListener('focus', nudgePaste);
+document.querySelectorAll('.paste .chipbtn').forEach((b) => b.addEventListener('click', () => { b.classList.remove('call'); if (b.textContent.startsWith('Coller')) b.textContent = 'Coller'; }));
 $('pasteTok').addEventListener('click', () => pasteInto($('tok')));
 $('pasteKey').addEventListener('click', () => pasteInto($('rk')));
 
@@ -1035,35 +1062,34 @@ function celebrate(x0, y0, n) {
 const FINGER = '<svg viewBox="0 0 24 24"><path fill="#fff" stroke="#05040c" stroke-width="1.1" stroke-linejoin="round" d="M8.5 2.6c.9 0 1.6.7 1.6 1.6v6.1l.7-.1c.4-.6 1-.9 1.7-.9.8 0 1.4.4 1.7 1 .3-.2.7-.3 1.1-.3.8 0 1.4.5 1.7 1.1.3-.2.6-.2.9-.2 1 0 1.8.8 1.8 1.8v4.1c0 3.1-2.5 5.6-5.6 5.6h-1.4c-1.9 0-3.6-.9-4.7-2.4l-3.4-4.7c-.5-.7-.4-1.7.3-2.2.7-.5 1.6-.4 2.2.2l1.3 1.4V4.2c0-.9.7-1.6 1.6-1.6z"/></svg>';
 const HOWTO = {
   ghHow: { theme: '', url: 'github.com', steps: [
-    { h: 'New fine-grained personal access token', rows: [['f', 'Token name', 'Roblox Push'], ['f', 'Expiration', '90 days ▾'], ['f', 'Description', 'Publie des jeux Roblox']], hl: 1,
-      c: 'Le nom est déjà rempli. Choisis une <b>durée</b> (90 jours ou plus).' },
-    { h: 'Repository access', rows: [['r', 'Public repositories'], ['r', 'All repositories'], ['r*', 'Only select repositories'], ['f', '', 'Select repositories ▾ SawAz135/vertical']], hl: 2,
-      c: 'Coche <b>Only select repositories</b> puis choisis ton dépôt.' },
-    { h: 'Permissions', rows: [['b', '+ Add permissions'], ['p', 'Actions', 'Read-only'], ['p', 'Contents', 'Read and write'], ['p', 'Secrets', 'Read and write'], ['p', 'Workflows', 'Read and write']], hl: 0,
-      c: 'Touche <b>Add permissions</b>, ajoute ces <b>4 lignes</b> et règle les accès comme ici.' },
-    { h: 'Tout en bas de la page', rows: [['n', 'Le jeton aura accès à 1 dépôt.'], ['B', 'Generate token']], hl: 1,
-      c: 'Descends tout en bas : <b>Generate token</b>, puis confirme.' },
-    { h: 'Token created', rows: [['n', 'Copie-le maintenant, il ne sera plus affiché.'], ['t', 'github_pat_11AB…']], hl: 1,
-      c: 'Touche l\'icône <b>copier ⧉</b> à côté du jeton.' },
+    { open: 'tok', h: 'New fine-grained personal access token', rows: [['f+', 'Token name', 'Roblox Push'], ['f+', 'Expiration', '366 days'], ['p+', 'Contents', 'Read and write'], ['p+', 'Secrets', 'Read and write'], ['p+', 'Workflows', 'Read and write']], hl: -1,
+      c: 'Touche <b>Ouvrir cette page</b> : nom, durée et permissions sont <b>déjà remplis</b>. Rien à cocher.' },
+    { open: 'tok', h: 'Repository access', rows: [['r', 'Public repositories'], ['r', 'All repositories'], ['r*', 'Only select repositories'], ['f', '', 'Select repositories ▾ SawAz135/vertical']], hl: 2,
+      c: 'Seul geste : <b>Only select repositories</b> puis choisis ton dépôt.' },
+    { open: 'tok', h: 'Tout en bas de la page', rows: [['n', 'Le jeton aura accès à 1 dépôt.'], ['B', 'Generate token']], hl: 1,
+      c: 'Descends tout en bas : <b>Generate token</b>, confirme, puis touche <b>copier ⧉</b>.' },
     { app: true, h: '1 · Connecte GitHub', rows: [['f', '', 'github_pat_…'], ['B', 'Coller']], hl: 1,
       c: 'Reviens dans Roblox Push et touche <b>Coller</b>. Fini ✓' },
   ] },
   rbHow: { theme: 'rb', url: 'create.roblox.com', steps: [
-    { h: 'API Extensions › API Keys', rows: [['n', 'Aucune clé pour l\'instant.'], ['B', 'Create API Key']], hl: 1,
-      c: 'Touche <b>Create API Key</b>.' },
-    { h: 'General Information', rows: [['f', 'Name', 'Roblox Push'], ['f', 'Description', '(facultatif)']], hl: 0,
-      c: 'Donne-lui un <b>nom</b>, par exemple Roblox Push.' },
-    { h: 'Access Permissions', rows: [['f', 'Select API System', 'universe-places ▾'], ['b', 'Add API System'], ['f', 'Experience', 'ton jeu ▾'], ['p', 'Operations', 'write ✓']], hl: 0,
-      c: 'Choisis <b>universe-places</b> › Add › choisis <b>ton jeu</b> › coche <b>write</b>.' },
-    { h: 'Security', rows: [['s', 'Restrict IP addresses'], ['f', 'Expiration date', '(facultatif)']], hl: 0,
-      c: 'Laisse <b>Restrict IP addresses</b> désactivé.' },
-    { h: 'Tout en bas', rows: [['B', 'Save & Generate key']], hl: 0,
-      c: 'Touche <b>Save &amp; Generate key</b>, puis <b>Copy Key to Clipboard</b>.' },
+    { open: 'key', h: 'API Extensions › API Keys', rows: [['n', 'La page s\'ouvre directement sur les clés.'], ['B', 'Create API Key']], hl: 1,
+      c: 'Touche <b>Ouvrir cette page</b>, puis <b>Create API Key</b>.' },
+    { open: 'key', h: 'Access Permissions', rows: [['f', 'Name', 'Roblox Push'], ['f', 'Select API System', 'universe-places ▾'], ['b', 'Add API System'], ['f', 'Experience', 'ton jeu ▾'], ['p', 'Operations', 'write ✓']], hl: 1,
+      c: 'Un nom, puis <b>universe-places</b> › Add › <b>ton jeu</b> › coche <b>write</b>.' },
+    { open: 'key', h: 'Security', rows: [['s', 'Restrict IP addresses'], ['f', 'Expiration date', '(facultatif)']], hl: 0,
+      c: 'Laisse <b>Restrict IP addresses</b> désactivé (c\'est le réglage par défaut).' },
+    { open: 'key', h: 'Tout en bas', rows: [['B', 'Save & Generate key'], ['b', 'Copy Key to Clipboard']], hl: 0,
+      c: '<b>Save &amp; Generate key</b>, puis <b>Copy Key to Clipboard</b>.' },
     { app: true, h: '2 · Clé Roblox', rows: [['f', '', 'colle la clé'], ['B', 'Coller']], hl: 1,
       c: 'Reviens ici et touche <b>Coller</b>. L\'app la chiffre et c\'est fini ✓' },
   ] },
 };
-function rowHtml([t, a, b]) {
+const OPEN = { tok: () => TOKEN_URL, key: () => KEY_URL };
+function rowHtml([t0, a, b]) {
+  const pre = t0.endsWith('+'), t = pre ? t0.slice(0, -1) : t0;
+  return rowHtml0(t, a, b).replace('class="mr', pre ? 'class="mr ok2' : 'class="mr');
+}
+function rowHtml0(t, a, b) {
   if (t === 'f') return `<div class="mr">${a ? `<div class="lb2">${esc(a)}</div>` : ''}<div class="in">${esc(b)}</div></div>`;
   if (t === 'r' || t === 'r*') return `<div class="mr rad${t === 'r*' ? ' on' : ''}">${esc(a)}</div>`;
   if (t === 'b') return `<div><div class="mr btn2">${esc(a)}</div></div>`;
@@ -1080,9 +1106,10 @@ function buildHowto(id) {
       <div class="pg"><h5>${esc(st.h)}</h5>${st.rows.map(rowHtml).join('')}</div><div class="finger">${FINGER}</div></div>
       </div>`).join('')}</div></div>
     <div class="cap"><span class="no">1</span><span class="tx"></span></div>
+    <button class="openpg">Ouvrir cette page ↗</button>
     <div class="hnav"><button class="pv">‹ Retour</button><div class="dots">${cfg.steps.map(() => '<i></i>').join('')}</div><button class="nx">Suivant ›</button></div>
     <div class="note">Les écrans peuvent varier un peu selon les mises à jour de GitHub / Roblox.</div>`;
-  box.querySelectorAll('.hs').forEach((hs, i) => hs.querySelectorAll('.mr')[cfg.steps[i].hl]?.classList.add('hl'));
+  box.querySelectorAll('.hs').forEach((hs, i) => { if (cfg.steps[i].hl >= 0) hs.querySelectorAll('.mr')[cfg.steps[i].hl]?.classList.add('hl'); });
   let i = 0;
   const show = (n) => {
     i = Math.max(0, Math.min(cfg.steps.length - 1, n));
@@ -1091,8 +1118,12 @@ function buildHowto(id) {
     [...box.querySelectorAll('.hnav .dots i')].forEach((d, k) => d.classList.toggle('on', k === i));
     box.querySelector('.pv').disabled = i === 0;
     box.querySelector('.nx').textContent = i === cfg.steps.length - 1 ? 'Compris ✓' : 'Suivant ›';
+    const op = box.querySelector('.openpg'), st = cfg.steps[i];
+    op.classList.toggle('hidden', !st.open); op.onclick = () => st.open && openExternal(OPEN[st.open](), box.closest('.step-card'));
     requestAnimationFrame(() => { // put the finger on the highlighted element
       const hs = box.querySelectorAll('.hs')[i], tgt = hs.querySelector('.mr.hl'), f = hs.querySelector('.finger'), m = hs.querySelector('.mock');
+      if (!tgt) f.style.display = 'none';
+      f.style.display = tgt ? '' : 'none';
       if (!tgt) return; const r = tgt.getBoundingClientRect(), mr = m.getBoundingClientRect();
       f.style.left = (r.left - mr.left + Math.min(r.width * .55, r.width - 20)) + 'px'; f.style.top = (r.top - mr.top + r.height * .45) + 'px';
     });
