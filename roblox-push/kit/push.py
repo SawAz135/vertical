@@ -96,6 +96,20 @@ def roblox(method: str, url: str, body: bytes | None = None, content_type: str |
     raise PushError("UNREACHABLE", f"Roblox did not answer after 5 attempts ({last})")
 
 
+GAMES_API = os.environ.get("ROBLOX_GAMES_BASE", "https://games.roblox.com").rstrip("/")
+
+
+def lookup_name(universe: str) -> str | None:
+    """Best effort: the experience's public name, shown on the app's game tiles."""
+    try:
+        url = f"{GAMES_API}/v1/games?universeIds={universe}"
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"Accept": "application/json"}), timeout=20) as resp:
+            data = json.loads(resp.read()).get("data") or []
+        return (data[0].get("name") or None) if data else None
+    except Exception:  # never fail a publish because of a display name
+        return None
+
+
 def lookup_universe(place: str) -> str:
     """Public Roblox endpoint (no key): which experience a place belongs to."""
     url = f"{API}/universes/v1/places/{place}/universe"
@@ -307,6 +321,7 @@ def finish() -> None:
         "universeId": state.get("universe"),
         "placeId": state.get("place"),
         "kind": state.get("kind"),
+        "gameName": lookup_name(state["universe"]) if state.get("universe") else None,
         "steps": state.get("steps", {}),
         "luau": luau_info,
         "error": state.get("error"),
