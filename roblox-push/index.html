@@ -175,7 +175,7 @@ a.cta{display:block;text-align:center;text-decoration:none}
 .orb svg.pr{position:absolute;inset:0;transform:rotate(-90deg)}
 .orb svg.pr circle{fill:none;stroke-width:5}
 .orb .trk{stroke:#ffffff14}
-.orb .fil{stroke:url(#og);stroke-linecap:round;stroke-dasharray:578;stroke-dashoffset:578;filter:drop-shadow(0 0 6px var(--c))}
+.orb .fil{stroke:url(#og);stroke-linecap:round;stroke-dasharray:616;stroke-dashoffset:616;filter:drop-shadow(0 0 6px var(--c))}
 .orb .lb{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;letter-spacing:.14em;font-size:15px;text-shadow:0 2px 12px rgba(0,0,0,.5);pointer-events:none}
 .orb .lb small{font-size:10.5px;letter-spacing:.16em;opacity:.8;margin-top:4px;font-weight:700}
 .orb.holding .body{transform:scale(.93);filter:brightness(1.25)}
@@ -357,6 +357,125 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 .faq summary::-webkit-details-marker{display:none}
 .faq .a{padding:0 2px 12px;color:var(--muted);font-size:14px;line-height:1.5}
 .faq .a b{color:var(--text)}
+/* =====================================================================
+   VISUAL PASS 2 - richer materials, depth and motion
+   ===================================================================== */
+@property --ang{syntax:'<angle>';inherits:false;initial-value:0deg}
+@keyframes angspin{to{--ang:360deg}}
+.glass{position:relative;background:linear-gradient(160deg,rgba(34,26,72,.62),rgba(14,11,30,.55))}
+.glass::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;padding:1px;
+  background:linear-gradient(160deg,rgba(255,255,255,.22),rgba(255,255,255,.02) 40%,rgba(124,92,255,.18) 75%,rgba(62,230,255,.22));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+/* header */
+.top{padding:6px 2px 18px}
+.ttl{flex:1;min-width:0}
+.ttl h1{font-size:23px}
+.conn{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:650;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conn i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);animation:breathe 2.4s ease-in-out infinite}
+.avatar{box-shadow:none;background:conic-gradient(from var(--ang),var(--c),var(--v),var(--g),var(--c));padding:2px;animation:angspin 6s linear infinite}
+.avatar img{border-radius:12px}
+.help{background:linear-gradient(160deg,#ffffff1a,#ffffff08);box-shadow:0 0 0 1px var(--line2) inset,0 8px 20px -10px #000}
+.label{display:flex;align-items:center;gap:10px;margin:8px 4px 12px}
+.label span{display:flex;align-items:center;gap:8px}
+.label span::before{content:"";width:16px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--c),var(--v))}
+.label em{margin-left:auto;font-style:normal;font-size:11px;letter-spacing:.08em;color:var(--muted);padding:3px 8px;border-radius:8px;background:#ffffff0a}
+.label em:empty{display:none}
+/* tiles */
+.tiles{gap:14px;padding:8px 4px 18px;perspective:800px}
+.tile{width:150px;height:180px;border-radius:26px;padding:14px;background:#0b0820;box-shadow:0 18px 40px -20px #000,0 0 0 1px rgba(255,255,255,.08) inset;transform-style:preserve-3d}
+.tile:active{transform:scale(.96)}
+.tile .art{opacity:1}
+.tile .art svg{width:100%;height:100%;display:block}
+.tile .art::after{background:linear-gradient(180deg,transparent 35%,rgba(5,4,12,.25) 55%,rgba(5,4,12,.95))}
+.tile .gloss{position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(125deg,rgba(255,255,255,.28),transparent 32%,transparent 70%,rgba(255,255,255,.06))}
+.tile .vp{position:absolute;top:12px;left:12px;z-index:2;font-size:11px;font-weight:850;padding:4px 8px;border-radius:9px;color:#05040c;background:linear-gradient(135deg,var(--g),#ffb84d);box-shadow:0 4px 12px -4px rgba(255,212,92,.8)}
+.tile .t{font-size:16px;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+.tile.on{transform:translateY(-4px) rotateX(4deg);box-shadow:0 22px 44px -18px rgba(62,230,255,.55)}
+.tile.on::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:2px;pointer-events:none;z-index:3;
+  background:conic-gradient(from var(--ang),var(--c),var(--v),var(--g),var(--c));animation:angspin 3s linear infinite;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.tile.on::before{z-index:4}
+.tile.add{background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.015));box-shadow:0 0 0 1.5px rgba(170,150,255,.28) inset}
+.tile.add b{width:48px;height:48px;margin:0 auto 10px;border-radius:16px;display:grid;place-items:center;font-size:28px;background:linear-gradient(135deg,var(--v),#4b2fd6);box-shadow:0 10px 24px -8px rgba(124,92,255,.9);animation:float 3.4s ease-in-out infinite}
+/* drop zone */
+.drop{min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.drop .aur{position:absolute;inset:0;border-radius:inherit;overflow:hidden;opacity:.85;pointer-events:none}
+.drop .aur b{position:absolute;width:60%;height:120%;border-radius:50%;filter:blur(34px);opacity:.55;mix-blend-mode:screen}
+.drop .aur b:nth-child(1){left:-10%;top:-30%;background:var(--v);animation:au1 9s ease-in-out infinite}
+.drop .aur b:nth-child(2){right:-15%;top:-10%;background:var(--c);opacity:.35;animation:au2 11s ease-in-out infinite}
+.drop .aur b:nth-child(3){left:30%;bottom:-70%;background:var(--g);opacity:.18;animation:au1 13s ease-in-out infinite reverse}
+@keyframes au1{50%{transform:translate(30%,15%) scale(1.15)}}
+@keyframes au2{50%{transform:translate(-35%,10%) scale(.9)}}
+.drop .ic{position:relative;width:66px;height:66px;border-radius:22px;background:linear-gradient(160deg,rgba(255,255,255,.22),rgba(255,255,255,.05));box-shadow:0 14px 30px -12px #000,0 0 0 1px rgba(255,255,255,.2) inset}
+.drop:not(.has) .ic::after{content:"";position:absolute;inset:-8px;border-radius:26px;border:1.5px dashed rgba(255,255,255,.25);animation:rot 12s linear infinite}
+.drop .fm{position:relative;text-align:center}
+.drop.has{min-height:0;flex-direction:row;padding:16px 16px}
+.drop.has .fm{text-align:left}
+.drop.has .aur{opacity:.35}
+.drop.has .ic{width:54px;height:54px;border-radius:17px;background:linear-gradient(140deg,#8f74ff,#3a24b8 60%,#22156e);box-shadow:0 10px 24px -8px rgba(124,92,255,.9),0 0 0 1px #ffffff40 inset,0 -6px 12px rgba(0,0,0,.35) inset;overflow:hidden}
+.drop.has .ic.zip{background:linear-gradient(140deg,#ffbe6b,#e0761f 60%,#8a3d0d);box-shadow:0 10px 24px -8px rgba(255,159,67,.9),0 0 0 1px #ffffff40 inset,0 -6px 12px rgba(0,0,0,.35) inset}
+.drop.has .ic::before{content:"";position:absolute;inset:-40%;background:linear-gradient(115deg,transparent 42%,#ffffff70 50%,transparent 58%);animation:sheen 4s ease-in-out infinite}
+.drop .ready{position:relative;font-size:11.5px;font-weight:850;color:var(--ok);padding:5px 9px;border-radius:10px;background:rgba(61,255,168,.1);box-shadow:0 0 0 1px rgba(61,255,168,.35) inset;white-space:nowrap}
+.drop .x{position:relative}
+/* the orb, v2 */
+.launchpad{margin:30px 0 8px}
+.orb{width:230px;height:230px}
+.orb .halo{inset:-30px;background:radial-gradient(circle,rgba(124,92,255,.5),rgba(62,230,255,.12) 45%,transparent 68%)}
+.orb .ticks{position:absolute;inset:0;width:100%;height:100%;animation:rot 40s linear infinite}
+.orb .ticks line{stroke:rgba(255,255,255,.22);stroke-width:1.4;stroke-linecap:round}
+.orb .orbits{position:absolute;inset:0}
+.orb .orbits i{position:absolute;inset:18px;border-radius:50%;animation:rot 6s linear infinite}
+.orb .orbits i::after{content:"";position:absolute;top:-3px;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--c);box-shadow:0 0 10px 2px var(--c)}
+.orb .orbits i:nth-child(2){inset:10px;animation-duration:9s;animation-direction:reverse}
+.orb .orbits i:nth-child(2)::after{background:var(--g);box-shadow:0 0 10px 2px var(--g)}
+.orb .orbits i:nth-child(3){inset:26px;animation-duration:4.5s}
+.orb .orbits i:nth-child(3)::after{width:4px;height:4px;background:#fff;box-shadow:0 0 8px 2px #fff}
+.orb .rim{position:absolute;inset:30px;border-radius:50%;padding:2px;background:conic-gradient(from var(--ang),var(--c),var(--v),var(--g),var(--c));animation:angspin 4s linear infinite;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;filter:drop-shadow(0 0 8px rgba(62,230,255,.6))}
+.orb .body{inset:33px;background:radial-gradient(circle at 50% 120%,#3ee6ff 0,transparent 45%),radial-gradient(circle at 35% 30%,#b9a8ff,#6e4dff 30%,#2a1690 65%,#0e0833 100%);
+  box-shadow:0 34px 60px -24px rgba(124,92,255,1),0 0 0 1px #ffffff35 inset,0 -18px 36px rgba(0,0,0,.55) inset,0 12px 30px rgba(255,255,255,.12) inset}
+.orb .body::before,.orb .body::after{display:none}
+.orb .plasma{position:absolute;inset:-25%;border-radius:50%;mix-blend-mode:screen;opacity:.75;filter:blur(10px);
+  background:conic-gradient(from 0deg,transparent 0 10%,rgba(62,230,255,.9) 18%,transparent 30%,rgba(255,212,92,.55) 48%,transparent 60%,rgba(255,90,200,.5) 78%,transparent 90%);animation:rot 7s linear infinite}
+.orb .plasma.p2{inset:-10%;opacity:.5;animation-duration:11s;animation-direction:reverse;filter:blur(14px)}
+.orb .spec{position:absolute;left:20%;top:9%;width:46%;height:28%;border-radius:50%;background:radial-gradient(ellipse at 50% 30%,rgba(255,255,255,.85),rgba(255,255,255,0) 70%)}
+.orb .body::selection{background:none}
+.orb svg.pr{inset:0;width:100%;height:100%}
+.orb .lb{font-size:17px;letter-spacing:.18em}
+.orb .lb span{background:linear-gradient(180deg,#fff,#e2dbff);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))}
+.orb.holding .body{filter:none;transform:scale(.94);box-shadow:0 34px 70px -18px rgba(124,92,255,1),0 0 50px 8px rgba(62,230,255,.55),0 0 0 1px #ffffff55 inset,0 -18px 36px rgba(0,0,0,.45) inset,0 12px 30px rgba(255,255,255,.2) inset}
+.orb.holding .plasma{animation-duration:1.2s;opacity:1}
+.orb.holding .plasma.p2{animation-duration:1.8s}
+.orb.holding .orbits i{animation-duration:1.4s}
+.orb.holding .ticks line{stroke:rgba(255,212,92,.7)}
+.orb:disabled .plasma,.orb:disabled .orbits{opacity:.15}
+.orb:disabled .rim{filter:grayscale(1);opacity:.35}
+/* mode switch with sliding pill */
+.mode{position:relative;margin-top:14px;padding:4px;border-radius:16px;background:rgba(5,4,14,.55);box-shadow:0 0 0 1px var(--line) inset}
+.mode button{position:relative;z-index:1;padding:9px 16px;font-size:13px}
+.mode button.on{background:linear-gradient(135deg,rgba(124,92,255,.55),rgba(62,230,255,.25));box-shadow:0 0 0 1px rgba(255,255,255,.18) inset,0 6px 16px -6px rgba(124,92,255,.8)}
+.hint{font-weight:600}
+/* launch ring v2 */
+.big-ring{width:290px;height:290px}
+.big-ring svg:not(.lticks){inset:20px;width:250px;height:250px}
+.big-ring .lticks{position:absolute;inset:0;width:100%;height:100%;animation:rot 60s linear infinite reverse}
+.big-ring .lticks line{stroke:rgba(255,255,255,.18);stroke-width:1.2;stroke-linecap:round}
+.big-ring .spinner2{inset:12px}
+.comet{position:absolute;inset:20px;pointer-events:none}
+.comet i{position:absolute;top:0;left:50%;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#fff;box-shadow:0 0 12px 4px var(--c),0 0 30px 10px rgba(62,230,255,.45)}
+#launch.fail .comet i{background:var(--r);box-shadow:0 0 12px 4px var(--r)}
+.pct{font-size:66px;background:linear-gradient(100deg,#fff 30%,#c9bdff 45%,#fff 60%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;animation:shim 2.4s linear infinite}
+@keyframes shim{from{background-position:120% 0}to{background-position:-120% 0}}
+.ministeps i{width:26px;height:5px}
+/* win medal */
+.medal{position:relative;width:180px;height:180px;margin:6px 0 4px;perspective:700px}
+.medal .coin{position:absolute;inset:0;border-radius:50%;transform-style:preserve-3d;animation:coin 4.5s cubic-bezier(.45,.05,.25,1) infinite;
+  background:radial-gradient(circle at 35% 28%,#fff6d0,#ffd45c 28%,#e09a1f 62%,#8a5410 100%);
+  box-shadow:0 30px 60px -20px rgba(255,180,60,.8),0 0 0 6px rgba(255,212,92,.25),0 0 0 1px #fff8 inset,0 -14px 26px rgba(120,60,0,.6) inset}
+.medal .coin::before{content:"";position:absolute;inset:12px;border-radius:50%;border:2px dashed rgba(120,70,0,.45)}
+.medal .coin::after{content:"";position:absolute;inset:0;border-radius:50%;background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.75) 50%,transparent 65%);background-size:250% 100%;animation:shim 2.6s linear infinite}
+@keyframes coin{0%,100%{transform:rotateY(-18deg) rotateX(6deg)}50%{transform:rotateY(18deg) rotateX(-4deg)}}
+.medal .vbig{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;white-space:nowrap;letter-spacing:-.04em;font-size:54px;background:linear-gradient(180deg,#5a3200,#8a5410);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 1px 0 rgba(255,255,255,.6));transform:translateZ(20px)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition-duration:.01s!important}}
 </style>
 </head>
@@ -429,24 +548,30 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
   <div class="col">
     <div class="top">
       <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></div>
-      <h1><span>Roblox</span> Push</h1>
+      <div class="ttl"><h1><span>Roblox</span> Push</h1><div class="conn" id="conn"><i></i><span id="connTxt">Connecté</span></div></div>
       <button class="help" id="helpBtn" aria-label="Aide">?</button>
       <button class="avatar" id="avatarBtn" aria-label="Réglages"><img id="avatar" alt=""></button>
     </div>
-    <div class="label">Jeu</div>
+    <div class="label"><span>Tes jeux</span><em id="gameCount"></em></div>
     <div class="tiles" id="tiles"></div>
-    <div class="label">Fichier</div>
+    <div class="label"><span>Fichier</span><em id="fileState"></em></div>
     <div class="drop glass" id="drop" role="button" tabindex="0">
+      <div class="aur"><b></b><b></b><b></b></div>
       <svg class="bd"><rect x="1" y="1" width="99%" height="98%" rx="25"/></svg>
       <div class="ic" id="dropIc"></div>
       <div class="fm"><b id="dropT">Dépose ton jeu</b><small id="dropS">.rbxl · .rbxlx · .zip</small></div>
+      <span class="ready hidden" id="ready">Prêt ✓</span>
       <button class="x hidden" id="dropX" aria-label="Retirer">✕</button>
     </div>
     <input type="file" id="file" class="hidden" accept=".rbxl,.rbxlx,.zip,application/zip,application/octet-stream">
     <div class="launchpad">
       <button class="orb" id="orb" disabled aria-label="Maintenir pour publier">
-        <div class="halo"></div><div class="body"></div>
-        <svg class="pr" viewBox="0 0 190 190"><circle class="trk" cx="95" cy="95" r="92"/><circle class="fil" id="orbFill" cx="95" cy="95" r="92"/></svg>
+        <div class="halo"></div>
+        <svg class="ticks" viewBox="0 0 230 230" aria-hidden="true"><line x1="115" y1="4" x2="115" y2="14" transform="rotate(0 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(6 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(12 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(18 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(24 115 115)"/><line x1="115" y1="4" x2="115" y2="14" transform="rotate(30 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(36 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(42 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(48 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(54 115 115)"/><line x1="115" y1="4" x2="115" y2="14" transform="rotate(60 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(66 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(72 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(78 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(84 115 115)"/><line x1="115" y1="4" x2="115" y2="14" transform="rotate(90 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(96 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(102 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(108 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(114 115 115)"/><line x1="115" y1="4" x2="115" y2="14" transform="rotate(120 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(126 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(132 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(138 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(144 115 115)"/><line x1="115" y1="4" x2="115" y2="14" transform="rotate(150 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(156 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(162 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(168 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(174 115 115)"/><line x1="115" y1="4" x2="115" y2="14" transform="rotate(180 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(186 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(192 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(198 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(204 115 115)"/><line x1="115" y1="4" x2="115" y2="14" transform="rotate(210 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(216 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(222 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(228 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(234 115 115)"/><line x1="115" y1="4" x2="115" y2="14" transform="rotate(240 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(246 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(252 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(258 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(264 115 115)"/><line x1="115" y1="4" x2="115" y2="14" transform="rotate(270 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(276 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(282 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(288 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(294 115 115)"/><line x1="115" y1="4" x2="115" y2="14" transform="rotate(300 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(306 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(312 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(318 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(324 115 115)"/><line x1="115" y1="4" x2="115" y2="14" transform="rotate(330 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(336 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(342 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(348 115 115)"/><line x1="115" y1="4" x2="115" y2="10" transform="rotate(354 115 115)"/></svg>
+        <div class="orbits"><i></i><i></i><i></i></div>
+        <div class="rim"></div>
+        <div class="body"><div class="plasma"></div><div class="plasma p2"></div><div class="spec"></div></div>
+        <svg class="pr" viewBox="0 0 230 230"><circle class="trk" cx="115" cy="115" r="98"/><circle class="fil" id="orbFill" cx="115" cy="115" r="98"/></svg>
         <div class="lb"><span>PUBLIER</span><small id="orbSmall">MAINTENIR</small></div>
       </button>
       <div class="mode" id="mode"><button class="on" data-v="Published">🟢 En ligne</button><button data-v="Saved">💾 Brouillon</button></div>
@@ -460,6 +585,8 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
   <canvas id="warp"></canvas>
   <div class="big-ring">
     <div class="spinner2"></div>
+    <svg class="lticks" viewBox="0 0 290 290" aria-hidden="true"><line x1="145" y1="2" x2="145" y2="12" transform="rotate(0 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(5 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(10 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(15 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(20 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(25 145 145)"/><line x1="145" y1="2" x2="145" y2="12" transform="rotate(30 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(35 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(40 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(45 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(50 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(55 145 145)"/><line x1="145" y1="2" x2="145" y2="12" transform="rotate(60 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(65 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(70 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(75 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(80 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(85 145 145)"/><line x1="145" y1="2" x2="145" y2="12" transform="rotate(90 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(95 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(100 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(105 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(110 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(115 145 145)"/><line x1="145" y1="2" x2="145" y2="12" transform="rotate(120 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(125 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(130 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(135 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(140 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(145 145 145)"/><line x1="145" y1="2" x2="145" y2="12" transform="rotate(150 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(155 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(160 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(165 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(170 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(175 145 145)"/><line x1="145" y1="2" x2="145" y2="12" transform="rotate(180 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(185 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(190 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(195 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(200 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(205 145 145)"/><line x1="145" y1="2" x2="145" y2="12" transform="rotate(210 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(215 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(220 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(225 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(230 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(235 145 145)"/><line x1="145" y1="2" x2="145" y2="12" transform="rotate(240 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(245 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(250 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(255 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(260 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(265 145 145)"/><line x1="145" y1="2" x2="145" y2="12" transform="rotate(270 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(275 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(280 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(285 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(290 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(295 145 145)"/><line x1="145" y1="2" x2="145" y2="12" transform="rotate(300 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(305 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(310 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(315 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(320 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(325 145 145)"/><line x1="145" y1="2" x2="145" y2="12" transform="rotate(330 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(335 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(340 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(345 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(350 145 145)"/><line x1="145" y1="2" x2="145" y2="7" transform="rotate(355 145 145)"/></svg>
+    <div class="comet" id="comet"><i></i></div>
     <svg viewBox="0 0 250 250"><circle class="t2" cx="125" cy="125" r="118"/><circle class="f2" id="ringFill" cx="125" cy="125" r="118"/></svg>
     <div class="mid"><div class="pct"><span id="pct">0</span><small>%</small></div><div class="stage" id="stage">Envoi…</div></div>
   </div>
@@ -706,21 +833,34 @@ $('finishOnb').addEventListener('click', () => { Store.set('onboarded', true); s
 /* ---------- main ---------- */
 function showMain() {
   $('onb').classList.add('away'); $('main').classList.remove('away');
+  $('connTxt').textContent = S.repo ? 'Connecté · ' + S.repo.split('/')[1] : 'Connecté';
   if (S.user && S.user.avatar) $('avatar').src = S.user.avatar;
   renderTiles(); renderFile(); refresh();
 }
 function games() { return Store.get('games', []); }
+// Deterministic art per game: gradient sky + an isometric block stack + sparkles.
+function tileArt(seed) {
+  const h = hue(seed), h2 = (h + 50) % 360, h3 = (h + 200) % 360;
+  let r = Number(String(seed).slice(-6)) || 7; const rnd = () => ((r = (r * 16807) % 2147483647) / 2147483647);
+  const cube = (x, y, s, l) => `<g transform="translate(${x} ${y})"><path d="M0 ${-s} L${s * .87} ${-s / 2} L0 0 L${-s * .87} ${-s / 2}Z" fill="hsl(${h},85%,${l + 18}%)"/><path d="M${-s * .87} ${-s / 2} L0 0 L0 ${s} L${-s * .87} ${s / 2}Z" fill="hsl(${h},70%,${l}%)"/><path d="M${s * .87} ${-s / 2} L0 0 L0 ${s} L${s * .87} ${s / 2}Z" fill="hsl(${h2},75%,${l - 8}%)"/></g>`;
+  let cubes = ''; const n = 3 + Math.floor(rnd() * 3);
+  for (let i = 0; i < n; i++) cubes += cube(40 + rnd() * 70, 55 + rnd() * 50, 12 + rnd() * 14, 34 + rnd() * 16);
+  let stars = ''; for (let i = 0; i < 7; i++) stars += `<circle cx="${rnd() * 150}" cy="${rnd() * 70}" r="${.6 + rnd() * 1.4}" fill="#fff" opacity="${.4 + rnd() * .6}"/>`;
+  return `<svg viewBox="0 0 150 180" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g${seed}" x1="0" y1="0" x2=".4" y2="1"><stop offset="0" stop-color="hsl(${h3},70%,30%)"/><stop offset=".55" stop-color="hsl(${h},75%,24%)"/><stop offset="1" stop-color="hsl(${h2},70%,10%)"/></linearGradient>
+    <radialGradient id="s${seed}" cx=".75" cy=".15" r=".5"><stop offset="0" stop-color="hsl(${h2},100%,75%)" stop-opacity=".9"/><stop offset="1" stop-color="hsl(${h2},100%,60%)" stop-opacity="0"/></radialGradient></defs>
+    <rect width="150" height="180" fill="url(#g${seed})"/><rect width="150" height="180" fill="url(#s${seed})"/>${stars}${cubes}</svg>`;
+}
 function hue(n) { let h = 0; for (const c of String(n)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
 function renderTiles() {
   const box = $('tiles'); box.innerHTML = '';
   games().forEach((g) => {
     const b = document.createElement('button'); b.className = 'tile' + (S.game && S.game.place === g.place ? ' on' : '');
-    const h = hue(g.place);
-    b.innerHTML = `<div class="art" style="background:radial-gradient(circle at 30% 20%,hsla(${h},90%,70%,.9),transparent 55%),radial-gradient(circle at 80% 80%,hsla(${(h + 60) % 360},90%,55%,.8),transparent 60%),linear-gradient(140deg,hsl(${h},60%,22%),hsl(${(h + 40) % 360},70%,12%))"></div>
+    b.innerHTML = `<div class="art">${tileArt(g.place)}</div><div class="gloss"></div>${g.version ? `<div class="vp">v${esc(g.version)}</div>` : ''}
       <div class="t">${esc(g.name || 'Jeu ' + g.place)}</div><div class="s">${g.version ? 'v' + esc(g.version) + ' · ' : ''}place ${esc(g.place)}</div>`;
     b.onclick = () => { S.game = g; Store.set('game', g); renderTiles(); refresh(); };
     box.appendChild(b);
   });
+  $('gameCount').textContent = games().length ? games().length + (games().length > 1 ? ' jeux' : ' jeu') : '';
   const add = document.createElement('button'); add.className = 'tile add'; add.id = 'addTile'; add.innerHTML = '<div><b>+</b>Ajouter un jeu</div>';
   add.onclick = () => openSheet('addSheet'); box.appendChild(add);
 }
@@ -767,7 +907,8 @@ async function pick(f) {
   S.file = { f, kind }; renderFile(); refresh();
 }
 function renderFile() {
-  const has = !!S.file; drop.classList.toggle('has', has); $('dropX').classList.toggle('hidden', !has);
+  const has = !!S.file; drop.classList.toggle('has', has); $('dropX').classList.toggle('hidden', !has); $('ready').classList.toggle('hidden', !has);
+  $('fileState').textContent = has ? S.file.kind.toUpperCase() : '';
   const ic = $('dropIc');
   if (has) { ic.className = 'ic' + (S.file.kind === 'zip' ? ' zip' : ''); ic.textContent = S.file.kind.toUpperCase(); $('dropT').textContent = S.file.f.name;
     $('dropS').textContent = fmtBytes(S.file.f.size) + ' · ' + ({ zip: 'projet / archive', rbxl: 'place Roblox', rbxlx: 'place Roblox (XML)' })[S.file.kind]; }
@@ -782,7 +923,7 @@ function refresh() {
 }
 
 /* hold-to-publish */
-const orb = $('orb'), fill = $('orbFill'), HOLD = 750, CIRC = 578;
+const orb = $('orb'), fill = $('orbFill'), HOLD = 750, CIRC = 616;
 let holdStart = 0, holdRaf = 0;
 function holdTick(t) {
   const k = Math.min(1, (t - holdStart) / HOLD); fill.style.strokeDashoffset = CIRC * (1 - k);
@@ -813,7 +954,7 @@ function launchOpen(withBuild, withLuau) {
   cancelAnimationFrame(L.raf);
   (function loop() {
     L.shown += (L.target - L.shown) * 0.08; $('pct').textContent = Math.floor(L.shown + .01);
-    $('ringFill').style.strokeDashoffset = 741 * (1 - L.shown / 100); L.raf = requestAnimationFrame(loop);
+    $('ringFill').style.strokeDashoffset = 741 * (1 - L.shown / 100); $('comet').style.transform = `rotate(${L.shown * 3.6}deg)`; L.raf = requestAnimationFrame(loop);
   })();
 }
 function stepState(id, st, detail) {
@@ -921,7 +1062,7 @@ function win(r, secs) {
   const v = Number(r.version) || 0;
   $('final').innerHTML = `<div class="rays"></div>
     <div class="vtitle">${r.versionType === 'Saved' ? 'Brouillon enregistré' : 'En ligne sur Roblox'}</div>
-    <div class="vbig">v<span id="vn">0</span></div>
+    <div class="medal"><div class="coin"><div class="vbig">v<span id="vn">0</span></div></div></div>
     <div class="vgame">${esc(r.gameName || (S.game && S.game.name) || 'Place ' + r.placeId)}</div>
     <div class="vsub">${Math.round(secs)} s · place ${esc(r.placeId)}</div>
     ${r.luau && r.luau.ran ? `<details class="raw" open><summary>Test Luau ✓</summary><pre>${esc((r.luau.logs || []).join('\n') || JSON.stringify(r.luau.results))}</pre></details>` : ''}
@@ -929,6 +1070,7 @@ function win(r, secs) {
     <button class="cta alt" id="closeL">Terminé</button>`;
   $('closeL').onclick = closeLaunch;
   const el = $('vn'), t0 = performance.now();
+  el.parentElement.style.fontSize = (String(v).length >= 5 ? 34 : String(v).length === 4 ? 42 : 54) + 'px';
   (function f(t) { const k = Math.min(1, (t - t0) / 1300), e = 1 - Math.pow(1 - k, 4); el.textContent = Math.round(v * e); if (k < 1) requestAnimationFrame(f); })(t0);
   celebrate(innerWidth / 2, innerHeight * .38, 170);
 }
