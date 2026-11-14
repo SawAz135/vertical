@@ -52,7 +52,7 @@ function anatomy(sp, k) {
     d = smin(d, sdEll(p, [0, chest[1] - s(0.05), chest[2] - s(0.15)], [s(0.55 * B), s(0.66 * B), s(0.55 * B)]), s(0.25));
     const neck = sdCone(p, [0, chest[1] + s(0.25), chest[2] - s(0.2)], [0, headC[1] - s(0.05), headC[2] + s(0.25)], s(0.4 * B), s(0.33));
     d = smin(d, neck, s(0.2));
-    const head = smin(sdEll(p, headC, [s(0.57), s(0.52), s(0.58)]), sdCone(p, [0, headC[1] - s(0.08), headC[2] - s(0.24)], snoutTip, s(0.36), s(0.24)), s(0.16));
+    const head = smin(sdEll(p, headC, [s(0.6), s(0.55), s(0.6)]), sdCone(p, [0, headC[1] - s(0.08), headC[2] - s(0.24)], snoutTip, s(0.36), s(0.24)), s(0.16));
     if (head < d + s(0.04)) bone = 'Head'; d = smin(d, head, s(0.08));
     let claw = false;
     for (const g of legs) { for (const cx of [-0.11, 0, 0.11]) { const c0 = [g.foot[0] + s(cx), s(0.1), g.foot[2] - g.r * 0.95], cl = sdCone(p, c0, [c0[0], s(0.02), c0[2] - s(0.12)], s(0.045), s(0.025)); if (cl < d && cl < 0) { claw = true; bone = g.n; } d = Math.min(d, cl); }
@@ -88,7 +88,7 @@ function colourAt(sp, p, bone, A, k, e) {
   if (A.claw) return '#141418';
   const eyeC = [s(0.25) * Math.sign(p[0] || 1), headC[1] + s(0.1), headC[2] - s(0.4)];
   const de = len(p[0] - eyeC[0], p[1] - eyeC[1], p[2] - eyeC[2]);
-  if (bone === 'Head' && de < s(0.14)) return de < s(0.065) ? '#0d0b10' : (e?.eye || c.eye);
+  if (bone === 'Head' && de < s(0.14)) { if (len(p[0] - eyeC[0] * 0.92, p[1] - eyeC[1] - s(0.05), p[2] - eyeC[2] + s(0.06)) < s(0.05)) return '#ffffff'; return de < s(0.075) ? '#0d0b10' : (e?.eye || c.eye); }
   if (bone === 'Head' && len(p[0], p[1] - (snoutTip[1] + s(0.06)), p[2] - snoutTip[2]) < s(0.12)) return c.nose;
   if (bone === 'Head' && sp.snarl && Math.abs(p[1] - (snoutTip[1] - s(0.08))) < s(0.03) && p[2] < headC[2] - s(0.3)) return x < s(0.1) ? '#ffffff' : '#c43a3a';
   if (bone === 'Head' && Math.abs(p[1] - (snoutTip[1] - s(0.06))) < s(0.022) && p[2] < headC[2] - s(0.25)) return '#1b1215';
@@ -116,13 +116,18 @@ function colourAt(sp, p, bone, A, k, e) {
 }
 
 /* ---------- voxelise + greedy merge ---------- */
+// WILD cells (hidden interior voxels) match any colour, so visible blocks can grow through them;
+// a WILD cell no visible block needs is simply left out (nobody can see it).
+const WILD = 0xffff;
 function greedy(grid, nx, ny, nz) {
   const boxes = [], used = new Uint8Array(nx * ny * nz), at = (x, y, z) => x + nx * (y + ny * z);
+  const ok = (j, key) => !used[j] && (grid[j] === key || grid[j] === WILD);
   for (let z = 0; z < nz; z++) for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
-    const i = at(x, y, z); if (used[i] || !grid[i]) continue; const key = grid[i];
-    let w = 1; while (x + w < nx && !used[at(x + w, y, z)] && grid[at(x + w, y, z)] === key) w++;
-    let h = 1; grow: while (y + h < ny) { for (let k = 0; k < w; k++) { const j = at(x + k, y + h, z); if (used[j] || grid[j] !== key) break grow; } h++; }
-    let d = 1; deep: while (z + d < nz) { for (let yy = 0; yy < h; yy++) for (let k = 0; k < w; k++) { const j = at(x + k, y + yy, z + d); if (used[j] || grid[j] !== key) break deep; } d++; }
+    const i = at(x, y, z); if (used[i] || !grid[i] || grid[i] === WILD) continue; const key = grid[i];
+    let w = 1; while (x + w < nx && ok(at(x + w, y, z), key)) w++;
+    let h = 1; grow: while (y + h < ny) { for (let k = 0; k < w; k++) if (!ok(at(x + k, y + h, z), key)) break grow; h++; }
+    let d = 1; deep: while (z + d < nz) { for (let yy = 0; yy < h; yy++) for (let k = 0; k < w; k++) if (!ok(at(x + k, y + yy, z + d), key)) break deep; d++; }
+    // trim trailing all-WILD slabs (they would only add hidden volume)
     for (let zz = 0; zz < d; zz++) for (let yy = 0; yy < h; yy++) for (let k = 0; k < w; k++) used[at(x + k, y + yy, z + zz)] = 1;
     boxes.push({ x, y, z, w, h, d, key });
   }
@@ -140,18 +145,45 @@ function toParts(boxes, keys, origin, v) {
   parts.sort((a, b) => (a.name === 'Body' ? -1 : b.name === 'Body' ? 1 : 0));
   return parts;
 }
+/* ---------- painterly voxel shading (MagicaVoxel-style, baked into the block colours) ----------
+   ambient occlusion in creases, height gradient (darker towards the ground), soft top highlight,
+   2x2x2 patch noise for a hand-painted fur feel. Shades are quantised so blocks still merge. */
+const shadeHex = (hex, f) => { const n = parseInt(hex.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  return '#' + c.map((v) => Math.max(0, Math.min(255, Math.round(f >= 1 ? v + (255 - v) * (f - 1) * 1.6 : v * f))).toString(16).padStart(2, '0')).join(''); };
+const noise3 = (x, y, z) => { let h = (x * 374761393 + y * 668265263 + z * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+const FLAT = /^#(0d0b10|141418|1b1215|ffffff|c43a3a)$/; // eyes, claws, mouth, teeth: keep pure
 export function voxelAnimal(speciesId, opts = {}) {
   const sp = VOX_SPECIES[speciesId] || VOX_SPECIES.loup, k = opts.scale || 1, v = (opts.voxel || 0.11) * k, f = anatomy(sp, k), e = opts.palette;
   const sp2 = e ? { ...sp, cols: { ...sp.cols, ...e } } : sp;
   const min = [-2.6 * k, 0, -3.1 * k], max = [2.6 * k, 3.6 * k, 3.6 * k], nx = Math.ceil((max[0] - min[0]) / v), ny = Math.ceil((max[1] - min[1]) / v), nz = Math.ceil((max[2] - min[2]) / v);
-  const grid = new Uint16Array(nx * ny * nz), keys = [], keyIdx = new Map();
+  const N = nx * ny * nz, at = (x, y, z) => x + nx * (y + ny * z);
+  // pass 1: shape, bone, base colour
+  const fill = new Uint8Array(N), info = new Array(N);
+  let ymax = 0;
   for (let z = 0; z < nz; z++) for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
     const p = [min[0] + (x + 0.5) * v, min[1] + (y + 0.5) * v, min[2] + (z + 0.5) * v], [d, bone, A] = f(p); if (d > 0) continue;
-    let col = colourAt(sp2, p, bone, A, k, opts); const mat = opts.glowEyes && /^#(f2|ff)/.test(col) && bone === 'Head' && col === (opts.eye || sp2.cols.eye) ? 'Neon' : 'SmoothPlastic';
-    const key = `${bone}|${col}|${mat}`; let id = keyIdx.get(key); if (!id) { keys.push(key); id = keys.length; keyIdx.set(key, id); } grid[x + nx * (y + ny * z)] = id; }
-  // mirror check: keep the pet symmetric even when the grid is odd
+    const col = colourAt(sp2, p, bone, A, k, opts), mat = opts.glowEyes && /^#(f2|ff)/.test(col) && bone === 'Head' && col === (opts.eye || sp2.cols.eye) ? 'Neon' : 'SmoothPlastic';
+    const i = at(x, y, z); fill[i] = 1; info[i] = [bone, col, mat]; if (y > ymax) ymax = y; }
+  const filled = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < nx && y < ny && z < nz && fill[at(x, y, z)] === 1;
+  // pass 2: shade the visible voxels
+  const grid = new Uint16Array(N), keys = [], keyIdx = new Map(), shading = opts.shading !== false;
+  for (let z = 0; z < nz; z++) for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
+    const i = at(x, y, z); if (!fill[i]) continue; let [bone, col, mat] = info[i];
+    const visible = !(filled(x + 1, y, z) && filled(x - 1, y, z) && filled(x, y + 1, z) && filled(x, y - 1, z) && filled(x, y, z + 1) && filled(x, y, z - 1));
+    if (shading && visible && mat !== 'Neon' && !FLAT.test(col)) {
+      let open = 0; for (let dz = -2; dz <= 2; dz++) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if ((dx || dy || dz) && !filled(x + dx, y + dy, z + dz)) open++;
+      const ao = Math.min(1, open / 50);                                   // ~50 of 124 cells are open on a flat face
+      let fct = ao < 0.5 ? 0.78 : ao < 0.7 ? 0.9 : 1;                       // creases (armpits, under the jaw, ear roots) darken
+      fct *= y / Math.max(1, ymax) < 0.28 ? 0.9 : 1;                          // height gradient: belly and paws a bit darker
+      if (!filled(x, y + 1, z) && ao > 0.85) fct *= 1.07;                    // sun-lit tops
+      fct *= noise3(x >> 2, y >> 2, z >> 2) > 0.62 ? 0.94 : 1;                  // hand-painted patches
+      fct = Math.round(fct / 0.09) * 0.09;                                   // quantised so blocks still merge
+      if (Math.abs(fct - 1) > 0.01) col = shadeHex(col, fct);
+    }
+    if (!visible && shading) { grid[i] = WILD; continue; }
+    const key = `${bone}|${col}|${mat}`; let id = keyIdx.get(key); if (!id) { keys.push(key); id = keys.length; keyIdx.set(key, id); } grid[i] = id; }
   const boxes = greedy(grid, nx, ny, nz);
-  return { parts: toParts(boxes, keys, min, v), voxels: grid.reduce((s, g) => s + (g ? 1 : 0), 0), name: sp.fr };
+  return { parts: toParts(boxes, keys, min, v), voxels: fill.reduce((s, g) => s + g, 0), name: sp.fr };
 }
 /** Voxelise any part-based pet (the existing smooth generator), keeping bones and colours. */
 export function voxelizeParts(parts, voxel = 0.13) {
