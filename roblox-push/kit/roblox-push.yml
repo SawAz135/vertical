@@ -1,8 +1,9 @@
 # Roblox Push - installed by the Roblox Push web app. Do not edit by hand:
-# the app re-installs it. It runs when the app commits a game with a message
-# starting with "roblox-push: publish", publishes it to Roblox Open Cloud with
-# the ROBLOX_API_KEY secret (or updates the game page: name, description,
-# cover images, icon) and writes .roblox-push/result.json for the app.
+# the app re-installs it. It runs when the app commits a request with a message
+# starting with "roblox-push publish": it publishes the game to Roblox Open Cloud
+# with the ROBLOX_API_KEY secret (adding any packs kept for that game), or adds a
+# pack to the kept game, or updates the game page (name, description, images),
+# then writes .roblox-push/result.json for the app.
 
 name: Roblox Push
 
@@ -20,9 +21,11 @@ jobs:
   publish:
     if: startsWith(github.event.head_commit.message, 'roblox-push publish')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       ROJO_VERSION: 7.7.1
+      LUNE_VERSION: 0.11.1
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -30,8 +33,13 @@ jobs:
         id: prepare
         run: python3 .roblox-push/push.py prepare
 
+      - name: Load the kept game and packs
+        id: stage
+        if: steps.prepare.outputs.action == 'publish'
+        run: python3 .roblox-push/push.py stage
+
       - name: Cache Rojo
-        if: steps.prepare.outputs.needs_rojo == 'true'
+        if: steps.stage.outputs.needs_rojo == 'true'
         id: rojo-cache
         uses: actions/cache@v4
         with:
@@ -39,18 +47,38 @@ jobs:
           key: rojo-${{ env.ROJO_VERSION }}
 
       - name: Install Rojo (first Rojo project only, ~3 min)
-        if: steps.prepare.outputs.needs_rojo == 'true' && steps.rojo-cache.outputs.cache-hit != 'true'
+        if: steps.stage.outputs.needs_rojo == 'true' && steps.rojo-cache.outputs.cache-hit != 'true'
         run: cargo install rojo --version "$ROJO_VERSION" --locked
 
+      - name: Cache Lune
+        if: steps.stage.outputs.has_packs == 'true'
+        id: lune-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/lune
+          key: lune-${{ env.LUNE_VERSION }}
+
+      - name: Install Lune (first pack only, ~6 min)
+        if: steps.stage.outputs.has_packs == 'true' && steps.lune-cache.outputs.cache-hit != 'true'
+        run: cargo install lune --version "$LUNE_VERSION" --locked
+
       - name: Build the Rojo project
-        if: steps.prepare.outputs.needs_rojo == 'true'
+        if: steps.stage.outputs.needs_build == 'true'
         run: python3 .roblox-push/push.py build
+
+      - name: Add the packs
+        if: steps.stage.outputs.has_packs == 'true'
+        run: python3 .roblox-push/push.py merge
 
       - name: Publish to Roblox
         if: steps.prepare.outputs.action == 'publish'
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
         run: python3 .roblox-push/push.py publish
+
+      - name: Keep the game for next time
+        if: success() && steps.prepare.outputs.action == 'publish'
+        run: python3 .roblox-push/push.py store
 
       - name: Run Luau on Roblox servers
         if: steps.prepare.outputs.has_luau == 'true'

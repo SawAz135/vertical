@@ -627,13 +627,21 @@ function paneExport() {
   const parts = pet.parts.length, fxOn = FX.filter((f) => pet.fx[f.id].on).map((f) => f.ico + ' ' + f.label);
   pane.innerHTML = `<div class="sec"><h3>${esc(pet.name)} <small>${esc(pet.rarity)}</small></h3>
       <div class="note">${parts} pièces · ${fxOn.length} effets : ${fxOn.join(', ') || 'aucun'}</div>
-      <button class="btn pri big" id="dl">📦 Télécharger le pack Roblox (.zip)</button>
+      <button class="btn pri big" id="toGame">🎮 Ajouter à mon jeu</button>
+      <button class="btn big" id="dl">📦 Télécharger le pack Roblox (.zip)</button>
       <button class="btn big" id="copyModel">⧉ Copier le modèle (JSON Rojo)</button></div>
     <div class="sec"><h3>Mettre le pet dans ton jeu</h3><div class="note">
-      1. Télécharge le pack.<br>2. Dans <b>Roblox Push</b>, publie-le (seul pour tester, ou ajoute ses dossiers au zip de ton jeu).<br>
-      3. Chaque joueur reçoit ce pet, qui le suit avec tous ses effets.<br><br>
+      <b>🎮 Ajouter à mon jeu</b> ouvre Roblox Push : choisis ton jeu, le pet y est <b>ajouté</b> sans rien effacer, et il reste installé quand tu republies ton jeu.<br>
+      Ton jeu doit avoir été publié une fois avec Roblox Push. Chaque joueur reçoit alors ce pet, qui le suit avec tous ses effets.<br><br>
       Contenu : <b>ReplicatedStorage/ForgePets</b> (modèle), <b>ServerScriptService</b> (suivi), <b>StarterPlayerScripts</b> (effets), <b>ForgeConfig</b> (réglages).</div></div>
     <div class="sec"><h3>Projet</h3><div class="btns"><button class="btn" id="newp">＋ Nouveau pet</button><button class="btn" id="saveCopy">💾 Garder une copie</button></div><div id="saved"></div></div>`;
+  $('toGame').onclick = async () => {
+    const blob = await buildPack(); const buf = new Uint8Array(await blob.arrayBuffer()); let bin = '';
+    for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+    try { localStorage.setItem('rp2.pendingPack', JSON.stringify({ name: safeName(pet.name), label: pet.name, rarity: pet.rarity, b64: btoa(bin), at: Date.now() })); }
+    catch { return toast('Mémoire du navigateur pleine : télécharge plutôt le pack.'); }
+    toast('Ouverture de Roblox Push…'); setTimeout(() => (location.href = '../../roblox-push/'), 450);
+  };
   $('dl').onclick = async () => { const blob = await buildPack(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = safeName(pet.name) + '.zip'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('Pack téléchargé ✓'); };
   $('copyModel').onclick = async () => { try { await navigator.clipboard.writeText(JSON.stringify(modelJson(), null, 2)); toast('Modèle copié ✓'); } catch { toast('Copie impossible'); } };
   $('newp').onclick = () => { if (!confirm('Commencer un nouveau pet ? (le pet actuel est remplacé, garde une copie avant)')) return; snapshot(); pet = newPet(); selId = null; save(); rebuild(); setTab('rar'); };

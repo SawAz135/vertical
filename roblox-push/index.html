@@ -683,6 +683,7 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
     <div class="label"><span>Options du jeu</span></div>
     <div class="opts glass">
       <div class="opt" id="gFloorRow"><div><b>Sol automatique</b><small>Ajoute un sol et un point d'apparition seulement si le jeu n'en a pas. Désactivé : le robot n'ajoute rien.</small></div><button class="sw" id="gFloor" aria-label="Sol automatique"></button></div>
+      <div class="opt"><div><b>Packs installés</b><small id="gPacks">aucun</small></div><span>📦</span></div>
       <button class="opt" id="gRename"><div><b>Renommer</b><small>Le nom affiché dans l'app</small></div><span>›</span></button>
       <button class="opt danger2" id="gRemove"><div><b>Retirer de la liste</b><small>Le jeu reste sur Roblox, seule la tuile disparaît</small></div><span>›</span></button>
     </div>
@@ -788,6 +789,14 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
   <div class="pnote">Ton mot de passe <b>chiffre ton profil sur cet appareil</b> (jeton GitHub, jeux, réglages). Il n'est jamais envoyé. Le coffre chiffré est rangé dans ton dépôt GitHub. Si tu l'oublies : reconnecte-toi avec un nouveau jeton GitHub et crée un nouveau mot de passe.</div>
   <button class="cta" id="setGo" disabled>Créer mon compte</button>
 </div>
+<div class="sheet" id="packSheet">
+  <div class="grab"></div><h4>Ajouter un pack<button class="done" data-close>Plus tard</button></h4>
+  <div id="packInfo" class="pnote" style="margin-top:0"></div>
+  <div class="plabel">Dans quel jeu ?</div>
+  <div class="repos" id="packGames"></div>
+  <div class="pnote">Le pack est <b>ajouté</b> au jeu, rien n'est effacé. Il reste installé quand tu republies ton jeu. Le jeu doit avoir été publié au moins une fois avec Roblox Push.</div>
+  <button class="cta alt" id="packDrop" style="margin-top:12px">Annuler ce pack</button>
+</div>
 <div class="toast" id="toast"></div>
 
 <script src="vendor/nacl-fast.min.js"></script>
@@ -802,8 +811,8 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
    the app follows the run live and reads result.json back.
    ===================================================================== */
 const BRANCH = 'roblox-push', API = 'https://api.github.com';
-const KIT = { workflow: 'kit/roblox-push.yml', script: 'kit/push.py' };
-const PATHS = { workflow: '.github/workflows/roblox-push.yml', script: '.roblox-push/push.py', request: '.roblox-push/request.json' };
+const KIT = { workflow: 'kit/roblox-push.yml', script: 'kit/push.py', merge: 'kit/merge.luau' };
+const PATHS = { workflow: '.github/workflows/roblox-push.yml', script: '.roblox-push/push.py', merge: '.roblox-push/merge.luau', request: '.roblox-push/request.json' };
 const MAX_BYTES = 75 * 1024 * 1024;
 // GitHub pre-fills fine-grained tokens from URL parameters (documented):
 // name, description, expires_in (1-366 | none) and one parameter per permission.
@@ -878,8 +887,8 @@ function explain(e, need) {
 let kitCache = null;
 async function kit() {
   if (kitCache) return kitCache;
-  const [wf, py] = await Promise.all([KIT.workflow, KIT.script].map(async (p) => { const r = await fetch(p, { cache: 'no-store' }); if (!r.ok) throw new Error('kit ' + p); return r.text(); }));
-  return (kitCache = { wf, py });
+  const [wf, py, mg] = await Promise.all([KIT.workflow, KIT.script, KIT.merge].map(async (p) => { const r = await fetch(p, { cache: 'no-store' }); if (!r.ok) throw new Error('kit ' + p); return r.text(); }));
+  return (kitCache = { wf, py, mg });
 }
 async function gitSha(text) {
   const b = new TextEncoder().encode(text), h = new TextEncoder().encode(`blob ${b.length}\0`), a = new Uint8Array(h.length + b.length);
@@ -892,7 +901,7 @@ async function installed() {
   const c = await gh('GET', `/repos/${S.repo}/git/commits/${h}`);
   const t = await gh('GET', `/repos/${S.repo}/git/trees/${c.tree.sha}?recursive=1`);
   const f = (p) => (t.tree.find((x) => x.path === p) || {}).sha;
-  return { workflow: f(PATHS.workflow), script: f(PATHS.script) };
+  return { workflow: f(PATHS.workflow), script: f(PATHS.script), merge: f(PATHS.merge) };
 }
 async function orphanCommit(entries, message) {
   const tree = await gh('POST', `/repos/${S.repo}/git/trees`, { tree: entries });
@@ -903,9 +912,10 @@ async function orphanCommit(entries, message) {
 }
 async function ensureInstalled(force) {
   const k = await kit(), cur = await installed();
-  const ok = cur && cur.workflow === (await gitSha(k.wf)) && cur.script === (await gitSha(k.py));
+  const ok = cur && cur.workflow === (await gitSha(k.wf)) && cur.script === (await gitSha(k.py)) && cur.merge === (await gitSha(k.mg));
   if (ok && !force) return cur;
-  await orphanCommit([{ path: PATHS.workflow, mode: '100644', type: 'blob', content: k.wf }, { path: PATHS.script, mode: '100644', type: 'blob', content: k.py }], 'roblox-push install');
+  await orphanCommit([{ path: PATHS.workflow, mode: '100644', type: 'blob', content: k.wf }, { path: PATHS.script, mode: '100644', type: 'blob', content: k.py },
+    { path: PATHS.merge, mode: '100644', type: 'blob', content: k.mg }], 'roblox-push install');
   return installed();
 }
 async function keyInfo() { try { return (S.keyAt = (await gh('GET', `/repos/${S.repo}/actions/secrets/ROBLOX_API_KEY`)).updated_at); } catch (e) { if (e.status === 404) return (S.keyAt = null); throw e; } }
@@ -1177,6 +1187,7 @@ function renderGame() {
   $('gHub').href = g.universe ? `https://create.roblox.com/dashboard/creations/experiences/${encodeURIComponent(g.universe)}/overview` : 'https://create.roblox.com/dashboard/creations';
   $('gFloor').classList.toggle('on', !!g.baseplate);
   $('gHistCount').textContent = hist.length ? String(hist.length) : '';
+  $('gPacks').textContent = g.packs && g.packs.length ? g.packs.join(', ') + ' · gardés à chaque publication' : 'aucun · ajoute des pets depuis Forge Studio';
   const ul = $('gHist'); ul.innerHTML = hist.length ? '' : '<li>Aucune publication pour ce jeu.</li>';
   hist.slice(0, 8).forEach((h) => { const li = document.createElement('li');
     li.innerHTML = `<span class="s ${h.ok ? '' : 'no'}"></span><span style="flex:1;min-width:0"><b>${h.version ? 'v' + esc(h.version) : (h.ok ? 'ok' : 'échec')}</b> · ${esc(h.name)}</span><span>${new Date(h.at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>`;
@@ -1280,8 +1291,9 @@ orb.addEventListener('contextmenu', (e) => e.preventDefault());
 
 /* ---------- launch sequence ---------- */
 const STEPS = [['upload', 'Envoi du fichier', 0, 35], ['commit', 'Préparation', 35, 42], ['queue', 'Démarrage du serveur', 42, 56], ['prepare', 'Lecture du jeu', 56, 62],
-  ['build', 'Construction Rojo', 62, 76], ['publish', 'Publication sur Roblox', 76, 92], ['luau', 'Test Luau', 92, 97], ['meta', 'Mise à jour de la page', 62, 96], ['result', 'Résultat', 97, 100]];
-const JOB = { 'Read the request': 'prepare', 'Install Rojo (first Rojo project only, ~3 min)': 'build', 'Build the Rojo project': 'build', 'Publish to Roblox': 'publish', 'Run Luau on Roblox servers': 'luau', 'Update the game page': 'meta', 'Save the result for the app': 'result' };
+  ['build', 'Construction Rojo', 62, 74], ['merge', 'Ajout des packs', 74, 80], ['publish', 'Publication sur Roblox', 80, 92], ['luau', 'Test Luau', 92, 97], ['meta', 'Mise à jour de la page', 62, 96], ['result', 'Résultat', 97, 100]];
+const JOB = { 'Read the request': 'prepare', 'Load the kept game and packs': 'prepare', 'Install Rojo (first Rojo project only, ~3 min)': 'build', 'Build the Rojo project': 'build',
+  'Install Lune (first pack only, ~6 min)': 'merge', 'Add the packs': 'merge', 'Publish to Roblox': 'publish', 'Keep the game for next time': 'publish', 'Run Luau on Roblox servers': 'luau', 'Update the game page': 'meta', 'Save the result for the app': 'result' };
 const L = { target: 0, shown: 0, raf: 0, speed: 1 };
 function launchOpen(withBuild, withLuau, onlyIds) {
   const steps = onlyIds ? STEPS.filter(([id]) => onlyIds.includes(id))
@@ -1318,7 +1330,7 @@ async function publish() {
   try {
     stepState('upload', 'active', `${f.f.name} · ${fmtBytes(f.f.size)}`);
     let inst = await installed();
-    if (!inst || !inst.workflow || !inst.script) inst = await ensureInstalled(true);
+    if (!inst || !inst.workflow || !inst.script || !inst.merge) inst = await ensureInstalled(true);
     const blob = await ghBlob(await readB64(f.f), (p) => within('upload', p));
     stepState('upload', 'done');
 
@@ -1327,6 +1339,7 @@ async function publish() {
     const sha = await orphanCommit([
       { path: PATHS.workflow, mode: '100644', type: 'blob', sha: inst.workflow },
       { path: PATHS.script, mode: '100644', type: 'blob', sha: inst.script },
+      { path: PATHS.merge, mode: '100644', type: 'blob', sha: inst.merge },
       { path: PATHS.request, mode: '100644', type: 'blob', content: JSON.stringify(req, null, 2) },
       { path: '.roblox-push/' + safe, mode: '100644', type: 'blob', sha: blob.sha },
     ], `roblox-push publish ${id} (${f.f.name})`);
@@ -1347,7 +1360,7 @@ async function publish() {
       if (job && job.status !== 'queued') stepState('queue', 'done', '');
       for (const s of (job && job.steps) || []) {
         const k = JOB[s.name]; if (!k) continue;
-        if (s.status === 'in_progress') { stepState(k, 'active', /Install Rojo/.test(s.name) ? 'Installation de Rojo (1re fois, ~3 min)' : ''); at = k; }
+        if (s.status === 'in_progress') { stepState(k, 'active', /Install Rojo/.test(s.name) ? 'Installation de Rojo (1re fois, ~3 min)' : /Install Lune/.test(s.name) ? 'Installation de Lune (1re fois, ~6 min)' : ''); at = k; }
         if (s.status === 'completed') stepState(k, s.conclusion === 'success' ? 'done' : s.conclusion === 'skipped' ? 'skip' : 'error');
       }
       if (job && job.status === 'completed') break;
@@ -1383,10 +1396,13 @@ const FIX = {
   BUILD_FAILED: 'Rojo n\'a pas pu construire le projet. Détail ci-dessous.',
   TOO_LARGE: 'Fichier trop gros pour Roblox.',
   UNREACHABLE: 'Roblox ne répond pas. Réessaie dans quelques minutes.',
+  NO_BASE: 'Ce jeu n\'a jamais été publié avec Roblox Push : publie d\'abord ton jeu une fois (zip ou .rbxl), puis ajoute le pack. Le robot garde ensuite ton jeu pour y ajouter des packs.',
+  MERGE_FAILED: 'Le pack n\'a pas pu être ajouté au jeu. Détail ci-dessous.',
 };
 function finish(r, secs, fname, runUrl) {
   const known = games().find((x) => x.place === String(r.placeId)) || {};
-  upsertGame({ place: String(r.placeId), universe: r.universeId ? String(r.universeId) : null, name: known.customName ? null : r.gameName, version: r.published ? r.version : null });
+  upsertGame({ place: String(r.placeId), universe: r.universeId ? String(r.universeId) : null, name: known.customName ? null : r.gameName, version: r.published ? r.version : null, packs: r.published && r.packs ? r.packs : null });
+  if (r.published && r.action === 'addpack') Store.set('pendingPack', null);
   const luauFailed = r.luau && r.luau.ran && !r.luau.ok;
   addHist({ ok: r.published && !luauFailed, place: r.placeId, version: r.published ? r.version : null, name: fname, at: Date.now() });
   if (r.published && !luauFailed) { stepState('result', 'done'); L.target = 100; setTimeout(() => win(r, secs), 700); return; }
@@ -1400,11 +1416,12 @@ function win(r, secs) {
   $('launch').classList.add('win', 'done');
   const v = Number(r.version) || 0;
   $('final').innerHTML = `<div class="rays"></div>
-    <div class="vtitle">${r.versionType === 'Saved' ? 'Brouillon enregistré' : 'En ligne sur Roblox'}</div>
+    <div class="vtitle">${r.action === 'addpack' ? '📦 Pack ajouté · ' + esc(r.packName || '') : r.versionType === 'Saved' ? 'Brouillon enregistré' : 'En ligne sur Roblox'}</div>
     <div class="medal"><div class="coin"><div class="vbig">v<span id="vn">0</span></div></div></div>
     <div class="vgame">${esc(r.gameName || (S.game && S.game.name) || 'Place ' + r.placeId)}</div>
     <div class="vsub">${Math.round(secs)} s · place ${esc(r.placeId)}</div>
-    ${r.autoProject ? `<details class="raw"><summary>✨ Projet Roblox créé automatiquement</summary><pre>${esc(['Scripts rangés dans les bons services Roblox.', ...r.autoProject].join('\n'))}</pre></details>` : ''}
+    ${r.packs && r.packs.length ? `<div class="vsub">Packs dans le jeu : ${r.packs.map(esc).join(', ')}</div>` : ''}
+    ${r.autoProject && r.action !== 'addpack' ? `<details class="raw"><summary>✨ Projet Roblox créé automatiquement</summary><pre>${esc(['Scripts rangés dans les bons services Roblox.', ...r.autoProject].join('\n'))}</pre></details>` : ''}
     ${r.luau && r.luau.ran ? `<details class="raw" open><summary>Test Luau ✓</summary><pre>${esc((r.luau.logs || []).join('\n') || JSON.stringify(r.luau.results))}</pre></details>` : ''}
     <a class="cta" href="${esc(r.playUrl)}" target="_blank" rel="noopener">▶ Jouer dans Roblox</a>
     <button class="cta alt" id="closeL">Terminé</button>`;
@@ -1484,10 +1501,11 @@ async function updatePage() {
   try {
     stepState('upload', 'active', covers.length || icon ? 'Envoi des images' : 'Préparation');
     let inst = await installed();
-    if (!inst || !inst.workflow || !inst.script) inst = await ensureInstalled(true);
+    if (!inst || !inst.workflow || !inst.script || !inst.merge) inst = await ensureInstalled(true);
     const entries = [
       { path: PATHS.workflow, mode: '100644', type: 'blob', sha: inst.workflow },
       { path: PATHS.script, mode: '100644', type: 'blob', sha: inst.script },
+      { path: PATHS.merge, mode: '100644', type: 'blob', sha: inst.merge },
     ];
     const media = [...covers.map((c, i) => ({ c, name: `cover${i + 1}.jpg` })), ...(icon ? [{ c: icon, name: 'icon.png' }] : [])];
     for (let i = 0; i < media.length; i++) {
@@ -1525,7 +1543,7 @@ async function followRun(sha, id, onStep) {
     if (job && job.status !== 'queued') stepState('queue', 'done', '');
     for (const st of (job && job.steps) || []) {
       const k = JOB[st.name]; if (!k) continue;
-      if (st.status === 'in_progress') { stepState(k, 'active', /Install Rojo/.test(st.name) ? 'Installation de Rojo (1re fois, ~3 min)' : ''); onStep(k); }
+      if (st.status === 'in_progress') { stepState(k, 'active', /Install Rojo/.test(st.name) ? 'Installation de Rojo (1re fois, ~3 min)' : /Install Lune/.test(st.name) ? 'Installation de Lune (1re fois, ~6 min)' : ''); onStep(k); }
       if (st.status === 'completed') stepState(k, st.conclusion === 'success' ? 'done' : st.conclusion === 'skipped' ? 'skip' : 'error');
     }
     if (job && job.status === 'completed') break;
@@ -1579,6 +1597,46 @@ function finishPage(r, req, covers, icon, secs, runUrl) {
   fail(Object.keys(done).length ? 'Page mise à jour en partie' : 'Mise à jour refusée', table + `<div style="margin-top:12px">${fix}</div>`, errors.map((e) => `${e.what}: ${e.code} ${e.message}`).join('\n') || (r.error && r.error.message), runUrl);
 }
 function game_place(r, req) { return r.placeId || req.placeId; }
+
+/* ---------- packs coming from Forge Studio (same site, shared storage) ---------- */
+function checkPendingPack() {
+  const pk = Store.get('pendingPack', null); if (!pk || !pk.b64) return;
+  $('packInfo').innerHTML = `📦 <b>${esc(pk.label || pk.name)}</b>${pk.rarity ? ' · ' + esc(pk.rarity) : ''} · ${(pk.b64.length * 0.75 / 1024).toFixed(1)} Ko<br>Créé dans Forge Studio.`;
+  const list = $('packGames'); list.innerHTML = games().length ? '' : '<div class="pnote">Ajoute d\'abord ton jeu (tuile ＋), publie-le une fois, puis reviens ici.</div>';
+  games().forEach((g) => { const b = document.createElement('button'); b.innerHTML = `<span>${esc(g.name || 'Jeu ' + g.place)}</span><span>›</span>`;
+    b.onclick = () => { closeSheets(); openGame(g); setTimeout(() => publishPack(g, pk), 500); }; list.appendChild(b); });
+  setTimeout(() => openSheet('packSheet'), 600);
+}
+$('packDrop').addEventListener('click', () => { Store.set('pendingPack', null); closeSheets(); toast('Pack annulé'); });
+async function publishPack(game, pk) {
+  if (S.busy) return; S.busy = true; refresh();
+  const id = 'k' + Date.now().toString(36); let at = 'upload', runUrl = null; const t0 = Date.now();
+  launchOpen(true, false, ['upload', 'commit', 'queue', 'prepare', 'build', 'merge', 'publish', 'result']);
+  try {
+    stepState('upload', 'active', '📦 ' + (pk.label || pk.name));
+    let inst = await installed();
+    if (!inst || !inst.workflow || !inst.script || !inst.merge) inst = await ensureInstalled(true);
+    const blob = await ghBlob(pk.b64, (p) => within('upload', p));
+    stepState('upload', 'done');
+    at = 'commit'; stepState('commit', 'active', '');
+    const req = { id, action: 'addpack', packName: pk.name, universeId: game.universe || null, placeId: game.place, versionType: 'Published', file: 'pack.zip', addBaseplate: !!game.baseplate, at: new Date().toISOString() };
+    const sha = await orphanCommit([
+      { path: PATHS.workflow, mode: '100644', type: 'blob', sha: inst.workflow },
+      { path: PATHS.script, mode: '100644', type: 'blob', sha: inst.script },
+      { path: PATHS.merge, mode: '100644', type: 'blob', sha: inst.merge },
+      { path: PATHS.request, mode: '100644', type: 'blob', content: JSON.stringify(req, null, 2) },
+      { path: '.roblox-push/pack.zip', mode: '100644', type: 'blob', sha: blob.sha },
+    ], `roblox-push publish ${id} (pack ${pk.name})`);
+    stepState('commit', 'done');
+    at = 'queue'; stepState('queue', 'active', 'GitHub démarre un serveur gratuit');
+    const { run, result } = await followRun(sha, id, (k) => (at = k));
+    runUrl = run.html_url;
+    finish(result, (Date.now() - t0) / 1000, '📦 ' + (pk.label || pk.name), runUrl);
+  } catch (e) {
+    stepState(at, 'error');
+    fail('Ça n\'a pas marché', e.status === -2 ? 'GitHub Actions n\'a pas démarré.' : e.status === -3 ? 'Le serveur n\'a pas renvoyé de résultat.' : explain(e, 'Contents + Workflows › Read and write'), null, runUrl);
+  } finally { S.busy = false; refresh(); }
+}
 
 /* ---------- history / settings ---------- */
 function addHist(h) { Store.set('hist', [h, ...Store.get('hist', [])].slice(0, 60)); renderGame(); }
@@ -1827,8 +1885,8 @@ renderFile();
 (async function boot() {
   try { await Account.restoreKey(); } catch { Store.set('acct', null); }
   if (!(S.token && S.repo && Store.get('onboarded', false))) return;
-  showMain();
-  if (!Store.get('toured', false)) setTimeout(() => startTour('main'), 1200);
+  showMain(); checkPendingPack();
+  if (!Store.get('toured', false) && !Store.get('pendingPack', null)) setTimeout(() => startTour('main'), 1200);
   try { await gh('GET', `/repos/${S.repo}`); ensureInstalled().catch(() => {}); }
   catch (e) { if (e.status === 401) { toast('Jeton expiré : reconnecte-toi.', 4000); Store.set('onboarded', false); setTimeout(() => location.reload(), 1600); } }
 })();
