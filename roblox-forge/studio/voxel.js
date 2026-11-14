@@ -208,3 +208,6 @@ export function voxelizeParts(parts, voxel = 0.13) {
     const key = `${bone}|${hit.color}|${hit.material === 'Neon' ? 'Neon' : hit.material === 'Glass' ? 'Glass' : 'SmoothPlastic'}`; let id = keyIdx.get(key); if (!id) { keys.push(key); id = keys.length; keyIdx.set(key, id); } grid[x + nx * (y + ny * z)] = id; }
   return { parts: toParts(greedy(grid, nx, ny, nz), keys, min, voxel) };
 }
+
+// shared with the mesh importer (Meshy / any .glb)
+export { greedy as greedyMerge, toParts as partsFromBoxes, WILD };

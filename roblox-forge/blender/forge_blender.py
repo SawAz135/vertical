@@ -11,7 +11,7 @@
 Coordinates: Roblox is Y-up, front = -Z; Blender is Z-up. A Roblox point
 (x, y, z) becomes (x, -z, y). Rotations are Euler XYZ in degrees (CFrame.Angles).
 """
-import bpy, bmesh, json, math, os, sys
+import bpy, bmesh, json, math, os, re, sys
 from mathutils import Matrix, Vector, Euler
 
 C4 = Matrix(((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))  # Roblox -> Blender basis
@@ -338,6 +338,53 @@ def cmd_map(src, out, width, samples):
     json.dump(report, open(os.path.join(out, 'report.json'), 'w')); print('FORGE', json.dumps(report))
 
 
+def cmd_import(src, out, hd, render, samples):
+    """A .glb made elsewhere (Meshy free plan, Sketchfab, Blender): turned to face like a Roblox pet,
+    3.4 studs tall, one mesh under Roblox's 20 000 triangle limit, textures embedded in the .fbx."""
+    job = json.load(open(src))
+    glb = os.path.join(os.path.dirname(os.path.abspath(src)), os.path.basename(job['file']))
+    name = re.sub(r'[^\w]', '', job.get('name') or 'Import') or 'Import'
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.gltf(filepath=glb)
+    objs = [o for o in bpy.context.scene.objects if o.type == 'MESH']
+    if not objs:
+        raise SystemExit('no mesh in ' + glb)
+    bpy.ops.object.select_all(action='DESELECT')
+    for o in objs: o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    if len(objs) > 1: bpy.ops.object.join()
+    o = bpy.context.view_layer.objects.active
+    o.parent = None
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    # glTF front (+Z) arrives as Blender -Y; Roblox pets look the other way: turn 180°, size, sit on the ground
+    mn, mx = bounds([o]); h = max(mx.z - mn.z, 1e-6)
+    k = 3.4 / h
+    o.rotation_euler = (0, 0, math.pi); o.scale = (k, k, k)
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    mn, mx = bounds([o]); o.location = (-(mn.x + mx.x) / 2, -(mn.y + mx.y) / 2, -mn.z)
+    bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
+    tris = tri_count(o)
+    if tris > 19000:
+        d = o.modifiers.new('Decimate', 'DECIMATE'); d.ratio = 19000 / tris
+        bpy.ops.object.modifier_apply(modifier='Decimate')
+    bpy.ops.object.shade_smooth()
+    os.makedirs(out, exist_ok=True)
+    report = {'name': name, 'trianglesIn': tris, 'triangles': tri_count(o)}
+    if hd:
+        bpy.ops.export_scene.fbx(filepath=os.path.join(out, name + '.fbx'), use_selection=True, apply_unit_scale=True, axis_forward='-Z', axis_up='Y',
+                                 bake_space_transform=True, path_mode='COPY', embed_textures=True)
+        report['export'] = [name + '.fbx']
+    if render:
+        mn, mx = bounds([o]); c = (mn + mx) / 2; r = max((mx - mn).length / 2, 0.5)
+        bpy.context.scene['forge_side'] = 1
+        studio(tuple(c), r, '#4f8fff', render, samples)
+        bpy.context.scene.render.filepath = os.path.join(out, name + ('_hd' if hd else '') + '.png')
+        bpy.ops.render.render(write_still=True)
+        report['render'] = os.path.basename(bpy.context.scene.render.filepath)
+    json.dump(report, open(os.path.join(out, 'report.json'), 'w'), ensure_ascii=False)
+    print('FORGE', json.dumps(report, ensure_ascii=False))
+
+
 if __name__ == '__main__':
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     if len(argv) < 3:
@@ -346,6 +393,8 @@ if __name__ == '__main__':
     opt = lambda k, d: type(d)(rest[rest.index(k) + 1]) if k in rest else d
     if cmd == 'pet':
         cmd_pet(src, out, '--hd' in rest, opt('--render', 0), opt('--samples', 96))
+    elif cmd == 'import':
+        cmd_import(src, out, '--hd' in rest, opt('--render', 1024), opt('--samples', 64))
     elif cmd == 'map':
         cmd_map(src, out, opt('--render', 1280), opt('--samples', 64))
     else:

@@ -10,6 +10,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as AC from './anim-core.js';
 import * as PG from './pet-gen.js';
 import { VOX_SPECIES, voxelAnimal, voxelizeParts } from './voxel.js';
+import { chibiPet, chibiFx, CHIBI_VARIANTS } from './chibi.js';
 import { createLibrary } from '../library/forge-lib.js';
 
 const $ = (id) => document.getElementById(id);
@@ -645,7 +646,11 @@ async function buildPack(blender) {
   await loadKit(); const n = safeName(pet.name), files = scriptFiles(), lib = await LIB.packFiles();
   // Blender job for the Roblox Push robot: HD render (always) and HD mesh uploaded to Roblox (mesh = true)
   const extra = [];
-  if (blender) {
+  if (blender && pet.gen && pet.gen.style === 'import' && importedGLB && importedGLB.name === n) {
+    extra.push({ path: `ForgeBlender/${n}.glb`, data: importedGLB.bytes }, { path: `ForgeBlender/${n}.json`, data: JSON.stringify({ kind: 'import', name: n, file: n + '.glb', mesh: !!blender.mesh, render: 1280, samples: 96 }) });
+    if (blender.mesh) { if (!KIT.hd) KIT.hd = await (await fetch('kit/ForgeHD.server.lua', { cache: 'no-cache' })).text(); extra.push({ path: 'ServerScriptService/ForgeHD.server.lua', data: KIT.hd }); }
+  } else if (blender) {
+    if (pet.gen && pet.gen.style === 'import') toast('Ré-importe le .glb pour envoyer le vrai modèle : le pet en blocs est envoyé à la place', 3500);
     const job = { kind: 'pet', name: n, rarity: pet.rarity, style: pet.gen && pet.gen.style === 'voxel' ? 'voxel' : pet.rarity, mesh: !!blender.mesh, render: 1280, samples: 96,
       parts: pet.parts.filter((p) => p.transparency < 0.95).map((p) => ({ name: p.name, shape: p.shape, size: p.size, pos: p.pos, rot: p.rot, color: p.tint ? pet.c1 : p.color, material: p.material, transparency: p.transparency })) };
     extra.push({ path: `ForgeBlender/${n}.json`, data: JSON.stringify(job) });
@@ -1196,14 +1201,18 @@ function thumbOf(key, parts) {
   thumbR.render(tScene, tCam); const url = thumbR.domElement.toDataURL('image/png'); thumbCache.set(key, url); return url;
 }
 /* ---------- pet styles: voxel (default, like popular simulator pets), chunky blocks, smooth ---------- */
-const PET_STYLES = { voxel: '🧊 Voxel', blocs: '🟫 Gros blocs', lisse: '✨ Lisse' };
+const PET_STYLES = { voxel: '🧊 Voxel', simu: '🍡 Simulateur', blocs: '🟫 Gros blocs', lisse: '✨ Lisse' };
+let petVariant = (() => { try { return localStorage.getItem('forge.petVariant') || 'normal'; } catch { return 'normal'; } })();
 let petStyle = (() => { try { return localStorage.getItem('forge.petStyle') || 'voxel'; } catch { return 'voxel'; } })();
 const shade = (hex, f) => { const n = parseInt(hex.slice(1), 16), c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(f < 0 ? v * (1 + f) : v + (255 - v) * f)); return '#' + c.map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join(''); };
 const styleCache = new Map();
 function styled(g, style = petStyle) {
   if (style === 'lisse' || g.style) return g;
-  const key = style + '|' + g.seed + '|' + g.prompt + '|' + g.rarity; if (styleCache.has(key)) return styleCache.get(key);
+  const key = style + '|' + (style === 'simu' ? petVariant : '') + '|' + g.seed + '|' + g.prompt + '|' + g.rarity; if (styleCache.has(key)) return styleCache.get(key);
   let parts;
+  if (style === 'simu') { const fx = { ...g.fx }; for (const [k, v] of Object.entries(chibiFx(petVariant, g))) fx[k] = { ...(fx[k] || {}), ...v };
+    const out = { ...g, parts: chibiPet(g, PG.SPECIES[g.species], petVariant), fx, style, name: g.name + (petVariant !== 'normal' ? ' ' + { gold: 'Doré', rainbow: 'Arc-en-ciel', neon: 'Néon' }[petVariant] : '') };
+    styleCache.set(key, out); return out; }
   if (style === 'voxel' && VOX_SPECIES[g.species]) {
     const hi = PG.RARITIES.indexOf(g.rarity) >= 4, E = g.element && PG.ELEMENTS[g.element], side = E ? PG.mix(g.c1, E.c[0], 0.55) : g.c1;
     const pal = E ? { back: shade(side, -0.28), side, belly: E.c[1], muzzle: E.c[1], socks: shade(side, -0.4), dark: shade(side, -0.62), eye: g.glow || undefined } : null;
@@ -1227,8 +1236,13 @@ function paneGen() {
   pane.innerHTML = `<div class="sec"><h3>🧬 Créer un pet <small>décris-le, le générateur le construit</small></h3>
       <textarea id="gq" class="lsearch" rows="2" placeholder="ex : dragon de feu légendaire · chat cosmique mignon · robot néon secret · « Kiwi » le lapin des bois">${esc(genQ)}</textarea>
       <div class="chipwrap" style="margin-top:8px">${Object.entries(PET_STYLES).map(([k, l]) => `<button class="chip${k === petStyle ? ' on' : ''}" data-st="${k}">${l}</button>`).join('')}</div>
+      ${petStyle === 'simu' ? `<div class="chipwrap" style="margin-top:6px">${Object.entries(CHIBI_VARIANTS).map(([k, l]) => `<button class="chip${k === petVariant ? ' on' : ''}" data-vr="${k}">${l}</button>`).join('')}</div>` : ''}
       <div class="btns" style="margin-top:8px"><button class="btn pri" id="gGo" style="flex:1">✨ Générer 6 variantes</button><button class="btn" id="gDice">🎲 Surprise</button></div>
-      <div class="vars" id="gVars">${genVars.map((g, i) => `<button class="var" data-v="${i}" style="--bg:${RAR_BG[g.rarity]}"><img alt="" src="${thumbOf(petStyle + 'v' + g.seed + g.prompt, styled(g).parts)}"><b>${esc(g.name)}</b><small>${esc(g.rarity)} · ${styled(g).parts.length} pièces</small></button>`).join('')}</div></div>
+      <div class="vars" id="gVars">${genVars.map((g, i) => `<button class="var" data-v="${i}" style="--bg:${RAR_BG[g.rarity]}"><img alt="" src="${thumbOf(petStyle + petVariant + 'v' + g.seed + g.prompt, styled(g).parts)}"><b>${esc(styled(g).name)}</b><small>${esc(g.rarity)} · ${styled(g).parts.length} pièces</small></button>`).join('')}</div></div>
+    <div class="sec"><h3>📥 Importer un modèle 3D <small>Meshy, Sketchfab, Blender (.glb)</small></h3>
+      <div class="note">Crée un modèle sur <b>meshy.ai</b> (offre gratuite : ~10 modèles/mois, licence CC BY non commerciale), télécharge-le en <b>.glb</b>, puis importe-le ici : il devient un pet en blocs, prêt pour Roblox. Ensuite, dans Export, <b>✨ Version HD Blender</b> envoie le vrai modèle dans ton jeu.</div>
+      <label class="btn pri" style="display:flex;align-items:center;justify-content:center;margin-top:8px;cursor:pointer">📥 Choisir un fichier .glb<input type="file" id="glbIn" accept=".glb,model/gltf-binary" hidden></label>
+      <div class="chipwrap" style="margin-top:8px">${[['28', 'Rapide'], ['40', 'Détaillé'], ['56', 'Très détaillé']].map(([r, l]) => `<button class="chip${String(importRes) === r ? ' on' : ''}" data-res="${r}">${l}</button>`).join('')}</div></div>
     <div class="sec"><h3>Espèces <small>${Object.keys(PG.SPECIES).length}</small></h3><div class="chipwrap">${Object.entries(PG.SPECIES).map(([k, s]) => genChip(s.e + ' ' + s.fr, s.words.split(' ')[0])).join('')}</div></div>
     <div class="sec"><h3>Éléments</h3><div class="chipwrap">${Object.entries(PG.ELEMENTS).map(([k, e]) => genChip(e.adj, e.words.split(' ')[0])).join('')}</div></div>
     <div class="sec"><h3>Styles & rareté</h3><div class="chipwrap">${Object.entries({ mignon: '🥺 Mignon', roi: '👑 Royal', ange: '😇 Ange', demon: '😈 Démon', cyber: '🦾 Cyber', ninja: '🥷 Ninja', pirate: '🏴‍☠️ Pirate', sorcier: '🧙 Sorcier', geant: '🗿 Géant', zombie: '🧟 Zombie' }).map(([w, l]) => genChip(l, w)).join('')}
@@ -1242,8 +1256,23 @@ function paneGen() {
     genQ = `${sp[Math.floor(r() * sp.length)].words.split(' ')[0]} ${r() < 0.8 ? el[Math.floor(r() * el.length)].words.split(' ')[0] : ''} ${['', 'mignon', 'roi', 'cyber', 'demon', 'ange', 'ninja', 'sorcier'][Math.floor(r() * 8)]} ${PG.RARITIES[Math.floor(r() * r() * 7)].split(' ')[0].toLowerCase()}`.replace(/\s+/g, ' ').trim(); run(); };
   pane.querySelectorAll('[data-v]').forEach((b) => b.onclick = () => openGenerated(genVars[+b.dataset.v]));
   pane.querySelectorAll('[data-st]').forEach((b) => b.onclick = () => setPetStyle(b.dataset.st, paneGen));
+  pane.querySelectorAll('[data-vr]').forEach((b) => b.onclick = () => { petVariant = b.dataset.vr; try { localStorage.setItem('forge.petVariant', petVariant); } catch {} paneGen(); });
+  pane.querySelectorAll('[data-res]').forEach((b) => b.onclick = () => { importRes = +b.dataset.res; paneGen(); });
+  $('glbIn').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; if (f.size > 40e6) return toast('Fichier trop gros (max 40 Mo)');
+    toast('Import de ' + f.name + '…', 4000); await new Promise((r) => setTimeout(r, 30));
+    try { const buf = await f.arrayBuffer(), { voxelizeGLB } = await import('./meshimport.js'), MAX = 900; let r = null;
+      // keep Roblox happy: lower the detail until the pet fits in ~900 blocks
+      for (const [res, colors, smooth] of [[importRes, 14, 1], [importRes, 10, 2], [Math.round(importRes * 0.8), 10, 2], [Math.round(importRes * 0.65), 8, 2], [24, 6, 3]]) { r = await voxelizeGLB(buf.slice(0), { res, colors, smooth }); if (r.parts.length <= MAX) break; }
+      const name = safeName(f.name.replace(/\.glb$/i, '')).replace(/_/g, ' ');
+      importedGLB = { name: safeName(name), bytes: new Uint8Array(buf) };
+      snapshot(); pet = { v: 1, name, customName: true, body: 'cat', rarity: pet.rarity, c1: r.palette[0], c2: r.palette[1] || r.palette[0], fx: defaultFx(), scripts: {}, gen: { style: 'import', source: f.name },
+        parts: r.parts.map((p) => { const id = nid(); return { id, ...p, tint: false }; }) };
+      const ids = new Map(); r.parts.forEach((p, i) => ids.set(p.key, pet.parts[i].id)); for (const p of pet.parts) { if (p.parentKey) p.parent = ids.get(p.parentKey); delete p.key; delete p.parentKey; }
+      selId = null; save(); rebuild(); updateHud(); toast(`📥 ${name} : ${r.triangles.toLocaleString('fr')} triangles → ${pet.parts.length} blocs`, 3500);
+    } catch (err) { console.warn(err); toast('Import impossible : ' + (err.message || err)); } };
 }
 function setPetStyle(st, redraw) { petStyle = st; try { localStorage.setItem('forge.petStyle', st); } catch {} toast(PET_STYLES[st] + ' : tous les pets passent dans ce style'); redraw(); }
+let importRes = 40, importedGLB = null;
 const INDEX = PG.index100(); let idxFilter = 'all', idxCache = new Map();
 const idxPet = (e) => { if (!idxCache.has(e.n)) { const g = PG.generate(e.text, e.seed); g.rarity = e.rarity; idxCache.set(e.n, g); } return idxCache.get(e.n); };
 function paneIndex() {
@@ -1260,7 +1289,7 @@ function paneIndex() {
   // thumbnails rendered a few at a time so the page stays fluid
   const imgs = [...pane.querySelectorAll('img[data-lazy]')]; let i = 0;
   const step = () => { if (currentTab !== 'index') return; const t0 = performance.now();
-    while (i < imgs.length && performance.now() - t0 < 30) { const im = imgs[i++], e = INDEX[+im.dataset.lazy - 1], g = idxPet(e); im.src = thumbOf(petStyle + 'i' + e.n, styled(g).parts); im.nextElementSibling.textContent = g.name; }
+    while (i < imgs.length && performance.now() - t0 < 30) { const im = imgs[i++], e = INDEX[+im.dataset.lazy - 1], g = idxPet(e); im.src = thumbOf(petStyle + petVariant + 'i' + e.n, styled(g).parts); im.nextElementSibling.textContent = g.name; }
     if (i < imgs.length) setTimeout(step, 16); };
   step();
   $('idxZip').onclick = async () => { toast('Construction des ' + INDEX.length + ' modèles…', 4000); await new Promise((r) => setTimeout(r, 50)); const blob = await buildIndexPack();
@@ -1280,4 +1309,4 @@ async function buildIndexPack() {
 
 /* ---------- boot ---------- */
 resize(); rebuild(); renderPane(); syncUndo(); loop(); LIB.prompt();
-window.__forge = { LIB, PG, styled, get petStyle() { return petStyle; }, setPetStyle, INDEX, idxPet, openGenerated, fromGenerated, buildIndexPack, thumbOf, get pet() { return pet; }, modelJson, buildPack, select, setTab, AC, anim, animData, animDataLua, exportNames, getRig, offsetsAt, curClip, get lastPose() { return lastPose; }, gizmo, meshes, renderPane }; // used by automated tests
+window.__forge = { LIB, PG, styled, get importedGLB() { return importedGLB; }, setVariant: (v) => { petVariant = v; }, get petStyle() { return petStyle; }, setPetStyle, INDEX, idxPet, openGenerated, fromGenerated, buildIndexPack, thumbOf, get pet() { return pet; }, modelJson, buildPack, select, setTab, AC, anim, animData, animDataLua, exportNames, getRig, offsetsAt, curClip, get lastPose() { return lastPose; }, gizmo, meshes, renderPane }; // used by automated tests
