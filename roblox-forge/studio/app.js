@@ -641,9 +641,17 @@ function zip(files) {
   end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, csize, true); end.setUint32(16, off, true);
   return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
 }
-async function buildPack() {
+async function buildPack(blender) {
   await loadKit(); const n = safeName(pet.name), files = scriptFiles(), lib = await LIB.packFiles();
-  return zip([...lib,
+  // Blender job for the Roblox Push robot: HD render (always) and HD mesh uploaded to Roblox (mesh = true)
+  const extra = [];
+  if (blender) {
+    const job = { kind: 'pet', name: n, rarity: pet.rarity, style: pet.gen && pet.gen.style === 'voxel' ? 'voxel' : pet.rarity, mesh: !!blender.mesh, render: 1280, samples: 96,
+      parts: pet.parts.filter((p) => p.transparency < 0.95).map((p) => ({ name: p.name, shape: p.shape, size: p.size, pos: p.pos, rot: p.rot, color: p.tint ? pet.c1 : p.color, material: p.material, transparency: p.transparency })) };
+    extra.push({ path: `ForgeBlender/${n}.json`, data: JSON.stringify(job) });
+    if (blender.mesh) { if (!KIT.hd) KIT.hd = await (await fetch('kit/ForgeHD.server.lua', { cache: 'no-cache' })).text(); extra.push({ path: 'ServerScriptService/ForgeHD.server.lua', data: KIT.hd }); }
+  }
+  return zip([...lib, ...extra,
     { path: `ReplicatedStorage/ForgePets/${n}.model.json`, data: JSON.stringify(modelJson(), null, 2) },
     { path: 'ReplicatedStorage/ForgeConfig.lua', data: files.find((f) => f.id === 'cfg').text },
     { path: 'ServerScriptService/ForgePetController.server.lua', data: files.find((f) => f.id === 'ctrl').text },
@@ -658,20 +666,29 @@ function paneExport() {
   pane.innerHTML = `<div class="sec"><h3>${esc(pet.name)} <small>${esc(pet.rarity)}</small></h3>
       <div class="note">${parts} pièces · ${fxOn.length} effets : ${fxOn.join(', ') || 'aucun'}</div>
       <button class="btn pri big" id="toGame">🎮 Ajouter à mon jeu</button>
+      <button class="btn big" id="toHD">✨ Version HD Blender dans mon jeu</button>
+      <button class="btn big" id="toRender">📸 Rendu HD Blender (image)</button>
       <button class="btn big" id="dl">📦 Télécharger le pack Roblox (.zip)</button>
       <button class="btn big" id="copyModel">⧉ Copier le modèle (JSON Rojo)</button></div>
     <div class="sec"><h3>Mettre le pet dans ton jeu</h3><div class="note">
       <b>🎮 Ajouter à mon jeu</b> ouvre Roblox Push : choisis ton jeu, le pet y est <b>ajouté</b> sans rien effacer, et il reste installé quand tu republies ton jeu.<br>
       Ton jeu doit avoir été publié une fois avec Roblox Push. Chaque joueur reçoit alors ce pet, qui le suit avec tous ses effets.<br><br>
       Contenu : <b>ReplicatedStorage/ForgePets</b> (modèle), <b>ServerScriptService</b> (suivi), <b>StarterPlayerScripts</b> (effets), <b>ForgeConfig</b> (réglages).</div></div>
+    <div class="sec"><h3>✨ Blender sur le robot</h3><div class="note">
+      <b>Version HD</b> : le robot Roblox Push lance Blender, lisse le pet en un vrai mesh HD, l'envoie sur Roblox et l'ajoute à ton jeu : le pet HD garde ses effets et suit le joueur (les membres ne bougent plus séparément).<br>
+      <b>Rendu HD</b> : une belle image studio du pet (éclairage 3 points, profondeur de champ), affichée à la fin dans Roblox Push et gardée dans ton dépôt GitHub.<br>
+      Gratuit : Blender tourne sur GitHub Actions. La 1ʳᵉ fois, l'installation prend quelques minutes. Pour un pet voxel, préfère le rendu : le jeu affiche déjà les blocs.</div></div>
     <div class="sec"><h3>Projet</h3><div class="btns"><button class="btn" id="newp">＋ Nouveau pet</button><button class="btn" id="saveCopy">💾 Garder une copie</button></div><div id="saved"></div></div>`;
-  $('toGame').onclick = async () => {
-    const blob = await buildPack(); const buf = new Uint8Array(await blob.arrayBuffer()); let bin = '';
+  const send = async (blender) => {
+    const blob = await buildPack(blender); const buf = new Uint8Array(await blob.arrayBuffer()); let bin = '';
     for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
-    try { localStorage.setItem('rp2.pendingPack', JSON.stringify({ name: safeName(pet.name), label: pet.name, rarity: pet.rarity, b64: btoa(bin), at: Date.now() })); }
+    try { localStorage.setItem('rp2.pendingPack', JSON.stringify({ name: safeName(pet.name) + (blender ? (blender.mesh ? '_HD' : '_Rendu') : ''), label: pet.name + (blender ? (blender.mesh ? ' · HD Blender' : ' · rendu HD') : ''), rarity: pet.rarity, b64: btoa(bin), at: Date.now() })); }
     catch { return toast('Mémoire du navigateur pleine : télécharge plutôt le pack.'); }
-    toast('Ouverture de Roblox Push…'); setTimeout(() => (location.href = '../../roblox-push/'), 450);
+    toast(blender ? 'Le robot va lancer Blender (≈ 3 à 6 min la première fois)…' : 'Ouverture de Roblox Push…', 2600); setTimeout(() => (location.href = '../../roblox-push/'), blender ? 1200 : 450);
   };
+  $('toGame').onclick = () => send(null);
+  $('toHD').onclick = () => send({ mesh: true });
+  $('toRender').onclick = () => send({ mesh: false });
   $('dl').onclick = async () => { const blob = await buildPack(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = safeName(pet.name) + '.zip'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('Pack téléchargé ✓'); };
   $('copyModel').onclick = async () => { try { await navigator.clipboard.writeText(JSON.stringify(modelJson(), null, 2)); toast('Modèle copié ✓'); } catch { toast('Copie impossible'); } };
   $('newp').onclick = () => { if (!confirm('Commencer un nouveau pet ? (le pet actuel est remplacé, garde une copie avant)')) return; snapshot(); pet = newPet(); selId = null; save(); rebuild(); setTab('rar'); };

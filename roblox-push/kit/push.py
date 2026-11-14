@@ -495,6 +495,9 @@ def stage() -> None:
             name = state["packName"]
             shutil.copy(ROOT / state["packFile"], packs_dir / f"{name}.zip")
             packs[name] = "new"
+            with zipfile.ZipFile(packs_dir / f"{name}.zip") as z:
+                jobs = [n for n in z.namelist() if n.startswith("ForgeBlender/") and n.endswith(".json")]
+            state["blenderJobs"] = len(jobs)
             base = next((p for p in files if p.startswith(f"{place}/base.")), None)
             if not base:
                 raise PushError("NO_BASE", "This game was never published with Roblox Push, so there is no game to add the pack to.")
@@ -511,6 +514,7 @@ def stage() -> None:
         output("needs_rojo", "true" if state.get("kind") == "rojo" or packs else "false")
         output("needs_build", "true" if state.get("kind") == "rojo" else "false")
         output("has_packs", "true" if packs else "false")
+        output("has_blender", "true" if state.get("blenderJobs") else "false")
     except PushError as err:
         fail(state, "stage", err)
 
@@ -757,6 +761,94 @@ def upload_image(path: Path, creator: dict, label: str) -> tuple[str, str]:
     return asset_id, state
 
 
+def upload_model(path: Path, creator: dict, label: str) -> str:
+    """Upload an .fbx as a Model asset (MeshParts) and wait for it. Returns the asset id."""
+    owner = {"groupId": str(creator["id"])} if creator.get("type") == "Group" else {"userId": str(creator["id"])}
+    request = {"assetType": "Model", "displayName": label[:50], "description": "Roblox Forge HD (Blender)",
+               "creationContext": {"creator": owner}}
+    body, content_type = multipart([("request", None, "application/json", json.dumps(request).encode()),
+                                    ("fileContent", path.name, "model/fbx", path.read_bytes())])
+    op = roblox("POST", f"{API}/assets/v1/assets", body, content_type)
+    deadline = time.time() + 180
+    while not op.get("done"):
+        if time.time() > deadline:
+            raise PushError("UPLOAD_TIMEOUT", f"Roblox did not finish processing {path.name}.")
+        time.sleep(3)
+        op = roblox("GET", f"{API}/assets/v1/{op['path']}")
+    asset_id = str((op.get("response") or {}).get("assetId") or "")
+    if not asset_id:
+        raise PushError("UPLOAD_FAILED", f"No asset id for {path.name}: {json.dumps(op)[:400]}")
+    return asset_id
+
+
+def blender() -> None:
+    """Run the Blender jobs of the new pack (ForgeBlender/*.json): HD renders, and HD meshes
+    uploaded to Roblox. The pack is rewritten with ForgeHDMeshes (name -> asset id), so the
+    stored pack never needs Blender again. A failed job is reported, never fatal."""
+    state = load_state()
+    name = state.get("packName")
+    packs_dir = WORK / "packs"
+    src = WORK / "blender" / "src"
+    if src.exists():
+        shutil.rmtree(src)
+    src.mkdir(parents=True)
+    safe_extract(packs_dir / f"{name}.zip", src)
+    renders = ROOT / "renders"
+    renders.mkdir(parents=True, exist_ok=True)
+    results, meshes = [], {}
+    creator = None
+    for job_file in sorted((src / "ForgeBlender").glob("*.json")):
+        job = json.loads(job_file.read_text(encoding="utf-8"))
+        label = str(job.get("name") or job_file.stem)
+        out = WORK / "blender" / job_file.stem
+        info = {"name": label, "kind": job.get("kind", "pet")}
+        cmd = ["blender", "-b", "-noaudio", "-P", str(ROOT / "forge_blender.py"), "--", job.get("kind", "pet"), str(job_file), str(out),
+               "--render", str(int(job.get("render") or 1024)), "--samples", str(int(job.get("samples") or 64))]
+        if job.get("mesh"):
+            cmd.append("--hd")
+        print("blender:", " ".join(cmd[5:]))
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1500)
+        print(proc.stdout[-1500:], proc.stderr[-1500:], sep="\n")
+        if proc.returncode != 0:
+            info["error"] = (proc.stderr or proc.stdout)[-400:]
+            results.append(info)
+            continue
+        for png in sorted(out.glob("*.png")):
+            dest = renders / f"{safe_pack_name(name)}_{safe_pack_name(png.stem)}.png"
+            shutil.copy(png, dest)
+            info.setdefault("renders", []).append(str(dest))
+        fbx = next(iter(sorted(out.glob("*.fbx"))), None)
+        if job.get("mesh") and fbx:
+            try:
+                if creator is None:
+                    creator = game_info(state["universe"]).get("creator") or {}
+                if not creator.get("id"):
+                    raise PushError("NO_CREATOR", "Could not find who owns this game.")
+                info["assetId"] = upload_model(fbx, creator, label + " HD")
+                meshes[label] = int(info["assetId"])
+            except PushError as err:
+                info["error"] = f"[{err.code}] {err}"
+                print(f"::warning::HD mesh {label}: {err}")
+        results.append(info)
+    shutil.rmtree(src / "ForgeBlender")
+    if meshes:
+        mod = src / "ReplicatedStorage" / "ForgeHDMeshes.lua"
+        mod.parent.mkdir(parents=True, exist_ok=True)
+        lines = ["-- Roblox Forge: HD meshes made by Blender on the robot (pet name -> Model asset id)", "return {"]
+        lines += [f"\t[{json.dumps(k)}] = {v}," for k, v in sorted(meshes.items())]
+        mod.write_text("\n".join(lines + ["}", ""]), encoding="utf-8")
+    # rewrite the pack (the stored copy too): no Blender job left inside
+    packed = WORK / "blender" / f"{name}.zip"
+    with zipfile.ZipFile(packed, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in sorted(src.rglob("*")):
+            if f.is_file():
+                z.write(f, f.relative_to(src).as_posix())
+    shutil.copy(packed, packs_dir / f"{name}.zip")
+    shutil.copy(packed, ROOT / state["packFile"])
+    state["blender"] = results
+    step(state, "blender", all("error" not in r for r in results), f"{len(results)} job(s), {len(meshes)} HD mesh(es)")
+
+
 def update_place_asset(place: str, mask: str, request: dict) -> dict:
     body, content_type = multipart([("request", None, "application/json", json.dumps({"assetId": place, **request}).encode())])
     return roblox("PATCH", f"{API}/assets/v1/assets/{place}?updateMask={mask}", body, content_type)
@@ -859,6 +951,7 @@ def finish() -> None:
         "autoProject": state.get("autoProject"),
         "packs": state.get("packs"),
         "packName": state.get("packName"),
+        "blender": [{**r, "renders": [str(Path(x).relative_to(ROOT.parent)) for x in r.get("renders", [])]} for r in state.get("blender") or []] or None,
         "steps": state.get("steps", {}),
         "luau": luau_info,
         "error": state.get("error"),
@@ -871,7 +964,7 @@ def finish() -> None:
 
 
 if __name__ == "__main__":
-    commands = {"prepare": prepare, "stage": stage, "build": build, "merge": merge, "publish": publish, "store": store, "luau": luau, "meta": meta, "finish": finish}
+    commands = {"prepare": prepare, "stage": stage, "blender": blender, "build": build, "merge": merge, "publish": publish, "store": store, "luau": luau, "meta": meta, "finish": finish}
     if len(sys.argv) != 2 or sys.argv[1] not in commands:
         sys.exit(f"usage: push.py {{{'|'.join(commands)}}}")
     commands[sys.argv[1]]()
