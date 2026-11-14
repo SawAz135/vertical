@@ -547,6 +547,15 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 .checks div:first-child{border-top:0}
 .checks em{font-style:normal;font-weight:750}
 .checks .y{color:var(--ok)}.checks .w{color:var(--g)}.checks .n{color:#ff8fa3}
+/* ===== account ===== */
+.meter{height:5px;border-radius:5px;background:#ffffff14;margin-top:12px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;border-radius:5px;transition:width .35s var(--ease),background .35s}
+.acct .d{line-height:1.45}
+#haveAcct{margin-top:10px}
+#skipAcct{margin-top:10px}
+.slide[data-s="3"] .orbit{display:none}
+.slide[data-s="3"] .hero{margin-bottom:14px}
+.slide[data-s="3"] .hero .big{font-size:30px;margin-top:0}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition-duration:.01s!important}}
 </style>
 </head>
@@ -575,7 +584,8 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
           <p>Un fichier, un bouton. Gratuit, sans ordinateur.</p>
           <div class="flow"><span class="n">📄 Fichier</span><span class="a"></span><span class="n">GitHub</span><span class="a"></span><span class="n">🎮 Roblox</span></div>
         </div>
-        <button class="cta" id="start">Commencer · 2 minutes</button>
+        <button class="cta" id="start">Créer mon compte · 2 minutes</button>
+        <button class="cta alt" id="haveAcct">J'ai déjà un compte · Se connecter</button>
       </div>
       <div class="slide" data-s="1">
         <div class="glass step-card">
@@ -605,10 +615,16 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
       <div class="slide" data-s="3">
         <div class="hero">
           <div class="orbit"><div class="ring"></div><div class="ring"></div><div class="core"></div></div>
-          <div class="big">C'est <em>prêt</em> ✦</div>
-          <p>Choisis ton jeu, ton fichier, et maintiens le bouton.</p>
+          <div class="big">Dernière étape : <em>ton mot de passe</em></div>
+          <p>Pour te reconnecter partout (iPhone, iPad, ordi) avec ton pseudo GitHub et ce mot de passe.</p>
         </div>
-        <button class="cta" id="finishOnb">C'est parti</button>
+        <div class="glass step-card" style="padding:16px">
+          <input class="pin" id="newPass" type="password" placeholder="Mot de passe (10 caractères ou plus)" autocomplete="new-password">
+          <input class="pin" id="newPass2" type="password" placeholder="Confirme le mot de passe" autocomplete="new-password" style="margin-top:10px">
+          <div class="meter"><i id="passMeter"></i></div><div class="status" id="passStatus" style="justify-content:flex-start;text-align:left;margin-top:8px"></div>
+        </div>
+        <button class="cta" id="finishOnb" disabled>Créer mon compte</button>
+        <button class="cta alt" id="skipAcct">Plus tard</button>
       </div>
     </div>
   </div>
@@ -623,6 +639,7 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
       <button class="help" id="helpBtn" aria-label="Aide">?</button>
       <button class="avatar" id="avatarBtn" aria-label="Réglages"><img id="avatar" alt=""></button>
     </div>
+    <button class="pagebtn hidden" id="acctNudge"><span class="pi">🔐</span><span><b>Crée ton compte</b><small>Pour te reconnecter partout avec ton pseudo et un mot de passe</small></span><span class="ar">›</span></button>
     <div class="label"><span>Tes jeux</span><em id="gameCount"></em></div>
     <div class="tiles grid" id="tiles"></div>
     <p class="empty" id="emptyHint">Ajoute ton premier jeu avec son lien <b>roblox.com/games/…</b>, puis touche sa tuile.</p>
@@ -702,6 +719,10 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 </div>
 <div class="sheet" id="setSheet">
   <div class="grab"></div><h4>Réglages<button class="done" data-close id="setClose">OK</button></h4>
+  <div class="sec acct"><div class="h"><span>Compte</span><span id="acctState" style="color:var(--muted);font-weight:600;font-size:13px"></span></div>
+    <div class="d" id="acctDesc"></div>
+    <button class="cta" id="acctCreate" style="margin-top:10px">Créer mon compte</button>
+    <button class="linkbtn hidden" id="acctSync">Synchroniser maintenant</button></div>
   <div class="sec"><div class="h"><span>Test Luau après publication</span><button class="sw" id="luauSw" aria-label="Test Luau"></button></div>
     <div class="d">Exécute un script sur les serveurs Roblox. La clé a besoin de <b>luau-execution-sessions › write</b>.</div>
     <textarea id="luau" class="hidden" spellcheck="false" placeholder='print("Bonjour depuis Roblox")'></textarea></div>
@@ -721,6 +742,7 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
       • <b>Demande à Claude</b> (onglet Code) : « crée-moi un jeu Roblox ». Il construit le jeu sur GitHub ; ouvre le dépôt › <b>Actions</b> › le dernier passage › <b>Artifacts</b> › télécharge le .zip. Dépose ce .zip directement ici, l'app sait le lire.<br>
       • Un .rbxl qu'un ami t'envoie (AirDrop, Discord…) : enregistre-le dans Fichiers.<br>
       • N'importe quel dossier de scripts (.lua / .luau) compressé en .zip : appui long sur le dossier dans Fichiers › <b>Compresser</b>. Pas besoin de fichier de projet : le robot range tout seul les scripts dans les bons services Roblox et ajoute un sol si le jeu n'en a pas.</div></details>
+    <details><summary>Me reconnecter sur un autre appareil</summary><div class="a">Sur le nouvel appareil, ouvre l'app › <b>J'ai déjà un compte</b> › ton <b>pseudo GitHub</b> et ton <b>mot de passe Roblox Push</b>. Tes jeux, ton historique et ta connexion GitHub reviennent. Le compte est un coffre chiffré rangé dans ton dépôt GitHub : ton mot de passe ne quitte jamais l'appareil. Si ton dépôt est privé, l'app ne peut pas le trouver sans jeton : reconnecte-toi alors avec un jeton.</div></details>
     <details><summary>C'est vraiment gratuit ?</summary><div class="a">Oui, <b>0 €</b>. GitHub Actions est gratuit (2 000 minutes par mois pour un dépôt privé, illimité pour un dépôt public ; une publication prend environ 1 minute). L'API Roblox est gratuite. Aucune carte bancaire.</div></details>
     <details><summary>« En ligne » ou « Brouillon » ?</summary><div class="a"><b>En ligne</b> : les joueurs voient la nouvelle version tout de suite. <b>Brouillon</b> : la version est enregistrée sur Roblox mais pas encore visible ; parfait pour tester.</div></details>
     <details><summary>Je me suis trompé de version, je peux revenir en arrière ?</summary><div class="a">Oui. Roblox garde l'historique : <b>create.roblox.com</b> › ton jeu › <b>Places</b> › ta place › <b>Version History</b> › Restore. Ou republie l'ancien fichier avec l'app.</div></details>
@@ -744,6 +766,27 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
   <div class="pnote">La clé Roblox doit avoir : <b>universe › write</b> (nom, description) et <b>assets › read + write</b> (images). Les images apparaissent après la <b>modération</b> de Roblox.</div>
   <button class="cta" id="pSave" disabled>Mettre à jour la page</button>
   <input type="file" id="pFile" accept="image/*" class="hidden">
+</div>
+<div class="sheet" id="loginSheet">
+  <div class="grab"></div><h4>Se connecter<button class="done" data-close>Annuler</button></h4>
+  <p style="margin:-6px 0 4px;color:var(--muted);font-size:14px">Ton pseudo GitHub et ton mot de passe Roblox Push.</p>
+  <div class="plabel">Pseudo GitHub</div>
+  <input class="pin" id="loginUser" placeholder="ex. SawAz135" autocomplete="username" autocapitalize="off" spellcheck="false">
+  <div class="plabel">Mot de passe</div>
+  <input class="pin" id="loginPass" type="password" placeholder="Mot de passe Roblox Push" autocomplete="current-password">
+  <button class="linkbtn" id="loginMore">Mon compte est dans un dépôt précis ›</button>
+  <input class="pin hidden" id="loginRepo" placeholder="pseudo/nom-du-depot" autocapitalize="off" spellcheck="false">
+  <div class="status" id="loginStatus"></div>
+  <button class="cta" id="loginGo">Se connecter</button>
+</div>
+<div class="sheet" id="acctSheet">
+  <div class="grab"></div><h4>Créer mon compte<button class="done" data-close>Annuler</button></h4>
+  <p style="margin:-6px 0 8px;color:var(--muted);font-size:14px">Ensuite, reconnecte-toi n'importe où avec ton pseudo GitHub <b id="acctLogin"></b> et ce mot de passe.</p>
+  <input class="pin" id="setPass" type="password" placeholder="Mot de passe (10 caractères ou plus)" autocomplete="new-password">
+  <input class="pin" id="setPass2" type="password" placeholder="Confirme le mot de passe" autocomplete="new-password" style="margin-top:10px">
+  <div class="meter"><i id="setMeter"></i></div><div class="status" id="setStatus" style="justify-content:flex-start;text-align:left"></div>
+  <div class="pnote">Ton mot de passe <b>chiffre ton profil sur cet appareil</b> (jeton GitHub, jeux, réglages). Il n'est jamais envoyé. Le coffre chiffré est rangé dans ton dépôt GitHub. Si tu l'oublies : reconnecte-toi avec un nouveau jeton GitHub et crée un nouveau mot de passe.</div>
+  <button class="cta" id="setGo" disabled>Créer mon compte</button>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -774,9 +817,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ---------- storage (try/catch; the Roblox key is never stored) ---------- */
+const SYNCED = new Set(['games', 'hist', 'luau', 'game']);
 const Store = {
   get(k, d) { try { const v = localStorage.getItem('rp2.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('rp2.' + k, JSON.stringify(v)); } catch {} },
+  set(k, v, quiet) { try { localStorage.setItem('rp2.' + k, JSON.stringify(v)); } catch {} if (!quiet && SYNCED.has(k) && typeof Account !== 'undefined') Account.schedule(); },
   clear() { try { Object.keys(localStorage).filter((k) => k.startsWith('rp2.')).forEach((k) => localStorage.removeItem(k)); } catch {} },
 };
 const S = { token: Store.get('token', ''), repo: Store.get('repo', ''), user: Store.get('user', null), keyAt: null,
@@ -873,6 +917,138 @@ async function saveKey(raw) {
   await keyInfo();
 }
 
+/* ---------- account: encrypted profile stored in the user's own repo ----------
+   Password -> PBKDF2-SHA256 (600k) -> AES-GCM-256 key, all in WebCrypto on the device.
+   The vault (salt, iv, ciphertext) lives on branch roblox-push-account as account.json.
+   Logging in elsewhere: GitHub username + password -> find the vault in the user's
+   public repos (anonymous API reads) -> decrypt -> restore everything. */
+const ACCT_BRANCH = 'roblox-push-account', ACCT_FILE = 'account.json', KDF_ITER = 600000;
+const b64e = (u8) => SealedBox.toBase64(u8), b64d = (t) => SealedBox.fromBase64(t);
+const Account = {
+  key: null, salt: null, login: null, timer: 0, lastSync: Store.get('acctSync', null),
+  async derive(pass, salt) {
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: KDF_ITER }, base, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+  },
+  profile() {
+    return { v: 1, token: S.token, repo: S.repo, user: S.user, games: Store.get('games', []), game: S.game ? S.game.place : null,
+      hist: Store.get('hist', []).slice(0, 40), luau: S.luau, toured: Store.get('toured', false), touredGame: Store.get('touredGame', false) };
+  },
+  async seal() {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, this.key, new TextEncoder().encode(JSON.stringify(this.profile()))));
+    return { v: 1, app: 'roblox-push', login: this.login, kdf: 'PBKDF2-SHA256', iter: KDF_ITER, salt: b64e(this.salt), iv: b64e(iv), ct: b64e(ct), updated: new Date().toISOString() };
+  },
+  async open(vault, pass) {
+    const key = await this.derive(pass, b64d(vault.salt));
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(vault.iv) }, key, b64d(vault.ct)); // throws if wrong password
+    return { key, profile: JSON.parse(new TextDecoder().decode(pt)) };
+  },
+  async remember() { // stay signed in on this device: keep the derived key next to the token
+    const raw = new Uint8Array(await crypto.subtle.exportKey('raw', this.key));
+    Store.set('acct', { login: this.login, salt: b64e(this.salt), key: b64e(raw) });
+  },
+  async restoreKey() {
+    const a = Store.get('acct', null); if (!a) return false;
+    this.login = a.login; this.salt = b64d(a.salt);
+    this.key = await crypto.subtle.importKey('raw', b64d(a.key), { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+    return true;
+  },
+  async create(pass) {
+    this.salt = crypto.getRandomValues(new Uint8Array(16)); this.login = S.user && S.user.login;
+    this.key = await this.derive(pass, this.salt); await this.remember(); await this.save();
+  },
+  async save() {
+    if (!this.key || !S.token || !S.repo) return;
+    const vault = await this.seal();
+    const tree = await gh('POST', `/repos/${S.repo}/git/trees`, { tree: [{ path: ACCT_FILE, mode: '100644', type: 'blob', content: JSON.stringify(vault, null, 1) }] });
+    const commit = await gh('POST', `/repos/${S.repo}/git/commits`, { message: 'roblox-push account (encrypted)', tree: tree.sha, parents: [] });
+    let exists = true; try { await gh('GET', `/repos/${S.repo}/git/ref/heads/${ACCT_BRANCH}`); } catch (e) { if (e.status === 404) exists = false; else throw e; }
+    if (exists) await gh('PATCH', `/repos/${S.repo}/git/refs/heads/${ACCT_BRANCH}`, { sha: commit.sha, force: true });
+    else await gh('POST', `/repos/${S.repo}/git/refs`, { ref: `refs/heads/${ACCT_BRANCH}`, sha: commit.sha });
+    this.lastSync = Date.now(); Store.set('acctSync', this.lastSync, true);
+  },
+  schedule() { if (!this.key) return; clearTimeout(this.timer); this.timer = setTimeout(() => this.save().catch(() => {}), 1500); },
+};
+// Anonymous read of a public file (no token on a new device).
+async function ghPublic(path) {
+  const res = await fetch(API + path, { headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }, cache: 'no-store' });
+  if (!res.ok) throw new GhError(res.status, res.statusText);
+  return res.json();
+}
+async function findVault(login, repoHint) {
+  const repos = repoHint ? [repoHint] : ((await ghPublic(`/users/${encodeURIComponent(login)}/repos?per_page=100&sort=pushed`)) || [])
+    .sort((a, b) => String(b.pushed_at).localeCompare(String(a.pushed_at))).slice(0, 10).map((r) => r.full_name);
+  for (const full of repos) {
+    try {
+      const c = await ghPublic(`/repos/${full}/contents/${ACCT_FILE}?ref=${ACCT_BRANCH}`);
+      const vault = JSON.parse(new TextDecoder().decode(b64d(c.content.replace(/\n/g, ''))));
+      if (vault.app === 'roblox-push') return { repo: full, vault };
+    } catch (e) { if (e.status === 403 || e.status === 429) throw e; }
+  }
+  return null;
+}
+function passScore(p) {
+  let sc = 0; if (p.length >= 10) sc++; if (p.length >= 14) sc++; if (/[A-Z]/.test(p) && /[a-z]/.test(p)) sc++; if (/\d/.test(p)) sc++; if (/[^A-Za-z0-9]/.test(p)) sc++;
+  return Math.min(4, sc);
+}
+function bindPassword(a, b, meter, status, btn) {
+  const upd = () => {
+    const p = $(a).value, sc = passScore(p), m = $(meter);
+    m.style.width = (p ? 15 + sc * 21 : 0) + '%'; m.style.background = ['#ff4d6d', '#ff9f43', '#ffd45c', '#9be15d', '#3dffa8'][sc];
+    const okLen = p.length >= 10, same = p && p === $(b).value;
+    setStatus(status, !p ? '' : !okLen ? 'Au moins 10 caractères.' : !same && $(b).value ? 'Les deux mots de passe sont différents.' : !same ? 'Confirme le mot de passe.' : sc < 2 ? 'Accepté, mais ajoute des chiffres ou symboles pour plus de sécurité.' : '✓ Mot de passe solide', !okLen || (!same && $(b).value) ? 'err' : same ? 'good' : '');
+    $(btn).disabled = !(okLen && same);
+  };
+  [a, b].forEach((id) => $(id).addEventListener('input', upd));
+}
+bindPassword('newPass', 'newPass2', 'passMeter', 'passStatus', 'finishOnb');
+bindPassword('setPass', 'setPass2', 'setMeter', 'setStatus', 'setGo');
+
+/* login on a new device */
+$('haveAcct').addEventListener('click', () => openSheet('loginSheet'));
+$('loginMore').addEventListener('click', () => { $('loginRepo').classList.toggle('hidden'); });
+$('loginGo').addEventListener('click', async () => {
+  const login = $('loginUser').value.trim().replace(/^@/, ''), pass = $('loginPass').value, hint = $('loginRepo').value.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/+$/, '');
+  if (!login || !pass) return setStatus('loginStatus', 'Entre ton pseudo GitHub et ton mot de passe.', 'err');
+  const btn = $('loginGo'); btn.disabled = true;
+  try {
+    setStatus('loginStatus', SPIN + 'Recherche de ton compte…');
+    const found = await findVault(login, /^[\w.-]+\/[\w.-]+$/.test(hint) ? hint : null);
+    if (!found) return setStatus('loginStatus', 'Aucun compte trouvé pour ce pseudo. Si ton dépôt est privé, connecte-toi plutôt avec un jeton (Créer mon compte).', 'err');
+    setStatus('loginStatus', SPIN + 'Déverrouillage…');
+    let opened; try { opened = await Account.open(found.vault, pass); } catch { return setStatus('loginStatus', 'Mot de passe incorrect.', 'err'); }
+    const p = opened.profile;
+    S.token = p.token; S.repo = p.repo || found.repo; S.user = p.user; S.luau = p.luau || { on: false, src: '' };
+    try { await gh('GET', `/repos/${S.repo}`); } catch (e) { if (e.status === 401) return setStatus('loginStatus', 'Compte trouvé, mais ton jeton GitHub a expiré. Crée un nouveau jeton puis un nouveau mot de passe.', 'err'); }
+    Store.set('token', S.token); Store.set('repo', S.repo); Store.set('user', S.user); Store.set('games', p.games || []); Store.set('hist', p.hist || []);
+    Store.set('luau', S.luau); Store.set('toured', !!p.toured); Store.set('touredGame', !!p.touredGame); Store.set('onboarded', true);
+    S.game = (p.games || []).find((g) => g.place === p.game) || null; Store.set('game', S.game);
+    Account.key = opened.key; Account.salt = b64d(found.vault.salt); Account.login = found.vault.login || login; await Account.remember();
+    $('loginPass').value = ''; closeSheets(); setStatus('loginStatus', '');
+    showMain(); toast('Bon retour ' + (S.user && S.user.login ? S.user.login : '') + ' ✓'); celebrate(innerWidth / 2, innerHeight * .4, 80);
+    ensureInstalled().catch(() => {});
+  } catch (e) { setStatus('loginStatus', e.status === 403 || e.status === 429 ? 'GitHub limite les recherches sans connexion : réessaie dans quelques minutes.' : 'Erreur : ' + esc(e.message || e), 'err'); }
+  finally { btn.disabled = false; }
+});
+
+/* account from settings */
+function renderAccount() {
+  const has = !!Account.key;
+  $('acctState').textContent = has ? '✓ ' + (Account.login || '') : 'pas encore créé';
+  $('acctDesc').innerHTML = has ? `Synchronisé ${Account.lastSync ? new Date(Account.lastSync).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}. Sur un autre appareil : <b>J'ai déjà un compte</b>, ton pseudo <b>${esc(Account.login || '')}</b> et ton mot de passe.`
+    : 'Crée un mot de passe pour retrouver tes jeux et réglages sur n\'importe quel appareil.';
+  $('acctCreate').classList.toggle('hidden', has); $('acctSync').classList.toggle('hidden', !has);
+}
+$('acctNudge').addEventListener('click', () => { $('acctLogin').textContent = S.user ? S.user.login : ''; openSheet('acctSheet'); });
+$('acctCreate').addEventListener('click', () => { closeSheets(); $('acctLogin').textContent = S.user ? S.user.login : ''; setTimeout(() => openSheet('acctSheet'), 350); });
+$('setGo').addEventListener('click', async () => {
+  const b = $('setGo'); b.disabled = true; setStatus('setStatus', SPIN + 'Chiffrement et enregistrement…');
+  try { await Account.create($('setPass').value); $('setPass').value = $('setPass2').value = ''; closeSheets(); $('acctNudge').classList.add('hidden'); toast('Compte créé ✓ Reconnecte-toi partout'); celebrate(innerWidth / 2, innerHeight * .4, 90); }
+  catch (e) { Account.key = null; Store.set('acct', null); setStatus('setStatus', explain(e, 'Contents › Read and write'), 'err'); b.disabled = false; }
+});
+$('acctSync').addEventListener('click', async () => { try { await Account.save(); renderAccount(); toast('Synchronisé ✓'); } catch (e) { toast(plain(explain(e)), 4000); } });
+
 /* ---------- onboarding ---------- */
 let slide = 0;
 function go(n) {
@@ -936,8 +1112,14 @@ $('rk').addEventListener('input', () => { clearTimeout(keyTimer); keyTimer = set
   try { await saveKey(v); $('rk').value = ''; setStatus('keyStatus', '✓ Clé chiffrée et enregistrée', 'good'); await sleep(700); go(3); }
   catch (e) { setStatus('keyStatus', e.status === -1 ? 'Clé incomplète, recopie-la.' : explain(e, 'Secrets › Read and write'), 'err'); }
 }, 400); });
-$('finishOnb').addEventListener('click', () => { Store.set('onboarded', true); showMain(); celebrate(innerWidth / 2, innerHeight * .45, 90);
-  if (!Store.get('toured', false)) setTimeout(() => startTour('main'), 1100); });
+async function enterApp() { Store.set('onboarded', true); showMain(); celebrate(innerWidth / 2, innerHeight * .45, 90);
+  if (!Store.get('toured', false)) setTimeout(() => startTour('main'), 1100); }
+$('finishOnb').addEventListener('click', async () => {
+  const b = $('finishOnb'); b.disabled = true; setStatus('passStatus', SPIN + 'Chiffrement et enregistrement…');
+  try { await Account.create($('newPass').value); $('newPass').value = $('newPass2').value = ''; toast('Compte créé ✓'); enterApp(); }
+  catch (e) { Account.key = null; Store.set('acct', null); setStatus('passStatus', explain(e, 'Contents › Read and write'), 'err'); b.disabled = false; }
+});
+$('skipAcct').addEventListener('click', enterApp);
 
 /* ---------- main ---------- */
 function showMain() {
@@ -945,6 +1127,7 @@ function showMain() {
   $('connTxt').textContent = S.repo ? 'Connecté · ' + S.repo.split('/')[1] : 'Connecté';
   if (S.user && S.user.avatar) $('avatar').src = S.user.avatar;
   renderTiles(); renderFile(); refresh();
+  $('acctNudge').classList.toggle('hidden', !!Account.key);
 }
 function games() { return Store.get('games', []); }
 // Deterministic art per game: gradient sky + an isometric block stack + sparkles.
@@ -1414,7 +1597,7 @@ document.querySelectorAll('.sheet').forEach((sh) => { let y0 = null; // swipe do
   sh.addEventListener('touchmove', (e) => { if (y0 != null && e.touches[0].clientY - y0 > 70) { closeSheets(); y0 = null; } }, { passive: true });
   sh.addEventListener('touchend', () => (y0 = null)); });
 $('avatarBtn').addEventListener('click', async () => {
-  renderHist(); $('repoName').textContent = S.repo; $('luauSw').classList.toggle('on', S.luau.on); $('luau').classList.toggle('hidden', !S.luau.on); $('luau').value = S.luau.src || '';
+  renderHist(); renderAccount(); $('repoName').textContent = S.repo; $('luauSw').classList.toggle('on', S.luau.on); $('luau').classList.toggle('hidden', !S.luau.on); $('luau').value = S.luau.src || '';
   $('keyWhen').textContent = '…'; openSheet('setSheet');
   try { const k = await keyInfo(); $('keyWhen').textContent = k ? '✓ ' + new Date(k).toLocaleDateString('fr-FR') : 'aucune'; } catch { $('keyWhen').textContent = '?'; }
 });
@@ -1642,6 +1825,7 @@ $('replayTour').addEventListener('click', () => setTimeout(() => startTour(), 35
 /* ---------- boot ---------- */
 renderFile();
 (async function boot() {
+  try { await Account.restoreKey(); } catch { Store.set('acct', null); }
   if (!(S.token && S.repo && Store.get('onboarded', false))) return;
   showMain();
   if (!Store.get('toured', false)) setTimeout(() => startTour('main'), 1200);
