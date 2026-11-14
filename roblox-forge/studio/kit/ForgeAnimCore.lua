@@ -177,6 +177,7 @@ end
 function Core.prepare(data)
 	local rig = { names = {}, rest = {}, restInv = {}, pivot = {}, parent = {} }
 	for name, info in data.rig or {} do
+		if info.weld or not info.pos then continue end -- welded voxel blocks just follow their bone
 		local r = Core.rest(info)
 		table.insert(rig.names, name)
 		rig.rest[name] = r

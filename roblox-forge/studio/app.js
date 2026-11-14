@@ -9,6 +9,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as AC from './anim-core.js';
 import * as PG from './pet-gen.js';
+import { VOX_SPECIES, voxelAnimal, voxelizeParts } from './voxel.js';
 import { createLibrary } from '../library/forge-lib.js';
 
 const $ = (id) => document.getElementById(id);
@@ -605,7 +606,7 @@ function modelJson() {
     if (p.shape === 'Ball') node.properties.Shape = 'Ball';
     if (p.shape === 'Cylinder') node.properties.Shape = 'Cylinder';
     if (p.shape === 'Ellipsoid') node.children.push({ name: 'Mesh', className: 'SpecialMesh', properties: { MeshType: 'Sphere' } });
-    if (p.tint) node.attributes = { ForgeTint: true };
+    if (p.tint || p.weld) node.attributes = { ...(p.tint ? { ForgeTint: true } : {}), ...(p.weld ? { ForgeWeld: true } : {}) };
     return node;
   });
   const b = children[0];
@@ -1070,7 +1071,7 @@ const r4 = (v) => +(+v).toFixed(4) || 0;
 function animData() {
   const names = exportNames(), R = getRig(), rig = {};
   for (const id of R.order) { const p = pet.parts.find((x) => x.id === id), info = R.rig.get(id);
-    rig[names.get(id)] = { parent: info.parent ? names.get(info.parent) : null, pos: p.pos.map(r4), rot: p.rot.map(r4), pivot: info.pivot.map(r4) }; }
+    rig[names.get(id)] = p.weld && info.parent ? { parent: names.get(info.parent), weld: true } : { parent: info.parent ? names.get(info.parent) : null, pos: p.pos.map(r4), rot: p.rot.map(r4), pivot: info.pivot.map(r4) }; }
   const clips = (pet.anims || []).map((c) => { const tracks = {};
     for (const [id, keys] of Object.entries(c.tracks)) if (keys.length && names.has(id)) tracks[names.get(id)] = keys.map((k) => ({ t: r4(k.t), pos: k.pos.map(r4), rot: k.rot.map(r4), ease: k.ease, dir: k.dir }));
     return { name: c.name, when: c.when, length: r4(c.length), loop: !!c.loop, speed: r4(c.speed || 1), tracks }; });
@@ -1177,10 +1178,29 @@ function thumbOf(key, parts) {
   tCam.position.copy(c).add(new THREE.Vector3(-0.62, 0.38, -1).normalize().multiplyScalar(r / Math.sin((tCam.fov * Math.PI) / 360) * 1.05)); tCam.lookAt(c);
   thumbR.render(tScene, tCam); const url = thumbR.domElement.toDataURL('image/png'); thumbCache.set(key, url); return url;
 }
+/* ---------- pet styles: voxel (default, like popular simulator pets), chunky blocks, smooth ---------- */
+const PET_STYLES = { voxel: '🧊 Voxel', blocs: '🟫 Gros blocs', lisse: '✨ Lisse' };
+let petStyle = (() => { try { return localStorage.getItem('forge.petStyle') || 'voxel'; } catch { return 'voxel'; } })();
+const shade = (hex, f) => { const n = parseInt(hex.slice(1), 16), c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(f < 0 ? v * (1 + f) : v + (255 - v) * f)); return '#' + c.map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join(''); };
+const styleCache = new Map();
+function styled(g, style = petStyle) {
+  if (style === 'lisse' || g.style) return g;
+  const key = style + '|' + g.seed + '|' + g.prompt + '|' + g.rarity; if (styleCache.has(key)) return styleCache.get(key);
+  let parts;
+  if (style === 'voxel' && VOX_SPECIES[g.species]) {
+    const hi = PG.RARITIES.indexOf(g.rarity) >= 4, E = g.element && PG.ELEMENTS[g.element], side = E ? PG.mix(g.c1, E.c[0], 0.55) : g.c1;
+    const pal = E ? { back: shade(side, -0.28), side, belly: E.c[1], muzzle: E.c[1], socks: shade(side, -0.4), dark: shade(side, -0.62), eye: g.glow || undefined } : null;
+    if (pal && !pal.eye) delete pal.eye;
+    parts = voxelAnimal(g.species, { palette: pal, glowEyes: hi, eye: pal && pal.eye }).parts;
+  } else parts = voxelizeParts(g.parts, style === 'blocs' ? 0.26 : 0.13).parts;
+  const out = { ...g, parts, style }; styleCache.set(key, out); if (styleCache.size > 400) styleCache.delete(styleCache.keys().next().value); return out;
+}
 function fromGenerated(g) {
+  g = styled(g);
   const fx = defaultFx(); for (const [k, v] of Object.entries(g.fx)) if (fx[k]) Object.assign(fx[k], v, { on: true });
-  return { v: 1, name: g.name, customName: true, body: g.body, rarity: g.rarity, c1: g.c1, c2: g.c2, fx, scripts: {}, gen: { prompt: g.prompt, seed: g.seed, species: g.species, element: g.element },
-    parts: g.parts.map((p) => ({ id: nid(), ...clone(p), tint: !!p.tint })) };
+  const ids = new Map(), parts = g.parts.map((p) => { const id = nid(); if (p.key) ids.set(p.key, id); return { id, ...clone(p), tint: !!p.tint }; });
+  for (const p of parts) { if (p.parentKey && ids.has(p.parentKey)) p.parent = ids.get(p.parentKey); delete p.key; delete p.parentKey; }
+  return { v: 1, name: g.name, customName: true, body: g.body, rarity: g.rarity, c1: g.c1, c2: g.c2, fx, scripts: {}, gen: { prompt: g.prompt, seed: g.seed, species: g.species, element: g.element, style: g.style || 'lisse' }, parts };
 }
 function openGenerated(g, msg) { snapshot(); pet = fromGenerated(g); selId = null; save(); rebuild(); updateHud(); toast(msg || ('✨ ' + pet.name + ' · ' + pet.rarity)); }
 const RAR_BG = Object.fromEntries(RARITIES.map((r) => [r.id, r.bg]));
@@ -1189,8 +1209,9 @@ function genChip(label, word) { return `<button class="chip" data-w="${esc(word)
 function paneGen() {
   pane.innerHTML = `<div class="sec"><h3>🧬 Créer un pet <small>décris-le, le générateur le construit</small></h3>
       <textarea id="gq" class="lsearch" rows="2" placeholder="ex : dragon de feu légendaire · chat cosmique mignon · robot néon secret · « Kiwi » le lapin des bois">${esc(genQ)}</textarea>
+      <div class="chipwrap" style="margin-top:8px">${Object.entries(PET_STYLES).map(([k, l]) => `<button class="chip${k === petStyle ? ' on' : ''}" data-st="${k}">${l}</button>`).join('')}</div>
       <div class="btns" style="margin-top:8px"><button class="btn pri" id="gGo" style="flex:1">✨ Générer 6 variantes</button><button class="btn" id="gDice">🎲 Surprise</button></div>
-      <div class="vars" id="gVars">${genVars.map((g, i) => `<button class="var" data-v="${i}" style="--bg:${RAR_BG[g.rarity]}"><img alt="" src="${thumbOf('v' + g.seed + g.prompt, g.parts)}"><b>${esc(g.name)}</b><small>${esc(g.rarity)} · ${g.parts.length} pièces</small></button>`).join('')}</div></div>
+      <div class="vars" id="gVars">${genVars.map((g, i) => `<button class="var" data-v="${i}" style="--bg:${RAR_BG[g.rarity]}"><img alt="" src="${thumbOf(petStyle + 'v' + g.seed + g.prompt, styled(g).parts)}"><b>${esc(g.name)}</b><small>${esc(g.rarity)} · ${styled(g).parts.length} pièces</small></button>`).join('')}</div></div>
     <div class="sec"><h3>Espèces <small>${Object.keys(PG.SPECIES).length}</small></h3><div class="chipwrap">${Object.entries(PG.SPECIES).map(([k, s]) => genChip(s.e + ' ' + s.fr, s.words.split(' ')[0])).join('')}</div></div>
     <div class="sec"><h3>Éléments</h3><div class="chipwrap">${Object.entries(PG.ELEMENTS).map(([k, e]) => genChip(e.adj, e.words.split(' ')[0])).join('')}</div></div>
     <div class="sec"><h3>Styles & rareté</h3><div class="chipwrap">${Object.entries({ mignon: '🥺 Mignon', roi: '👑 Royal', ange: '😇 Ange', demon: '😈 Démon', cyber: '🦾 Cyber', ninja: '🥷 Ninja', pirate: '🏴‍☠️ Pirate', sorcier: '🧙 Sorcier', geant: '🗿 Géant', zombie: '🧟 Zombie' }).map(([w, l]) => genChip(l, w)).join('')}
@@ -1203,22 +1224,26 @@ function paneGen() {
   $('gDice').onclick = () => { const sp = Object.values(PG.SPECIES), el = Object.values(PG.ELEMENTS), r = Math.random;
     genQ = `${sp[Math.floor(r() * sp.length)].words.split(' ')[0]} ${r() < 0.8 ? el[Math.floor(r() * el.length)].words.split(' ')[0] : ''} ${['', 'mignon', 'roi', 'cyber', 'demon', 'ange', 'ninja', 'sorcier'][Math.floor(r() * 8)]} ${PG.RARITIES[Math.floor(r() * r() * 7)].split(' ')[0].toLowerCase()}`.replace(/\s+/g, ' ').trim(); run(); };
   pane.querySelectorAll('[data-v]').forEach((b) => b.onclick = () => openGenerated(genVars[+b.dataset.v]));
+  pane.querySelectorAll('[data-st]').forEach((b) => b.onclick = () => setPetStyle(b.dataset.st, paneGen));
 }
+function setPetStyle(st, redraw) { petStyle = st; try { localStorage.setItem('forge.petStyle', st); } catch {} toast(PET_STYLES[st] + ' : tous les pets passent dans ce style'); redraw(); }
 const INDEX = PG.index100(); let idxFilter = 'all', idxCache = new Map();
 const idxPet = (e) => { if (!idxCache.has(e.n)) { const g = PG.generate(e.text, e.seed); g.rarity = e.rarity; idxCache.set(e.n, g); } return idxCache.get(e.n); };
 function paneIndex() {
   const list = INDEX.filter((e) => idxFilter === 'all' || e.rarity === idxFilter);
   pane.innerHTML = `<div class="sec"><h3>📖 Index <small>${INDEX.length} pets · ${list.length} affichés</small></h3>
+      <div class="chipwrap" style="margin-bottom:6px">${Object.entries(PET_STYLES).map(([k, l]) => `<button class="chip${k === petStyle ? ' on' : ''}" data-st="${k}">${l}</button>`).join('')}</div>
       <div class="chipwrap"><button class="chip${idxFilter === 'all' ? ' on' : ''}" data-f="all">Tous</button>${PG.RARITIES.map((r) => `<button class="chip${idxFilter === r ? ' on' : ''}" data-f="${r}">${r}</button>`).join('')}</div>
       <div class="idx" id="idx">${list.map((e) => `<button class="var" data-n="${e.n}" style="--bg:${RAR_BG[e.rarity]}"><i class="num">#${e.n}</i><img alt="" data-lazy="${e.n}"><b></b><small>${esc(e.rarity)}</small></button>`).join('')}</div>
       <div class="btns" style="margin-top:10px"><button class="btn pri" id="idxZip" style="flex:1">📦 Exporter les ${INDEX.length} pets (pack Roblox)</button></div>
       <div class="note" style="margin-top:6px">Chaque pet de l'index est un vrai modèle Roblox avec ses effets et ses animations. Touche-en un pour l'ouvrir dans l'éditeur.</div></div>`;
   pane.querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { idxFilter = b.dataset.f; paneIndex(); });
+  pane.querySelectorAll('[data-st]').forEach((b) => b.onclick = () => setPetStyle(b.dataset.st, paneIndex));
   pane.querySelectorAll('[data-n]').forEach((b) => b.onclick = () => openGenerated(idxPet(INDEX[+b.dataset.n - 1]), `📖 #${b.dataset.n} ${idxPet(INDEX[+b.dataset.n - 1]).name}`));
   // thumbnails rendered a few at a time so the page stays fluid
   const imgs = [...pane.querySelectorAll('img[data-lazy]')]; let i = 0;
   const step = () => { if (currentTab !== 'index') return; const t0 = performance.now();
-    while (i < imgs.length && performance.now() - t0 < 30) { const im = imgs[i++], e = INDEX[+im.dataset.lazy - 1], g = idxPet(e); im.src = thumbOf('i' + e.n, g.parts); im.nextElementSibling.textContent = g.name; }
+    while (i < imgs.length && performance.now() - t0 < 30) { const im = imgs[i++], e = INDEX[+im.dataset.lazy - 1], g = idxPet(e); im.src = thumbOf(petStyle + 'i' + e.n, styled(g).parts); im.nextElementSibling.textContent = g.name; }
     if (i < imgs.length) setTimeout(step, 16); };
   step();
   $('idxZip').onclick = async () => { toast('Construction des ' + INDEX.length + ' modèles…', 4000); await new Promise((r) => setTimeout(r, 50)); const blob = await buildIndexPack();
@@ -1238,4 +1263,4 @@ async function buildIndexPack() {
 
 /* ---------- boot ---------- */
 resize(); rebuild(); renderPane(); syncUndo(); loop(); LIB.prompt();
-window.__forge = { LIB, PG, INDEX, idxPet, openGenerated, fromGenerated, buildIndexPack, thumbOf, get pet() { return pet; }, modelJson, buildPack, select, setTab, AC, anim, animData, animDataLua, exportNames, getRig, offsetsAt, curClip, get lastPose() { return lastPose; }, gizmo, meshes, renderPane }; // used by automated tests
+window.__forge = { LIB, PG, styled, get petStyle() { return petStyle; }, setPetStyle, INDEX, idxPet, openGenerated, fromGenerated, buildIndexPack, thumbOf, get pet() { return pet; }, modelJson, buildPack, select, setTab, AC, anim, animData, animDataLua, exportNames, getRig, offsetsAt, curClip, get lastPose() { return lastPose; }, gizmo, meshes, renderPane }; // used by automated tests

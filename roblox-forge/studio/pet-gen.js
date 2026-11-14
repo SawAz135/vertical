@@ -221,10 +221,11 @@ function wings(B, P, kind, at, k) {
   for (const side of [-1, 1]) { const L = side < 0 ? 'L' : 'R', bx = side * 0.6 * k;
     if (kind === 'membrane') {
       const bone = B.chain('WingBone' + L, 3, bez([bx, at[1], at[2]], [bx + side * 0.6, at[1] + 0.8, at[2] + 0.1], [bx + side * 1.2, at[1] + 1.3, at[2] + 0.2], [bx + side * 1.8, at[1] + 1.1, at[2] + 0.4]), () => 0.12 * k, darken(P.c1, 0.2));
-      const skin = P.element ? mix(P.c3, P.c2, 0.35) : P.c2;
-      for (let i = 0; i < 3; i++) { const b = bone[i].pos, tip = [b[0] + side * 0.15, b[1] - (0.45 + i * 0.12) * k, b[2] + 0.35 + i * 0.1];
-        B.add((i === 0 ? 'Wing' : 'WingSkin' + i) + L, 'Ellipsoid', [0.06, (1.15 - i * 0.18) * k, (0.85 - i * 0.12) * k], tip, [-12 - i * 6, side * -8, side * (18 + i * 22)], skin, 'SmoothPlastic', 0.04);
-        B.add('Claw' + (i + 1) + 'W' + L, 'Ellipsoid', [0.07, 0.07, 0.22], [b[0] + side * 0.12, b[1] + 0.08, b[2] - 0.05], [-30, 0, 0], '#f7f1e6'); }
+      const skin = P.element ? mix(P.c3, P.c2, 0.35) : P.c2, f = bez([bx, at[1], at[2]], [bx + side * 0.6, at[1] + 0.8, at[2] + 0.1], [bx + side * 1.2, at[1] + 1.3, at[2] + 0.2], [bx + side * 1.8, at[1] + 1.1, at[2] + 0.4]);
+      // overlapping panels from the wing bone down to the body: one continuous membrane (and one seamless skin in Blender HD)
+      for (let i = 0; i < 5; i++) { const b = f(0.2 + i * 0.2), a = [bx + side * (0.1 + i * 0.12) * k, at[1] - 0.15 * k, at[2] + 0.3 + i * 0.06], d = [b[0] - a[0], b[1] - a[1]], len = Math.hypot(...d) + 0.25 * k;
+        B.add((i === 0 ? 'Wing' : 'WingSkin' + i) + L, 'Ellipsoid', [(0.55 - i * 0.04) * k, len, 0.07], [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], [0, 0, r3(Math.atan2(-d[0], d[1]) * D)], skin, 'SmoothPlastic', 0.04); }
+      for (let i = 0; i < 3; i++) B.add('Claw' + (i + 1) + 'W' + L, 'Ellipsoid', [0.07, 0.07, 0.22], [bone[i].pos[0] + side * 0.12, bone[i].pos[1] + 0.08, bone[i].pos[2] - 0.05], [-30, 0, 0], '#f7f1e6');
     } else if (kind === 'feather') {
       for (let i = 0; i < 6; i++) { const a = (i / 5) * 70 - 10, len = (1.5 - i * 0.12) * k, x = bx + side * (0.2 + i * 0.22), col = P.element === 'feu' ? hsl(10 + i * 9, 1, 0.55) : mix(P.c1, P.c2, i / 6);
         B.add((i === 0 ? 'Wing' : 'Feather' + i) + L, 'Ellipsoid', [0.12, 0.32 * k, len], [x + side * Math.sin(a / D) * len * 0.35, at[1] + 0.35 + Math.cos(a / D) * 0.45, at[2] + 0.35], [-25 - i * 6, side * -(30 + a * 0.5), side * -a], col, P.element === 'feu' ? 'Neon' : 'SmoothPlastic'); }

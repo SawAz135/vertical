@@ -70,6 +70,7 @@ export const THEMES = {
   forest: { label: 'Forêt', panel: '#0d1f12', panel2: '#173a20', primary: '#45d16b', primary2: '#c6f36b', accent: '#ffd77a', text: '#f1ffe9', muted: '#9cc79f', good: '#6bff9a', bad: '#ff6b5e', stroke: '#7ee08f', font: 'FredokaOne' },
   ice: { label: 'Glace', panel: '#eaf6ff', panel2: '#cfe9ff', primary: '#3a8dff', primary2: '#8ae6ff', accent: '#b98bff', text: '#0e2a4a', muted: '#5c7fa3', good: '#20c98a', bad: '#ff4f6b', stroke: '#ffffff', font: 'GothamBold' },
   minimal: { label: 'Minimal', panel: '#141418', panel2: '#1d1d24', primary: '#ffffff', primary2: '#c9c9d6', accent: '#6c8cff', text: '#f4f4f8', muted: '#8a8a99', good: '#4ade80', bad: '#f87171', stroke: '#2e2e38', font: 'BuilderSansExtraBold' },
+  stud: { label: 'Stud', panel: '#1d2140', panel2: '#3b4170', primary: '#3fd0ff', primary2: '#1677ff', accent: '#ffd21f', text: '#ffffff', muted: '#c7cde0', good: '#5ee03a', bad: '#ff3b3b', stroke: '#000000', font: 'FredokaOne' },
   cartoon: { label: 'Cartoon', panel: '#ffd23f', panel2: '#ffb627', primary: '#3bceac', primary2: '#0ead69', accent: '#ee4266', text: '#ffffff', muted: '#5b3f00', good: '#0ead69', bad: '#ee4266', stroke: '#1b1b1b', font: 'LuckiestGuy' },
 };
 export const TOKENS = ['panel', 'panel2', 'primary', 'primary2', 'accent', 'text', 'muted', 'good', 'bad', 'stroke'];
@@ -231,6 +232,8 @@ export function render(root, theme, stage, opts = {}) {
     }
     if (n.cls === 'ImageLabel' || n.cls === 'ImageButton') { const im = document.createElement('div'); im.className = 'gimg'; const id = String(P('Image') || '').match(/\d{4,}/);
       im.textContent = id ? '🖼 ' + id[0] : '🖼'; im.style.opacity = 1 - P('ImageTransparency'); im.style.color = color(P('ImageColor3'), theme); inner.appendChild(im); }
+    if (n.anim && n.anim.studs && bgT < 1) { const sd = document.createElement('div'), z = +n.anim.studs; sd.className = 'gstuds';
+      sd.style.backgroundSize = `${z}px ${z}px`; sd.style.zIndex = 0; inner.insertBefore(sd, inner.firstChild); }
     if (isButton(n.cls) || n.cls === 'TextBox') el.classList.add('gbtn');
     // children: layouts
     const ll = mod(n, 'UIListLayout'), gl = mod(n, 'UIGridLayout'); let childLayout = null, childCell = null;
@@ -328,6 +331,7 @@ export function toModel(root, theme, behaviours = true) {
       if (a.idle && a.idle !== 'none') { attrs.ForgeIdle = a.idle; if (a.period && a.period !== 1.6) attrs.ForgePeriod = r4(a.period); }
       if (a.action && a.action !== 'none') { attrs.ForgeAction = a.action; if (a.target) attrs.ForgeTarget = a.target; if (a.action === 'roll') { attrs.ForgeRollItems = a.items || ''; } }
       if (a.bind) { attrs.ForgeBind = a.bind; attrs.ForgeFormat = a.format || '{v}'; }
+      if (a.studs) attrs.ForgeStuds = +a.studs;
       if (n.cls === 'ScreenGui') attrs.ForgeGui = true;
     }
     if (Object.keys(attrs).length) out.attributes = attrs;
