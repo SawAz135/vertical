@@ -1,7 +1,8 @@
 # Roblox Push - installed by the Roblox Push web app. Do not edit by hand:
 # the app re-installs it. It runs when the app commits a game with a message
 # starting with "roblox-push: publish", publishes it to Roblox Open Cloud with
-# the ROBLOX_API_KEY secret and writes .roblox-push/result.json for the app.
+# the ROBLOX_API_KEY secret (or updates the game page: name, description,
+# cover images, icon) and writes .roblox-push/result.json for the app.
 
 name: Roblox Push
 
@@ -46,6 +47,7 @@ jobs:
         run: python3 .roblox-push/push.py build
 
       - name: Publish to Roblox
+        if: steps.prepare.outputs.action == 'publish'
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
         run: python3 .roblox-push/push.py publish
@@ -55,6 +57,12 @@ jobs:
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
         run: python3 .roblox-push/push.py luau
+
+      - name: Update the game page
+        if: steps.prepare.outputs.action == 'meta'
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 .roblox-push/push.py meta
 
       - name: Save the result for the app
         if: always()

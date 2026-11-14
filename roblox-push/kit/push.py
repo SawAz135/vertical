@@ -99,15 +99,20 @@ def roblox(method: str, url: str, body: bytes | None = None, content_type: str |
 GAMES_API = os.environ.get("ROBLOX_GAMES_BASE", "https://games.roblox.com").rstrip("/")
 
 
-def lookup_name(universe: str) -> str | None:
-    """Best effort: the experience's public name, shown on the app's game tiles."""
+def game_info(universe: str) -> dict:
+    """Public game info (name, creator). Best effort: {} when unavailable."""
     try:
         url = f"{GAMES_API}/v1/games?universeIds={universe}"
         with urllib.request.urlopen(urllib.request.Request(url, headers={"Accept": "application/json"}), timeout=20) as resp:
             data = json.loads(resp.read()).get("data") or []
-        return (data[0].get("name") or None) if data else None
-    except Exception:  # never fail a publish because of a display name
-        return None
+        return data[0] if data else {}
+    except Exception:
+        return {}
+
+
+def lookup_name(universe: str) -> str | None:
+    """Best effort: the experience's public name, shown on the app's game tiles."""
+    return game_info(universe).get("name") or None
 
 
 def lookup_universe(place: str) -> str:
@@ -281,7 +286,7 @@ def set_run_context(script: Path, context: str) -> None:
     meta.write_text(json.dumps(data, indent=2))
 
 
-def auto_project(source: Path, out: Path) -> tuple[Path, list[str]]:
+def auto_project(source: Path, out: Path, add_world: bool = False) -> tuple[Path, list[str]]:
     """Copy `source` into `out`, arrange it so every script runs, write default.project.json."""
     root = find_root(source)
     shutil.copytree(root, out / "game", ignore=shutil.ignore_patterns("__MACOSX", ".DS_Store", ".git"))
@@ -390,10 +395,10 @@ def auto_project(source: Path, out: Path) -> tuple[Path, list[str]]:
                     name += "_"
                 node[name] = {"$path": sub.relative_to(out).as_posix()}
 
-    # 3. players need something to stand on: baseplate + spawn unless the game brings a world
+    # 3. optional (the app's "Sol automatique"): baseplate + spawn when the game brings no world
     workspace = tree.get("Workspace", {})
     has_world = any(k != "$className" for k in workspace)
-    if not has_world:
+    if add_world and not has_world:
         tree.setdefault("Workspace", {"$className": "Workspace"}).update({
             "Baseplate": {"$className": "Part", "$properties": {
                 "Anchored": True, "Locked": True, "Size": [2048, 16, 2048], "CFrame": {"CFrame": {"position": [0, -8, 0], "orientation": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]}},
@@ -433,6 +438,25 @@ def prepare() -> None:
         version_type = req.get("versionType", "Published")
         if version_type not in ("Published", "Saved"):
             raise PushError("BAD_REQUEST", "versionType must be Published or Saved.")
+        if req.get("action") == "meta":
+            meta = {
+                "name": (req.get("displayName") or "").strip()[:50] or None,
+                "description": req.get("description") if isinstance(req.get("description"), str) else None,
+                "icon": Path(str(req.get("icon"))).name if req.get("icon") else None,
+                "thumbnails": [Path(str(t)).name for t in (req.get("thumbnails") or [])][:10],
+            }
+            for f in ([meta["icon"]] if meta["icon"] else []) + meta["thumbnails"]:
+                if not (ROOT / "media" / f).exists():
+                    raise PushError("NO_FILE", f"Image {f!r} is not in the commit.")
+            if not any([meta["name"], meta["description"] is not None and meta["description"] != "", meta["icon"], meta["thumbnails"]]):
+                raise PushError("BAD_REQUEST", "Nothing to change.")
+            state.update(action="meta", universe=universe, place=place, meta=meta)
+            step(state, "prepare", True, "game page update")
+            output("action", "meta")
+            output("needs_rojo", "false")
+            output("has_luau", "false")
+            return
+        output("action", "publish")
         file_name = Path(str(req.get("file", ""))).name
         game = ROOT / file_name
         if not file_name or not game.exists():
@@ -457,7 +481,7 @@ def prepare() -> None:
                 place_file = shallowest(places)
                 kind = place_file.suffix.lower()[1:]
             elif any(p.is_file() and (is_script(p) or p.suffix.lower() in (".rbxm", ".rbxmx")) for p in unzipped.rglob("*")):
-                project, notes = auto_project(unzipped, WORK / "auto")
+                project, notes = auto_project(unzipped, WORK / "auto", bool(req.get("addBaseplate")))
                 kind = "rojo"
                 state["autoProject"] = notes
                 print("no project file: generated", project)
@@ -563,6 +587,107 @@ def luau() -> None:
         fail(state, "luau", err)
 
 
+# ------------------------------------------------------------ game page ---
+def multipart(fields: list[tuple[str, str | None, str, bytes]]) -> tuple[bytes, str]:
+    boundary = "----robloxpush" + os.urandom(12).hex()
+    out = bytearray()
+    for name, filename, ctype, data in fields:
+        disp = f'form-data; name="{name}"' + (f'; filename="{filename}"' if filename else "")
+        out += f"--{boundary}\r\nContent-Disposition: {disp}\r\nContent-Type: {ctype}\r\n\r\n".encode() + data + b"\r\n"
+    out += f"--{boundary}--\r\n".encode()
+    return bytes(out), f"multipart/form-data; boundary={boundary}"
+
+
+def upload_image(path: Path, creator: dict, label: str) -> tuple[str, str]:
+    """Create an Image asset (Open Use) and wait for it. Returns (assetId, moderation state)."""
+    owner = {"groupId": str(creator["id"])} if creator.get("type") == "Group" else {"userId": str(creator["id"])}
+    request = {"assetType": "Image", "displayName": label[:50], "description": "Uploaded with Roblox Push",
+               "creationContext": {"creator": owner, "assetPrivacy": "OpenUse"}}
+    ctype = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
+    body, content_type = multipart([("request", None, "application/json", json.dumps(request).encode()),
+                                    ("fileContent", path.name, ctype, path.read_bytes())])
+    op = roblox("POST", f"{API}/assets/v1/assets", body, content_type)
+    deadline = time.time() + 90
+    while not op.get("done"):
+        if time.time() > deadline:
+            raise PushError("UPLOAD_TIMEOUT", f"Roblox did not finish processing {path.name}.")
+        time.sleep(2)
+        op = roblox("GET", f"{API}/assets/v1/{op['path']}")
+    response = op.get("response") or {}
+    asset_id = str(response.get("assetId") or "")
+    if not asset_id:
+        raise PushError("UPLOAD_FAILED", f"No asset id for {path.name}: {json.dumps(op)[:400]}")
+    state = ((response.get("moderationResult") or {}).get("moderationState")) or "Unknown"
+    return asset_id, state
+
+
+def update_place_asset(place: str, mask: str, request: dict) -> dict:
+    body, content_type = multipart([("request", None, "application/json", json.dumps({"assetId": place, **request}).encode())])
+    return roblox("PATCH", f"{API}/assets/v1/assets/{place}?updateMask={mask}", body, content_type)
+
+
+def meta() -> None:
+    """Update the game's page: name, description, icon, detail-page thumbnails."""
+    state = load_state()
+    m, universe, place = state["meta"], state["universe"], state["place"]
+    done: dict = {}
+    errors: list[dict] = []
+
+    def attempt(key: str, fn) -> None:
+        try:
+            done[key] = fn()
+        except PushError as err:
+            errors.append({"what": key, "code": err.code, "message": str(err)[:600]})
+            print(f"::warning::{key}: [{err.code}] {err}")
+
+    fields = {}
+    if m.get("name"):
+        fields["displayName"] = m["name"]
+    if m.get("description") not in (None, ""):
+        fields["description"] = m["description"][:1000]
+    if fields:
+        mask = ",".join(fields)
+        body = json.dumps(fields).encode()
+        def patch(url: str) -> str:
+            roblox("PATCH", url, body, "application/json")
+            return "ok"
+        attempt("name/description (experience)", lambda: patch(f"{API}/cloud/v2/universes/{universe}?updateMask={mask}"))
+        attempt("name/description (place)", lambda: patch(f"{API}/cloud/v2/universes/{universe}/places/{place}?updateMask={mask}"))
+
+    images = ([m["icon"]] if m.get("icon") else []) + m.get("thumbnails", [])
+    if images:
+        creator = game_info(universe).get("creator") or {}
+        if not creator.get("id"):
+            errors.append({"what": "images", "code": "NO_CREATOR", "message": "Could not find who owns this game."})
+        else:
+            if m.get("icon"):
+                def do_icon():
+                    asset_id, mod = upload_image(ROOT / "media" / m["icon"], creator, "Icon")
+                    update_place_asset(place, "icon", {"icon": f"assets/{asset_id}"})
+                    return mod
+                attempt("icon", do_icon)
+            if m.get("thumbnails"):
+                def do_thumbs():
+                    previews, states = [], []
+                    for i, name in enumerate(m["thumbnails"], 1):
+                        asset_id, mod = upload_image(ROOT / "media" / name, creator, f"Thumbnail {i}")
+                        previews.append({"asset": f"assets/{asset_id}", "altText": f"Image {i}"})
+                        states.append(mod)
+                    update_place_asset(place, "previews", {"previews": previews})
+                    return states
+                attempt("thumbnails", do_thumbs)
+
+    ok_any = any(k.startswith("name") for k in done) or any(k in done for k in ("icon", "thumbnails"))
+    state["metaResult"] = {"done": done, "errors": errors}
+    save_state(state)
+    step(state, "meta", not errors, json.dumps({"done": list(done), "errors": [e["what"] for e in errors]}))
+    if not ok_any:
+        first = errors[0] if errors else {"code": "NOTHING", "message": "nothing changed"}
+        state["error"] = {"code": first["code"], "message": first["message"], "step": "meta"}
+        save_state(state)
+        sys.exit(1)
+
+
 # ---------------------------------------------------------------- finish ---
 def fail(state: dict, name: str, err: PushError) -> None:
     state["error"] = {"code": err.code, "message": str(err)[:1500], "step": name}
@@ -576,9 +701,16 @@ def finish() -> None:
     request = state.get("request") or {}
     published = bool(state.get("version"))
     luau_info = state.get("luauResult")
+    meta_result = state.get("metaResult")
+    if state.get("action") == "meta":
+        ok = bool(meta_result) and not meta_result.get("errors")
+    else:
+        ok = published and state.get("error") is None and (not luau_info or luau_info.get("ok"))
     result = {
         "id": request.get("id"),
-        "ok": published and state.get("error") is None and (not luau_info or luau_info.get("ok")),
+        "action": state.get("action", "publish"),
+        "meta": meta_result,
+        "ok": ok,
         "published": published,
         "version": state.get("version"),
         "versionType": state.get("versionType"),
@@ -599,7 +731,7 @@ def finish() -> None:
 
 
 if __name__ == "__main__":
-    commands = {"prepare": prepare, "build": build, "publish": publish, "luau": luau, "finish": finish}
+    commands = {"prepare": prepare, "build": build, "publish": publish, "luau": luau, "meta": meta, "finish": finish}
     if len(sys.argv) != 2 or sys.argv[1] not in commands:
         sys.exit(f"usage: push.py {{{'|'.join(commands)}}}")
     commands[sys.argv[1]]()
