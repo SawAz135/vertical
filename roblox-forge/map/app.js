@@ -7,6 +7,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import * as MC from './map-core.js';
+import * as MM from './map-models.js';
+import { createLibrary } from '../library/forge-lib.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -420,26 +422,43 @@ addEventListener('resize', resize);
 const pane = $('pane');
 function setTab(id) { ui.tab = id; document.querySelectorAll('.tab[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === id)); renderPane(); pane.scrollTop = 0; }
 document.querySelectorAll('.tab[data-tab]').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
-function renderPane() { ({ gen: paneGen, obj: paneObj, props: paneProps, tools: paneTools, light: paneLight, code: paneCode, export: paneExport })[ui.tab](); }
+const LIB = createLibrary({ studio: 'map', toast });
+function renderPane() { ({ gen: paneGen, obj: paneObj, props: paneProps, tools: paneTools, light: paneLight, lib: () => LIB.render(pane), code: paneCode, export: paneExport })[ui.tab](); }
 function vecRow(label, key, arr, step) { return `<div class="row"><label>${label}</label><div class="vec" data-vec="${key}">${arr.map((v, i) => `<input type="number" inputmode="decimal" step="${step}" data-i="${i}" value="${+(+v).toFixed(3)}">`).join('')}</div></div>`; }
 const OPT_FR = { stages: 'Étapes', plots: 'Parcelles', zones: 'Zones', size: 'Taille', blocks: 'Pâtés', length: 'Longueur', islands: 'Îles' };
 
 /* ---------- generators ---------- */
 function paneGen() {
   const g = MC.GENERATORS[ui.gen.id]; for (const [k, v] of Object.entries(g.opts)) if (ui.gen.opts[k] == null) ui.gen.opts[k] = v[2];
-  pane.innerHTML = `<div class="sec"><h3>Genre de jeu <small>tout est jouable</small></h3><div class="cards">${Object.entries(MC.GENERATORS).map(([id, x]) => `<button class="card${id === ui.gen.id ? ' on' : ''}" data-gen="${id}"><span class="e">${x.e}</span>${x.fr}</button>`).join('')}</div></div>
+  pane.innerHTML = `<div class="sec"><h3>🧠 Décris ta map <small>le générateur s'occupe du reste</small></h3>
+      <textarea id="mapQ" class="lsearch" rows="2" style="width:100%;resize:none" placeholder="ex : grande île tropicale avec un obby et une cascade · village enneigé avec château · tycoon dans le désert avec temple">${esc(ui.mapQ || '')}</textarea>
+      <div class="btns" style="margin-top:8px"><button class="btn pri" id="mapGo" style="flex:1">✨ Générer la map</button><button class="btn" id="mapDice">🎲</button></div>
+      <div class="note" style="margin-top:6px">Comprend le genre (obby, tycoon, simulator, lobby, arène, île, ville, grotte, ciel), le thème (prairie, désert, neige, volcan, bonbon, néon, espace) et les monuments (château, temple, volcan, moulin, cascade, statue, village). Le gameplay est jouable, le décor est construit autour.</div></div>
+    <div class="sec"><h3>Genre de jeu <small>tout est jouable</small></h3><div class="cards">${Object.entries(MC.GENERATORS).map(([id, x]) => `<button class="card${id === ui.gen.id ? ' on' : ''}" data-gen="${id}"><span class="e">${x.e}</span>${x.fr}</button>`).join('')}</div></div>
     <div class="sec"><h3>Thème <small>matériaux, couleurs, ambiance</small></h3><div class="chips">${Object.entries(MC.THEMES).map(([id, t]) => `<button class="chip${id === ui.gen.theme ? ' on' : ''}" data-th="${id}">${t.e} ${t.label}</button>`).join('')}</div>
       ${Object.entries(g.opts).map(([k, [a, b]]) => `<div class="row"><label>${OPT_FR[k] || k}</label><input type="range" data-opt="${k}" min="${a}" max="${b}" step="1" value="${ui.gen.opts[k]}"><span class="val">${ui.gen.opts[k]}</span></div>`).join('')}
       <div class="row"><label>Graine</label><input type="number" id="seed" value="${ui.gen.seed}"><button class="btn" id="dice">🎲</button></div>
+      <div class="row"><label>Décor autour</label><button class="sw${ui.scenery !== false ? ' on' : ''}" id="scen"></button><span class="note">arbres, maisons, montagnes, nuages</span></div>
       <button class="btn pri big" id="genNew">${g.e} Créer la carte ${g.fr}</button><button class="btn big" id="genAdd">＋ Ajouter à côté de ma carte</button></div>
     <div class="sec"><div class="note">${{ obby: 'Parcours avec sauts, lave, tourniquets, plateformes mobiles, tremplins, échelles, tapis et checkpoints (Stage dans le classement).', tycoon: 'Parcelles à réclamer : droppers → tapis → upgrader → collecteur qui donne du <b>Cash</b>. Les boutons verts achètent les droppers, murs et tour.', simulator: 'Zones de plus en plus riches remplies de pièces. Les portes s\'ouvrent quand tu as assez de <b>Coins</b>.', lobby: 'Place centrale avec fontaine, piliers lumineux, bancs et portails vers un balcon secret.', arena: 'Arène circulaire avec murs néon, couvertures, rampes et 4 points d\'apparition.', island: 'Île tropicale : océan, plage, palmiers, rochers, ponton.', city: 'Quartier : routes, trottoirs, immeubles éclairés, lampadaires.', cave: 'Tunnel de roche avec cristaux lumineux, bassins de lave et pièces.', sky: 'Îles flottantes reliées par des tremplins, avec checkpoints et nuages.' }[ui.gen.id]}</div></div>`;
+  $('mapQ').oninput = (e) => (ui.mapQ = e.target.value);
+  const fromText = (txt) => { if (MC.partsOf(map.root).length > 0 && !confirm('Remplacer la carte actuelle ? (↶ pour revenir)')) return; snapshot();
+    const g = MM.generateFromText(txt, Math.floor(Math.random() * 1e9)); map.theme = g.theme; map.lighting = { preset: g.light, over: {} }; map.gen = { id: g.gen, seed: 0, opts: g.opts, text: txt };
+    map.root.children = g.children; sel.clear(); save(); rebuildAll(); applyLighting(); selectionChanged(); focusOn(MC.partsOf(map.root.children[0]));
+    toast(`✨ ${MC.GENERATORS[g.gen].fr} · ${MC.THEMES[g.theme].label} · ${MC.stats(map).parts} pièces`); };
+  $('mapGo').onclick = () => fromText(ui.mapQ || '');
+  $('mapDice').onclick = () => { const r = Math.random, g = ['obby', 'tycoon', 'simulator', 'lobby', 'arène', 'île', 'ville', 'grotte', 'ciel'], t = ['prairie', 'désert', 'neige', 'volcan', 'bonbon', 'néon', 'espace'], e = ['château', 'temple', 'cascade', 'moulin', 'statue', 'village', 'volcan'];
+    ui.mapQ = `${g[Math.floor(r() * g.length)]} ${t[Math.floor(r() * t.length)]} avec ${e[Math.floor(r() * e.length)]} et ${e[Math.floor(r() * e.length)]}`; $('mapQ').value = ui.mapQ; fromText(ui.mapQ); };
   pane.querySelectorAll('[data-gen]').forEach((b) => b.onclick = () => { ui.gen.id = b.dataset.gen; ui.gen.opts = {}; paneGen(); });
   pane.querySelectorAll('[data-th]').forEach((b) => b.onclick = () => { ui.gen.theme = b.dataset.th; paneGen(); });
   pane.querySelectorAll('[data-opt]').forEach((i) => i.oninput = () => { ui.gen.opts[i.dataset.opt] = +i.value; i.nextElementSibling.textContent = i.value; });
+  $('scen').onclick = () => { ui.scenery = ui.scenery === false; $('scen').classList.toggle('on', ui.scenery !== false); };
   $('seed').onchange = (e) => (ui.gen.seed = +e.target.value || 1); $('dice').onclick = () => { ui.gen.seed = Math.floor(Math.random() * 99999); $('seed').value = ui.gen.seed; };
   $('genNew').onclick = () => { if (MC.partsOf(map.root).length > 0 && !confirm('Remplacer la carte actuelle ? (↶ pour revenir)')) return; snapshot();
     const th = MC.THEMES[ui.gen.theme]; map.theme = ui.gen.theme; map.lighting = { preset: th.light, over: {} }; map.gen = clone(ui.gen);
-    map.root.children = g.make(th, MC.rng(ui.gen.seed), ui.gen.opts); sel.clear(); save(); rebuildAll(); applyLighting(); selectionChanged(); focusOn(MC.partsOf(map.root)); toast(g.e + ' ' + g.fr + ' créé · ' + MC.stats(map).parts + ' pièces'); };
+    { const r = MC.rng(ui.gen.seed), core = g.make(th, r, ui.gen.opts), bx = [Infinity, Infinity, -Infinity, -Infinity];
+      for (const p of core.flatMap((n) => MC.partsOf(n))) { bx[0] = Math.min(bx[0], p.pos[0]); bx[1] = Math.min(bx[1], p.pos[2]); bx[2] = Math.max(bx[2], p.pos[0]); bx[3] = Math.max(bx[3], p.pos[2]); }
+      map.root.children = ui.scenery === false ? core : [MC.model('Gameplay', core), MC.model('Scenery', MM.scenery(th, ui.gen.theme, bx, r, 1))]; } sel.clear(); save(); rebuildAll(); applyLighting(); selectionChanged(); focusOn(MC.partsOf(map.root)); toast(g.e + ' ' + g.fr + ' créé · ' + MC.stats(map).parts + ' pièces'); };
   $('genAdd').onclick = () => { snapshot(); const th = MC.THEMES[ui.gen.theme], kids = g.make(th, MC.rng(ui.gen.seed), ui.gen.opts), grp = MC.model(g.fr.replace(/\W/g, '') || 'Zone', kids);
     const cur = new THREE.Box3(); MC.partsOf(map.root).forEach((p) => cur.expandByPoint(new THREE.Vector3(...p.pos)));
     const nb = new THREE.Box3(); MC.partsOf(grp).forEach((p) => nb.expandByPoint(new THREE.Vector3(...p.pos)));
@@ -471,7 +490,10 @@ function paneObj() {
   pane.innerHTML = `<div class="sec"><h3>Pièces Roblox</h3><div class="cards">${PALETTE.map(([c, s, l], i) => `<button class="card" data-pal="${i}">${l.split(' ')[0]}<small>${l.split(' ').slice(1).join(' ')}</small></button>`).join('')}</div></div>
     <div class="sec"><h3>Gameplay <small>scripts inclus</small></h3><div class="cards">${Object.entries(MC.ROLES).map(([k, r]) => `<button class="card" data-role="${k}"><span class="e">${r.e}</span>${r.fr}</button>`).join('')}</div></div>
     <div class="sec"><h3>Décor</h3><div class="cards"><button class="card" data-deco="tree"><span class="e">🌳</span>Arbre</button><button class="card" data-deco="palm"><span class="e">🌴</span>Palmier</button><button class="card" data-deco="lamp"><span class="e">💡</span>Lampadaire</button>
-      <button class="card" data-deco="coins"><span class="e">🪙</span>5 pièces</button><button class="card" data-deco="portals"><span class="e">🌀</span>Portails</button></div></div>
+      <button class="card" data-deco="coins"><span class="e">🪙</span>5 pièces</button><button class="card" data-deco="portals"><span class="e">🌀</span>Portails</button>
+      ${[['pine', '🌲', 'Sapin'], ['oak', '🌳', 'Chêne'], ['cherry', '🌸', 'Cerisier'], ['cactus', '🌵', 'Cactus'], ['rocks', '🪨', 'Rochers'], ['crystals', '💎', 'Cristaux'], ['flowers', '🌷', 'Fleurs'], ['house', '🏠', 'Maison'],
+        ['castle', '🏰', 'Château'], ['temple', '🏛️', 'Temple'], ['windmill', '🌬️', 'Moulin'], ['statue', '🗽', 'Statue'], ['waterfall', '💧', 'Cascade'], ['volcano', '🌋', 'Volcan'], ['fence', '🚧', 'Clôture'], ['bridge', '🌉', 'Pont'], ['cloud', '☁️', 'Nuage']]
+        .map(([k, e, l]) => `<button class="card" data-deco="${k}"><span class="e">${e}</span>${l}</button>`).join('')}</div></div>
     <div class="sec"><h3>Hiérarchie <small>${rows.length} éléments</small></h3><ul class="tree">${rows.slice(0, 600).map(({ n, d }) => `<li data-id="${n.id}" class="${sel.has(n.id) ? 'on' : ''}" style="padding-left:${8 + d * 14}px">${n.cls === 'Model' ? `<span class="tw" data-tw="${n.id}">${ui.open.has(n.id) ? '▾' : '▸'}</span>📦` : `<span class="tw"></span>${n.role ? MC.ROLES[n.role.type].e : '▫️'}`} ${esc(n.name)}<span class="cl">${n.cls === 'Model' ? MC.partsOf(n).length + ' pièces' : MC.PART_CLASSES[n.cls]}</span></li>`).join('')}</ul></div>`;
   pane.querySelectorAll('[data-pal]').forEach((b) => b.onclick = () => { const [cls, shape] = PALETTE[+b.dataset.pal], at = dropPoint();
     const size = cls === 'TrussPart' ? [2, 10, 2] : cls === 'SpawnLocation' ? [6, 1, 6] : shape === 'Cylinder' ? [6, 4, 4] : shape === 'Ball' ? [4, 4, 4] : [4, 4, 4];
@@ -482,7 +504,12 @@ function paneObj() {
     insert([rolePiece(type, at)], MC.ROLES[type].e + ' ' + MC.ROLES[type].fr + ' ajouté'); });
   pane.querySelectorAll('[data-deco]').forEach((b) => b.onclick = () => { const at = dropPoint(), r = MC.rng(Math.floor(Math.random() * 1e6)), t = T();
     const n = { tree: () => [MC.tree(t, at.x, at.z, r, at.y)], palm: () => [MC.palm(t, at.x, at.z, r, at.y)], lamp: () => [MC.lamp(t, at.x, at.z, at.y)], coins: () => [MC.model('Coins', MC.coinRow(5, [at.x - 6, at.y + 3, at.z], [3, 0, 0]))],
-      portals: () => MC.portalPair(t, [at.x - 12, at.y, at.z], [at.x + 12, at.y, at.z], String.fromCharCode(65 + Math.floor(Math.random() * 26))) }[b.dataset.deco]();
+      portals: () => MC.portalPair(t, [at.x - 12, at.y, at.z], [at.x + 12, at.y, at.z], String.fromCharCode(65 + Math.floor(Math.random() * 26))),
+      pine: () => [MM.pine(t, at.x, at.z, r, at.y)], oak: () => [MM.oak(t, at.x, at.z, r, at.y)], cherry: () => [MM.oak(t, at.x, at.z, r, at.y, 1, true)], cactus: () => [MM.cactus(at.x, at.z, r, at.y)],
+      rocks: () => [MM.rocks(t, at.x, at.z, r, at.y)], crystals: () => [MM.crystals(t, at.x, at.z, r, at.y)], flowers: () => [MM.flowers(at.x, at.z, r, at.y)], house: () => [MM.house(t, at.x, at.z, 0, r, at.y)],
+      castle: () => [MM.castle(t, at.x, at.z, r, at.y)], temple: () => [MM.temple(t, at.x, at.z, r, at.y)], windmill: () => [MM.windmill(t, at.x, at.z, r, at.y)], statue: () => [MM.statue(t, at.x, at.z, r, at.y)],
+      waterfall: () => [MM.waterfall(t, at.x, at.z, r, at.y)], volcano: () => [MM.volcano(t, at.x, at.z, r, at.y, 0.6)], fence: () => [MM.fence(t, at.x - 15, at.z, at.x + 15, at.z, at.y)], bridge: () => [MM.bridge(t, at.x, at.z - 15, at.x, at.z + 15, at.y)],
+      cloud: () => [MM.cloud(at.x, at.y + 40, at.z, r)] }[b.dataset.deco]();
     insert(n, 'Décor ajouté'); });
   pane.querySelectorAll('[data-tw]').forEach((s) => s.onclick = (e) => { e.stopPropagation(); const id = s.dataset.tw; ui.open.has(id) ? ui.open.delete(id) : ui.open.add(id); paneObj(); });
   pane.querySelectorAll('.tree li').forEach((li) => li.onclick = () => { select(li.dataset.id); focusOn(selParts()); });
@@ -643,8 +670,8 @@ function zip(files) {
   return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
 }
 async function buildPack() {
-  await loadKit(); const sc = map.scripts || {}, L = MC.lightingModels(map);
-  return zip([
+  await loadKit(); const sc = map.scripts || {}, L = MC.lightingModels(map), lib = await LIB.packFiles();
+  return zip([...lib,
     { path: `Workspace/${map.name}.model.json`, data: JSON.stringify(MC.mapModel(map)) },
     ...Object.entries(L).map(([n, v]) => ({ path: `Lighting/${n}.model.json`, data: JSON.stringify(v, null, 1) })),
     { path: 'ServerScriptService/ForgeMap.server.lua', data: sc.server ?? KIT.server },
@@ -677,5 +704,5 @@ function paneExport() {
   menu.querySelectorAll('[data-qr]').forEach((b) => b.onclick = () => { menu.classList.add('hidden'); insert([rolePiece(b.dataset.qr, dropPoint())], MC.ROLES[b.dataset.qr].e + ' ajouté'); }); }
 
 /* ---------- boot ---------- */
-resize(); applyLighting(); rebuildAll(); syncUndo(); renderPane(); focusOn(MC.partsOf(map.root)); loop();
-window.__map = { get map() { return map; }, MC, scene, bloom, renderer, sky, skyMat, play, startPlay, stopPlay, select, setTab, buildPack, meshes, get sel() { return sel; }, gizmo, pivot, controls, camera, rebuildAll };
+resize(); applyLighting(); rebuildAll(); syncUndo(); renderPane(); focusOn(MC.partsOf(map.root)); loop(); LIB.prompt();
+window.__map = { LIB, MM, get map() { return map; }, MC, scene, bloom, renderer, sky, skyMat, play, startPlay, stopPlay, select, setTab, buildPack, meshes, get sel() { return sel; }, gizmo, pivot, controls, camera, rebuildAll };

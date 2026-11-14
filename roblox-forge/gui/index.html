@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="GUI Studio">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>GUI Studio</title>
 <link rel="icon" href="data:,">
@@ -196,6 +196,7 @@ code.inl{font:11.5px ui-monospace,Menlo,monospace;color:var(--c);word-break:brea
     <button class="tab" data-tab="tree">🌳 Arbre</button>
     <button class="tab" data-tab="props">🎛️ Propriétés</button>
     <button class="tab" data-tab="anim">🎬 Animations</button>
+    <button class="tab" data-tab="lib">📚 Library</button>
     <button class="tab" data-tab="code">📜 Scripts</button>
     <button class="tab" data-tab="export">📦 Export</button>
   </div>

@@ -1,6 +1,7 @@
 // Roblox Forge - GUI Studio. What you build here is a real Roblox ScreenGui (exported 1:1 with Rojo).
 import * as G from './gui-core.js';
 import { TEMPLATES, defaultProject } from './templates.js';
+import { createLibrary } from '../library/forge-lib.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -225,7 +226,8 @@ async function roll(btn) {
 const pane = $('pane');
 function setTab(id) { ui.tab = id; document.querySelectorAll('.tab[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === id)); renderPane(); pane.scrollTop = 0; }
 document.querySelectorAll('.tab[data-tab]').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
-function renderPane() { ({ tpl: paneTpl, tree: paneTree, props: paneProps, anim: paneAnim, code: paneCode, export: paneExport })[ui.tab](); }
+const LIB = createLibrary({ studio: 'gui', toast });
+function renderPane() { ({ tpl: paneTpl, tree: paneTree, props: paneProps, anim: paneAnim, lib: () => LIB.render(pane), code: paneCode, export: paneExport })[ui.tab](); }
 
 /* ---------- templates + themes ---------- */
 function themeDots(t) { return `<span class="dots">${['panel', 'primary', 'primary2', 'accent'].map((k) => `<i style="background:${t[k]}"></i>`).join('')}</span>`; }
@@ -468,8 +470,8 @@ function zip(files) {
   return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
 }
 async function buildPack() {
-  await loadKit(); const name = proj.root.name;
-  return zip([
+  await loadKit(); const name = proj.root.name, lib = await LIB.packFiles();
+  return zip([...lib,
     { path: `StarterGui/${name}.model.json`, data: JSON.stringify(exportModel(), null, 1) },
     { path: 'StarterPlayerScripts/ForgeGuiAnim.client.lua', data: (proj.scripts || {}).anim ?? KIT.anim },
     { path: 'LISEZ-MOI.txt', data: `Pack Roblox Forge : interface ${name} (thème ${theme().label})\n\n- StarterGui/${name} : le ScreenGui (fenêtres, boutons, textes, dégradés, contours…)\n- StarterPlayerScripts/ForgeGuiAnim : anime l'interface et fait marcher les boutons\n  (ouvrir/fermer les fenêtres, tirage RNG, interrupteurs, compteurs leaderstats)\n\nRésultats pour tes scripts :\n- ScreenGui:GetAttribute("ForgeLastRoll") après un tirage\n- Bouton:GetAttribute("ForgeOn") pour les interrupteurs\nPublie ce .zip avec Roblox Push (bouton « Ajouter à mon jeu »).\n` },
@@ -496,7 +498,7 @@ function paneExport() {
 }
 
 /* ---------- boot ---------- */
-syncUndo(); draw(); renderPane();
+syncUndo(); draw(); renderPane(); LIB.prompt();
 requestAnimationFrame(() => draw()); // layout settle
 if (document.fonts) document.fonts.ready.then(() => { draw(); if (ui.tab === 'tpl') renderPane(); }); // TextScaled needs the real fonts
-window.__gui = { get proj() { return proj; }, G, select, setTab, draw, buildPack, exportModel, ui, playVis, get elMap() { return elMap; }, act, theme };
+window.__gui = { LIB, get proj() { return proj; }, G, select, setTab, draw, buildPack, exportModel, ui, playVis, get elMap() { return elMap; }, act, theme };
