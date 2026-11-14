@@ -101,7 +101,7 @@ export function blend(layers, keysOf) {
 function mix(a, b, w) { return { p: [0, 1, 2].map((k) => a.p[k] + (b.p[k] - a.p[k]) * w), q: slerp(a.q, b.q, w) }; }
 
 /* ---------- rig (bones + pivots) ---------- */
-const HEAD_KIDS = /^(ear|eye|shine|pupil|nose|snout|horn|visor|antenna|mouth|brow|cheek|hat|crown|tip)/i;
+const HEAD_KIDS = /^(ear|eye|shine|pupil|iris|blush|fang|tooth|tongue|nose|snout|beak|horn|antler|tine|visor|antenna|mouth|brow|cheek|hat|crown|gem|halo|headband|ribbon|skull|stitch|flame|leaf|petal|flower|patch|gill|crest|mane|tuft|tip)/i;
 export function bodyOf(parts) { return parts.find((p) => p.name === 'Body') || parts[0]; }
 function autoParent(p, parts, body) {
   if (p === body) return null;
