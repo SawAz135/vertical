@@ -6,6 +6,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import * as AC from './anim-core.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -134,13 +135,13 @@ function applyRarityFx(pet, r) {
    2. STATE + undo/redo
    ===================================================================== */
 let pet = Store.get('pet', null) || newPet();
-let undoStack = [], redoStack = [], selId = null;
+let undoStack = [], redoStack = [], selId = null, rigDirty = true;
 function commit(label) {
   undoStack.push(JSON.stringify(pet)); if (undoStack.length > 80) undoStack.shift(); redoStack = [];
   Store.set('pet', pet); syncUndo();
 }
 function snapshot() { undoStack.push(JSON.stringify(pet)); if (undoStack.length > 80) undoStack.shift(); redoStack = []; syncUndo(); }
-function save() { Store.set('pet', pet); }
+function save() { rigDirty = true; Store.set('pet', pet); }
 function syncUndo() { $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length; }
 $('undo').onclick = () => { if (!undoStack.length) return; redoStack.push(JSON.stringify(pet)); pet = JSON.parse(undoStack.pop()); save(); rebuild(); renderPane(); syncUndo(); };
 $('redo').onclick = () => { if (!redoStack.length) return; undoStack.push(JSON.stringify(pet)); pet = JSON.parse(redoStack.pop()); save(); rebuild(); renderPane(); syncUndo(); };
@@ -202,11 +203,12 @@ function matFor(p) {
 const petGroup = new THREE.Group(); scene.add(petGroup);   // moves (float/spin/walk)
 const partGroup = new THREE.Group(); petGroup.add(partGroup);
 const outlineGroup = new THREE.Group(); petGroup.add(outlineGroup);
-const meshes = new Map();
+const meshes = new Map(), outlineMeshes = new Map();
 const glowLight = new THREE.PointLight(0xffffff, 0, 10, 2); petGroup.add(glowLight);
 function rebuild() {
+  ensureAnims(); rigDirty = true;
   for (const m of meshes.values()) { m.material.dispose(); partGroup.remove(m); }
-  meshes.clear(); outlineGroup.clear();
+  meshes.clear(); outlineGroup.clear(); outlineMeshes.clear();
   for (const p of pet.parts) {
     const m = new THREE.Mesh(GEO[p.shape] || GEO.Block, matFor(p));
     m.position.fromArray(p.pos); m.rotation.set(...p.rot.map(THREE.MathUtils.degToRad), 'XYZ'); m.scale.fromArray(p.size);
@@ -217,7 +219,7 @@ function rebuild() {
     const om = new THREE.MeshBasicMaterial({ color: pet.fx.outline.c1, side: THREE.BackSide });
     for (const p of pet.parts) { if (p.size[0] < 0.15 && p.size[1] < 0.15) continue;
       const m = new THREE.Mesh(GEO[p.shape] || GEO.Block, om); m.position.fromArray(p.pos); m.rotation.set(...p.rot.map(THREE.MathUtils.degToRad), 'XYZ');
-      m.scale.fromArray(p.size.map((s) => s + 0.09)); outlineGroup.add(m); }
+      m.scale.fromArray(p.size.map((s) => s + 0.09)); outlineGroup.add(m); outlineMeshes.set(p.id, m); }
   }
   rebuildFx(); attachGizmo(); updateHud();
 }
@@ -225,9 +227,13 @@ function rebuild() {
 /* ---------- selection + gizmo ---------- */
 const gizmo = new TransformControls(camera, renderer.domElement);
 gizmo.setSize(1.15); scene.add(gizmo.getHelper());
-gizmo.addEventListener('dragging-changed', (e) => { controls.enabled = !e.value; if (e.value) snapshot(); else { save(); renderPane(); } });
+gizmo.addEventListener('dragging-changed', (e) => { controls.enabled = !e.value;
+  if (e.value) { snapshot(); if (currentTab === 'anim') { anim.playing = false; syncPlay(); } }
+  else if (currentTab === 'anim') { save(); renderDope(); renderInspectors(); }
+  else { save(); renderPane(); } });
 gizmo.addEventListener('objectChange', () => {
-  const m = gizmo.object; const p = pet.parts.find((x) => x.id === m.userData.id); if (!p) return;
+  const m = gizmo.object; if (currentTab === 'anim') { if (gizmo.dragging) animGizmoChange(m); return; }
+  const p = pet.parts.find((x) => x.id === m.userData.id); if (!p) return;
   p.pos = m.position.toArray().map((v) => +v.toFixed(3));
   p.rot = [m.rotation.x, m.rotation.y, m.rotation.z].map((v) => +THREE.MathUtils.radToDeg(v).toFixed(1));
   p.size = m.scale.toArray().map((v) => +Math.max(0.05, Math.abs(v)).toFixed(3));
@@ -235,7 +241,8 @@ gizmo.addEventListener('objectChange', () => {
   updateHud();
 });
 function attachGizmo() { const m = selId && meshes.get(selId); if (m) gizmo.attach(m); else gizmo.detach(); }
-function select(id) { selId = id; attachGizmo(); updateHud(); controls.autoRotate = !id && !walking; if (currentTab === 'parts') renderPane(); }
+function select(id) { selId = id; attachGizmo(); updateHud(); controls.autoRotate = !id && !walking; if (currentTab === 'parts') renderPane();
+  if (currentTab === 'anim') { const c = curClip(); anim.selKey = c && id && c.tracks[id] ? c.tracks[id].find((k) => Math.abs(k.t - anim.time) < 1e-3) || null : null; renderDope(); renderInspectors(); } }
 const ray = new THREE.Raycaster(); let downAt = null;
 renderer.domElement.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY, performance.now()]; });
 renderer.domElement.addEventListener('pointerup', (e) => {
@@ -244,9 +251,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   const r = renderer.domElement.getBoundingClientRect();
   ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
   const hit = ray.intersectObjects([...meshes.values()], false)[0];
-  select(hit ? hit.object.userData.id : null); if (hit && currentTab !== 'parts') setTab('parts');
+  select(hit ? hit.object.userData.id : null); if (hit && currentTab !== 'parts' && currentTab !== 'anim') setTab('parts');
 });
-document.querySelectorAll('[data-mode]').forEach((b) => b.onclick = () => { gizmo.setMode(b.dataset.mode); document.querySelectorAll('[data-mode]').forEach((x) => x.classList.toggle('on', x === b)); });
+function setGizmoMode(mode) { gizmo.setMode(mode); document.querySelectorAll('[data-mode]').forEach((x) => x.classList.toggle('on', x.dataset.mode === mode)); }
+document.querySelectorAll('[data-mode]').forEach((b) => b.onclick = () => {
+  if (currentTab === 'anim' && b.dataset.mode === 'scale') return toast('En animation on bouge et on tourne (comme les Motor6D de Roblox)');
+  setGizmoMode(b.dataset.mode); });
 $('addBtn').onclick = () => $('addMenu').classList.toggle('hidden');
 document.querySelectorAll('[data-add]').forEach((b) => b.onclick = () => {
   $('addMenu').classList.add('hidden'); snapshot();
@@ -356,12 +366,14 @@ function loop() {
   if (selId && !fx.spin.on) petGroup.rotation.y = 0;
   const hue = fx.rainbow.on ? (t * fx.rainbow.speed) % 1 : null;
   if (hue != null) for (const p of pet.parts) if (p.tint) { const m = meshes.get(p.id); if (m) { m.material.color.setHSL(hue, 0.8, 0.55); if (m.material.emissive && p.material === 'Neon') m.material.emissive.setHSL(hue, 0.8, 0.55); } }
-  const center = bodyCenter().applyMatrix4(petGroup.matrixWorld); petGroup.updateMatrixWorld();
+  applyPose(dt); animTick(dt);
+  petGroup.updateMatrixWorld(); const bodyMesh = meshes.get((AC.bodyOf(pet.parts) || {}).id);
+  const center = bodyMesh ? bodyMesh.getWorldPosition(new THREE.Vector3()) : bodyCenter().applyMatrix4(petGroup.matrixWorld);
   const R = bodyRadius();
   const pulse = fx.pulse.on ? 1 + Math.sin(t * fx.pulse.speed) * fx.pulse.amount : 1;
   // glow
   glowLight.intensity = fx.glow.on ? fx.glow.brightness * 2.2 * pulse : 0; glowLight.distance = fx.glow.range; glowLight.color.set(hue != null ? new THREE.Color().setHSL(hue, 0.8, 0.6) : fx.glow.c1);
-  glowLight.position.copy(bodyCenter());
+  if (bodyMesh) glowLight.position.copy(bodyMesh.position); else glowLight.position.copy(bodyCenter());
   // particles
   if (fx.aura.on) emit.aura.update(dt, { rate: fx.aura.rate, size: fx.aura.size, speed: fx.aura.speed, life: fx.aura.life, c1: fx.aura.c1, c2: fx.aura.c2 }, center, R, hue);
   if (fx.sparkles.on) emit.sparkles.update(dt, { rate: fx.sparkles.rate, size: fx.sparkles.size, speed: 0.4, life: 0.9, c1: fx.sparkles.c1, c2: '#ffffff' }, center, R * 1.1, hue);
@@ -414,10 +426,10 @@ addEventListener('resize', resize);
    6. PANES
    ===================================================================== */
 let currentTab = 'rar';
-function setTab(id) { currentTab = id; document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === id)); renderPane(); $('pane').scrollTop = 0; }
+function setTab(id) { if (id !== 'anim' && currentTab === 'anim') anim.playing = false; currentTab = id; document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === id)); renderPane(); $('pane').scrollTop = 0; }
 document.querySelectorAll('.tab').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
 const pane = $('pane');
-function renderPane() { ({ rar: paneRarity, body: paneBody, parts: paneParts, fx: paneFx, code: paneCode, lib: paneLib, export: paneExport })[currentTab](); }
+function renderPane() { ({ rar: paneRarity, body: paneBody, parts: paneParts, fx: paneFx, anim: paneAnim, code: paneCode, lib: paneLib, export: paneExport })[currentTab](); }
 
 function paneRarity() {
   pane.innerHTML = `<div class="sec"><h3>Rareté <small>change couleurs + effets</small></h3><div class="grid2">${RARITIES.map((r) => `<button class="rarbtn${r.id === pet.rarity ? ' on' : ''}" data-r="${esc(r.id)}" style="background:${r.bg}">${esc(r.id)}</button>`).join('')}</div></div>
@@ -438,10 +450,12 @@ function paneBody() {
     <div class="sec"><h3>Taille globale</h3><div class="row"><label>Échelle</label><input type="range" id="gscale" min="0.5" max="2" step="0.05" value="1"><span class="val" id="gscaleV">×1</span></div>
     <div class="btns"><button class="btn" id="applyScale">Appliquer l'échelle</button></div></div>
     <div class="note">Astuce : l'onglet <b>Pièces</b> permet de modifier chaque morceau, d'en ajouter, de les déplacer avec les flèches dans la vue 3D.</div>`;
-  pane.querySelectorAll('[data-b]').forEach((b) => b.onclick = () => { snapshot(); pet.body = b.dataset.b; pet.parts = makeParts(pet.body, pet.c1, pet.c2); selId = null; autoName(); save(); rebuild(); renderPane(); });
+  pane.querySelectorAll('[data-b]').forEach((b) => b.onclick = () => { snapshot(); pet.body = b.dataset.b; pet.parts = makeParts(pet.body, pet.c1, pet.c2); pet.anims = defaultAnims(pet.parts); pet.animSel = pet.anims[0].id; anim.time = 0; anim.selKey = null; selId = null; autoName(); save(); rebuild(); renderPane(); });
   $('gscale').oninput = (e) => ($('gscaleV').textContent = '×' + (+e.target.value).toFixed(2));
   $('applyScale').onclick = () => { const k = +$('gscale').value; if (k === 1) return; snapshot();
-    for (const p of pet.parts) { p.size = p.size.map((v) => +(v * k).toFixed(3)); p.pos = p.pos.map((v) => +(v * k).toFixed(3)); } save(); rebuild(); toast('Échelle ×' + k.toFixed(2)); };
+    for (const p of pet.parts) { p.size = p.size.map((v) => +(v * k).toFixed(3)); p.pos = p.pos.map((v) => +(v * k).toFixed(3)); if (Array.isArray(p.pivot)) p.pivot = p.pivot.map((v) => +(v * k).toFixed(3)); }
+    for (const c of pet.anims || []) for (const keys of Object.values(c.tracks)) keys.forEach((kk) => (kk.pos = kk.pos.map((v) => +(v * k).toFixed(4))));
+    save(); rebuild(); toast('Échelle ×' + k.toFixed(2) + ' (animations comprises)'); };
 }
 function vecRow(label, key, arr, step) { return `<div class="row"><label>${label}</label><div class="vec" data-vec="${key}">${arr.map((v, i) => `<input type="number" inputmode="decimal" step="${step}" data-i="${i}" value="${(+v).toFixed(2)}">`).join('')}</div></div>`; }
 function paneParts() {
@@ -470,7 +484,10 @@ function paneParts() {
   $('pm').onchange = (e) => { once(); p.material = e.target.value; apply(); };
   $('pt').oninput = (e) => { once(); p.transparency = +e.target.value; $('ptv').textContent = p.transparency.toFixed(2); apply(); };
   $('pdup').onclick = () => { snapshot(); const c = { ...clone(p), id: nid(), name: p.name + 'Copie', pos: [p.pos[0] + 0.4, p.pos[1], p.pos[2]] }; pet.parts.push(c); apply(); select(c.id); };
-  $('pmir').onclick = () => { snapshot(); const c = { ...clone(p), id: nid(), name: p.name.replace(/L$/, 'R').replace(/Left/, 'Right') + (/[LR]$/.test(p.name) ? '' : 'Miroir'), pos: [-p.pos[0], p.pos[1], p.pos[2]], rot: [p.rot[0], -p.rot[1], -p.rot[2]] }; pet.parts.push(c); apply(); select(c.id); toast('Copie en miroir créée'); };
+  $('pmir').onclick = () => { snapshot(); const c = { ...clone(p), id: nid(), name: p.name.replace(/L$/, 'R').replace(/Left/, 'Right') + (/[LR]$/.test(p.name) ? '' : 'Miroir'), pos: [-p.pos[0], p.pos[1], p.pos[2]], rot: [p.rot[0], -p.rot[1], -p.rot[2]] };
+    if (Array.isArray(p.pivot)) c.pivot = [-p.pivot[0], p.pivot[1], p.pivot[2]];
+    const par = p.parent && pet.parts.find((x) => x.id === p.parent), twin = par && pet.parts.find((x) => x.name === par.name.replace(/L$/, '#').replace(/R$/, 'L').replace(/#$/, 'R') && x !== par); if (twin) c.parent = twin.id;
+    pet.parts.push(c); apply(); select(c.id); toast('Copie en miroir créée'); };
   $('pdel').onclick = () => { if (pet.parts.length <= 1) return toast('Il faut au moins une pièce'); snapshot(); pet.parts = pet.parts.filter((x) => x.id !== p.id); if (p.name === 'Body' && pet.parts[0]) pet.parts[0].name = 'Body'; selId = null; apply(); renderPane(); };
   $('pdesel').onclick = () => select(null);
 }
@@ -504,15 +521,18 @@ function paneFx() {
 let KIT = null;
 async function loadKit() {
   if (KIT) return KIT;
-  const [ctrl, fxs] = await Promise.all(['kit/ForgePetController.server.lua', 'kit/ForgePetFX.client.lua'].map((u) => fetch(u, { cache: 'no-cache' }).then((r) => r.text())));
-  return (KIT = { ctrl, fxs });
+  const [ctrl, fxs, anim, core] = await Promise.all(['kit/ForgePetController.server.lua', 'kit/ForgePetFX.client.lua', 'kit/ForgePetAnim.client.lua', 'kit/ForgeAnimCore.lua'].map((u) => fetch(u, { cache: 'no-cache' }).then((r) => r.text())));
+  return (KIT = { ctrl, fxs, anim, core });
 }
 function configLua() { return `-- Roblox Forge - configuration\nreturn {\n\t-- Pet given to players who have no "ForgePet" attribute\n\tDefaultPet = ${JSON.stringify(safeName(pet.name))},\n\t-- Where the pet floats, relative to the player (right, up, back)\n\tOffset = Vector3.new(3, 1.5, 3),\n}\n`; }
 function scriptFiles() {
   return [
     { id: 'ctrl', name: 'ForgePetController.server.lua', where: 'ServerScriptService', text: pet.scripts.ctrl ?? KIT.ctrl },
     { id: 'fxs', name: 'ForgePetFX.client.lua', where: 'StarterPlayerScripts', text: pet.scripts.fxs ?? KIT.fxs },
+    { id: 'anim', name: 'ForgePetAnim.client.lua', where: 'StarterPlayerScripts', text: pet.scripts.anim ?? KIT.anim },
+    { id: 'core', name: 'ForgeAnimCore.lua', where: 'ReplicatedStorage', text: pet.scripts.core ?? KIT.core },
     { id: 'cfg', name: 'ForgeConfig.lua', where: 'ReplicatedStorage', text: pet.scripts.cfg ?? configLua() },
+    { id: 'animdata', name: 'ForgeAnimData.lua', where: 'ReplicatedStorage/ForgePets/' + safeName(pet.name), text: animDataLua(), readonly: true },
     { id: 'model', name: safeName(pet.name) + '.model.json', where: 'ReplicatedStorage/ForgePets', text: JSON.stringify(modelJson(), null, 2), readonly: true },
   ];
 }
@@ -570,9 +590,9 @@ const NS = (pairs) => ({ NumberSequence: { keypoints: pairs.map(([time, value]) 
 const CS = (a, b) => ({ ColorSequence: { keypoints: [{ time: 0, color: rgb(a) }, { time: 1, color: rgb(b || a) }] } });
 function modelJson() {
   const fx = pet.fx, body = pet.parts.find((p) => p.name === 'Body') || pet.parts[0];
-  const parts = [body, ...pet.parts.filter((p) => p !== body)];
+  const parts = [body, ...pet.parts.filter((p) => p !== body)], names = exportNames();
   const children = parts.map((p) => {
-    const isWedge = p.shape === 'Wedge', node = { name: p === body ? 'Body' : p.name, className: isWedge ? 'WedgePart' : 'Part', properties: {
+    const isWedge = p.shape === 'Wedge', node = { name: names.get(p.id), className: isWedge ? 'WedgePart' : 'Part', properties: {
       Size: p.shape === 'Ball' ? [p.size[0], p.size[0], p.size[0]] : p.size, CFrame: { CFrame: { position: p.pos, orientation: orientation(p.rot) } },
       Color: rgb(p.color), Material: p.material, Transparency: p.transparency || 0, Anchored: false, CanCollide: false, CastShadow: p.material !== 'Neon',
       TopSurface: 'Smooth', BottomSurface: 'Smooth' }, children: [] };
@@ -594,6 +614,7 @@ function modelJson() {
     Acceleration: [0, 4, 0], Rate: fx.flames.rate, SpreadAngle: [25, 25], EmissionDirection: 'Top', RotSpeed: { NumberRange: [-60, 60] } } });
   if (fx.glow.on) b.children.push({ name: 'Glow', className: 'PointLight', properties: { Color: rgb(fx.glow.c1), Brightness: fx.glow.brightness, Range: fx.glow.range, Shadows: false } });
   if (fx.outline.on) children.push({ name: 'Outline', className: 'Highlight', properties: { FillTransparency: 1, OutlineColor: rgb(fx.outline.c1), OutlineTransparency: 0, DepthMode: 'Occluded' } });
+  if ((pet.anims || []).length) children.push({ name: 'ForgeAnimData', className: 'ModuleScript', properties: { Source: animDataLua() } });
   const runtime = {}; for (const k of ['rings', 'orbs', 'trail', 'lightning', 'rainbow', 'pulse', 'float', 'spin']) runtime[k] = fx[k];
   return { className: 'Model', attributes: { ForgeFX: JSON.stringify(runtime), ForgeRarity: pet.rarity, ForgeStudio: 'Roblox Forge Pet Studio' }, children };
 }
@@ -620,7 +641,9 @@ async function buildPack() {
     { path: 'ReplicatedStorage/ForgeConfig.lua', data: files.find((f) => f.id === 'cfg').text },
     { path: 'ServerScriptService/ForgePetController.server.lua', data: files.find((f) => f.id === 'ctrl').text },
     { path: 'StarterPlayerScripts/ForgePetFX.client.lua', data: files.find((f) => f.id === 'fxs').text },
-    { path: 'LISEZ-MOI.txt', data: `Pack Roblox Forge : ${pet.name} (${pet.rarity})\n\n- ReplicatedStorage/ForgePets : le modèle du pet (pièces, particules, lumière, contour)\n- ServerScriptService : donne le pet à chaque joueur et le fait suivre\n- StarterPlayerScripts : anime les effets (anneaux, orbes, arc-en-ciel, éclairs…)\n- ReplicatedStorage/ForgeConfig : pet par défaut et position\n\nPour donner un autre pet à un joueur : player:SetAttribute("ForgePet", "NomDuPet")\nPublie ce .zip avec Roblox Push (tu peux y ajouter les fichiers de ton jeu).\n` },
+    { path: 'StarterPlayerScripts/ForgePetAnim.client.lua', data: files.find((f) => f.id === 'anim').text },
+    { path: 'ReplicatedStorage/ForgeAnimCore.lua', data: files.find((f) => f.id === 'core').text },
+    { path: 'LISEZ-MOI.txt', data: `Pack Roblox Forge : ${pet.name} (${pet.rarity})\n\n- ReplicatedStorage/ForgePets : le modèle du pet (pièces, particules, lumière, contour)\n- ServerScriptService : donne le pet à chaque joueur et le fait suivre\n- StarterPlayerScripts : anime les effets (anneaux, orbes, arc-en-ciel, éclairs…) et les animations (ForgePetAnim)\n- ReplicatedStorage/ForgeAnimCore : les calculs d'animation (courbes, mélange)\n- ReplicatedStorage/ForgeConfig : pet par défaut et position\n\nPour donner un autre pet à un joueur : player:SetAttribute("ForgePet", "NomDuPet")\nPour jouer une animation « Sur commande » : player:SetAttribute("ForgePetAnim", "Danse")\nPublie ce .zip avec Roblox Push (tu peux y ajouter les fichiers de ton jeu).\n` },
   ]);
 }
 function paneExport() {
@@ -651,6 +674,416 @@ function paneExport() {
   pane.querySelectorAll('#saved li').forEach((li) => li.onclick = () => { snapshot(); pet = clone(Store.get('saved', [])[+li.dataset.i]); selId = null; save(); rebuild(); toast('Ouvert : ' + pet.name); });
 }
 
+/* =====================================================================
+   7. ANIMATION - keyframes per part, bones + pivots, 12 easing curves,
+      blending (idle / move / one-shots), onion skin, Luau export.
+      Maths in anim-core.js = kit/ForgeAnimCore.lua (same in the game).
+   ===================================================================== */
+const WHEN = {
+  idle: ['💤', 'Au repos', 'Joue en boucle quand le pet flotte.'],
+  move: ['🏃', 'En mouvement', 'Se mélange en douceur quand le pet se déplace.'],
+  spawn: ['✨', 'Apparition', 'Une fois, quand le pet apparaît.'],
+  manual: ['🎯', 'Sur commande', 'Une fois, quand ton script le demande.'],
+};
+const kf = (t, pos, rot, ease = 'Sine', dir = 'InOut') => ({ t, pos: pos || [0, 0, 0], rot: rot || [0, 0, 0], ease, dir });
+// Presets adapt to the body: they animate the parts that exist (Head, Ears, Wings, Tail, Paws, Arms, Wheels…)
+function presetBuilder(parts) {
+  const tracks = {};
+  const find = (m) => parts.filter((p) => (m instanceof RegExp ? m.test(p.name) : p.name === m));
+  const A = {
+    track(m, keys) { for (const p of find(m)) tracks[p.id] = clone(typeof keys === 'function' ? keys(p) : keys); },
+    lr(base, fn) { A.track(new RegExp('^' + base + 'L$'), fn(1)); A.track(new RegExp('^' + base + 'R$'), fn(-1)); },
+    has: (m) => find(m).length > 0,
+  };
+  return { A, tracks };
+}
+const PRESETS = [
+  { id: 'breathe', e: '💤', label: 'Respiration', when: 'idle', length: 2.4, loop: true, build(A) {
+    A.track('Body', [kf(0), kf(1.2, [0, 0.07, 0], [-2, 0, 0]), kf(2.4)]);
+    A.track('Head', [kf(0), kf(1.35, [0, 0.03, 0], [4, 0, 0]), kf(2.4)]);
+    A.lr('Ear', (s) => [kf(0), kf(1.3, null, [0, 0, 7 * s]), kf(2.4)]);
+    A.lr('Wing', (s) => [kf(0), kf(1.2, null, [0, 0, -12 * s]), kf(2.4)]);
+    A.lr('Arm', () => [kf(0), kf(1.2, null, [8, 0, 0]), kf(2.4)]);
+    A.track(/^Tail1?$/, [kf(0), kf(0.6, null, [0, 14, 0]), kf(1.8, null, [0, -14, 0]), kf(2.4)]);
+    A.track('Tail2', [kf(0), kf(0.8, null, [0, 18, 0]), kf(2.0, null, [0, -18, 0]), kf(2.4)]);
+    A.track('Core', [kf(0), kf(1.2, [0, 0.1, 0]), kf(2.4)]);
+    A.track(/^(Antenna|Wisp)$/, [kf(0), kf(1.2, null, [0, 0, 9]), kf(2.4)]);
+  } },
+  { id: 'hop', e: '🏃', label: 'Sautillement', when: 'move', length: 0.6, loop: true, build(A) {
+    A.track('Body', [kf(0, null, null, 'Quad', 'Out'), kf(0.3, [0, 0.45, 0], [-8, 0, 0], 'Quad', 'In'), kf(0.6)]);
+    A.track('Head', [kf(0), kf(0.18, null, [-6, 0, 0]), kf(0.45, null, [7, 0, 0]), kf(0.6)]);
+    A.lr('Ear', (s) => [kf(0), kf(0.36, null, [-22, 0, 5 * s], 'Back', 'Out'), kf(0.6)]);
+    A.lr('Wing', (s) => [kf(0), kf(0.3, null, [0, 0, -40 * s]), kf(0.6)]);
+    A.track(/^Paw(FL|FR)$/, [kf(0), kf(0.3, [0, 0.05, 0], [-32, 0, 0]), kf(0.6)]);
+    A.track(/^Paw(BL|BR)$/, [kf(0), kf(0.3, [0, 0.05, 0], [28, 0, 0]), kf(0.6)]);
+    A.track(/^Foot[LR]$/, [kf(0), kf(0.3, null, [-30, 0, 0]), kf(0.6)]);
+    A.lr('Arm', (s) => [kf(0), kf(0.3, null, [0, 0, 18 * s]), kf(0.6)]);
+    A.track(/^Wheel[LR]$/, [kf(0, null, null, 'Linear'), kf(0.2, null, [-120, 0, 0], 'Linear'), kf(0.4, null, [-240, 0, 0], 'Linear'), kf(0.6, null, [-360, 0, 0], 'Linear')]);
+    A.track(/^Tail1?$/, [kf(0), kf(0.3, null, [22, 0, 0]), kf(0.6)]);
+    A.track('Core', [kf(0), kf(0.3, [0, -0.12, 0]), kf(0.6)]);
+  } },
+  { id: 'flap', e: '🪽', label: 'Battement', when: 'idle', length: 0.8, loop: true, build(A) {
+    A.lr('Wing', (s) => [kf(0), kf(0.4, null, [0, 0, -42 * s]), kf(0.8)]);
+    A.lr('Ear', (s) => [kf(0), kf(0.4, null, [0, 0, 25 * s]), kf(0.8)]);
+    A.lr('Arm', (s) => [kf(0), kf(0.4, null, [0, 0, 35 * s]), kf(0.8)]);
+    A.track('Body', [kf(0), kf(0.4, [0, -0.12, 0]), kf(0.8)]);
+  } },
+  { id: 'look', e: '👀', label: 'Regarde autour', when: 'idle', length: 4, loop: true, build(A) {
+    const head = A.has('Head') ? 'Head' : 'Body';
+    A.track(head, [kf(0), kf(0.8, null, [0, 35, 4]), kf(1.8, null, [0, 35, 4]), kf(2.6, null, [-4, -35, -4]), kf(3.4, null, [-4, -35, -4]), kf(4)]);
+    A.lr('Ear', (s) => [kf(0), kf(0.9, null, [0, 0, 10 * s], 'Back', 'Out'), kf(1.8), kf(2.7, null, [0, 0, -6 * s], 'Back', 'Out'), kf(4)]);
+  } },
+  { id: 'sleep', e: '😴', label: 'Sommeil', when: 'idle', length: 4, loop: true, build(A) {
+    A.track('Body', [kf(0, [0, -0.14, 0], [3, 0, 0]), kf(2, [0, -0.06, 0], [1, 0, 0]), kf(4, [0, -0.14, 0], [3, 0, 0])]);
+    A.track('Head', [kf(0, [0, -0.1, 0], [18, 0, 7]), kf(2, [0, -0.06, 0], [14, 0, 7]), kf(4, [0, -0.1, 0], [18, 0, 7])]);
+    A.lr('Ear', (s) => [kf(0, null, [30, 0, 12 * s]), kf(4, null, [30, 0, 12 * s])]);
+    A.lr('Wing', (s) => [kf(0, null, [0, 0, 20 * s]), kf(4, null, [0, 0, 20 * s])]);
+  } },
+  { id: 'dance', e: '💃', label: 'Danse', when: 'manual', length: 2, loop: false, build(A) {
+    A.track('Body', [kf(0, null, null, 'Back', 'Out'), kf(0.25, [0, 0.3, 0], [0, 0, 12], 'Quad', 'In'), kf(0.5, null, null, 'Back', 'Out'), kf(0.75, [0, 0.3, 0], [0, 0, -12], 'Quad', 'In'),
+      kf(1, null, null, 'Back', 'Out'), kf(1.25, [0, 0.2, 0], [0, 35, 0]), kf(1.5), kf(1.75, [0, 0.2, 0], [0, -35, 0]), kf(2)]);
+    A.track('Head', [kf(0), kf(0.3, null, [0, 0, -12]), kf(0.55), kf(0.8, null, [0, 0, 12]), kf(1.05), kf(1.3, null, [-8, 0, 0]), kf(2)]);
+    A.lr('Ear', (s) => [kf(0), kf(0.25, null, [0, 0, 16 * s], 'Elastic', 'Out'), kf(1), kf(1.25, null, [0, 0, 16 * s], 'Elastic', 'Out'), kf(2)]);
+    A.lr('Arm', (s) => [kf(0), kf(0.25, null, [0, 0, 60 * s]), kf(0.5), kf(0.75, null, [0, 0, 60 * s]), kf(1), kf(2)]);
+    A.lr('Wing', (s) => [kf(0), kf(0.5, null, [0, 0, -45 * s]), kf(1), kf(1.5, null, [0, 0, -45 * s]), kf(2)]);
+  } },
+  { id: 'victory', e: '🏆', label: 'Victoire', when: 'manual', length: 1.6, loop: false, build(A) {
+    A.track('Body', [kf(0, null, null, 'Quad', 'Out'), kf(0.2, [0, -0.2, 0], [10, 0, 0], 'Quad', 'Out'), kf(0.55, [0, 1.4, 0], [0, 120, 0], 'Linear'),
+      kf(0.75, [0, 1.6, 0], [0, 240, 0], 'Quad', 'In'), kf(1.05, [0, 0, 0], [0, 360, 0], 'Bounce', 'Out'), kf(1.6, [0, 0, 0], [0, 360, 0])]);
+    A.lr('Ear', (s) => [kf(0), kf(0.55, null, [-25, 0, 10 * s]), kf(1.05, null, [15, 0, 0], 'Elastic', 'Out'), kf(1.6)]);
+    A.lr('Arm', (s) => [kf(0), kf(0.5, null, [0, 0, 80 * s]), kf(1.2, null, [0, 0, 80 * s]), kf(1.6)]);
+    A.lr('Wing', (s) => [kf(0), kf(0.3, null, [0, 0, -50 * s]), kf(0.6), kf(0.9, null, [0, 0, -50 * s]), kf(1.6)]);
+  } },
+  { id: 'spawn', e: '✨', label: 'Apparition', when: 'spawn', length: 1.2, loop: false, build(A) {
+    A.track('Body', [kf(0, [0, -2.2, 0], [0, -170, 0], 'Back', 'Out'), kf(0.8), kf(1.2)]);
+    A.track('Head', [kf(0, null, [25, 0, 0]), kf(0.45, null, [25, 0, 0], 'Elastic', 'Out'), kf(1.2)]);
+    A.lr('Ear', (s) => [kf(0, null, [0, 0, -30 * s]), kf(0.5, null, [0, 0, -30 * s], 'Elastic', 'Out'), kf(1.2)]);
+    A.lr('Wing', (s) => [kf(0, null, [0, 0, 40 * s]), kf(0.5, null, [0, 0, 40 * s], 'Elastic', 'Out'), kf(1.2)]);
+  } },
+  { id: 'attack', e: '⚔️', label: 'Attaque', when: 'manual', length: 0.9, loop: false, build(A) {
+    A.track('Body', [kf(0, null, null, 'Quad', 'Out'), kf(0.3, [0, 0.1, 0.5], [10, 0, 0], 'Quad', 'In'), kf(0.42, [0, 0, -1.2], [-14, 0, 0], 'Elastic', 'Out'), kf(0.9)]);
+    A.track('Head', [kf(0), kf(0.3, null, [8, 0, 0]), kf(0.42, null, [-14, 0, 0], 'Elastic', 'Out'), kf(0.9)]);
+    A.lr('Ear', (s) => [kf(0), kf(0.3, null, [25, 0, 0]), kf(0.45, null, [-30, 0, 8 * s], 'Back', 'Out'), kf(0.9)]);
+    A.lr('Arm', (s) => [kf(0), kf(0.3, null, [40, 0, 0]), kf(0.42, null, [-70, 0, 0], 'Back', 'Out'), kf(0.9)]);
+  } },
+];
+function makeClip(presetId, parts) {
+  const pr = PRESETS.find((p) => p.id === presetId);
+  const { A, tracks } = presetBuilder(parts); pr.build(A);
+  return { id: 'a' + nid(), name: pr.label, when: pr.when, length: pr.length, loop: pr.loop, speed: 1, tracks };
+}
+function defaultAnims(parts) {
+  const winged = parts.some((p) => /^Wing[LR]$/.test(p.name)); // dragons breathe with their wings
+  return [makeClip(winged ? 'flap' : 'breathe', parts), makeClip('hop', parts), makeClip('dance', parts), makeClip('spawn', parts)];
+}
+function ensureAnims() {
+  if (!Array.isArray(pet.anims)) { pet.anims = defaultAnims(pet.parts); pet.animSel = pet.anims[0].id; }
+  const ids = new Set(pet.parts.map((p) => p.id));
+  for (const c of pet.anims) for (const id of Object.keys(c.tracks || {})) if (!ids.has(id) || !c.tracks[id].length) delete c.tracks[id];
+  if (!pet.anims.some((c) => c.id === pet.animSel)) pet.animSel = pet.anims[0] ? pet.anims[0].id : null;
+}
+const anim = { playing: false, time: 0, zoom: 1, pan: 0, snap: true, onion: true, bones: true, selKey: null, clip: null, lastEase: ['Sine', 'InOut'], previewT: 0, moveW: 0, shot: null, dirty: true };
+const curClip = () => (pet.anims || []).find((c) => c.id === pet.animSel) || null;
+const snapT = (t) => (anim.snap ? Math.round(t / 0.05) * 0.05 : Math.round(t * 1000) / 1000);
+const partIds = () => pet.parts.map((p) => p.id);
+let RIG = null; const getRig = () => (rigDirty || !RIG ? ((rigDirty = false), (RIG = AC.rigOf(pet.parts))) : RIG);
+function setKey(clip, id, t, v) {
+  const keys = clip.tracks[id] || (clip.tracks[id] = []);
+  let k = keys.find((x) => Math.abs(x.t - t) < 1e-3);
+  if (!k) { k = kf(+t.toFixed(3), null, null, anim.lastEase[0], anim.lastEase[1]); keys.push(k); keys.sort((a, b) => a.t - b.t); }
+  k.pos = v.pos.slice(); k.rot = v.rot.slice(); return k;
+}
+function offsetsAt(clip, t) { return AC.blend([{ clip: { tracks: clip.tracks, length: clip.length, loop: false }, t, w: 1 }], partIds); }
+// What the viewport shows: rest pose while building parts, the edited clip in the Animation tab,
+// and the same blend as the game everywhere else (idle + move when you press 🚶, one-shots on ▶ Tester).
+function displayOffsets(dt) {
+  if (currentTab === 'parts' || !pet.anims || !pet.anims.length) return new Map();
+  if (currentTab === 'anim') { const c = curClip(); return c ? offsetsAt(c, anim.time) : new Map(); }
+  anim.previewT += dt; anim.moveW += ((walking ? 1 : 0) - anim.moveW) * Math.min(1, dt * 6);
+  const idle = pet.anims.find((c) => c.when === 'idle'), move = pet.anims.find((c) => c.when === 'move');
+  const layers = [];
+  if (idle) layers.push({ clip: idle, t: anim.previewT * (idle.speed || 1), w: move ? 1 - anim.moveW : 1 });
+  if (move && anim.moveW > 0.001) layers.push({ clip: move, t: anim.previewT * (move.speed || 1), w: anim.moveW });
+  if (anim.shot) { const s = anim.shot, len = Math.max(0.05, s.clip.length) / (s.clip.speed || 1); s.t += dt; const left = len - s.t;
+    if (left <= 0) anim.shot = null; else layers.push({ clip: s.clip, t: s.t * (s.clip.speed || 1), w: s.clip.when === 'spawn' ? Math.min(1, left / 0.18) : Math.min(1, s.t / 0.18, left / 0.18), over: true }); }
+  return AC.blend(layers, partIds);
+}
+let lastPose = new Map();
+const _s1 = new THREE.Vector3();
+function applyPose(dt) {
+  const R = getRig(); const offs = displayOffsets(dt);
+  lastPose = AC.computePose(pet.parts, R, offs);
+  const dragged = gizmo.dragging ? gizmo.object : null;
+  for (const p of pet.parts) {
+    const m = meshes.get(p.id), ps = lastPose.get(p.id); if (!m || !ps) continue;
+    if (m !== dragged) ps.M.decompose(m.position, m.quaternion, _s1);
+    const o = outlineMeshes.get(p.id); if (o) { o.position.copy(m.position); o.quaternion.copy(m.quaternion); }
+  }
+  updateBones(R); updateOnion(R);
+}
+/* ---------- bones overlay (pivots + links, like an armature) ---------- */
+const boneGeo = new THREE.BufferGeometry(); boneGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(64 * 6), 3));
+const bones = new THREE.LineSegments(boneGeo, new THREE.LineBasicMaterial({ color: 0x8fe9ff, transparent: true, opacity: 0.55, depthTest: false }));
+bones.renderOrder = 10; partGroup.add(bones);
+const jointGeo = new THREE.BufferGeometry(); jointGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(64 * 3), 3));
+const dotTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.32, '#ffffff'); gr.addColorStop(0.42, 'rgba(143,233,255,.9)'); gr.addColorStop(1, 'rgba(62,230,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+const joints = new THREE.Points(jointGeo, new THREE.PointsMaterial({ map: dotTex, size: 13, sizeAttenuation: false, depthTest: false, transparent: true, depthWrite: false }));
+joints.renderOrder = 11; partGroup.add(joints);
+const pivotMark = new THREE.Mesh(new THREE.OctahedronGeometry(0.09), new THREE.MeshBasicMaterial({ color: 0xffd45c, depthTest: false }));
+pivotMark.renderOrder = 12; partGroup.add(pivotMark);
+const _pv = new THREE.Vector3(), _pp = new THREE.Vector3();
+function bonePoint(R, id, out) { const info = R.rig.get(id), ps = lastPose.get(id); return out.set(...info.pivot).applyMatrix4(ps.G); }
+function updateBones(R) {
+  const show = currentTab === 'anim' && anim.bones; bones.visible = joints.visible = show; pivotMark.visible = currentTab === 'anim' && !!selId && lastPose.has(selId);
+  if (pivotMark.visible) { bonePoint(R, selId, pivotMark.position); pivotMark.rotation.y += 0.04; }
+  if (!show) return;
+  const lp = boneGeo.attributes.position.array, jp = jointGeo.attributes.position.array; let n = 0, j = 0;
+  for (const id of R.order) { if (j >= 64) break; const info = R.rig.get(id); bonePoint(R, id, _pv); jp.set([_pv.x, _pv.y, _pv.z], j * 3); j++;
+    if (info.parent && n < 64) { bonePoint(R, info.parent, _pp); lp.set([_pp.x, _pp.y, _pp.z, _pv.x, _pv.y, _pv.z], n * 6); n++; } }
+  boneGeo.setDrawRange(0, n * 2); jointGeo.setDrawRange(0, j); boneGeo.attributes.position.needsUpdate = true; jointGeo.attributes.position.needsUpdate = true;
+  boneGeo.computeBoundingSphere(); jointGeo.computeBoundingSphere();
+}
+/* ---------- onion skin: the selected part at its previous and next keys ---------- */
+const ghosts = [0x5cb8ff, 0xffa64d].map((c) => { const g = new THREE.Mesh(GEO.Block, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.28, depthWrite: false })); g.visible = false; partGroup.add(g); return g; });
+function updateOnion(R) {
+  ghosts.forEach((g) => (g.visible = false));
+  const c = curClip(); if (currentTab !== 'anim' || !anim.onion || !c || !selId || !c.tracks[selId]) return;
+  const keys = c.tracks[selId], p = pet.parts.find((x) => x.id === selId); if (!p) return;
+  const prev = [...keys].reverse().find((k) => k.t < anim.time - 1e-3), next = keys.find((k) => k.t > anim.time + 1e-3);
+  [prev, next].forEach((k, i) => { if (!k) return; const g = ghosts[i]; const pose = AC.computePose(pet.parts, R, offsetsAt(c, k.t)).get(selId);
+    g.geometry = GEO[p.shape] || GEO.Block; pose.M.decompose(g.position, g.quaternion, _s1); g.scale.fromArray(p.size); g.visible = true; });
+}
+/* ---------- gizmo -> keys (auto-key, like Blender with the record button on) ---------- */
+function animGizmoChange(m) {
+  const c = curClip(); if (!c) return;
+  const Mw = new THREE.Matrix4().compose(m.position, m.quaternion, new THREE.Vector3(1, 1, 1));
+  const v = AC.offsetFromPose(pet.parts, getRig(), lastPose, m.userData.id, Mw);
+  anim.selKey = setKey(c, m.userData.id, snapT(anim.time), v); anim.dirty = true;
+}
+/* ---------- easing curve drawings ---------- */
+function curvePath(style, dir, w, h, pad = 3) {
+  const N = 48, ys = []; for (let i = 0; i <= N; i++) ys.push(AC.ease(style, dir, i / N));
+  const lo = Math.min(0, ...ys), hi = Math.max(1, ...ys), sy = (h - pad * 2) / (hi - lo);
+  return ys.map((y, i) => `${i ? 'L' : 'M'}${(pad + (i / N) * (w - pad * 2)).toFixed(1)},${(h - pad - (y - lo) * sy).toFixed(1)}`).join('');
+}
+/* ---------- the pane ---------- */
+function clipChips() { return pet.anims.map((x) => `<button class="chip${x.id === pet.animSel ? ' on' : ''}" data-clip="${x.id}">${WHEN[x.when][0]} ${esc(x.name)}</button>`).join(''); }
+function paneAnim() {
+  ensureAnims(); const c = curClip(); if (c) anim.time = Math.max(0, Math.min(anim.time, c.length));
+  if (gizmo.getMode() === 'scale') setGizmoMode('translate');
+  pane.innerHTML = `<div class="sec anim">
+      <div class="clips" id="clips">${clipChips()}<button class="chip add" id="clipNew">＋ Nouvelle</button></div>
+      ${c ? `<div class="transport">
+        <button class="ib" id="aStart" title="Début">⏮</button><button class="ib play${anim.playing ? ' on' : ''}" id="aPlay" title="Lecture">${anim.playing ? '⏸' : '▶'}</button><button class="ib" id="aEnd" title="Fin">⏭</button>
+        <div class="tc"><b id="aTime">0.00</b><small>/ ${(+c.length).toFixed(2)} s</small></div>
+        <button class="ib${anim.snap ? ' on' : ''}" id="aSnap" title="Aimant 0,05 s">🧲</button><button class="ib${anim.onion ? ' on' : ''}" id="aOnion" title="Pelures d'oignon">🧅</button><button class="ib${anim.bones ? ' on' : ''}" id="aBones" title="Os">🦴</button>
+      </div>
+      <div class="dope" id="dope"><div class="dhead"><div class="dcorner">◆ clés</div><div class="ruler" id="ruler"></div></div>
+        <div class="dbody" id="dbody"><div class="dnames" id="dnames"></div><div class="dtrack" id="dtrack"></div></div>
+        <div class="phead" id="phead"><i></i></div></div>
+      <div class="zoomrow"><span>🔍</span><input type="range" id="aZoom" min="1" max="8" step="0.1" value="${anim.zoom}"><span>↔</span><input type="range" id="aPan" min="0" max="1" step="0.001" value="${anim.pan}" ${anim.zoom > 1 ? '' : 'disabled'}></div>
+      <div class="btns keybar"><button class="btn pri" id="aKey">◆ Clé</button><button class="btn" id="aKeyAll">◆ Toutes</button><button class="btn" id="aPrev">⇤</button><button class="btn" id="aNext">⇥</button><button class="btn" id="aTest">▶ Tester comme en jeu</button></div>
+      <div class="note tip">Touche une pièce (ou sa ligne), place la tête de lecture, puis bouge / tourne la pièce : une <b>clé</b> est créée toute seule. Les enfants suivent leur parent (os 🦴).</div>`
+      : '<div class="note">Aucune animation. Choisis un modèle ci-dessous ou ＋ Nouvelle.</div>'}
+    </div>
+    <div id="keyInsp"></div><div id="boneInsp"></div>
+    ${c ? `<div class="sec"><h3>Animation <small>${WHEN[c.when][2]}</small></h3>
+      <div class="row"><label>Nom</label><input type="text" id="cName" value="${esc(c.name)}" maxlength="30"></div>
+      <div class="row"><label>Quand</label><select id="cWhen">${Object.entries(WHEN).map(([k, v]) => `<option value="${k}"${k === c.when ? ' selected' : ''}>${v[0]} ${v[1]}</option>`).join('')}</select></div>
+      <div class="row"><label>Durée (s)</label><input type="number" id="cLen" min="0.1" max="30" step="0.1" value="${c.length}"><button class="btn" id="cStretch" title="Étirer les clés à la nouvelle durée">⇔ Étirer</button></div>
+      <div class="row"><label>Vitesse</label><input type="range" id="cSpeed" min="0.25" max="3" step="0.05" value="${c.speed || 1}"><span class="val" id="cSpeedV">×${(c.speed || 1).toFixed(2)}</span></div>
+      <div class="row"><label>En boucle</label><button class="sw${c.loop ? ' on' : ''}" id="cLoop"></button></div>
+      <div class="btns"><button class="btn" id="cDup">⧉ Dupliquer</button><button class="btn" id="cMirror">⇋ Miroir G↔D</button><button class="btn" id="cRev">⇆ À l'envers</button><button class="btn danger" id="cDel">🗑 Supprimer</button></div>
+      ${c.when === 'manual' ? `<div class="note" style="margin-top:8px">Dans ton jeu : <code class="inl">player:SetAttribute("ForgePetAnim", "${esc(c.name)}")</code></div>` : ''}</div>` : ''}
+    <div class="sec"><h3>Modèles <small>s'adaptent au corps du pet</small></h3><div class="grid2">${PRESETS.map((p) => `<button class="preset" data-preset="${p.id}"><span class="e">${p.e}</span>${p.label}<small class="pw">${WHEN[p.when][1]}</small></button>`).join('')}</div></div>`;
+  pane.querySelectorAll('[data-clip]').forEach((b) => b.onclick = () => { pet.animSel = b.dataset.clip; anim.time = 0; anim.playing = false; anim.selKey = null; save(); paneAnim(); });
+  $('clipNew').onclick = () => { snapshot(); const n = { id: 'a' + nid(), name: 'Anim ' + (pet.anims.length + 1), when: 'manual', length: 1.5, loop: false, speed: 1, tracks: {} }; pet.anims.push(n); pet.animSel = n.id; anim.time = 0; save(); paneAnim(); toast('Nouvelle animation : place des clés ◆'); };
+  pane.querySelectorAll('[data-preset]').forEach((b) => b.onclick = () => { snapshot(); const n = makeClip(b.dataset.preset, pet.parts);
+    if (!Object.keys(n.tracks).length) return toast('Ce corps n\'a pas les pièces pour ce modèle');
+    let name = n.name, i = 2; while (pet.anims.some((x) => x.name === name)) name = n.name + ' ' + i++; n.name = name;
+    pet.anims.push(n); pet.animSel = n.id; anim.time = 0; anim.playing = true; save(); paneAnim(); toast(PRESETS.find((p) => p.id === b.dataset.preset).e + ' ' + n.name + ' ajoutée'); });
+  if (!c) return;
+  $('aPlay').onclick = () => { anim.playing = !anim.playing; if (anim.playing && anim.time >= c.length - 1e-3) anim.time = 0; syncPlay(); };
+  $('aStart').onclick = () => { anim.time = 0; anim.playing = false; syncPlay(); };
+  $('aEnd').onclick = () => { anim.time = c.length; anim.playing = false; syncPlay(); };
+  $('aSnap').onclick = () => { anim.snap = !anim.snap; $('aSnap').classList.toggle('on', anim.snap); toast(anim.snap ? 'Aimant : 0,05 s' : 'Aimant coupé'); };
+  $('aOnion').onclick = () => { anim.onion = !anim.onion; $('aOnion').classList.toggle('on', anim.onion); toast(anim.onion ? 'Pelures d\'oignon : clé d\'avant (bleu) et d\'après (orange)' : 'Pelures d\'oignon coupées'); };
+  $('aBones').onclick = () => { anim.bones = !anim.bones; $('aBones').classList.toggle('on', anim.bones); };
+  $('aZoom').oninput = (e) => { anim.zoom = +e.target.value; $('aPan').disabled = anim.zoom <= 1; renderDope(); };
+  $('aPan').oninput = (e) => { anim.pan = +e.target.value; renderDope(); };
+  $('aKey').onclick = () => { if (!selId) return toast('Touche d\'abord une pièce'); snapshot(); keyPart(c, selId); };
+  $('aKeyAll').onclick = () => { snapshot(); const ids = new Set([...Object.keys(c.tracks), ...(selId ? [selId] : [])]); if (!ids.size) pet.parts.forEach((p) => ids.add(p.id)); ids.forEach((id) => keyPart(c, id, true)); toast(ids.size + ' clés posées à ' + anim.time.toFixed(2) + ' s'); };
+  $('aPrev').onclick = () => jumpKey(c, -1); $('aNext').onclick = () => jumpKey(c, 1);
+  $('aTest').onclick = () => { anim.shot = { clip: c, t: 0 }; anim.previewT = 0; setTab('fx'); toast('Aperçu comme dans le jeu (retour : onglet 🎬)'); };
+  let sn = false; const once = () => { if (!sn) { snapshot(); sn = true; } };
+  $('cName').oninput = (e) => { once(); c.name = e.target.value.replace(/[\u0000-\u001f"\\]/g, '').trim() || 'Anim'; save(); const chip = pane.querySelector(`[data-clip="${c.id}"]`); if (chip) chip.textContent = WHEN[c.when][0] + ' ' + c.name; };
+  $('cWhen').onchange = (e) => { once(); c.when = e.target.value; if (c.when === 'idle' || c.when === 'move') c.loop = true; save(); paneAnim(); };
+  $('cLen').onchange = (e) => { once(); const v = Math.max(0.1, Math.min(30, +e.target.value || 1)); c.length = +v.toFixed(2); anim.time = Math.min(anim.time, c.length); save(); paneAnim(); };
+  $('cStretch').onclick = () => { const v = Math.max(0.1, Math.min(30, +$('cLen').value || 1)); const maxT = Math.max(0, ...Object.values(c.tracks).flat().map((k) => k.t)); if (!maxT) return;
+    snapshot(); const f = v / maxT; for (const keys of Object.values(c.tracks)) keys.forEach((k) => (k.t = +(k.t * f).toFixed(3))); c.length = +v.toFixed(2); save(); paneAnim(); toast('Clés étirées ×' + f.toFixed(2)); };
+  $('cSpeed').oninput = (e) => { once(); c.speed = +e.target.value; $('cSpeedV').textContent = '×' + c.speed.toFixed(2); save(); };
+  $('cLoop').onclick = () => { once(); c.loop = !c.loop; $('cLoop').classList.toggle('on', c.loop); save(); };
+  $('cDup').onclick = () => { snapshot(); const d = { ...clone(c), id: 'a' + nid(), name: c.name + ' copie' }; pet.anims.push(d); pet.animSel = d.id; save(); paneAnim(); };
+  $('cMirror').onclick = () => { snapshot(); mirrorClip(c); save(); renderDope(); renderInspectors(); toast('Gauche et droite échangées'); };
+  $('cRev').onclick = () => { snapshot(); for (const keys of Object.values(c.tracks)) { const L = c.length; keys.forEach((k) => (k.t = +(L - k.t).toFixed(3))); keys.sort((a, b) => a.t - b.t); } save(); renderDope(); toast('Animation inversée'); };
+  $('cDel').onclick = () => { if (!confirm('Supprimer l\'animation « ' + c.name + ' » ?')) return; snapshot(); pet.anims = pet.anims.filter((x) => x !== c); pet.animSel = pet.anims[0] ? pet.anims[0].id : null; anim.selKey = null; save(); paneAnim(); };
+  setupDope(c); renderDope(); renderInspectors(); syncPlay();
+}
+function syncPlay() { const b = $('aPlay'); if (b) { b.textContent = anim.playing ? '⏸' : '▶'; b.classList.toggle('on', anim.playing); } updatePlayhead(); }
+function keyPart(c, id, quiet) {
+  const ps = lastPose.get(id); if (!ps) return;
+  const v = AC.offsetFromPose(pet.parts, getRig(), lastPose, id, ps.M);
+  anim.selKey = setKey(c, id, snapT(anim.time), v); save(); renderDope(); renderInspectors(); if (!quiet) toast('◆ Clé à ' + anim.time.toFixed(2) + ' s');
+}
+function jumpKey(c, dir) {
+  const ts = [...new Set(Object.entries(c.tracks).filter(([id]) => !selId || id === selId).flatMap(([, ks]) => ks.map((k) => k.t)))].sort((a, b) => a - b);
+  const t = dir < 0 ? [...ts].reverse().find((x) => x < anim.time - 1e-3) : ts.find((x) => x > anim.time + 1e-3);
+  if (t == null) return; anim.time = t; anim.playing = false;
+  if (selId && c.tracks[selId]) anim.selKey = c.tracks[selId].find((k) => Math.abs(k.t - t) < 1e-3) || null;
+  syncPlay(); renderDope(); renderInspectors();
+}
+function mirrorClip(c) {
+  const byName = new Map(pet.parts.map((p) => [p.name, p])), done = new Set(), out = {};
+  const flip = (keys) => keys.map((k) => ({ ...clone(k), pos: [-k.pos[0], k.pos[1], k.pos[2]], rot: [k.rot[0], -k.rot[1], -k.rot[2]] }));
+  for (const p of pet.parts) {
+    if (done.has(p.id)) continue; const m = /^(.*?)(L|R)$/.exec(p.name), twin = m && byName.get(m[1] + (m[2] === 'L' ? 'R' : 'L'));
+    if (twin) { if (c.tracks[p.id]) out[twin.id] = flip(c.tracks[p.id]); if (c.tracks[twin.id]) out[p.id] = flip(c.tracks[twin.id]); done.add(twin.id); }
+    else if (c.tracks[p.id]) out[p.id] = flip(c.tracks[p.id]);
+    done.add(p.id);
+  }
+  c.tracks = out;
+}
+/* ---------- dope sheet (rows = bones, diamonds = keys) ---------- */
+const NAMES_W = 104;
+function trackW() { const el = $('dtrack'); return el ? el.clientWidth : 200; }
+function tToX(c, t) { const W = trackW(), full = W * anim.zoom; return (t / c.length) * full - anim.pan * (full - W); }
+function xToT(c, x) { const W = trackW(), full = W * anim.zoom; return Math.max(0, Math.min(c.length, ((x + anim.pan * (full - W)) / full) * c.length)); }
+function renderDope() {
+  const c = curClip(), dn = $('dnames'), dt = $('dtrack'), ru = $('ruler'); if (!c || !dn) return;
+  anim.dirty = false; const R = getRig(), W = trackW();
+  dn.innerHTML = R.order.map((id) => { const p = pet.parts.find((x) => x.id === id), d = R.rig.get(id).depth, has = !!c.tracks[id];
+    return `<div class="dn${id === selId ? ' on' : ''}${has ? ' has' : ''}" data-row="${id}" style="padding-left:${6 + Math.min(d, 5) * 9}px">${d ? '<i>└</i>' : ''}${esc(p.name)}</div>`; }).join('');
+  dt.innerHTML = R.order.map((id) => { const keys = c.tracks[id] || [];
+    let h = `<div class="dr${id === selId ? ' on' : ''}" data-row="${id}">`;
+    for (let i = 0; i < keys.length - 1; i++) { const a = tToX(c, keys[i].t), b = tToX(c, keys[i + 1].t); if (b < 0 || a > W) continue; const same = JSON.stringify([keys[i].pos, keys[i].rot]) === JSON.stringify([keys[i + 1].pos, keys[i + 1].rot]);
+      h += `<b class="seg${same ? ' hold' : ''}" style="left:${a}px;width:${Math.max(0, b - a)}px"></b>`; }
+    keys.forEach((k, i) => { const x = tToX(c, k.t); if (x < -8 || x > W + 8) return; h += `<i class="kd e-${k.ease}${k === anim.selKey ? ' on' : ''}" data-id="${id}" data-k="${i}" style="left:${x}px"></i>`; });
+    return h + '</div>'; }).join('');
+  // ruler: label step adapts to zoom
+  const pps = (W * anim.zoom) / c.length, step = [0.05, 0.1, 0.25, 0.5, 1, 2, 5].find((s) => s * pps >= 44) || 5; let r = '';
+  for (let t = 0; t <= c.length + 1e-6; t += step / 5) { const x = tToX(c, t); if (x < -2 || x > W + 2) continue; const major = Math.abs(t / step - Math.round(t / step)) < 1e-6;
+    r += `<i class="tk${major ? ' mj' : ''}" style="left:${x}px">${major ? `<span>${+t.toFixed(2)}</span>` : ''}</i>`; }
+  ru.innerHTML = r + `<i class="endmark" style="left:${tToX(c, c.length)}px"></i>`;
+  updatePlayhead();
+}
+function updatePlayhead() {
+  const c = curClip(), ph = $('phead'), tx = $('aTime'); if (!c || !ph) return;
+  const x = tToX(c, anim.time); ph.style.transform = `translateX(${NAMES_W + x}px)`; ph.style.opacity = x < -1 || x > trackW() + 1 ? 0 : 1; if (tx) tx.textContent = anim.time.toFixed(2);
+}
+function setupDope(c) {
+  const dope = $('dope'); let drag = null;
+  const local = (e) => { const r = $('dtrack').getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, inTrack: e.clientX >= r.left }; };
+  dope.addEventListener('pointerdown', (e) => {
+    const row = e.target.closest('[data-row]'), kd = e.target.closest('.kd');
+    if (row && !kd && e.target.closest('#dnames')) { select(row.dataset.row); return; }
+    const L = local(e); if (!L.inTrack) return;
+    anim.playing = false; syncPlay();
+    if (kd) { const keys = c.tracks[kd.dataset.id], k = keys[+kd.dataset.k]; if (selId !== kd.dataset.id) select(kd.dataset.id);
+      anim.selKey = k; anim.time = k.t; drag = { kind: 'key', k, keys, x0: L.x, t0: k.t, moved: false }; }
+    else { if (row && row.dataset.row !== selId) select(row.dataset.row); drag = { kind: 'scrub' }; anim.time = snapT(xToT(c, L.x)); }
+    dope.setPointerCapture(e.pointerId); renderDope(); renderInspectors();
+  });
+  dope.addEventListener('pointermove', (e) => { if (!drag) return; const L = local(e);
+    if (drag.kind === 'scrub') { anim.time = snapT(xToT(c, L.x)); updatePlayhead(); autoPan(c, L.x); return; }
+    if (!drag.moved && Math.abs(L.x - drag.x0) < 6) return;
+    if (!drag.moved) { snapshot(); drag.moved = true; }
+    const t = snapT(Math.max(0, Math.min(c.length, drag.t0 + xToT(c, L.x) - xToT(c, drag.x0))));
+    if (drag.keys.some((k) => k !== drag.k && Math.abs(k.t - t) < 1e-3)) return; // never stack two keys
+    drag.k.t = +t.toFixed(3); drag.keys.sort((a, b) => a.t - b.t); anim.time = drag.k.t; renderDope(); });
+  const end = () => { if (drag && drag.moved) { save(); renderInspectors(); } drag = null; };
+  dope.addEventListener('pointerup', end); dope.addEventListener('pointercancel', end);
+}
+function autoPan(c, x) { if (anim.zoom <= 1) return; const W = trackW(); if (x > W - 20) anim.pan = Math.min(1, anim.pan + 0.01); else if (x < 20) anim.pan = Math.max(0, anim.pan - 0.01); else return; const p = $('aPan'); if (p) p.value = anim.pan; renderDope(); }
+/* ---------- inspectors: selected key + selected bone ---------- */
+function renderInspectors() { renderKeyInsp(); renderBoneInsp(); }
+function renderKeyInsp() {
+  const box = $('keyInsp'), c = curClip(); if (!box) return;
+  const keys = c && selId && c.tracks[selId], k = keys && keys.includes(anim.selKey) ? anim.selKey : null;
+  if (!k) { box.innerHTML = ''; return; }
+  const i = keys.indexOf(k), last = i === keys.length - 1;
+  box.innerHTML = `<div class="sec"><h3>◆ Clé ${i + 1}/${keys.length} <small>${esc(pet.parts.find((p) => p.id === selId).name)} · ${k.t.toFixed(2)} s</small></h3>
+    <div class="note" style="margin-bottom:6px">${last ? 'Dernière clé : la pièce reste dans cette pose.' : `Courbe jusqu'à la clé suivante (${keys[i + 1].t.toFixed(2)} s) :`}</div>
+    ${last ? '' : `<svg class="bigcurve" viewBox="0 0 300 92" preserveAspectRatio="none"><path d="${curvePath(k.ease, k.dir, 300, 92, 8)}"/></svg>
+    <div class="eases">${AC.EASES.map((e) => `<button class="ez${e === k.ease ? ' on' : ''}" data-ease="${e}"><svg viewBox="0 0 40 26"><path d="${curvePath(e, k.dir, 40, 26, 3)}"/></svg>${AC.EASE_FR[e]}</button>`).join('')}</div>
+    <div class="seg3">${AC.DIRS.map((d) => `<button data-dir="${d}" class="${d === k.dir ? 'on' : ''}">${AC.DIR_FR[d]}</button>`).join('')}</div>`}
+    <div class="row"><label>Temps (s)</label><input type="number" id="kT" step="0.05" min="0" max="${c.length}" value="${k.t}"></div>
+    ${vecRow('Décalage', 'kpos', k.pos, 0.05)}${vecRow('Rotation°', 'krot', k.rot, 5)}
+    <div class="btns"><button class="btn" id="kCopy">⧉ Copier</button><button class="btn" id="kPaste"${anim.clipboard ? '' : ' disabled'}>📋 Coller ici</button><button class="btn" id="kZero">⟲ Pose de repos</button><button class="btn danger" id="kDel">🗑 Supprimer</button></div></div>`;
+  let sn = false; const once = () => { if (!sn) { snapshot(); sn = true; } };
+  box.querySelectorAll('[data-ease]').forEach((b) => b.onclick = () => { once(); k.ease = b.dataset.ease; anim.lastEase = [k.ease, k.dir]; save(); renderKeyInsp(); renderDope(); });
+  box.querySelectorAll('[data-dir]').forEach((b) => b.onclick = () => { once(); k.dir = b.dataset.dir; anim.lastEase = [k.ease, k.dir]; save(); renderKeyInsp(); });
+  $('kT').onchange = (e) => { const t = snapT(Math.max(0, Math.min(c.length, +e.target.value || 0))); if (keys.some((x) => x !== k && Math.abs(x.t - t) < 1e-3)) return toast('Il y a déjà une clé à ce temps'); once(); k.t = t; keys.sort((a, b) => a.t - b.t); anim.time = t; save(); renderDope(); renderKeyInsp(); };
+  box.querySelectorAll('[data-vec]').forEach((v) => v.querySelectorAll('input').forEach((inp) => inp.onchange = () => { const n = parseFloat(inp.value); if (!isFinite(n)) return; once(); (v.dataset.vec === 'kpos' ? k.pos : k.rot)[+inp.dataset.i] = n; save(); renderDope(); }));
+  $('kCopy').onclick = () => { anim.clipboard = { pos: k.pos.slice(), rot: k.rot.slice(), ease: k.ease, dir: k.dir }; toast('Pose copiée'); renderKeyInsp(); };
+  $('kPaste').onclick = () => { if (!anim.clipboard) return; snapshot(); const nk = setKey(c, selId, snapT(anim.time), anim.clipboard); nk.ease = anim.clipboard.ease; nk.dir = anim.clipboard.dir; anim.selKey = nk; save(); renderDope(); renderKeyInsp(); toast('Pose collée à ' + anim.time.toFixed(2) + ' s'); };
+  $('kZero').onclick = () => { snapshot(); k.pos = [0, 0, 0]; k.rot = [0, 0, 0]; save(); renderDope(); renderKeyInsp(); };
+  $('kDel').onclick = () => { snapshot(); keys.splice(keys.indexOf(k), 1); if (!keys.length) delete c.tracks[selId]; anim.selKey = null; save(); renderDope(); renderInspectors(); };
+}
+function renderBoneInsp() {
+  const box = $('boneInsp'), c = curClip(); if (!box) return;
+  const p = pet.parts.find((x) => x.id === selId); if (!p || !c) { box.innerHTML = ''; return; }
+  const R = getRig(), info = R.rig.get(p.id), body = AC.bodyOf(pet.parts);
+  const desc = new Set([p.id]); let grew = true; while (grew) { grew = false; for (const [id, inf] of R.rig) if (!desc.has(id) && desc.has(inf.parent)) { desc.add(id); grew = true; } }
+  const rel = info.pivot.map((v, i) => +(v - p.pos[i]).toFixed(3));
+  box.innerHTML = `<div class="sec"><h3>🦴 ${esc(p.name)} <small>${c.tracks[p.id] ? c.tracks[p.id].length + ' clés' : 'pas encore animée'}</small></h3>
+    ${p === body ? '<div class="note">Le corps est la racine : tout le pet le suit.</div>' : `<div class="row"><label>Attaché à</label><select id="bPar">${pet.parts.filter((x) => !desc.has(x.id)).map((x) => `<option value="${x.id}"${x.id === info.parent ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>`}
+    ${vecRow('Pivot', 'bpv', rel, 0.05)}
+    <div class="note" style="margin:-2px 0 8px">Point autour duquel la pièce tourne (◆ jaune dans la vue), par rapport à son centre. ${info.autoPivot ? 'Placé automatiquement à la jointure.' : 'Réglé à la main.'}</div>
+    <div class="btns"><button class="btn" id="bAuto"${info.autoPivot ? ' disabled' : ''}>✨ Pivot auto</button><button class="btn" id="bCenter">⊙ Au centre</button>${c.tracks[p.id] ? '<button class="btn danger" id="bClear">🗑 Effacer ses clés</button>' : ''}</div></div>`;
+  if ($('bPar')) $('bPar').onchange = (e) => { snapshot(); p.parent = e.target.value; save(); renderDope(); renderBoneInsp(); toast(p.name + ' suit maintenant ' + pet.parts.find((x) => x.id === p.parent).name); };
+  box.querySelectorAll('[data-vec="bpv"] input').forEach((inp) => inp.onchange = () => { const n = parseFloat(inp.value); if (!isFinite(n)) return; snapshot(); const r = rel.slice(); r[+inp.dataset.i] = n; p.pivot = r; save(); renderBoneInsp(); });
+  $('bAuto').onclick = () => { snapshot(); delete p.pivot; save(); renderBoneInsp(); };
+  $('bCenter').onclick = () => { snapshot(); p.pivot = [0, 0, 0]; save(); renderBoneInsp(); };
+  if ($('bClear')) $('bClear').onclick = () => { snapshot(); delete c.tracks[p.id]; anim.selKey = null; save(); renderDope(); renderInspectors(); };
+}
+function animTick(dt) {
+  if (currentTab !== 'anim') return;
+  const c = curClip(); if (c && anim.time > c.length) anim.time = c.length;
+  if (c && anim.playing) { anim.time += dt * (c.speed || 1); if (anim.time > c.length) { if (c.loop) anim.time %= c.length; else { anim.time = c.length; anim.playing = false; syncPlay(); } }
+    if (anim.zoom > 1) { const x = tToX(c, anim.time), W = trackW(); if (x > W * 0.85 || x < 0) { anim.pan = Math.max(0, Math.min(1, anim.pan + (x - W * 0.5) / (W * (anim.zoom - 1)))); const p = $('aPan'); if (p) p.value = anim.pan; anim.dirty = true; } } }
+  if (anim.dirty) renderDope(); else updatePlayhead();
+}
+/* ---------- export: rig + clips as a Luau table (ForgeAnimData ModuleScript) ---------- */
+function exportNames() {
+  const body = AC.bodyOf(pet.parts), used = new Set(['Body', 'ForgeRoot', 'ForgeAnimData', 'Outline']), names = new Map([[body.id, 'Body']]);
+  for (const p of pet.parts) { if (p === body) continue; const base = (String(p.name).replace(/[^\w]/g, '') || 'Part').slice(0, 40); let n = base, i = 2; while (used.has(n)) n = base + i++; used.add(n); names.set(p.id, n); }
+  return names;
+}
+const r4 = (v) => +(+v).toFixed(4) || 0;
+function animData() {
+  const names = exportNames(), R = getRig(), rig = {};
+  for (const id of R.order) { const p = pet.parts.find((x) => x.id === id), info = R.rig.get(id);
+    rig[names.get(id)] = { parent: info.parent ? names.get(info.parent) : null, pos: p.pos.map(r4), rot: p.rot.map(r4), pivot: info.pivot.map(r4) }; }
+  const clips = (pet.anims || []).map((c) => { const tracks = {};
+    for (const [id, keys] of Object.entries(c.tracks)) if (keys.length && names.has(id)) tracks[names.get(id)] = keys.map((k) => ({ t: r4(k.t), pos: k.pos.map(r4), rot: k.rot.map(r4), ease: k.ease, dir: k.dir }));
+    return { name: c.name, when: c.when, length: r4(c.length), loop: !!c.loop, speed: r4(c.speed || 1), tracks }; });
+  return { v: 1, rig, clips };
+}
+function lua(v, ind = '') {
+  if (v === null || v === undefined) return 'nil';
+  if (typeof v === 'number') return String(r4(v));
+  if (typeof v === 'boolean') return String(v);
+  if (typeof v === 'string') return JSON.stringify(v.replace(/[\u0000-\u001f]/g, ''));
+  const key = (k) => (/^[A-Za-z_]\w*$/.test(k) && !/^(and|break|do|else|elseif|end|false|for|function|if|in|local|nil|not|or|repeat|return|then|true|until|while|continue)$/.test(k) ? k : `[${JSON.stringify(k)}]`);
+  const items = Array.isArray(v) ? v.map((x) => lua(x, ind + '\t')) : Object.entries(v).filter(([, x]) => x !== null && x !== undefined).map(([k, x]) => `${key(k)} = ${lua(x, ind + '\t')}`);
+  const one = `{ ${items.join(', ')} }`;
+  if (!items.length) return '{}';
+  if (one.length <= 120 && !one.includes('\n')) return one;
+  return `{\n${items.map((s) => ind + '\t' + s).join(',\n')},\n${ind}}`;
+}
+function animDataLua() { return `-- Roblox Forge - rig + animations of ${safeName(pet.name)} (generated by Forge Studio: edit them in the 🎬 tab)\n-- Read by ForgePetController (bones) and ForgePetAnim (keyframes, eased with ForgeAnimCore).\nreturn ${lua(animData())}\n`; }
+
 /* ---------- boot ---------- */
 resize(); rebuild(); renderPane(); syncUndo(); loop();
-window.__forge = { get pet() { return pet; }, modelJson, buildPack, select, setTab }; // used by automated tests
+window.__forge = { get pet() { return pet; }, modelJson, buildPack, select, setTab, AC, anim, animData, animDataLua, exportNames, getRig, offsetsAt, curClip, get lastPose() { return lastPose; }, gizmo, meshes, renderPane }; // used by automated tests

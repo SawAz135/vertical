@@ -2,6 +2,7 @@
 	Roblox Forge - pet controller (server).
 	Gives every player a pet from ReplicatedStorage.ForgePets and makes it follow them.
 	Pick a pet per player with:  player:SetAttribute("ForgePet", "PetName")
+	Play an animation made in the studio:  player:SetAttribute("ForgePetAnim", "Danse")
 	The pet moves with physics (AlignPosition / AlignOrientation), so it glides smoothly.
 ]]
 local Players = game:GetService("Players")
@@ -18,25 +19,54 @@ local function readFx(model)
 	return ok and fx or {}
 end
 
-local function weldTogether(model)
+-- Joins the parts with Motor6Ds following the bone hierarchy made in Forge Studio
+-- (ForgeAnimData.rig). An invisible ForgeRoot carries the physics, so even the Body
+-- can be animated by ForgePetAnim (client). Without animation data every part hangs
+-- from the Body and stays rigid.
+local function readRig(model)
+	local data = model:FindFirstChild("ForgeAnimData")
+	if not data then return {} end
+	local ok, result = pcall(require, data)
+	return ok and type(result) == "table" and result.rig or {}
+end
+
+local function rigTogether(model)
 	local body = model:FindFirstChild("Body") or model:FindFirstChildWhichIsA("BasePart", true)
-	model.PrimaryPart = body
+	local rig = readRig(model)
+	local root = Instance.new("Part")
+	root.Name = "ForgeRoot"
+	root.Size = Vector3.new(0.4, 0.4, 0.4)
+	root.Transparency = 1
+	root.CFrame = body.CFrame
+	root.Parent = model
+	model.PrimaryPart = root
+	local function joint(part0, part1)
+		local motor = Instance.new("Motor6D")
+		motor.Name = "ForgeJoint"
+		motor.Part0 = part0
+		motor.Part1 = part1
+		motor.C0 = part0.CFrame:Inverse() * part1.CFrame
+		motor.C1 = CFrame.identity
+		motor.Parent = part1
+	end
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
 			d.Anchored = false
 			d.CanCollide = false
 			d.CanQuery = false
 			d.CanTouch = false
-			d.Massless = d ~= body
-			if d ~= body then
-				local weld = Instance.new("WeldConstraint")
-				weld.Part0 = body
-				weld.Part1 = d
-				weld.Parent = d
-			end
+			d.Massless = d ~= root
 		end
 	end
-	return body
+	joint(root, body)
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") and d ~= body and d ~= root then
+			local info = rig[d.Name]
+			local parent = info and info.parent and model:FindFirstChild(info.parent)
+			joint(parent and parent:IsA("BasePart") and parent or body, d)
+		end
+	end
+	return root, body
 end
 
 local function addTrail(body, fx)
@@ -80,7 +110,7 @@ local function spawnPet(player, character)
 	if not template then return end
 
 	local model = template:Clone()
-	local body = weldTogether(model)
+	local petRoot, body = rigTogether(model)
 	local fx = readFx(model)
 	model.Name = player.Name .. "_Pet"
 	model:SetAttribute("ForgeOwner", player.UserId)
@@ -88,24 +118,24 @@ local function spawnPet(player, character)
 
 	local attachment = Instance.new("Attachment")
 	attachment.Name = "ForgeAlign"
-	attachment.Parent = body
+	attachment.Parent = petRoot
 	local align = Instance.new("AlignPosition")
 	align.Mode = Enum.PositionAlignmentMode.OneAttachment
 	align.Attachment0 = attachment
 	align.MaxForce = 1e6
 	align.MaxVelocity = 80
 	align.Responsiveness = 18
-	align.Parent = body
+	align.Parent = petRoot
 	local orient = Instance.new("AlignOrientation")
 	orient.Mode = Enum.OrientationAlignmentMode.OneAttachment
 	orient.Attachment0 = attachment
 	orient.MaxTorque = 1e6
 	orient.Responsiveness = 14
-	orient.Parent = body
+	orient.Parent = petRoot
 
 	addTrail(body, fx)
 	model.Parent = workspace
-	pcall(function() body:SetNetworkOwner(nil) end)
+	pcall(function() petRoot:SetNetworkOwner(nil) end)
 	CollectionService:AddTag(model, "ForgePet")
 	active[player] = { model = model, body = body, align = align, orient = orient, fx = fx, root = root, seed = math.random() * 10 }
 end
@@ -130,6 +160,14 @@ local function hook(player)
 		spawnPet(player, character)
 	end)
 	if player.Character then task.spawn(spawnPet, player, player.Character) end
+	player:GetAttributeChangedSignal("ForgePetAnim"):Connect(function()
+		local state = active[player]
+		local name = player:GetAttribute("ForgePetAnim")
+		if state and type(name) == "string" and name ~= "" then
+			state.model:SetAttribute("ForgeAnimPlay", name .. "#" .. string.format("%.3f", os.clock()))
+			player:SetAttribute("ForgePetAnim", nil)
+		end
+	end)
 	player:GetAttributeChangedSignal("ForgePet"):Connect(function()
 		if player.Character then spawnPet(player, player.Character) end
 	end)
