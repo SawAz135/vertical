@@ -162,6 +162,19 @@ button{cursor:pointer}
 .seg3 button.on{background:linear-gradient(135deg,var(--v),#4b2fd6);color:#fff}
 .preset .pw{display:block;font-size:10.5px;font-weight:700;color:var(--muted);margin-top:2px}
 code.inl{font:11.5px ui-monospace,Menlo,monospace;color:var(--c);word-break:break-all}
+/* generator + index */
+.chipwrap{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:0;border-radius:11px;padding:7px 10px;font-size:12.5px;font-weight:800;background:#ffffff0c;box-shadow:0 0 0 1px var(--line) inset;white-space:nowrap}
+.chip.on{background:linear-gradient(135deg,rgba(124,92,255,.55),rgba(62,230,255,.35));box-shadow:0 0 0 1px rgba(143,176,255,.8) inset}
+textarea.lsearch{resize:none;font-size:15px;line-height:1.35}
+.vars,.idx{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin-top:10px}
+.var{position:relative;border:0;border-radius:16px;padding:6px 6px 8px;background:radial-gradient(120% 80% at 50% 30%,rgba(255,255,255,.12),rgba(255,255,255,.02)),#0d0a22;box-shadow:0 0 0 1.5px rgba(255,255,255,.12) inset;overflow:hidden;text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px}
+.var::before{content:"";position:absolute;inset:0;background:var(--bg);opacity:.28;pointer-events:none}
+.var img{position:relative;width:100%;aspect-ratio:1;object-fit:contain;filter:drop-shadow(0 6px 10px rgba(0,0,0,.55))}
+.var b{position:relative;font-size:11.5px;font-weight:850;line-height:1.15;min-height:1.15em}
+.var small{position:relative;font-size:10px;font-weight:800;color:var(--muted)}
+.var .num{position:absolute;left:7px;top:5px;font:800 10px ui-monospace,Menlo,monospace;color:#ffffffa0;font-style:normal;z-index:1}
+.var:active{transform:scale(.96)}
 </style>
 </head>
 <body>
@@ -190,7 +203,9 @@ code.inl{font:11.5px ui-monospace,Menlo,monospace;color:var(--c);word-break:brea
 <div id="panel">
   <div class="grip" id="grip"><i></i></div>
   <div class="tabs" id="tabs">
-    <button class="tab on" data-tab="rar">✨ Rareté</button>
+    <button class="tab on" data-tab="gen">🧬 Créer</button>
+    <button class="tab" data-tab="index">📖 Index</button>
+    <button class="tab" data-tab="rar">✨ Rareté</button>
     <button class="tab" data-tab="body">🐾 Corps</button>
     <button class="tab" data-tab="parts">🧩 Pièces</button>
     <button class="tab" data-tab="fx">💥 Effets</button>

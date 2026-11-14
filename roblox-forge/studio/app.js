@@ -6,7 +6,9 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as AC from './anim-core.js';
+import * as PG from './pet-gen.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -156,6 +158,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure
 renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 view.prepend(renderer.domElement);
 const scene = new THREE.Scene();
+{ const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.28; } // reflections for gold, chrome, metal, glass
 scene.background = new THREE.Color(0x07051a); scene.fog = new THREE.Fog(0x07051a, 18, 42);
 const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 200); camera.position.set(-4.2, 3.4, -6.2);
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -228,9 +231,9 @@ function rebuild() {
 const gizmo = new TransformControls(camera, renderer.domElement);
 gizmo.setSize(1.15); scene.add(gizmo.getHelper());
 gizmo.addEventListener('dragging-changed', (e) => { controls.enabled = !e.value;
-  if (e.value) { snapshot(); if (currentTab === 'anim') { anim.playing = false; syncPlay(); } }
+  if (e.value) { snapshot(); if (currentTab === 'anim') { anim.playing = false; syncPlay(); } else sculptDragStart(); }
   else if (currentTab === 'anim') { save(); renderDope(); renderInspectors(); }
-  else { save(); renderPane(); } });
+  else { sculpt.drag = null; save(); rebuild(); renderPane(); } });
 gizmo.addEventListener('objectChange', () => {
   const m = gizmo.object; if (currentTab === 'anim') { if (gizmo.dragging) animGizmoChange(m); return; }
   const p = pet.parts.find((x) => x.id === m.userData.id); if (!p) return;
@@ -238,7 +241,7 @@ gizmo.addEventListener('objectChange', () => {
   p.rot = [m.rotation.x, m.rotation.y, m.rotation.z].map((v) => +THREE.MathUtils.radToDeg(v).toFixed(1));
   p.size = m.scale.toArray().map((v) => +Math.max(0.05, Math.abs(v)).toFixed(3));
   if (p.shape === 'Ball') { const s = Math.max(...p.size); p.size = [s, s, s]; m.scale.set(s, s, s); }
-  updateHud();
+  sculptFollow(p); updateHud();
 });
 function attachGizmo() { const m = selId && meshes.get(selId); if (m) gizmo.attach(m); else gizmo.detach(); }
 function select(id) { selId = id; attachGizmo(); updateHud(); controls.autoRotate = !id && !walking; if (currentTab === 'parts') renderPane();
@@ -357,7 +360,7 @@ function bodyCenter() { const b = pet.parts.find((p) => p.name === 'Body') || pe
 function bodyRadius() { const b = pet.parts.find((p) => p.name === 'Body') || pet.parts[0]; return b ? Math.max(...b.size) * 0.62 : 1; }
 function loop() {
   requestAnimationFrame(loop);
-  const dt = Math.min(0.05, clock.getDelta()); t += dt;
+  const raw = Math.min(0.25, clock.getDelta()), dt = Math.min(0.05, raw); t += dt; // effects use a capped step, animations follow real time
   const fx = pet.fx;
   // pet motion (float / spin / walk) - matches the server controller
   const bob = fx.float.on ? Math.sin(t * fx.float.speed) * fx.float.height : 0;
@@ -366,7 +369,7 @@ function loop() {
   if (selId && !fx.spin.on) petGroup.rotation.y = 0;
   const hue = fx.rainbow.on ? (t * fx.rainbow.speed) % 1 : null;
   if (hue != null) for (const p of pet.parts) if (p.tint) { const m = meshes.get(p.id); if (m) { m.material.color.setHSL(hue, 0.8, 0.55); if (m.material.emissive && p.material === 'Neon') m.material.emissive.setHSL(hue, 0.8, 0.55); } }
-  applyPose(dt); animTick(dt);
+  applyPose(raw); animTick(raw);
   petGroup.updateMatrixWorld(); const bodyMesh = meshes.get((AC.bodyOf(pet.parts) || {}).id);
   const center = bodyMesh ? bodyMesh.getWorldPosition(new THREE.Vector3()) : bodyCenter().applyMatrix4(petGroup.matrixWorld);
   const R = bodyRadius();
@@ -425,11 +428,11 @@ addEventListener('resize', resize);
 /* =====================================================================
    6. PANES
    ===================================================================== */
-let currentTab = 'rar';
+let currentTab = 'gen';
 function setTab(id) { if (id !== 'anim' && currentTab === 'anim') anim.playing = false; currentTab = id; document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === id)); renderPane(); $('pane').scrollTop = 0; }
 document.querySelectorAll('.tab').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
 const pane = $('pane');
-function renderPane() { ({ rar: paneRarity, body: paneBody, parts: paneParts, fx: paneFx, anim: paneAnim, code: paneCode, lib: paneLib, export: paneExport })[currentTab](); }
+function renderPane() { ({ gen: paneGen, index: paneIndex, rar: paneRarity, body: paneBody, parts: paneParts, fx: paneFx, anim: paneAnim, code: paneCode, lib: paneLib, export: paneExport })[currentTab](); }
 
 function paneRarity() {
   pane.innerHTML = `<div class="sec"><h3>Rareté <small>change couleurs + effets</small></h3><div class="grid2">${RARITIES.map((r) => `<button class="rarbtn${r.id === pet.rarity ? ' on' : ''}" data-r="${esc(r.id)}" style="background:${r.bg}">${esc(r.id)}</button>`).join('')}</div></div>
@@ -467,7 +470,7 @@ function paneParts() {
       <div class="row"><label>Couleur</label><input type="color" id="pc" value="${p.color}"><label style="width:auto">Teinte pet</label><button class="sw${p.tint ? ' on' : ''}" id="ptint"></button></div>
       <div class="row"><label>Matériau</label><select id="pm">${MATERIALS.map((m) => `<option${m === p.material ? ' selected' : ''}>${m}</option>`).join('')}</select></div>
       <div class="row"><label>Transparence</label><input type="range" id="pt" min="0" max="0.95" step="0.05" value="${p.transparency || 0}"><span class="val" id="ptv">${(p.transparency || 0).toFixed(2)}</span></div>
-      <div class="btns"><button class="btn" id="pdup">⧉ Dupliquer</button><button class="btn" id="pmir">⇋ Miroir</button><button class="btn danger" id="pdel">🗑 Supprimer</button><button class="btn" id="pdesel">✓ Terminé</button></div></div>`
+      <div class="btns"><button class="btn" id="pdup">⧉ Dupliquer</button><button class="btn" id="pmir">⇋ Miroir</button><button class="btn danger" id="pdel">🗑 Supprimer</button><button class="btn" id="pdesel">✓ Terminé</button></div></div>` + sculptPane(p)
     : '<div class="note" style="margin:10px 2px">Touche une pièce dans la vue 3D, ou dans la liste, pour la modifier. Le bouton <b>＋</b> ajoute des formes.</div>')
     + `<div class="sec"><h3>Hiérarchie <small>${pet.parts.length} pièces</small></h3><ul class="tree">${pet.parts.map((x) => `<li data-id="${x.id}" class="${x.id === selId ? 'on' : ''}"><span class="dot" style="background:${x.color}"></span>${esc(x.name)}<span class="sh">${SHAPES[x.shape]} · ${x.material}</span></li>`).join('')}</ul></div>`;
   pane.querySelectorAll('.tree li').forEach((li) => li.onclick = () => select(li.dataset.id));
@@ -490,6 +493,7 @@ function paneParts() {
     pet.parts.push(c); apply(); select(c.id); toast('Copie en miroir créée'); };
   $('pdel').onclick = () => { if (pet.parts.length <= 1) return toast('Il faut au moins une pièce'); snapshot(); pet.parts = pet.parts.filter((x) => x.id !== p.id); if (p.name === 'Body' && pet.parts[0]) pet.parts[0].name = 'Body'; selId = null; apply(); renderPane(); };
   $('pdesel').onclick = () => select(null);
+  bindSculpt(p);
 }
 function fxControls(f, cfg) {
   return Object.keys(f.p).map((k) => {
@@ -1084,6 +1088,152 @@ function lua(v, ind = '') {
 }
 function animDataLua() { return `-- Roblox Forge - rig + animations of ${safeName(pet.name)} (generated by Forge Studio: edit them in the 🎬 tab)\n-- Read by ForgePetController (bones) and ForgePetAnim (keyframes, eased with ForgeAnimCore).\nreturn ${lua(animData())}\n`; }
 
+
+/* =====================================================================
+   9. SCULPT TOOLS (Blender-like): subdivide, bend, taper, twist, inflate,
+      proportional editing and live X symmetry. Everything stays real
+      Roblox parts, so it exports 1:1.
+   ===================================================================== */
+const sculpt = { prop: false, radius: 1.6, sym: false, drag: null, orig: null };
+const twinName = (n) => (/L(\d*)$/.test(n) ? n.replace(/L(\d*)$/, 'R$1') : /R(\d*)$/.test(n) ? n.replace(/R(\d*)$/, 'L$1') : null);
+function twinOf(p) { const tn = twinName(p.name); let t = tn && pet.parts.find((x) => x.name === tn);
+  if (!t && Math.abs(p.pos[0]) > 0.05) t = pet.parts.find((x) => x !== p && Math.abs(x.pos[0] + p.pos[0]) < 0.06 && Math.abs(x.pos[1] - p.pos[1]) < 0.06 && Math.abs(x.pos[2] - p.pos[2]) < 0.06);
+  return t || null; }
+function sculptDragStart() { const p = pet.parts.find((x) => x.id === selId); if (!p) return;
+  sculpt.drag = { id: p.id, start: p.pos.slice(), others: pet.parts.filter((x) => x !== p).map((x) => ({ x, pos: x.pos.slice() })) }; }
+function sculptFollow(p) {
+  const d = sculpt.drag; if (!d || d.id !== p.id) return;
+  if (sculpt.prop && gizmo.getMode() === 'translate') { const delta = p.pos.map((v, i) => v - d.start[i]);
+    for (const o of d.others) { const dist = Math.hypot(...o.pos.map((v, i) => v - d.start[i])) / sculpt.radius; if (dist >= 1) { o.x.pos = o.pos.slice(); } else { const f = (1 - dist * dist) ** 2; o.x.pos = o.pos.map((v, i) => +(v + delta[i] * f).toFixed(3)); }
+      const m = meshes.get(o.x.id); if (m) m.position.fromArray(o.x.pos); } }
+  if (sculpt.sym) { const t = twinOf(p); if (t) { t.pos = [-p.pos[0], p.pos[1], p.pos[2]]; t.rot = [p.rot[0], -p.rot[1], -p.rot[2]]; t.size = p.size.slice();
+    const m = meshes.get(t.id); if (m) { m.position.fromArray(t.pos); m.rotation.set(...t.rot.map(THREE.MathUtils.degToRad), 'XYZ'); m.scale.fromArray(t.size); } } }
+}
+// a "chain" = parts named Base1, Base2, … (made by Subdivide or the generator's tails / horns / tentacles)
+function chainOf(p) { const base = p.name.replace(/\d+$/, ''); if (base === p.name) return [p];
+  const list = pet.parts.filter((x) => x.name.replace(/\d+$/, '') === base && /\d+$/.test(x.name)).sort((a, b) => +a.name.match(/\d+$/)[0] - +b.name.match(/\d+$/)[0]); return list.length > 1 ? list : [p]; }
+const V = (a) => new THREE.Vector3(...a), Q = (r) => new THREE.Quaternion().setFromEuler(new THREE.Euler(...r.map(THREE.MathUtils.degToRad), 'XYZ'));
+const toRot = (q) => { const e = new THREE.Euler().setFromQuaternion(q, 'XYZ'); return [e.x, e.y, e.z].map((v) => +THREE.MathUtils.radToDeg(v).toFixed(2)); };
+function longAxis(p) { const i = p.size.indexOf(Math.max(...p.size)); return [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)][i].applyQuaternion(Q(p.rot)); }
+function subdivide(p, n) {
+  const i = p.size.indexOf(Math.max(...p.size)), axis = longAxis(p), len = p.size[i], seg = len / n, base = p.name.replace(/\d+$/, ''), out = [];
+  for (let k = 0; k < n; k++) { const c = V(p.pos).addScaledVector(axis, -len / 2 + seg * (k + 0.5)), size = p.size.slice(); size[i] = +(seg * (p.shape === 'Ellipsoid' ? 1.35 : 1)).toFixed(3);
+    out.push({ ...clone(p), id: nid(), name: base + (k + 1), pos: c.toArray().map((v) => +v.toFixed(3)), size, pivot: undefined, parent: k ? undefined : p.parent }); }
+  out.forEach((s, k) => { if (k) s.parent = out[k - 1].id; });
+  pet.parts.splice(pet.parts.indexOf(p), 1, ...out); return out;
+}
+function bend(chain, deg, axisName) {
+  const ax = { up: new THREE.Vector3(1, 0, 0), side: new THREE.Vector3(0, 1, 0), roll: new THREE.Vector3(0, 0, 1) }[axisName], n = chain.length; if (n < 2) return;
+  const step = THREE.MathUtils.degToRad(deg) / (n - 1);
+  for (let i = 1; i < n; i++) { const joint = V(chain[i - 1].pos).add(V(chain[i].pos)).multiplyScalar(0.5), q = new THREE.Quaternion().setFromAxisAngle(ax, step);
+    for (let j = i; j < n; j++) { const p = chain[j]; p.pos = V(p.pos).sub(joint).applyQuaternion(q).add(joint).toArray().map((v) => +v.toFixed(3)); p.rot = toRot(q.clone().multiply(Q(p.rot))); } }
+}
+function taper(chain, f) { const n = chain.length; chain.forEach((p, k) => { const t = n > 1 ? k / (n - 1) : 1, s = 1 + (f - 1) * t, i = p.size.indexOf(Math.max(...p.size)); p.size = p.size.map((v, j) => (j === i ? v : +Math.max(0.04, v * s).toFixed(3))); }); }
+function twist(chain, deg) { const n = chain.length; if (n < 2) return; const axis = V(chain[n - 1].pos).sub(V(chain[0].pos)).normalize(), c0 = V(chain[0].pos);
+  chain.forEach((p, k) => { const q = new THREE.Quaternion().setFromAxisAngle(axis, THREE.MathUtils.degToRad(deg) * (k / (n - 1))); p.pos = V(p.pos).sub(c0).applyQuaternion(q).add(c0).toArray().map((v) => +v.toFixed(3)); p.rot = toRot(q.multiply(Q(p.rot))); }); }
+function inflate(chain, f) { chain.forEach((p) => (p.size = p.size.map((v) => +Math.max(0.04, v * f).toFixed(3)))); }
+function sculptPane(p) {
+  const ch = chainOf(p);
+  return `<div class="sec"><h3>🛠️ Sculpter <small>${ch.length > 1 ? 'chaîne de ' + ch.length + ' segments' : 'pièce seule'}</small></h3>
+    <div class="row"><label>Proportionnel</label><button class="sw${sculpt.prop ? ' on' : ''}" id="sProp"></button><input type="range" id="sRad" min="0.3" max="5" step="0.1" value="${sculpt.radius}"><span class="val" id="sRadV">${sculpt.radius}</span></div>
+    <div class="row"><label>Symétrie X</label><button class="sw${sculpt.sym ? ' on' : ''}" id="sSym"></button><span class="note">${twinOf(p) ? '↔ ' + esc(twinOf(p).name) : 'pas de jumelle'}</span></div>
+    <div class="row"><label>Subdiviser</label><div class="btns">${[2, 3, 4, 6, 8].map((n) => `<button class="btn" data-sub="${n}">÷${n}</button>`).join('')}</div></div>
+    ${[['bendUp', 'Courber ↕', -120, 120, 0, '°'], ['bendSide', 'Courber ↔', -120, 120, 0, '°'], ['twist', 'Torsion', -180, 180, 0, '°'], ['taper', 'Effiler', 0.15, 2.5, 1, '×'], ['inflate', 'Gonfler', 0.4, 2.2, 1, '×']]
+      .map(([id, l, a, b, v, u]) => `<div class="row"><label>${l}</label><input type="range" data-sc="${id}" min="${a}" max="${b}" step="${u === '°' ? 1 : 0.01}" value="${v}"><span class="val">${v}${u}</span></div>`).join('')}
+    <div class="note">Comme dans Blender : <b>Subdiviser</b> coupe la pièce en segments, puis <b>Courber / Torsion / Effiler</b> la déforment (queues, cornes, tentacules, oreilles…). Les curseurs agissent en direct, ↶ pour annuler. <b>Proportionnel</b> : en déplaçant une pièce, les voisines suivent en douceur.</div></div>`;
+}
+function bindSculpt(p) {
+  $('sProp').onclick = () => { sculpt.prop = !sculpt.prop; $('sProp').classList.toggle('on', sculpt.prop); toast(sculpt.prop ? '◎ Édition proportionnelle : rayon ' + sculpt.radius : 'Proportionnel coupé'); };
+  $('sRad').oninput = (e) => { sculpt.radius = +e.target.value; $('sRadV').textContent = sculpt.radius; };
+  $('sSym').onclick = () => { sculpt.sym = !sculpt.sym; $('sSym').classList.toggle('on', sculpt.sym); };
+  pane.querySelectorAll('[data-sub]').forEach((b) => b.onclick = () => { if (p === AC.bodyOf(pet.parts)) return toast('Le corps est la racine du squelette : subdivise plutôt une queue, une corne, une oreille…'); snapshot(); const segs = subdivide(p, +b.dataset.sub); save(); rebuild(); select(segs[0].id); toast('÷' + b.dataset.sub + ' : ' + segs.length + ' segments, prêts à courber'); });
+  pane.querySelectorAll('[data-sc]').forEach((r) => {
+    r.addEventListener('pointerdown', () => { snapshot(); sculpt.orig = chainOf(p).map((x) => ({ x, pos: x.pos.slice(), rot: x.rot.slice(), size: x.size.slice() })); });
+    r.oninput = () => { if (!sculpt.orig) { snapshot(); sculpt.orig = chainOf(p).map((x) => ({ x, pos: x.pos.slice(), rot: x.rot.slice(), size: x.size.slice() })); }
+      for (const o of sculpt.orig) { o.x.pos = o.pos.slice(); o.x.rot = o.rot.slice(); o.x.size = o.size.slice(); }
+      const ch = sculpt.orig.map((o) => o.x), v = +r.value, k = r.dataset.sc;
+      if (k === 'bendUp') bend(ch, v, 'up'); else if (k === 'bendSide') bend(ch, v, 'side'); else if (k === 'twist') twist(ch, v); else if (k === 'taper') taper(ch, v); else inflate(ch, v);
+      if (sculpt.sym) for (const x of ch) { const t = twinOf(x); if (t && !ch.includes(t)) { t.pos = [-x.pos[0], x.pos[1], x.pos[2]]; t.rot = [x.rot[0], -x.rot[1], -x.rot[2]]; t.size = x.size.slice(); } }
+      r.nextElementSibling.textContent = v + (k === 'taper' || k === 'inflate' ? '×' : '°'); rebuild(); };
+    r.onchange = () => { sculpt.orig = null; save(); }; });
+}
+
+/* =====================================================================
+   8. GENERATOR (🧬 Créer) + INDEX (📖 100 pets) with live 3D thumbnails
+   ===================================================================== */
+const thumbR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+thumbR.setPixelRatio(1); thumbR.setSize(200, 200, false); thumbR.toneMapping = THREE.ACESFilmicToneMapping; thumbR.toneMappingExposure = 1.15;
+const tScene = new THREE.Scene(); { const pm = new THREE.PMREMGenerator(thumbR); tScene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; tScene.environmentIntensity = 0.35; }
+const tCam = new THREE.PerspectiveCamera(28, 1, 0.1, 200), tGroup = new THREE.Group(); tScene.add(tGroup);
+tScene.add(new THREE.HemisphereLight(0xdcd6ff, 0x2a2140, 1.25)); { const k = new THREE.DirectionalLight(0xffffff, 2.6); k.position.set(-4, 7, -6); tScene.add(k); const r = new THREE.DirectionalLight(0x8fe9ff, 1.3); r.position.set(5, 3, 6); tScene.add(r); }
+const thumbCache = new Map();
+function thumbOf(key, parts) {
+  if (thumbCache.has(key)) return thumbCache.get(key);
+  for (const m of [...tGroup.children]) { tGroup.remove(m); (Array.isArray(m.material) ? m.material : [m.material]).forEach((x) => x.dispose()); }
+  for (const p of parts) { const m = new THREE.Mesh(GEO[p.shape] || GEO.Block, matFor(p)); m.position.fromArray(p.pos); m.rotation.set(...p.rot.map(THREE.MathUtils.degToRad), 'XYZ'); m.scale.fromArray(p.shape === 'Ball' ? [p.size[0], p.size[0], p.size[0]] : p.size); tGroup.add(m); }
+  const b = new THREE.Box3().setFromObject(tGroup), c = b.getCenter(new THREE.Vector3()), r = b.getSize(new THREE.Vector3()).length() * 0.5;
+  tCam.position.copy(c).add(new THREE.Vector3(-0.62, 0.38, -1).normalize().multiplyScalar(r / Math.sin((tCam.fov * Math.PI) / 360) * 1.05)); tCam.lookAt(c);
+  thumbR.render(tScene, tCam); const url = thumbR.domElement.toDataURL('image/png'); thumbCache.set(key, url); return url;
+}
+function fromGenerated(g) {
+  const fx = defaultFx(); for (const [k, v] of Object.entries(g.fx)) if (fx[k]) Object.assign(fx[k], v, { on: true });
+  return { v: 1, name: g.name, customName: true, body: g.body, rarity: g.rarity, c1: g.c1, c2: g.c2, fx, scripts: {}, gen: { prompt: g.prompt, seed: g.seed, species: g.species, element: g.element },
+    parts: g.parts.map((p) => ({ id: nid(), ...clone(p), tint: !!p.tint })) };
+}
+function openGenerated(g, msg) { snapshot(); pet = fromGenerated(g); selId = null; save(); rebuild(); updateHud(); toast(msg || ('✨ ' + pet.name + ' · ' + pet.rarity)); }
+const RAR_BG = Object.fromEntries(RARITIES.map((r) => [r.id, r.bg]));
+let genQ = '', genVars = [];
+function genChip(label, word) { return `<button class="chip" data-w="${esc(word)}">${label}</button>`; }
+function paneGen() {
+  pane.innerHTML = `<div class="sec"><h3>🧬 Créer un pet <small>décris-le, le générateur le construit</small></h3>
+      <textarea id="gq" class="lsearch" rows="2" placeholder="ex : dragon de feu légendaire · chat cosmique mignon · robot néon secret · « Kiwi » le lapin des bois">${esc(genQ)}</textarea>
+      <div class="btns" style="margin-top:8px"><button class="btn pri" id="gGo" style="flex:1">✨ Générer 6 variantes</button><button class="btn" id="gDice">🎲 Surprise</button></div>
+      <div class="vars" id="gVars">${genVars.map((g, i) => `<button class="var" data-v="${i}" style="--bg:${RAR_BG[g.rarity]}"><img alt="" src="${thumbOf('v' + g.seed + g.prompt, g.parts)}"><b>${esc(g.name)}</b><small>${esc(g.rarity)} · ${g.parts.length} pièces</small></button>`).join('')}</div></div>
+    <div class="sec"><h3>Espèces <small>${Object.keys(PG.SPECIES).length}</small></h3><div class="chipwrap">${Object.entries(PG.SPECIES).map(([k, s]) => genChip(s.e + ' ' + s.fr, s.words.split(' ')[0])).join('')}</div></div>
+    <div class="sec"><h3>Éléments</h3><div class="chipwrap">${Object.entries(PG.ELEMENTS).map(([k, e]) => genChip(e.adj, e.words.split(' ')[0])).join('')}</div></div>
+    <div class="sec"><h3>Styles & rareté</h3><div class="chipwrap">${Object.entries({ mignon: '🥺 Mignon', roi: '👑 Royal', ange: '😇 Ange', demon: '😈 Démon', cyber: '🦾 Cyber', ninja: '🥷 Ninja', pirate: '🏴‍☠️ Pirate', sorcier: '🧙 Sorcier', geant: '🗿 Géant', zombie: '🧟 Zombie' }).map(([w, l]) => genChip(l, w)).join('')}
+      ${PG.RARITIES.map((r) => genChip(r, r.split(' ')[0].toLowerCase())).join('')}</div>
+      <div class="note" style="margin-top:8px">Le générateur comprend le français et l'anglais. Même description = même pet ; « Générer » propose 6 variantes. Tout reste modifiable pièce par pièce ensuite.</div></div>`;
+  const q = $('gq'); q.oninput = () => (genQ = q.value);
+  pane.querySelectorAll('[data-w]').forEach((b) => b.onclick = () => { genQ = (genQ.trim() + ' ' + b.dataset.w).trim(); q.value = genQ; b.classList.add('on'); });
+  const run = () => { const base = PG.hash(genQ || 'pet'); genVars = Array.from({ length: 6 }, (_, i) => PG.generate(genQ, base + i * 7919)); paneGen(); };
+  $('gGo').onclick = run;
+  $('gDice').onclick = () => { const sp = Object.values(PG.SPECIES), el = Object.values(PG.ELEMENTS), r = Math.random;
+    genQ = `${sp[Math.floor(r() * sp.length)].words.split(' ')[0]} ${r() < 0.8 ? el[Math.floor(r() * el.length)].words.split(' ')[0] : ''} ${['', 'mignon', 'roi', 'cyber', 'demon', 'ange', 'ninja', 'sorcier'][Math.floor(r() * 8)]} ${PG.RARITIES[Math.floor(r() * r() * 7)].split(' ')[0].toLowerCase()}`.replace(/\s+/g, ' ').trim(); run(); };
+  pane.querySelectorAll('[data-v]').forEach((b) => b.onclick = () => openGenerated(genVars[+b.dataset.v]));
+}
+const INDEX = PG.index100(); let idxFilter = 'all', idxCache = new Map();
+const idxPet = (e) => { if (!idxCache.has(e.n)) { const g = PG.generate(e.text, e.seed); g.rarity = e.rarity; idxCache.set(e.n, g); } return idxCache.get(e.n); };
+function paneIndex() {
+  const list = INDEX.filter((e) => idxFilter === 'all' || e.rarity === idxFilter);
+  pane.innerHTML = `<div class="sec"><h3>📖 Index <small>${INDEX.length} pets · ${list.length} affichés</small></h3>
+      <div class="chipwrap"><button class="chip${idxFilter === 'all' ? ' on' : ''}" data-f="all">Tous</button>${PG.RARITIES.map((r) => `<button class="chip${idxFilter === r ? ' on' : ''}" data-f="${r}">${r}</button>`).join('')}</div>
+      <div class="idx" id="idx">${list.map((e) => `<button class="var" data-n="${e.n}" style="--bg:${RAR_BG[e.rarity]}"><i class="num">#${e.n}</i><img alt="" data-lazy="${e.n}"><b></b><small>${esc(e.rarity)}</small></button>`).join('')}</div>
+      <div class="btns" style="margin-top:10px"><button class="btn pri" id="idxZip" style="flex:1">📦 Exporter les ${INDEX.length} pets (pack Roblox)</button></div>
+      <div class="note" style="margin-top:6px">Chaque pet de l'index est un vrai modèle Roblox avec ses effets et ses animations. Touche-en un pour l'ouvrir dans l'éditeur.</div></div>`;
+  pane.querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { idxFilter = b.dataset.f; paneIndex(); });
+  pane.querySelectorAll('[data-n]').forEach((b) => b.onclick = () => openGenerated(idxPet(INDEX[+b.dataset.n - 1]), `📖 #${b.dataset.n} ${idxPet(INDEX[+b.dataset.n - 1]).name}`));
+  // thumbnails rendered a few at a time so the page stays fluid
+  const imgs = [...pane.querySelectorAll('img[data-lazy]')]; let i = 0;
+  const step = () => { if (currentTab !== 'index') return; const t0 = performance.now();
+    while (i < imgs.length && performance.now() - t0 < 30) { const im = imgs[i++], e = INDEX[+im.dataset.lazy - 1], g = idxPet(e); im.src = thumbOf('i' + e.n, g.parts); im.nextElementSibling.textContent = g.name; }
+    if (i < imgs.length) setTimeout(step, 16); };
+  step();
+  $('idxZip').onclick = async () => { toast('Construction des ' + INDEX.length + ' modèles…', 4000); await new Promise((r) => setTimeout(r, 50)); const blob = await buildIndexPack();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'ForgePetIndex.zip'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('📦 Index téléchargé ✓'); };
+}
+async function buildIndexPack() {
+  await loadKit(); const keep = pet, files = [], used = new Set();
+  for (const e of INDEX) { pet = fromGenerated(idxPet(e)); ensureAnims(); rigDirty = true; let n = safeName(pet.name), k = 2; while (used.has(n)) n = safeName(pet.name) + '_' + k++; used.add(n); pet.name = n;
+    files.push({ path: `ReplicatedStorage/ForgePets/${n}.model.json`, data: JSON.stringify(modelJson()) }); }
+  pet = keep; rigDirty = true; ensureAnims(); const sf = scriptFiles();
+  files.push({ path: 'ReplicatedStorage/ForgeConfig.lua', data: sf.find((f) => f.id === 'cfg').text }, { path: 'ServerScriptService/ForgePetController.server.lua', data: sf.find((f) => f.id === 'ctrl').text },
+    { path: 'StarterPlayerScripts/ForgePetFX.client.lua', data: sf.find((f) => f.id === 'fxs').text }, { path: 'StarterPlayerScripts/ForgePetAnim.client.lua', data: sf.find((f) => f.id === 'anim').text },
+    { path: 'ReplicatedStorage/ForgeAnimCore.lua', data: sf.find((f) => f.id === 'core').text },
+    { path: 'LISEZ-MOI.txt', data: `Index Roblox Forge : ${INDEX.length} pets prêts (ReplicatedStorage/ForgePets).\nDonne un pet à un joueur : player:SetAttribute("ForgePet", "NomDuPet")\n` });
+  return zip(files);
+}
+
 /* ---------- boot ---------- */
 resize(); rebuild(); renderPane(); syncUndo(); loop();
-window.__forge = { get pet() { return pet; }, modelJson, buildPack, select, setTab, AC, anim, animData, animDataLua, exportNames, getRig, offsetsAt, curClip, get lastPose() { return lastPose; }, gizmo, meshes, renderPane }; // used by automated tests
+window.__forge = { PG, INDEX, idxPet, openGenerated, fromGenerated, buildIndexPack, thumbOf, get pet() { return pet; }, modelJson, buildPack, select, setTab, AC, anim, animData, animDataLua, exportNames, getRig, offsetsAt, curClip, get lastPose() { return lastPose; }, gizmo, meshes, renderPane }; // used by automated tests
