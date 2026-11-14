@@ -408,6 +408,171 @@ def shallowest(paths: list[Path]) -> Path | None:
     return min(paths, key=lambda p: (len(p.parts), str(p))) if paths else None
 
 
+def classify(game: Path, work: Path, add_world: bool, state: dict) -> tuple[str, Path | None, Path | None]:
+    """What kind of game file this is, unzipping / generating a Rojo project when needed."""
+    suffix = game.suffix.lower()
+    if suffix in (".rbxl", ".rbxlx"):
+        return suffix[1:], game, None
+    if suffix != ".zip":
+        raise PushError("BAD_FILE", "Send a .rbxl, .rbxlx or .zip file.")
+    unzipped = work / "unzipped"
+    safe_extract(game, unzipped)
+    projects = [p for p in unzipped.rglob("default.project.json")] or list(unzipped.rglob("*.project.json"))
+    places = list(unzipped.rglob("*.rbxl")) + list(unzipped.rglob("*.rbxlx"))
+    if projects:
+        return "rojo", None, shallowest(projects)
+    if places:
+        place_file = shallowest(places)
+        return place_file.suffix.lower()[1:], place_file, None
+    if any(p.is_file() and (is_script(p) or p.suffix.lower() in (".rbxm", ".rbxmx")) for p in unzipped.rglob("*")):
+        project, notes = auto_project(unzipped, work / "auto", add_world)
+        state["autoProject"] = notes
+        print("no project file: generated", project)
+        print("\n".join(notes))
+        return "rojo", None, project
+    raise PushError("BAD_ZIP", "The zip has no game files: no Rojo project, no .rbxl/.rbxlx and no .lua/.luau scripts.")
+
+
+# ------------------------------------------------- stored games and packs ---
+# Every successful publish keeps the game (and the packs added to it) on the
+# repository branch roblox-push-store, under <placeId>/: base.<ext> and packs/<name>.zip.
+# Adding a pack later = stored game + all packs; republishing a game keeps its packs.
+STORE_BRANCH = "roblox-push-store"
+GH_API = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
+
+
+def gh(method: str, path: str, body: dict | None = None) -> dict | None:
+    token = os.environ.get("GITHUB_TOKEN", "")
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    req = urllib.request.Request(f"{GH_API}/repos/{repo}{path}", method=method,
+                                 data=json.dumps(body).encode() if body is not None else None,
+                                 headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            raw = resp.read()
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as err:
+        if err.code == 404:
+            return None
+        raise PushError("STORE", f"GitHub {err.code}: {err.read().decode('utf-8', 'replace')[:300]}") from None
+
+
+def store_tree() -> tuple[str | None, dict]:
+    ref = gh("GET", f"/git/ref/heads/{STORE_BRANCH}")
+    if not ref:
+        return None, {}
+    head = ref["object"]["sha"]
+    commit = gh("GET", f"/git/commits/{head}")
+    tree = gh("GET", f"/git/trees/{commit['tree']['sha']}?recursive=1") or {"tree": []}
+    return head, {t["path"]: t["sha"] for t in tree["tree"] if t.get("type", "blob") == "blob"}
+
+
+def store_fetch(sha: str) -> bytes:
+    import base64
+    blob = gh("GET", f"/git/blobs/{sha}")
+    return base64.b64decode(blob["content"])
+
+
+def safe_pack_name(name: str) -> str:
+    return re.sub(r"[^\w\-]", "_", name or "pack")[:60] or "pack"
+
+
+def stage() -> None:
+    """Load the stored game and packs for this place; decide what needs building."""
+    state = load_state()
+    try:
+        place = state["place"]
+        head, files = store_tree()
+        packs_dir = WORK / "packs"
+        packs_dir.mkdir(parents=True, exist_ok=True)
+        packs = {}
+        for path, sha in files.items():
+            if path.startswith(f"{place}/packs/") and path.endswith(".zip"):
+                name = Path(path).stem
+                (packs_dir / f"{name}.zip").write_bytes(store_fetch(sha))
+                packs[name] = "stored"
+        if state.get("action") == "addpack":
+            name = state["packName"]
+            shutil.copy(ROOT / state["packFile"], packs_dir / f"{name}.zip")
+            packs[name] = "new"
+            base = next((p for p in files if p.startswith(f"{place}/base.")), None)
+            if not base:
+                raise PushError("NO_BASE", "This game was never published with Roblox Push, so there is no game to add the pack to.")
+            base_file = WORK / "stored" / Path(base).name
+            base_file.parent.mkdir(parents=True, exist_ok=True)
+            base_file.write_bytes(store_fetch(files[base]))
+            kind, place_file, project = classify(base_file, WORK / "stored", bool(state.get("addBaseplate")), state)
+            state.update(kind=kind, placeFile=str(place_file) if place_file else None, project=str(project) if project else None, baseName=Path(base).name)
+        state["packs"] = sorted(packs)
+        state["storeHead"] = head
+        save_state(state)
+        step(state, "stage", True, f"{len(packs)} pack(s): {', '.join(sorted(packs)) or 'none'}")
+        print(f"packs for place {place}: {sorted(packs) or 'none'}")
+        output("needs_rojo", "true" if state.get("kind") == "rojo" or packs else "false")
+        output("needs_build", "true" if state.get("kind") == "rojo" else "false")
+        output("has_packs", "true" if packs else "false")
+    except PushError as err:
+        fail(state, "stage", err)
+
+
+def merge() -> None:
+    """Build every pack with Rojo and insert it into the built game with Lune."""
+    state = load_state()
+    built = []
+    for name in state.get("packs", []):
+        src = WORK / "packs" / name
+        safe_extract(WORK / "packs" / f"{name}.zip", src)
+        tree = {"$className": "Folder"}
+        for d in sorted(p for p in src.iterdir() if p.is_dir() and not p.name.startswith((".", "__"))):
+            tree[d.name] = {"$path": d.name}
+        (src / "pack.project.json").write_text(json.dumps({"name": name, "tree": tree}))
+        out = WORK / "packs" / f"{name}.rbxm"
+        proc = subprocess.run(["rojo", "build", str(src / "pack.project.json"), "-o", str(out)], capture_output=True, text=True)
+        if proc.returncode != 0:
+            fail(state, "merge", PushError("BUILD_FAILED", f"pack {name}: {(proc.stderr or proc.stdout)[-800:]}"))
+        built.append(str(out))
+    base = Path(state["placeFile"])
+    merged = WORK / "merged.rbxl"
+    proc = subprocess.run(["lune", "run", str(ROOT / "merge.luau"), str(base), str(merged), *built], capture_output=True, text=True)
+    print(proc.stdout[-2000:], proc.stderr[-2000:], sep="\n")
+    if proc.returncode != 0 or not merged.exists():
+        fail(state, "merge", PushError("MERGE_FAILED", (proc.stderr or proc.stdout)[-800:]))
+    state["placeFile"] = str(merged)
+    step(state, "merge", True, proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else "merged")
+
+
+def store() -> None:
+    """After a successful publish: keep the game (and the new pack) for next time."""
+    import base64
+    state = load_state()
+    try:
+        place = state["place"]
+        head, files = store_tree()
+        new = {}
+        if state.get("action") == "addpack":
+            new[f"{place}/packs/{state['packName']}.zip"] = (ROOT / state["packFile"]).read_bytes()
+        else:
+            game = ROOT / state["gameFile"]
+            for p in [p for p in files if p.startswith(f"{place}/base.")]:
+                files.pop(p)
+            new[f"{place}/base{game.suffix.lower()}"] = game.read_bytes()
+        entries = [{"path": p, "mode": "100644", "type": "blob", "sha": sha} for p, sha in files.items() if p not in new]
+        for path, data in new.items():
+            blob = gh("POST", "/git/blobs", {"content": base64.b64encode(data).decode(), "encoding": "base64"})
+            entries.append({"path": path, "mode": "100644", "type": "blob", "sha": blob["sha"]})
+        tree = gh("POST", "/git/trees", {"tree": entries})
+        commit = gh("POST", "/git/commits", {"message": f"roblox-push store {place}", "tree": tree["sha"], "parents": [head] if head else []})
+        if head:
+            gh("PATCH", f"/git/refs/heads/{STORE_BRANCH}", {"sha": commit["sha"], "force": True})
+        else:
+            gh("POST", "/git/refs", {"ref": f"refs/heads/{STORE_BRANCH}", "sha": commit["sha"]})
+        step(state, "store", True, ", ".join(new))
+        print("stored:", ", ".join(new))
+    except PushError as err:  # publishing already worked: report, do not fail the run
+        step(state, "store", False, str(err))
+        print(f"::warning::could not keep the game for later: {err}")
+
+
 def prepare() -> None:
     state = {"steps": {}, "started": time.time()}
     save_state(state)
@@ -446,43 +611,25 @@ def prepare() -> None:
             output("needs_rojo", "false")
             output("has_luau", "false")
             return
-        output("action", "publish")
         file_name = Path(str(req.get("file", ""))).name
         game = ROOT / file_name
         if not file_name or not game.exists():
-            raise PushError("NO_FILE", f"Game file {file_name!r} is not in the commit.")
-
+            raise PushError("NO_FILE", f"File {file_name!r} is not in the commit.")
         if WORK.exists():
             shutil.rmtree(WORK)
         WORK.mkdir(parents=True)
-        suffix = game.suffix.lower()
-        kind, place_file, project = "", None, None
-
-        if suffix in (".rbxl", ".rbxlx"):
-            kind, place_file = suffix[1:], game
-        elif suffix == ".zip":
-            safe_extract(game, WORK / "unzipped")
-            unzipped = WORK / "unzipped"
-            projects = [p for p in unzipped.rglob("default.project.json")] or list(unzipped.rglob("*.project.json"))
-            places = list(unzipped.rglob("*.rbxl")) + list(unzipped.rglob("*.rbxlx"))
-            if projects:
-                kind, project = "rojo", shallowest(projects)
-            elif places:
-                place_file = shallowest(places)
-                kind = place_file.suffix.lower()[1:]
-            elif any(p.is_file() and (is_script(p) or p.suffix.lower() in (".rbxm", ".rbxmx")) for p in unzipped.rglob("*")):
-                project, notes = auto_project(unzipped, WORK / "auto", bool(req.get("addBaseplate")))
-                kind = "rojo"
-                state["autoProject"] = notes
-                print("no project file: generated", project)
-                print("\n".join(notes))
-            else:
-                raise PushError(
-                    "BAD_ZIP",
-                    "The zip has no game files: no Rojo project, no .rbxl/.rbxlx and no .lua/.luau scripts.",
-                )
-        else:
-            raise PushError("BAD_FILE", "Send a .rbxl, .rbxlx or .zip file.")
+        if req.get("action") == "addpack":
+            if game.suffix.lower() != ".zip":
+                raise PushError("BAD_FILE", "A pack must be a .zip.")
+            state.update(action="addpack", universe=universe, place=place, versionType=version_type, packFile=file_name,
+                         packName=safe_pack_name(req.get("packName") or game.stem), addBaseplate=bool(req.get("addBaseplate")), luau="")
+            step(state, "prepare", True, f"add pack {state['packName']}")
+            output("action", "publish")
+            output("has_luau", "false")
+            return
+        output("action", "publish")
+        kind, place_file, project = classify(game, WORK, bool(req.get("addBaseplate")), state)
+        state["gameFile"] = file_name
 
         state.update(
             kind=kind,
@@ -496,7 +643,6 @@ def prepare() -> None:
         detail = f"{kind}: {project or place_file}"
         step(state, "prepare", True, detail)
         print(f"prepared {detail}")
-        output("needs_rojo", "true" if kind == "rojo" else "false")
         output("has_luau", "true" if state["luau"] else "false")
     except PushError as err:
         fail(state, "prepare", err)
@@ -694,6 +840,8 @@ def finish() -> None:
     meta_result = state.get("metaResult")
     if state.get("action") == "meta":
         ok = bool(meta_result) and not meta_result.get("errors")
+    elif state.get("action") == "addpack":
+        ok = published and state.get("error") is None
     else:
         ok = published and state.get("error") is None and (not luau_info or luau_info.get("ok"))
     result = {
@@ -709,6 +857,8 @@ def finish() -> None:
         "kind": state.get("kind"),
         "gameName": lookup_name(state["universe"]) if state.get("universe") else None,
         "autoProject": state.get("autoProject"),
+        "packs": state.get("packs"),
+        "packName": state.get("packName"),
         "steps": state.get("steps", {}),
         "luau": luau_info,
         "error": state.get("error"),
@@ -721,7 +871,7 @@ def finish() -> None:
 
 
 if __name__ == "__main__":
-    commands = {"prepare": prepare, "build": build, "publish": publish, "luau": luau, "meta": meta, "finish": finish}
+    commands = {"prepare": prepare, "stage": stage, "build": build, "merge": merge, "publish": publish, "store": store, "luau": luau, "meta": meta, "finish": finish}
     if len(sys.argv) != 2 or sys.argv[1] not in commands:
         sys.exit(f"usage: push.py {{{'|'.join(commands)}}}")
     commands[sys.argv[1]]()
