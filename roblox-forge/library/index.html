@@ -67,11 +67,13 @@ h1 span{background:linear-gradient(90deg,var(--c),var(--v),var(--g));-webkit-bac
 .skel{height:92px;border-radius:20px;background:linear-gradient(100deg,#ffffff08 30%,#ffffff14 50%,#ffffff08 70%);background-size:300% 100%;animation:sk 1.3s linear infinite}
 @keyframes sk{from{background-position:120% 0}to{background-position:-120% 0}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.tools-nav{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}.tools-nav a{padding:7px 10px;border-radius:11px;font-size:12.5px;font-weight:800;color:inherit;text-decoration:none;background:#ffffff10;box-shadow:0 0 0 1px #ffffff25 inset}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header><div class="mark">📚</div><div><h1><span>Forge</span> Library</h1><div class="sub" id="sub">Chargement des ressources…</div></div></header>
+  <header><div class="mark">📚</div><div><h1><span>Forge</span> Library</h1><div class="sub" id="sub">Chargement des ressources…</div></div>
+    <nav class="tools-nav"><a href="../studio/">🐾 Pet Studio</a><a href="../gui/">🖥️ GUI Studio</a></nav></header>
   <div class="search">
     <div class="sbox"><b>⌕</b><input id="q" type="search" placeholder="Rechercher : aura, pet, tween, inventaire, terrain…" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
     <div class="chips" id="cats"></div>

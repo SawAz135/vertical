@@ -1,0 +1,57 @@
+Fonts embedded for an accurate preview of Roblox fonts (latin subset, from the official @fontsource npm packages).
+
+== luckiest-guy: Apache-2.0
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+== fredoka: OFL-1.1
+Copyright 2016 The Fredoka Project Authors (https://github.com/hafontia/Fredoka-One)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+
+== bangers: OFL-1.1
+Copyright 2010 The Bangers Project Authors (https://github.com/googlefonts/bangers)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+
+== press-start-2p: OFL-1.1
+Copyright 2012 The Press Start 2P Project Authors (cody@zone38.net), with Reserved Font Name "Press Start 2P"
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+
+== permanent-marker: Apache-2.0
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+== creepster: OFL-1.1
+Copyright (c) 2011, Font Diner, Inc (diner@fontdiner.com), with Reserved Font Names "Creepster"
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+
+== michroma: OFL-1.1
+Copyright 2011 The Michroma Project Authors (https://github.com/googlefonts/Michroma-font)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+
+== oswald: OFL-1.1
+Copyright 2016 The Oswald Project Authors (https://github.com/googlefonts/OswaldFont)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+
+== nunito: OFL-1.1
+Copyright 2014 The Nunito Project Authors (https://github.com/googlefonts/nunito) Nunito-Italic[wght].ttf: Copyright 2014 The Nunito Project Authors (https://github.com/googlefonts/nunito)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+
+== montserrat: OFL-1.1
+Copyright 2011 The Montserrat Project Authors (https://github.com/JulietaUla/Montserrat) Montserrat-Italic[wght].ttf: Copyright 2011 The Montserrat Project Authors (https://github.com/JulietaUla/Montserrat)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+
+== orbitron: OFL-1.1
+Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+
