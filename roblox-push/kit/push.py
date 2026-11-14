@@ -151,6 +151,189 @@ def safe_extract(archive: Path, target: Path) -> None:
                 shutil.copyfileobj(src, out)
 
 
+# ------------------------------------------------- automatic Rojo project ---
+# When a zip only has script files (no default.project.json, no place file), we
+# build a Rojo project for it. This works for any game laid out the usual ways:
+#   * folders named after Roblox services (ServerScriptService, ReplicatedStorage...)
+#   * the Rojo template (src/server, src/client, src/shared)
+#   * loose files (Main.server.lua, Hud.client.lua, Utils.lua, Map.rbxm)
+SCRIPT_EXT = (".lua", ".luau")
+SERVICES = {s.lower(): s for s in (
+    "Workspace", "ReplicatedStorage", "ReplicatedFirst", "ServerScriptService", "ServerStorage",
+    "StarterGui", "StarterPack", "StarterPlayer", "Lighting", "SoundService", "Teams", "Chat",
+    "TextChatService", "MaterialService", "LocalizationService")}
+PLAYER_CONTAINERS = {"starterplayerscripts": "StarterPlayerScripts", "startercharacterscripts": "StarterCharacterScripts"}
+ALIASES = {  # common folder names -> (service, child folder name or None)
+    "server": ("ServerScriptService", "Server"), "serverscripts": ("ServerScriptService", "Server"),
+    "client": ("StarterPlayerScripts", "Client"), "clientscripts": ("StarterPlayerScripts", "Client"),
+    "localscripts": ("StarterPlayerScripts", "Client"), "playerscripts": ("StarterPlayerScripts", "Client"),
+    "shared": ("ReplicatedStorage", "Shared"), "common": ("ReplicatedStorage", "Shared"),
+    "modules": ("ReplicatedStorage", "Modules"), "gui": ("StarterGui", None), "ui": ("StarterGui", None),
+    "map": ("Workspace", "Map"), "maps": ("Workspace", "Map"), "models": ("Workspace", "Models"),
+}
+RUNS_ON = {  # where a plain .lua with no final `return` is meant to run
+    "ServerScriptService": "server", "StarterPlayerScripts": "client", "StarterCharacterScripts": "client",
+    "StarterGui": "client", "StarterPack": "client", "ReplicatedFirst": "client", "Workspace": "server",
+}
+
+
+def is_script(p: Path) -> bool:
+    return p.suffix.lower() in SCRIPT_EXT and not p.name.lower().endswith(".meta.json")
+
+
+def script_kind(p: Path) -> str:
+    stem = p.name.lower()
+    if stem.endswith((".server.lua", ".server.luau")):
+        return "server"
+    if stem.endswith((".client.lua", ".client.luau")):
+        return "client"
+    return "module"
+
+
+def returns_value(p: Path) -> bool:
+    """True if the file ends with a `return` statement, i.e. it is really a ModuleScript."""
+    try:
+        text = p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return True
+    lines = []
+    in_block = False
+    for raw in text.splitlines():
+        line = raw.strip()
+        if in_block:
+            if "]]" in line:
+                in_block = False
+            continue
+        if line.startswith("--[[") or line.startswith("--[=["):
+            in_block = "]]" not in line[4:]
+            continue
+        if not line or line.startswith("--"):
+            continue
+        lines.append(line)
+    return bool(lines) and lines[-1].split("--")[0].strip().startswith("return")
+
+
+def find_root(base: Path) -> Path:
+    """The folder that best looks like a game's top level (most recognised child folders)."""
+    best, best_score = base, -1
+    for d in [base, *[p for p in base.rglob("*") if p.is_dir()]]:
+        if any(part.startswith(".") or part == "__MACOSX" for part in d.relative_to(base).parts):
+            continue
+        names = [c.name.lower() for c in d.iterdir() if c.is_dir()]
+        score = sum(2 if n in SERVICES or n in PLAYER_CONTAINERS else 1 if n in ALIASES else 0 for n in names)
+        depth = len(d.relative_to(base).parts)
+        if score > best_score or (score == best_score and score > 0 and depth < len(best.relative_to(base).parts)):
+            best, best_score = d, score
+    if best_score <= 0:  # no structure at all: the shallowest folder that holds files
+        holders = [p.parent for p in base.rglob("*") if p.is_file() and "__MACOSX" not in p.parts]
+        best = min(holders, key=lambda p: len(p.parts)) if holders else base
+    return best
+
+
+def make_script_runnable(path: Path, where: str) -> Path:
+    """A plain .lua with no final return, placed where code runs, becomes a Script/LocalScript."""
+    if script_kind(path) != "module" or returns_value(path):
+        return path
+    run = RUNS_ON.get(where)
+    if not run:
+        return path
+    target = path.with_name(path.name[: -len(path.suffix)] + f".{run}{path.suffix}")
+    path.rename(target)
+    return target
+
+
+def auto_project(source: Path, out: Path) -> tuple[Path, list[str]]:
+    """Copy `source` into `out`, arrange it, write default.project.json. Returns (project, notes)."""
+    root = find_root(source)
+    shutil.copytree(root, out / "game", ignore=shutil.ignore_patterns("__MACOSX", ".DS_Store", ".git"))
+    game = out / "game"
+    tree: dict = {"$className": "DataModel"}
+    notes: list[str] = []
+
+    def service(name: str) -> dict:
+        if name in PLAYER_CONTAINERS.values():
+            sp = tree.setdefault("StarterPlayer", {"$className": "StarterPlayer"})
+            return sp.setdefault(name, {"$className": name})
+        return tree.setdefault(name, {"$className": name})
+
+    def mount(node: dict, child: str | None, folder: Path, where: str) -> None:
+        for f in list(folder.rglob("*")):
+            if f.is_file() and is_script(f):
+                new = make_script_runnable(f, where)
+                if new != f:
+                    notes.append(f"{f.name} -> {new.name}")
+        rel = folder.relative_to(out).as_posix()
+        if child:
+            node[child] = {"$path": rel}
+        else:
+            node["$path"] = rel
+
+    loose_dir = game / "_loose"
+    for entry in sorted(game.iterdir()):
+        key = entry.name.lower()
+        if entry.is_dir():
+            if key in SERVICES:
+                mount(service(SERVICES[key]), None, entry, SERVICES[key])
+            elif key in PLAYER_CONTAINERS:
+                mount(service(PLAYER_CONTAINERS[key]), None, entry, PLAYER_CONTAINERS[key])
+            elif key in ALIASES:
+                svc, child = ALIASES[key]
+                mount(service(svc), child, entry, svc)
+            elif entry.name != "_loose":
+                # Unknown folder of code: shared modules are the safest guess.
+                mount(service("ReplicatedStorage"), entry.name, entry, "ReplicatedStorage")
+                notes.append(f"{entry.name}/ -> ReplicatedStorage")
+        elif entry.is_file():
+            kind = script_kind(entry) if is_script(entry) else None
+            suffix = entry.suffix.lower()
+            if kind == "server":
+                svc = "ServerScriptService"
+            elif kind == "client":
+                svc = "StarterPlayerScripts"
+            elif kind == "module":
+                svc = "ReplicatedStorage"
+            elif suffix in (".rbxm", ".rbxmx"):
+                svc = "Workspace"
+            elif suffix in (".json", ".txt", ".csv", ".toml"):
+                svc = "ReplicatedStorage"
+            else:
+                continue  # images, readmes...: Roblox assets cannot come from a zip
+            dest = loose_dir / svc
+            dest.mkdir(parents=True, exist_ok=True)
+            moved = dest / entry.name
+            entry.rename(moved)
+            if kind == "module" and not returns_value(moved):
+                # A loose script that returns nothing is a game script: run it on the server.
+                runnable = moved.with_name(moved.name[: -len(moved.suffix)] + f".server{moved.suffix}")
+                svc_dir = loose_dir / "ServerScriptService"
+                svc_dir.mkdir(parents=True, exist_ok=True)
+                moved.rename(svc_dir / runnable.name)
+                notes.append(f"{entry.name} -> ServerScriptService/{runnable.name}")
+    if loose_dir.exists():
+        for svc_dir in sorted(loose_dir.iterdir()):
+            if any(svc_dir.iterdir()):
+                node = service(svc_dir.name)
+                node[f"Loose{svc_dir.name}"] = {"$path": svc_dir.relative_to(out).as_posix()}
+
+    # Players need something to stand on: add a baseplate + spawn unless the game brings a world.
+    workspace = tree.get("Workspace", {})
+    has_world = any(k != "$className" for k in workspace) or (game / "Workspace").exists()
+    if not has_world:
+        tree.setdefault("Workspace", {"$className": "Workspace"}).update({
+            "Baseplate": {"$className": "Part", "$properties": {
+                "Anchored": True, "Locked": True, "Size": [2048, 16, 2048], "CFrame": {"CFrame": {"position": [0, -8, 0], "orientation": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]}},
+                "Color": [0.36, 0.36, 0.38], "Material": "Concrete", "TopSurface": "Smooth", "BottomSurface": "Smooth"}},
+            "SpawnLocation": {"$className": "SpawnLocation", "$properties": {
+                "Anchored": True, "Size": [12, 1, 12], "CFrame": {"CFrame": {"position": [0, 0.5, 0], "orientation": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]}}, "Neutral": True, "Duration": 0,
+                "Color": [0.45, 0.35, 1.0], "Material": "Neon"}},
+        })
+        notes.append("Workspace: baseplate + spawn added")
+
+    project = out / "default.project.json"
+    project.write_text(json.dumps({"name": "AutoProject", "tree": tree}, indent=2))
+    return project, notes
+
+
 def shallowest(paths: list[Path]) -> Path | None:
     return min(paths, key=lambda p: (len(p.parts), str(p))) if paths else None
 
@@ -198,10 +381,16 @@ def prepare() -> None:
             elif places:
                 place_file = shallowest(places)
                 kind = place_file.suffix.lower()[1:]
+            elif any(p.is_file() and (is_script(p) or p.suffix.lower() in (".rbxm", ".rbxmx")) for p in unzipped.rglob("*")):
+                project, notes = auto_project(unzipped, WORK / "auto")
+                kind = "rojo"
+                state["autoProject"] = notes
+                print("no project file: generated", project)
+                print("\n".join(notes))
             else:
                 raise PushError(
                     "BAD_ZIP",
-                    "The zip has no Rojo project (default.project.json) and no .rbxl/.rbxlx place file.",
+                    "The zip has no game files: no Rojo project, no .rbxl/.rbxlx and no .lua/.luau scripts.",
                 )
         else:
             raise PushError("BAD_FILE", "Send a .rbxl, .rbxlx or .zip file.")
@@ -322,6 +511,7 @@ def finish() -> None:
         "placeId": state.get("place"),
         "kind": state.get("kind"),
         "gameName": lookup_name(state["universe"]) if state.get("universe") else None,
+        "autoProject": state.get("autoProject"),
         "steps": state.get("steps", {}),
         "luau": luau_info,
         "error": state.get("error"),
