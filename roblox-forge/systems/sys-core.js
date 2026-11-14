@@ -39,6 +39,8 @@ export function defaultConfig() {
     codes: [{ code: 'FORGE', currency: 'Gems', amount: 25, expires: 0 }, { code: 'BEYOND1B', currency: 'Coins', amount: 5000, expires: 0 }],
     gamepasses: [{ id: 0, name: 'Chance ×2', perk: 'luck2x' }, { id: 0, name: 'Pièces ×2', perk: 'coins2x' }, { id: 0, name: '+2 Pets', perk: 'equip' }, { id: 0, name: 'Ouvrir ×3', perk: 'triple' }],
     products: [{ id: 0, name: '100 Gems', currency: 'Gems', amount: 100 }, { id: 0, name: '50K Coins', currency: 'Coins', amount: 50000 }],
+    income: { amount: 5, every: 1 },
+    hatchRange: 22,
     leaderboard: { enabled: true, stat: 'Coins', pos: [0, 40] },
     autosave: 60,
   };
