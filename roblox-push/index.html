@@ -811,8 +811,8 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
    the app follows the run live and reads result.json back.
    ===================================================================== */
 const BRANCH = 'roblox-push', API = 'https://api.github.com';
-const KIT = { workflow: 'kit/roblox-push.yml', script: 'kit/push.py', merge: 'kit/merge.luau' };
-const PATHS = { workflow: '.github/workflows/roblox-push.yml', script: '.roblox-push/push.py', merge: '.roblox-push/merge.luau', request: '.roblox-push/request.json' };
+const KIT = { workflow: 'kit/roblox-push.yml', script: 'kit/push.py', merge: 'kit/merge.luau', blender: 'kit/forge_blender.py' };
+const PATHS = { workflow: '.github/workflows/roblox-push.yml', script: '.roblox-push/push.py', merge: '.roblox-push/merge.luau', blender: '.roblox-push/forge_blender.py', request: '.roblox-push/request.json' };
 const MAX_BYTES = 75 * 1024 * 1024;
 // GitHub pre-fills fine-grained tokens from URL parameters (documented):
 // name, description, expires_in (1-366 | none) and one parameter per permission.
@@ -887,8 +887,8 @@ function explain(e, need) {
 let kitCache = null;
 async function kit() {
   if (kitCache) return kitCache;
-  const [wf, py, mg] = await Promise.all([KIT.workflow, KIT.script, KIT.merge].map(async (p) => { const r = await fetch(p, { cache: 'no-store' }); if (!r.ok) throw new Error('kit ' + p); return r.text(); }));
-  return (kitCache = { wf, py, mg });
+  const [wf, py, mg, bl] = await Promise.all([KIT.workflow, KIT.script, KIT.merge, KIT.blender].map(async (p) => { const r = await fetch(p, { cache: 'no-store' }); if (!r.ok) throw new Error('kit ' + p); return r.text(); }));
+  return (kitCache = { wf, py, mg, bl });
 }
 async function gitSha(text) {
   const b = new TextEncoder().encode(text), h = new TextEncoder().encode(`blob ${b.length}\0`), a = new Uint8Array(h.length + b.length);
@@ -901,7 +901,7 @@ async function installed() {
   const c = await gh('GET', `/repos/${S.repo}/git/commits/${h}`);
   const t = await gh('GET', `/repos/${S.repo}/git/trees/${c.tree.sha}?recursive=1`);
   const f = (p) => (t.tree.find((x) => x.path === p) || {}).sha;
-  return { workflow: f(PATHS.workflow), script: f(PATHS.script), merge: f(PATHS.merge) };
+  return { workflow: f(PATHS.workflow), script: f(PATHS.script), merge: f(PATHS.merge), blender: f(PATHS.blender) };
 }
 async function orphanCommit(entries, message) {
   const tree = await gh('POST', `/repos/${S.repo}/git/trees`, { tree: entries });
@@ -912,10 +912,10 @@ async function orphanCommit(entries, message) {
 }
 async function ensureInstalled(force) {
   const k = await kit(), cur = await installed();
-  const ok = cur && cur.workflow === (await gitSha(k.wf)) && cur.script === (await gitSha(k.py)) && cur.merge === (await gitSha(k.mg));
+  const ok = cur && cur.workflow === (await gitSha(k.wf)) && cur.script === (await gitSha(k.py)) && cur.merge === (await gitSha(k.mg)) && cur.blender === (await gitSha(k.bl));
   if (ok && !force) return cur;
   await orphanCommit([{ path: PATHS.workflow, mode: '100644', type: 'blob', content: k.wf }, { path: PATHS.script, mode: '100644', type: 'blob', content: k.py },
-    { path: PATHS.merge, mode: '100644', type: 'blob', content: k.mg }], 'roblox-push install');
+    { path: PATHS.merge, mode: '100644', type: 'blob', content: k.mg }, { path: PATHS.blender, mode: '100644', type: 'blob', content: k.bl }], 'roblox-push install');
   return installed();
 }
 async function keyInfo() { try { return (S.keyAt = (await gh('GET', `/repos/${S.repo}/actions/secrets/ROBLOX_API_KEY`)).updated_at); } catch (e) { if (e.status === 404) return (S.keyAt = null); throw e; } }
@@ -1330,7 +1330,7 @@ async function publish() {
   try {
     stepState('upload', 'active', `${f.f.name} · ${fmtBytes(f.f.size)}`);
     let inst = await installed();
-    if (!inst || !inst.workflow || !inst.script || !inst.merge) inst = await ensureInstalled(true);
+    if (!inst || !inst.workflow || !inst.script || !inst.merge || !inst.blender) inst = await ensureInstalled(true);
     const blob = await ghBlob(await readB64(f.f), (p) => within('upload', p));
     stepState('upload', 'done');
 
@@ -1340,6 +1340,7 @@ async function publish() {
       { path: PATHS.workflow, mode: '100644', type: 'blob', sha: inst.workflow },
       { path: PATHS.script, mode: '100644', type: 'blob', sha: inst.script },
       { path: PATHS.merge, mode: '100644', type: 'blob', sha: inst.merge },
+      ...(inst.blender ? [{ path: PATHS.blender, mode: '100644', type: 'blob', sha: inst.blender }] : []),
       { path: PATHS.request, mode: '100644', type: 'blob', content: JSON.stringify(req, null, 2) },
       { path: '.roblox-push/' + safe, mode: '100644', type: 'blob', sha: blob.sha },
     ], `roblox-push publish ${id} (${f.f.name})`);
@@ -1422,14 +1423,29 @@ function win(r, secs) {
     <div class="vsub">${Math.round(secs)} s · place ${esc(r.placeId)}</div>
     ${r.packs && r.packs.length ? `<div class="vsub">Packs dans le jeu : ${r.packs.map(esc).join(', ')}</div>` : ''}
     ${r.autoProject && r.action !== 'addpack' ? `<details class="raw"><summary>✨ Projet Roblox créé automatiquement</summary><pre>${esc(['Scripts rangés dans les bons services Roblox.', ...r.autoProject].join('\n'))}</pre></details>` : ''}
+    ${r.blender ? `<div class="vsub">✨ Blender : ${r.blender.map((b) => esc(b.name) + (b.assetId ? ' · mesh HD ' + esc(b.assetId) : '') + (b.error ? ' · ⚠️ ' + esc(String(b.error).slice(0, 120)) : '')).join(' · ')}</div><div id="hdRenders" style="display:grid;gap:8px;margin:10px 0"></div>` : ''}
     ${r.luau && r.luau.ran ? `<details class="raw" open><summary>Test Luau ✓</summary><pre>${esc((r.luau.logs || []).join('\n') || JSON.stringify(r.luau.results))}</pre></details>` : ''}
     <a class="cta" href="${esc(r.playUrl)}" target="_blank" rel="noopener">▶ Jouer dans Roblox</a>
     <button class="cta alt" id="closeL">Terminé</button>`;
   $('closeL').onclick = closeLaunch;
+  if (r.blender) showRenders(r.blender);
   const el = $('vn'), t0 = performance.now();
   el.parentElement.style.fontSize = (String(v).length >= 5 ? 34 : String(v).length === 4 ? 42 : 54) + 'px';
   (function f(t) { const k = Math.min(1, (t - t0) / 1300), e = 1 - Math.pow(1 - k, 4); el.textContent = Math.round(v * e); if (k < 1) requestAnimationFrame(f); })(t0);
   celebrate(innerWidth / 2, innerHeight * .38, 170);
+}
+// HD renders made by Blender on the robot: read back from the repo, shown + downloadable
+async function showRenders(list) {
+  const box = $('hdRenders'); if (!box) return;
+  for (const b of list) for (const path of b.renders || []) {
+    try { const c = await gh('GET', `/repos/${S.repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${BRANCH}`);
+      let b64 = String(c.content || '').replace(/\s/g, ''); if (!b64 && c.sha) b64 = String((await gh('GET', `/repos/${S.repo}/git/blobs/${c.sha}`)).content || '').replace(/\s/g, ''); // > 1 Mo: blob API
+      const url = 'data:image/png;base64,' + b64; const name = path.split('/').pop();
+      const fig = document.createElement('a'); fig.href = url; fig.download = name; fig.style.cssText = 'display:block;border-radius:16px;overflow:hidden;box-shadow:0 0 0 1px #ffffff22';
+      const img = new Image(); img.src = url; img.alt = b.name; img.style.cssText = 'display:block;width:100%'; fig.appendChild(img); box.appendChild(fig);
+    } catch { /* image too big for the contents API or not committed: the link to the run stays */ }
+  }
+  if (box.children.length) { const n = document.createElement('div'); n.className = 'vsub'; n.textContent = 'Touche une image pour l\'enregistrer'; box.appendChild(n); }
 }
 function fail(title, fixHtml, raw, runUrl) {
   $('launch').classList.add('fail', 'done'); warpSlow();
@@ -1501,11 +1517,12 @@ async function updatePage() {
   try {
     stepState('upload', 'active', covers.length || icon ? 'Envoi des images' : 'Préparation');
     let inst = await installed();
-    if (!inst || !inst.workflow || !inst.script || !inst.merge) inst = await ensureInstalled(true);
+    if (!inst || !inst.workflow || !inst.script || !inst.merge || !inst.blender) inst = await ensureInstalled(true);
     const entries = [
       { path: PATHS.workflow, mode: '100644', type: 'blob', sha: inst.workflow },
       { path: PATHS.script, mode: '100644', type: 'blob', sha: inst.script },
       { path: PATHS.merge, mode: '100644', type: 'blob', sha: inst.merge },
+      ...(inst.blender ? [{ path: PATHS.blender, mode: '100644', type: 'blob', sha: inst.blender }] : []),
     ];
     const media = [...covers.map((c, i) => ({ c, name: `cover${i + 1}.jpg` })), ...(icon ? [{ c: icon, name: 'icon.png' }] : [])];
     for (let i = 0; i < media.length; i++) {
@@ -1615,7 +1632,7 @@ async function publishPack(game, pk) {
   try {
     stepState('upload', 'active', '📦 ' + (pk.label || pk.name));
     let inst = await installed();
-    if (!inst || !inst.workflow || !inst.script || !inst.merge) inst = await ensureInstalled(true);
+    if (!inst || !inst.workflow || !inst.script || !inst.merge || !inst.blender) inst = await ensureInstalled(true);
     const blob = await ghBlob(pk.b64, (p) => within('upload', p));
     stepState('upload', 'done');
     at = 'commit'; stepState('commit', 'active', '');
@@ -1624,6 +1641,7 @@ async function publishPack(game, pk) {
       { path: PATHS.workflow, mode: '100644', type: 'blob', sha: inst.workflow },
       { path: PATHS.script, mode: '100644', type: 'blob', sha: inst.script },
       { path: PATHS.merge, mode: '100644', type: 'blob', sha: inst.merge },
+      ...(inst.blender ? [{ path: PATHS.blender, mode: '100644', type: 'blob', sha: inst.blender }] : []),
       { path: PATHS.request, mode: '100644', type: 'blob', content: JSON.stringify(req, null, 2) },
       { path: '.roblox-push/pack.zip', mode: '100644', type: 'blob', sha: blob.sha },
     ], `roblox-push publish ${id} (pack ${pk.name})`);

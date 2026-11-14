@@ -66,6 +66,16 @@ jobs:
         if: steps.stage.outputs.needs_build == 'true'
         run: python3 .roblox-push/push.py build
 
+      - name: Install Blender (Ubuntu package, HD jobs only)
+        if: steps.stage.outputs.has_blender == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq blender python3-numpy
+
+      - name: Blender HD (renders + meshes)
+        if: steps.stage.outputs.has_blender == 'true'
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 .roblox-push/push.py blender
+
       - name: Add the packs
         if: steps.stage.outputs.has_packs == 'true'
         run: python3 .roblox-push/push.py merge
@@ -99,5 +109,6 @@ jobs:
           git config user.name "roblox-push"
           git config user.email "roblox-push@users.noreply.github.com"
           git add .roblox-push/result.json
+          if [ -d .roblox-push/renders ]; then git add .roblox-push/renders; fi
           git commit -m "roblox-push: result" || exit 0
           for i in 1 2 3; do git push && break || { sleep $((i*2)); git pull --rebase; }; done

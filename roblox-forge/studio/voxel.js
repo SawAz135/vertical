@@ -40,29 +40,31 @@ export const VOX_SPECIES = {
 /* ---------- anatomy SDF + colour, with a bone tag per voxel ---------- */
 function anatomy(sp, k) {
   const L = sp.legs, B = sp.body, s = (v) => v * k;
-  const chest = [0, s(1.42 * L), s(-0.62 * B)], hip = [0, s(1.5 * L), s(0.72 * B)], headC = [0, s((2.0 - sp.neckDrop) * L + 0.1), s(-1.5 * B - 0.2)];
+  const chest = [0, s(1.3 * L), s(-0.62 * B)], hip = [0, s(1.4 * L), s(0.72 * B)], headC = [0, s((1.95 - sp.neckDrop) * L + 0.12), s(-1.48 * B - 0.22)];
   const legs = [['LegFL', -1, -0.72], ['LegFR', 1, -0.72], ['LegBL', -1, 0.72], ['LegBR', 1, 0.72]].map(([n, sx, fz]) => { const x = s(0.33 * sx * B), z = s(fz * B), back = fz > 0;
-    return { n, top: [x, s(1.35 * L), z], knee: [x, s((back ? 0.7 : 0.6) * L), z + s(back ? 0.28 : 0.1)], foot: [x, s(0.1), z - s(back ? 0.05 : 0.1)], r: s((back ? 0.34 : 0.27) * B), back }; });
+    return { n, top: [x, s(1.22 * L), z], knee: [x, s((back ? 0.62 : 0.58) * L), z + s(back ? 0.42 : 0.02)], foot: [x, s(0.1), z - s(back ? -0.08 : 0.22)], r: s((back ? 0.36 : 0.29) * B), back }; });
   const tailBase = [0, s(1.65 * L), s(1.12 * B)];
   const tailEnd = { bushy: [0, s(0.85 * L), s(2.15 * B)], long: [0, s(1.2 * L), s(2.5 * B)], up: [0, s(2.45 * L), s(1.75 * B)], stub: [0, s(1.55 * L), s(1.55 * B)], tuft: [0, s(1.1 * L), s(2.6 * B)], mane: [0, s(0.75 * L), s(2.2 * B)], dragon: [s(0.6), s(0.9 * L), s(2.95 * B)] }[sp.tail];
   const tailMid = [tailEnd[0] * 0.4, (tailBase[1] + tailEnd[1]) / 2 + s(sp.tail === 'up' ? 0.2 : 0.25), (tailBase[2] + tailEnd[2]) / 2 + s(0.2)];
-  const snoutTip = [0, headC[1] - s(0.12), headC[2] - s(0.6 * sp.snout)];
+  const snoutTip = [0, headC[1] - s(0.14), headC[2] - s(0.68 * sp.snout)];
   return function evalAt(p) {
     let d = sdCone(p, chest, hip, s(0.58 * B), s(0.52 * B)), bone = 'Body';
     d = smin(d, sdEll(p, [0, chest[1] - s(0.05), chest[2] - s(0.15)], [s(0.55 * B), s(0.66 * B), s(0.55 * B)]), s(0.25));
     const neck = sdCone(p, [0, chest[1] + s(0.25), chest[2] - s(0.2)], [0, headC[1] - s(0.05), headC[2] + s(0.25)], s(0.4 * B), s(0.33));
     d = smin(d, neck, s(0.2));
-    const head = smin(sdEll(p, headC, [s(0.47), s(0.44), s(0.5)]), sdCone(p, [0, headC[1] - s(0.06), headC[2] - s(0.2)], snoutTip, s(0.31), s(0.2)), s(0.14));
+    const head = smin(sdEll(p, headC, [s(0.57), s(0.52), s(0.58)]), sdCone(p, [0, headC[1] - s(0.08), headC[2] - s(0.24)], snoutTip, s(0.36), s(0.24)), s(0.16));
     if (head < d + s(0.04)) bone = 'Head'; d = smin(d, head, s(0.08));
-    for (const g of legs) { const l = Math.min(sdCone(p, g.top, g.knee, g.r, g.r * 0.62), sdCone(p, g.knee, g.foot, g.r * 0.6, g.r * 0.55), sdEll(p, [g.foot[0], s(0.1), g.foot[2] - s(0.08)], [g.r * 0.7, s(0.12), g.r * 1.05]));
+    let claw = false;
+    for (const g of legs) { for (const cx of [-0.11, 0, 0.11]) { const c0 = [g.foot[0] + s(cx), s(0.1), g.foot[2] - g.r * 0.95], cl = sdCone(p, c0, [c0[0], s(0.02), c0[2] - s(0.12)], s(0.045), s(0.025)); if (cl < d && cl < 0) { claw = true; bone = g.n; } d = Math.min(d, cl); }
+      const l = Math.min(sdCone(p, g.top, g.knee, g.r, g.r * 0.62), sdCone(p, g.knee, g.foot, g.r * 0.6, g.r * 0.55), sdEll(p, [g.foot[0], s(0.1), g.foot[2] - s(0.08)], [g.r * 0.7, s(0.12), g.r * 1.05]));
       if (l < d && p[1] < s(1.15 * L)) bone = g.n; d = smin(d, l, s(0.1)); }
-    if (sp.tail !== 'stub' || true) { const tr = sp.tail === 'bushy' ? (t) => s(0.16 + Math.sin(t * Math.PI) * 0.2) : sp.tail === 'stub' ? () => s(0.18) : sp.tail === 'dragon' ? (t) => s(0.3 - t * 0.24) : sp.tail === 'mane' ? (t) => s(0.18 + t * 0.12) : () => s(0.1);
+    if (sp.tail !== 'stub' || true) { const tr = sp.tail === 'bushy' ? (t) => s(0.17 + Math.sin(t * Math.PI * 0.85) * 0.3) : sp.tail === 'stub' ? () => s(0.18) : sp.tail === 'dragon' ? (t) => s(0.3 - t * 0.24) : sp.tail === 'mane' ? (t) => s(0.18 + t * 0.12) : () => s(0.1);
       let td = 1e9; for (let i = 0; i < 6; i++) { const a = bez(tailBase, tailMid, tailEnd, i / 6), b = bez(tailBase, tailMid, tailEnd, (i + 1) / 6); td = Math.min(td, sdCone(p, a, b, tr(i / 6), tr((i + 1) / 6))); }
       if (td < d) bone = 'Tail1'; d = smin(d, td, s(0.08)); }
     // ears / horns
-    for (const sx of [-1, 1]) { const base = [s(0.2 * sx), headC[1] + s(0.28), headC[2] + s(0.12)];
+    for (const sx of [-1, 1]) { const base = [s(0.26 * sx), headC[1] + s(0.36), headC[2] + s(0.14)];
       let e = 1e9;
-      if (sp.ears === 'pointy' || sp.ears === 'big') { const h = sp.ears === 'big' ? 0.5 : 0.36; e = sdCone(p, base, [base[0] + s(0.05 * sx), base[1] + s(h), base[2] + s(0.05)], s(0.15), s(0.02)); }
+      if (sp.ears === 'pointy' || sp.ears === 'big') { const h = sp.ears === 'big' ? 0.5 : 0.36; e = Math.max(sdCone(p, base, [base[0] + s(0.05 * sx), base[1] + s(h), base[2] + s(0.04)], s(0.21), s(0.035)), Math.abs(p[2] - base[2] - s(0.02)) - s(0.09)); }
       else if (sp.ears === 'round') e = sdEll(p, [base[0] + s(0.06 * sx), base[1] + s(0.06), base[2]], [s(0.14), s(0.14), s(0.08)]);
       else if (sp.ears === 'floppy') e = sdCone(p, [base[0] + s(0.12 * sx), base[1], base[2]], [base[0] + s(0.24 * sx), base[1] - s(0.4), base[2] - s(0.02)], s(0.12), s(0.1));
       else if (sp.ears === 'leaf') e = sdCone(p, base, [base[0] + s(0.3 * sx), base[1] + s(0.2), base[2] + s(0.1)], s(0.1), s(0.03));
@@ -76,16 +78,17 @@ function anatomy(sp, k) {
     if (sp.wings) for (const sx of [-1, 1]) { const w0 = [s(0.45 * sx), s(2.0 * L), s(-0.3)], w1 = [s(1.6 * sx), s(2.9 * L), s(0.0)], w2 = [s(2.0 * sx), s(2.2 * L), s(0.6)];
       const w = Math.min(sdCone(p, w0, w1, s(0.09), s(0.05)), Math.max(sdEll(p, [s(1.15 * sx), s(2.15 * L), s(0.25)], [s(0.85), s(0.62), s(0.06)]), -(p[1] - s(1.65 * L))));
       if (w < d) bone = 'Wing' + (sx < 0 ? 'L' : 'R'); d = Math.min(d, w); }
-    return [d, bone, { headC, snoutTip, chest, hip, tailEnd, tailBase }];
+    return [d, bone, { headC, snoutTip, chest, hip, tailEnd, tailBase, claw }];
   };
 }
 function colourAt(sp, p, bone, A, k, e) {
   const c = sp.cols, s = (v) => v * k, x = Math.abs(p[0]);
   const { headC, snoutTip, tailEnd } = A;
   // eyes, nose, mouth on the head
-  const eyeC = [s(0.2) * Math.sign(p[0] || 1), headC[1] + s(0.08), headC[2] - s(0.3)];
+  if (A.claw) return '#141418';
+  const eyeC = [s(0.25) * Math.sign(p[0] || 1), headC[1] + s(0.1), headC[2] - s(0.4)];
   const de = len(p[0] - eyeC[0], p[1] - eyeC[1], p[2] - eyeC[2]);
-  if (bone === 'Head' && de < s(0.11)) return de < s(0.055) ? '#0d0b10' : (e?.eye || c.eye);
+  if (bone === 'Head' && de < s(0.14)) return de < s(0.065) ? '#0d0b10' : (e?.eye || c.eye);
   if (bone === 'Head' && len(p[0], p[1] - (snoutTip[1] + s(0.06)), p[2] - snoutTip[2]) < s(0.12)) return c.nose;
   if (bone === 'Head' && sp.snarl && Math.abs(p[1] - (snoutTip[1] - s(0.08))) < s(0.03) && p[2] < headC[2] - s(0.3)) return x < s(0.1) ? '#ffffff' : '#c43a3a';
   if (bone === 'Head' && Math.abs(p[1] - (snoutTip[1] - s(0.06))) < s(0.022) && p[2] < headC[2] - s(0.25)) return '#1b1215';
