@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Roblox Push">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com; img-src 'self' data: https://avatars.githubusercontent.com; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com; img-src 'self' data: blob: https://avatars.githubusercontent.com; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Roblox Push</title>
 <link rel="icon" href="data:,">
@@ -476,6 +476,77 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 .medal .coin::after{content:"";position:absolute;inset:0;border-radius:50%;background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.75) 50%,transparent 65%);background-size:250% 100%;animation:shim 2.6s linear infinite}
 @keyframes coin{0%,100%{transform:rotateY(-18deg) rotateX(6deg)}50%{transform:rotateY(18deg) rotateX(-4deg)}}
 .medal .vbig{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;white-space:nowrap;letter-spacing:-.04em;font-size:54px;background:linear-gradient(180deg,#5a3200,#8a5410);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 1px 0 rgba(255,255,255,.6));transform:translateZ(20px)}
+/* ===== game list + game screen ===== */
+.tiles.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;overflow:visible;padding:6px 2px 10px;margin:0;scroll-snap-type:none}
+.tiles.grid .tile{width:auto;height:205px}
+.tiles.grid .tile::after{display:none}
+.tiles.grid .tile.on{transform:none;box-shadow:0 18px 40px -20px #000,0 0 0 1px rgba(255,255,255,.08) inset}
+.tiles.grid .tile.on::before{display:none}
+.tiles.grid .tile .go2{position:absolute;right:12px;bottom:14px;z-index:2;width:28px;height:28px;border-radius:10px;display:grid;place-items:center;background:#ffffff22;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-weight:900}
+.tiles.grid .tile .t{padding-right:30px}
+.empty{color:var(--muted);font-size:14px;text-align:center;margin:6px 10px 0}
+.empty b{color:var(--text)}
+.gtop{display:flex;align-items:center;gap:10px;padding:4px 0 14px}
+.back{border:0;border-radius:14px;padding:10px 14px;font-weight:800;font-size:14.5px;background:linear-gradient(160deg,#ffffff1a,#ffffff08);box-shadow:0 0 0 1px var(--line2) inset;flex:none}
+.back:active{transform:scale(.96)}
+.gtitle{flex:1;text-align:right;font-weight:800;color:var(--muted);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .3s}
+.gtitle.on{opacity:1}
+.banner{position:relative;height:230px;border-radius:30px;overflow:hidden;box-shadow:0 30px 60px -28px #000,0 0 0 1px rgba(255,255,255,.1) inset;animation:up .6s var(--ease)}
+.banner .art{position:absolute;inset:-12% 0 0;will-change:transform}
+.banner .art svg{width:100%;height:100%;display:block}
+.banner .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,4,12,.05) 25%,rgba(5,4,12,.55) 60%,rgba(5,4,12,.96))}
+.banner .gloss{position:absolute;inset:0;background:linear-gradient(125deg,rgba(255,255,255,.22),transparent 30%)}
+.banner .info{position:absolute;left:18px;right:18px;bottom:16px}
+.banner h2{margin:8px 0 3px;font-size:30px;font-weight:900;letter-spacing:-.03em;line-height:1.05;text-shadow:0 4px 20px rgba(0,0,0,.6)}
+.banner .meta{font-size:13px;color:#cfc8ee}
+.vp2{display:inline-block;font-size:12px;font-weight:850;padding:5px 10px;border-radius:10px;color:#05040c;background:linear-gradient(135deg,var(--g),#ffb84d);box-shadow:0 6px 16px -6px rgba(255,212,92,.8)}
+.vp2:empty{display:none}
+.quick{display:flex;gap:10px;margin:14px 0 8px}
+.qbtn{flex:1;display:flex;align-items:center;justify-content:center;text-decoration:none;color:var(--text);font-weight:800;font-size:15px;padding:15px 10px;border-radius:18px;
+  background:linear-gradient(160deg,#ffffff1a,#ffffff07);box-shadow:0 0 0 1px var(--line2) inset;transition:transform .15s}
+.qbtn:active{transform:scale(.96)}
+.qbtn.play{color:#03140c;background:linear-gradient(135deg,#5bffbd,#18b97e);box-shadow:0 14px 30px -14px rgba(61,255,168,.9),0 0 0 1px #ffffff40 inset}
+.opts{border-radius:24px;padding:2px 16px;margin-bottom:4px}
+.opt{display:flex;align-items:center;gap:14px;justify-content:space-between;width:100%;border:0;background:none;text-align:left;padding:15px 0;border-top:1px solid var(--line);color:var(--text)}
+.opt:first-child{border-top:0}
+.opt b{display:block;font-size:15px}
+.opt small{display:block;color:var(--muted);font-size:12.5px;margin-top:3px;line-height:1.35}
+.opt>span{color:var(--muted);font-size:22px}
+.danger2 b{color:#ff8fa3}
+.ghist{padding:4px 16px;border-radius:24px;margin-bottom:20px}
+.ghist li:only-child{justify-content:center}
+/* ===== game page editor ===== */
+.pagebtn{display:flex;align-items:center;gap:14px;width:100%;border:0;text-align:left;margin:4px 0 6px;padding:14px 16px;border-radius:22px;color:var(--text);
+  background:linear-gradient(135deg,rgba(124,92,255,.35),rgba(62,230,255,.14));box-shadow:0 0 0 1px rgba(255,255,255,.16) inset,0 14px 30px -18px rgba(124,92,255,.9)}
+.pagebtn:active{transform:scale(.98)}
+.pagebtn .pi{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;font-size:22px;background:#ffffff18;flex:none}
+.pagebtn b{display:block;font-size:15.5px}.pagebtn small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.pagebtn .ar{margin-left:auto;font-size:22px;color:var(--muted)}
+.plabel{display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:14px;margin:16px 2px 8px}
+.plabel small{font-weight:600;color:var(--muted);font-size:12px}
+.cover{position:relative;width:100%;aspect-ratio:16/9;border:0;border-radius:20px;overflow:hidden;padding:0;background:#ffffff0a;box-shadow:0 0 0 1.5px var(--line2) inset;color:var(--muted);font-weight:800}
+.cover img{width:100%;height:100%;object-fit:cover;display:block}
+.cover .cempty{position:absolute;inset:0;display:grid;place-items:center;font-size:15px}
+.cover .badge2{position:absolute;left:10px;top:10px;font-size:11px;font-weight:850;padding:4px 8px;border-radius:9px;background:rgba(5,4,12,.7);color:#fff}
+.cstrip{display:flex;gap:8px;margin-top:8px;overflow-x:auto}
+.cstrip .th{position:relative;flex:none;width:96px;aspect-ratio:16/9;border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px var(--line2) inset;border:0;padding:0;background:#ffffff0a}
+.cstrip .th img{width:100%;height:100%;object-fit:cover}
+.cstrip .th i{position:absolute;right:4px;top:4px;width:20px;height:20px;border-radius:7px;background:rgba(5,4,12,.75);font-style:normal;font-size:11px;display:grid;place-items:center;color:#fff}
+.cstrip .add{display:grid;place-items:center;color:var(--muted);font-size:20px}
+.pin{width:100%;border:0;border-radius:16px;padding:14px;background:rgba(3,2,10,.6);box-shadow:0 0 0 1px var(--line) inset;outline:none;font-size:16px;resize:vertical}
+.pin:focus{box-shadow:0 0 0 1.5px var(--v) inset,0 0 0 6px rgba(124,92,255,.15)}
+.iconrow{display:flex;gap:14px;align-items:center}
+.icon{width:84px;height:84px;border:0;border-radius:22px;overflow:hidden;padding:0;flex:none;background:#ffffff0a;box-shadow:0 0 0 1.5px var(--line2) inset;color:var(--muted);font-size:26px}
+.icon img{width:100%;height:100%;object-fit:cover}
+.ihelp{color:var(--muted);font-size:13px}
+.pnote{margin-top:16px;font-size:12.5px;color:var(--muted);line-height:1.45;padding:12px 14px;border-radius:14px;background:#ffffff08;box-shadow:0 0 0 1px var(--line) inset}
+.pnote b{color:var(--text)}
+.banner.hascover .art{background-size:cover;background-position:center}
+.checks{position:relative;width:100%;text-align:left;margin-top:14px;padding:6px 16px;border-radius:18px;background:#ffffff08;box-shadow:0 0 0 1px var(--line) inset}
+.checks div{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:14.5px}
+.checks div:first-child{border-top:0}
+.checks em{font-style:normal;font-weight:750}
+.checks .y{color:var(--ok)}.checks .w{color:var(--g)}.checks .n{color:#ff8fa3}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition-duration:.01s!important}}
 </style>
 </head>
@@ -553,8 +624,23 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
       <button class="avatar" id="avatarBtn" aria-label="Réglages"><img id="avatar" alt=""></button>
     </div>
     <div class="label"><span>Tes jeux</span><em id="gameCount"></em></div>
-    <div class="tiles" id="tiles"></div>
-    <div class="label"><span>Fichier</span><em id="fileState"></em></div>
+    <div class="tiles grid" id="tiles"></div>
+    <p class="empty" id="emptyHint">Ajoute ton premier jeu avec son lien <b>roblox.com/games/…</b>, puis touche sa tuile.</p>
+  </div>
+</section>
+
+
+<!-- ================= GAME SCREEN ================= -->
+<section class="screen away" id="gameScr">
+  <div class="col">
+    <div class="gtop"><button class="back" id="backBtn">‹ Mes jeux</button><span class="gtitle" id="gTopName"></span></div>
+    <div class="banner" id="gBanner">
+      <div class="art" id="gArt"></div><div class="shade"></div><div class="gloss"></div>
+      <div class="info"><span class="vp2" id="gVer"></span><h2 id="gName"></h2><div class="meta" id="gMeta"></div></div>
+    </div>
+    <div class="quick"><a class="qbtn play" id="gPlay" target="_blank" rel="noopener">▶ Jouer</a><a class="qbtn" id="gHub" target="_blank" rel="noopener">Ouvrir sur Roblox ↗</a></div>
+    <button class="pagebtn" id="gPage"><span class="pi">🖼️</span><span><b>Modifier la page du jeu</b><small>Couverture, nom, description, icône</small></span><span class="ar">›</span></button>
+    <div class="label"><span>Mettre à jour</span><em id="fileState"></em></div>
     <div class="drop glass" id="drop" role="button" tabindex="0">
       <div class="aur"><b></b><b></b><b></b></div>
       <svg class="bd"><rect x="1" y="1" width="99%" height="98%" rx="25"/></svg>
@@ -577,6 +663,14 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
       <div class="mode" id="mode"><button class="on" data-v="Published">🟢 En ligne</button><button data-v="Saved">💾 Brouillon</button></div>
       <div class="hint" id="hint"></div>
     </div>
+    <div class="label"><span>Options du jeu</span></div>
+    <div class="opts glass">
+      <div class="opt" id="gFloorRow"><div><b>Sol automatique</b><small>Ajoute un sol et un point d'apparition seulement si le jeu n'en a pas. Désactivé : le robot n'ajoute rien.</small></div><button class="sw" id="gFloor" aria-label="Sol automatique"></button></div>
+      <button class="opt" id="gRename"><div><b>Renommer</b><small>Le nom affiché dans l'app</small></div><span>›</span></button>
+      <button class="opt danger2" id="gRemove"><div><b>Retirer de la liste</b><small>Le jeu reste sur Roblox, seule la tuile disparaît</small></div><span>›</span></button>
+    </div>
+    <div class="label"><span>Historique de ce jeu</span><em id="gHistCount"></em></div>
+    <ul class="hist glass ghist" id="gHist"></ul>
   </div>
 </section>
 
@@ -636,6 +730,21 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
   </div>
 </div>
 <div id="coach" aria-live="polite"><div class="spot" id="spot"></div><div class="bub" id="bub"></div></div>
+<div class="sheet" id="pageSheet">
+  <div class="grab"></div><h4>Page du jeu<button class="done" data-close>Annuler</button></h4>
+  <div class="plabel">Couverture <small>la grande image du jeu sur Roblox · 16:9</small></div>
+  <button class="cover" id="pCover"><span class="cempty">＋ Choisir une image</span></button>
+  <div class="cstrip" id="pStrip"></div>
+  <div class="plabel">Nom du jeu <small id="pNameCount">0/50</small></div>
+  <input class="pin" id="pName" maxlength="50" placeholder="Nom affiché sur Roblox" autocomplete="off">
+  <div class="plabel">Description <small id="pDescCount">0/1000</small></div>
+  <textarea class="pin" id="pDesc" maxlength="1000" rows="4" placeholder="Ce que les joueurs lisent sous le jeu"></textarea>
+  <div class="plabel">Icône <small>carrée · facultatif</small></div>
+  <div class="iconrow"><button class="icon" id="pIcon"><span>＋</span></button><div class="ihelp">Recadrée automatiquement en carré 512 × 512.</div></div>
+  <div class="pnote">La clé Roblox doit avoir : <b>universe › write</b> (nom, description) et <b>assets › read + write</b> (images). Les images apparaissent après la <b>modération</b> de Roblox.</div>
+  <button class="cta" id="pSave" disabled>Mettre à jour la page</button>
+  <input type="file" id="pFile" accept="image/*" class="hidden">
+</div>
 <div class="toast" id="toast"></div>
 
 <script src="vendor/nacl-fast.min.js"></script>
@@ -828,11 +937,11 @@ $('rk').addEventListener('input', () => { clearTimeout(keyTimer); keyTimer = set
   catch (e) { setStatus('keyStatus', e.status === -1 ? 'Clé incomplète, recopie-la.' : explain(e, 'Secrets › Read and write'), 'err'); }
 }, 400); });
 $('finishOnb').addEventListener('click', () => { Store.set('onboarded', true); showMain(); celebrate(innerWidth / 2, innerHeight * .45, 90);
-  if (!Store.get('toured', false)) setTimeout(startTour, 1100); });
+  if (!Store.get('toured', false)) setTimeout(() => startTour('main'), 1100); });
 
 /* ---------- main ---------- */
 function showMain() {
-  $('onb').classList.add('away'); $('main').classList.remove('away');
+  $('onb').classList.add('away'); $('main').classList.remove('away'); $('gameScr').classList.add('away');
   $('connTxt').textContent = S.repo ? 'Connecté · ' + S.repo.split('/')[1] : 'Connecté';
   if (S.user && S.user.avatar) $('avatar').src = S.user.avatar;
   renderTiles(); renderFile(); refresh();
@@ -855,21 +964,65 @@ function renderTiles() {
   const box = $('tiles'); box.innerHTML = '';
   games().forEach((g) => {
     const b = document.createElement('button'); b.className = 'tile' + (S.game && S.game.place === g.place ? ' on' : '');
-    b.innerHTML = `<div class="art">${tileArt(g.place)}</div><div class="gloss"></div>${g.version ? `<div class="vp">v${esc(g.version)}</div>` : ''}
-      <div class="t">${esc(g.name || 'Jeu ' + g.place)}</div><div class="s">${g.version ? 'v' + esc(g.version) + ' · ' : ''}place ${esc(g.place)}</div>`;
-    b.onclick = () => { S.game = g; Store.set('game', g); renderTiles(); refresh(); };
+    b.innerHTML = `<div class="art"${g.cover ? ` style="background:url(${g.cover}) center/cover"` : ''}>${g.cover ? '' : tileArt(g.place)}</div><div class="gloss"></div>${g.version ? `<div class="vp">v${esc(g.version)}</div>` : ''}
+      <div class="t">${esc(g.name || 'Jeu ' + g.place)}</div><div class="s">${g.version ? 'v' + esc(g.version) + ' · ' : ''}place ${esc(g.place)}</div><span class="go2">›</span>`;
+    b.onclick = () => openGame(g);
     box.appendChild(b);
   });
   $('gameCount').textContent = games().length ? games().length + (games().length > 1 ? ' jeux' : ' jeu') : '';
+  $('emptyHint').classList.toggle('hidden', games().length > 0);
   const add = document.createElement('button'); add.className = 'tile add'; add.id = 'addTile'; add.innerHTML = '<div><b>+</b>Ajouter un jeu</div>';
   add.onclick = () => openSheet('addSheet'); box.appendChild(add);
 }
 function upsertGame(g) {
   const old = games().find((x) => x.place === g.place) || {};
   const merged = Object.assign({}, old, Object.fromEntries(Object.entries(g).filter(([, v]) => v != null && v !== '')));
-  Store.set('games', [merged, ...games().filter((x) => x.place !== g.place)].slice(0, 12));
-  S.game = merged; Store.set('game', merged); renderTiles();
+  Store.set('games', [merged, ...games().filter((x) => x.place !== g.place)].slice(0, 24));
+  S.game = merged; Store.set('game', merged); renderTiles(); renderGame();
 }
+
+/* ---------- game screen ---------- */
+function gameHist(g) { return Store.get('hist', []).filter((h) => String(h.place) === String(g.place)); }
+function renderGame() {
+  const g = S.game; if (!g) return;
+  const name = g.name || 'Jeu ' + g.place, hist = gameHist(g), last = hist.find((h) => h.ok);
+  $('gArt').innerHTML = g.cover ? '' : tileArt(g.place); $('gArt').style.backgroundImage = g.cover ? `url(${g.cover})` : '';
+  $('gBanner').classList.toggle('hascover', !!g.cover); $('gName').textContent = name; $('gTopName').textContent = name;
+  $('gVer').textContent = g.version ? 'v' + g.version : '';
+  $('gMeta').textContent = `place ${g.place}` + (last ? ' · publié ' + new Date(last.at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ' · pas encore publié avec l\'app');
+  $('gPlay').href = `https://www.roblox.com/games/${encodeURIComponent(g.place)}`;
+  $('gHub').href = g.universe ? `https://create.roblox.com/dashboard/creations/experiences/${encodeURIComponent(g.universe)}/overview` : 'https://create.roblox.com/dashboard/creations';
+  $('gFloor').classList.toggle('on', !!g.baseplate);
+  $('gHistCount').textContent = hist.length ? String(hist.length) : '';
+  const ul = $('gHist'); ul.innerHTML = hist.length ? '' : '<li>Aucune publication pour ce jeu.</li>';
+  hist.slice(0, 8).forEach((h) => { const li = document.createElement('li');
+    li.innerHTML = `<span class="s ${h.ok ? '' : 'no'}"></span><span style="flex:1;min-width:0"><b>${h.version ? 'v' + esc(h.version) : (h.ok ? 'ok' : 'échec')}</b> · ${esc(h.name)}</span><span>${new Date(h.at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>`;
+    ul.appendChild(li); });
+}
+function openGame(g) {
+  S.game = g; Store.set('game', g); renderTiles(); renderGame(); refresh();
+  $('main').classList.add('away'); $('gameScr').classList.remove('away'); $('gameScr').scrollTo(0, 0);
+  if (!Store.get('touredGame', false)) setTimeout(() => startTour('game'), 750);
+}
+function backToList() { $('gameScr').classList.add('away'); $('main').classList.remove('away'); renderTiles(); }
+$('backBtn').addEventListener('click', backToList);
+$('gFloor').addEventListener('click', () => {
+  const on = !S.game.baseplate; upsertGame({ place: S.game.place, baseplate: on ? 1 : 0 });
+  toast(on ? 'Sol automatique activé pour ce jeu' : 'Sol automatique désactivé : le robot n\'ajoute rien');
+});
+$('gRename').addEventListener('click', () => {
+  const n = prompt('Nom du jeu dans l\'app', S.game.name || ''); if (n == null || !n.trim()) return;
+  upsertGame({ place: S.game.place, name: n.trim().slice(0, 60), customName: 1 }); toast('Renommé ✓');
+});
+$('gRemove').addEventListener('click', () => {
+  if (!confirm(`Retirer « ${S.game.name || S.game.place} » de la liste ? Le jeu reste sur Roblox.`)) return;
+  Store.set('games', games().filter((x) => x.place !== S.game.place)); S.game = null; Store.set('game', null);
+  backToList(); toast('Retiré de la liste');
+});
+$('gameScr').addEventListener('scroll', () => { // parallax banner + compact title
+  const y = $('gameScr').scrollTop; $('gArt').style.transform = `translateY(${Math.min(60, y * .35)}px) scale(${1 + Math.min(.08, y / 2500)})`;
+  $('gTopName').classList.toggle('on', y > 170);
+}, { passive: true });
 function parsePlace(t) { const m = (t || '').match(/roblox\.com\/(?:[a-z]{2}\/)?games\/(\d+)/i) || (t || '').match(/places\/(\d+)/i) || (t || '').trim().match(/^(\d{5,})$/); return m && m[1]; }
 function parseName(t) { const m = (t || '').match(/games\/\d+\/([^/?#]+)/i); return m ? decodeURIComponent(m[1]).replace(/-/g, ' ') : null; }
 $('gameLink').addEventListener('input', () => {
@@ -882,7 +1035,7 @@ $('addGame').addEventListener('click', () => {
   const p = parsePlace($('gameLink').value); if (!p) return;
   upsertGame({ place: p, name: parseName($('gameLink').value) });
   $('gameLink').value = ''; $('addGame').disabled = true; setStatus('linkStatus', '');
-  closeSheets(); refresh(); toast('Jeu ajouté ✓');
+  closeSheets(); toast('Jeu ajouté ✓'); setTimeout(() => openGame(S.game), 350);
 });
 
 /* file */
@@ -905,6 +1058,7 @@ async function pick(f) {
   if (!kind) return toast('Ce n\'est pas un fichier Roblox (.rbxl, .rbxlx, .zip).', 3800);
   if (f.size > MAX_BYTES) return toast('Fichier trop gros (max 75 Mo).', 3800);
   S.file = { f, kind }; renderFile(); refresh();
+  if (!$('gameScr').classList.contains('away')) setTimeout(() => $('orb').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' }), 250);
 }
 function renderFile() {
   const has = !!S.file; drop.classList.toggle('has', has); $('dropX').classList.toggle('hidden', !has); $('ready').classList.toggle('hidden', !has);
@@ -943,11 +1097,12 @@ orb.addEventListener('contextmenu', (e) => e.preventDefault());
 
 /* ---------- launch sequence ---------- */
 const STEPS = [['upload', 'Envoi du fichier', 0, 35], ['commit', 'Préparation', 35, 42], ['queue', 'Démarrage du serveur', 42, 56], ['prepare', 'Lecture du jeu', 56, 62],
-  ['build', 'Construction Rojo', 62, 76], ['publish', 'Publication sur Roblox', 76, 92], ['luau', 'Test Luau', 92, 97], ['result', 'Résultat', 97, 100]];
-const JOB = { 'Read the request': 'prepare', 'Install Rojo (first Rojo project only, ~3 min)': 'build', 'Build the Rojo project': 'build', 'Publish to Roblox': 'publish', 'Run Luau on Roblox servers': 'luau', 'Save the result for the app': 'result' };
+  ['build', 'Construction Rojo', 62, 76], ['publish', 'Publication sur Roblox', 76, 92], ['luau', 'Test Luau', 92, 97], ['meta', 'Mise à jour de la page', 62, 96], ['result', 'Résultat', 97, 100]];
+const JOB = { 'Read the request': 'prepare', 'Install Rojo (first Rojo project only, ~3 min)': 'build', 'Build the Rojo project': 'build', 'Publish to Roblox': 'publish', 'Run Luau on Roblox servers': 'luau', 'Update the game page': 'meta', 'Save the result for the app': 'result' };
 const L = { target: 0, shown: 0, raf: 0, speed: 1 };
-function launchOpen(withBuild, withLuau) {
-  const steps = STEPS.filter(([id]) => (id !== 'build' || withBuild) && (id !== 'luau' || withLuau));
+function launchOpen(withBuild, withLuau, onlyIds) {
+  const steps = onlyIds ? STEPS.filter(([id]) => onlyIds.includes(id))
+    : STEPS.filter(([id]) => (id !== 'build' || withBuild) && (id !== 'luau' || withLuau) && id !== 'meta');
   $('mini').innerHTML = steps.map(([id]) => `<i id="m-${id}"></i>`).join('');
   $('launch').className = 'on'; $('final').innerHTML = ''; $('ldet').textContent = ''; $('stage').textContent = 'Envoi…';
   L.target = 0; L.shown = 0; L.speed = 1; warpStart();
@@ -985,7 +1140,7 @@ async function publish() {
     stepState('upload', 'done');
 
     at = 'commit'; stepState('commit', 'active', '');
-    const req = { id, universeId: game.universe || null, placeId: game.place, versionType: S.mode, file: safe, luau, original: f.f.name, at: new Date().toISOString() };
+    const req = { id, universeId: game.universe || null, placeId: game.place, versionType: S.mode, file: safe, luau, addBaseplate: !!game.baseplate, original: f.f.name, at: new Date().toISOString() };
     const sha = await orphanCommit([
       { path: PATHS.workflow, mode: '100644', type: 'blob', sha: inst.workflow },
       { path: PATHS.script, mode: '100644', type: 'blob', sha: inst.script },
@@ -1047,7 +1202,8 @@ const FIX = {
   UNREACHABLE: 'Roblox ne répond pas. Réessaie dans quelques minutes.',
 };
 function finish(r, secs, fname, runUrl) {
-  upsertGame({ place: String(r.placeId), universe: r.universeId ? String(r.universeId) : null, name: r.gameName, version: r.published ? r.version : null });
+  const known = games().find((x) => x.place === String(r.placeId)) || {};
+  upsertGame({ place: String(r.placeId), universe: r.universeId ? String(r.universeId) : null, name: known.customName ? null : r.gameName, version: r.published ? r.version : null });
   const luauFailed = r.luau && r.luau.ran && !r.luau.ok;
   addHist({ ok: r.published && !luauFailed, place: r.placeId, version: r.published ? r.version : null, name: fname, at: Date.now() });
   if (r.published && !luauFailed) { stepState('result', 'done'); L.target = 100; setTimeout(() => win(r, secs), 700); return; }
@@ -1086,8 +1242,163 @@ function fail(title, fixHtml, raw, runUrl) {
 }
 function closeLaunch() { $('launch').className = ''; cancelAnimationFrame(L.raf); warpStop(); }
 
+/* ---------- game page editor (cover, name, description, icon) ---------- */
+const P = { covers: [], icon: null, target: null, baseName: '', baseDesc: '' };
+function loadImage(file) {
+  return new Promise((res, rej) => { const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => { res(im); setTimeout(() => URL.revokeObjectURL(url), 1000); }; im.onerror = () => rej(new Error('image')); im.src = url; });
+}
+// Centre-crop to the exact size Roblox recommends; returns {blob, preview dataURL}.
+async function cropTo(file, w, h, type) {
+  const im = await loadImage(file), c = document.createElement('canvas'); c.width = w; c.height = h;
+  const r = Math.max(w / im.naturalWidth, h / im.naturalHeight), sw = w / r, sh = h / r;
+  c.getContext('2d').drawImage(im, (im.naturalWidth - sw) / 2, (im.naturalHeight - sh) / 2, sw, sh, 0, 0, w, h);
+  const blob = await new Promise((res) => c.toBlob(res, type, .9));
+  const p = document.createElement('canvas'); p.width = Math.round(w / h * 180); p.height = 180;
+  p.getContext('2d').drawImage(c, 0, 0, p.width, p.height);
+  return { blob, preview: p.toDataURL('image/jpeg', .8) };
+}
+function renderPage() {
+  const cv = $('pCover');
+  cv.innerHTML = P.covers.length ? `<img src="${P.covers[0].preview}" alt=""><span class="badge2">Couverture principale</span>` : '<span class="cempty">＋ Choisir une image</span>';
+  $('pStrip').innerHTML = P.covers.map((c, i) => `<button class="th" data-i="${i}"><img src="${c.preview}" alt=""><i>✕</i></button>`).join('')
+    + (P.covers.length && P.covers.length < 3 ? '<button class="th add" id="pAddCover">＋</button>' : '');
+  $('pStrip').querySelectorAll('.th[data-i]').forEach((b) => b.onclick = () => { P.covers.splice(+b.dataset.i, 1); renderPage(); });
+  if ($('pAddCover')) $('pAddCover').onclick = () => pickFor('cover');
+  $('pIcon').innerHTML = P.icon ? `<img src="${P.icon.preview}" alt="">` : '<span>＋</span>';
+  $('pNameCount').textContent = $('pName').value.length + '/50'; $('pDescCount').textContent = $('pDesc').value.length + '/1000';
+  const name = $('pName').value.trim(), desc = $('pDesc').value.trim();
+  const changed = P.covers.length || P.icon || (name && name !== P.baseName) || (desc && desc !== P.baseDesc);
+  $('pSave').disabled = !changed || S.busy;
+}
+function pickFor(target) { P.target = target; $('pFile').value = ''; $('pFile').click(); }
+$('pCover').addEventListener('click', () => pickFor(P.covers.length ? 'replace' : 'cover'));
+$('pIcon').addEventListener('click', () => pickFor('icon'));
+$('pFile').addEventListener('change', async () => {
+  const f = $('pFile').files[0]; if (!f) return;
+  try {
+    if (P.target === 'icon') P.icon = await cropTo(f, 512, 512, 'image/png');
+    else { const c = await cropTo(f, 1920, 1080, 'image/jpeg'); if (P.target === 'replace') P.covers[0] = c; else P.covers.push(c); }
+    renderPage();
+  } catch { toast('Image illisible. Essaie une photo .jpg ou .png.', 3500); }
+});
+['pName', 'pDesc'].forEach((id) => $(id).addEventListener('input', renderPage));
+$('gPage').addEventListener('click', () => {
+  const g = S.game; P.covers = []; P.icon = null;
+  $('pName').value = P.baseName = g.pageName || g.name || ''; $('pDesc').value = P.baseDesc = g.desc || '';
+  renderPage(); openSheet('pageSheet');
+});
+$('pSave').addEventListener('click', () => { closeSheets(); setTimeout(updatePage, 300); });
+
+async function updatePage() {
+  if (S.busy || !S.game) return;
+  S.busy = true; refresh();
+  const game = S.game, id = 'p' + Date.now().toString(36);
+  const name = $('pName').value.trim(), desc = $('pDesc').value.trim();
+  const covers = P.covers.slice(), icon = P.icon;
+  launchOpen(false, false, ['upload', 'commit', 'queue', 'prepare', 'meta', 'result']);
+  let at = 'upload', runUrl = null; const t0 = Date.now();
+  try {
+    stepState('upload', 'active', covers.length || icon ? 'Envoi des images' : 'Préparation');
+    let inst = await installed();
+    if (!inst || !inst.workflow || !inst.script) inst = await ensureInstalled(true);
+    const entries = [
+      { path: PATHS.workflow, mode: '100644', type: 'blob', sha: inst.workflow },
+      { path: PATHS.script, mode: '100644', type: 'blob', sha: inst.script },
+    ];
+    const media = [...covers.map((c, i) => ({ c, name: `cover${i + 1}.jpg` })), ...(icon ? [{ c: icon, name: 'icon.png' }] : [])];
+    for (let i = 0; i < media.length; i++) {
+      const blob = await ghBlob(await readB64(media[i].c.blob), (p) => within('upload', (i + p) / media.length));
+      entries.push({ path: '.roblox-push/media/' + media[i].name, mode: '100644', type: 'blob', sha: blob.sha });
+    }
+    stepState('upload', 'done');
+    at = 'commit'; stepState('commit', 'active', '');
+    const req = { id, action: 'meta', universeId: game.universe || null, placeId: game.place,
+      displayName: name && name !== P.baseName ? name : null, description: desc && desc !== P.baseDesc ? desc : null,
+      thumbnails: covers.map((_, i) => `cover${i + 1}.jpg`), icon: icon ? 'icon.png' : null, at: new Date().toISOString() };
+    entries.push({ path: PATHS.request, mode: '100644', type: 'blob', content: JSON.stringify(req, null, 2) });
+    const sha = await orphanCommit(entries, `roblox-push publish ${id} (page du jeu)`);
+    stepState('commit', 'done');
+    at = 'queue'; stepState('queue', 'active', 'GitHub démarre un serveur gratuit');
+    const { run, result } = await followRun(sha, id, (k) => (at = k));
+    runUrl = run.html_url;
+    finishPage(result, req, covers, icon, (Date.now() - t0) / 1000, runUrl);
+  } catch (e) {
+    stepState(at, 'error');
+    fail('Ça n\'a pas marché', e.status === -2 ? 'GitHub Actions n\'a pas démarré. Sur GitHub : ton dépôt › onglet <b>Actions</b> › active les workflows.' : e.status === -3 ? 'Le serveur n\'a pas renvoyé de résultat.' : explain(e, 'Contents + Workflows › Read and write'), null, runUrl);
+  } finally { S.busy = false; refresh(); }
+}
+// Find the Actions run for a commit, mirror its steps live, return result.json.
+async function followRun(sha, id, onStep) {
+  let run = null;
+  for (let i = 0; i < 60 && !run; i++) {
+    await sleep(i < 5 ? 2000 : 3000); within('queue', Math.min(.6, i / 25));
+    run = ((await gh('GET', `/repos/${S.repo}/actions/runs?branch=${BRANCH}&head_sha=${sha}&per_page=5`)).workflow_runs || []).find((r) => r.head_sha === sha) || null;
+  }
+  if (!run) throw new GhError(-2, 'no run');
+  let job = null;
+  for (let i = 0; i < 700; i++) {
+    job = ((await gh('GET', `/repos/${S.repo}/actions/runs/${run.id}/jobs`)).jobs || [])[0] || null;
+    if (job && job.status !== 'queued') stepState('queue', 'done', '');
+    for (const st of (job && job.steps) || []) {
+      const k = JOB[st.name]; if (!k) continue;
+      if (st.status === 'in_progress') { stepState(k, 'active', /Install Rojo/.test(st.name) ? 'Installation de Rojo (1re fois, ~3 min)' : ''); onStep(k); }
+      if (st.status === 'completed') stepState(k, st.conclusion === 'success' ? 'done' : st.conclusion === 'skipped' ? 'skip' : 'error');
+    }
+    if (job && job.status === 'completed') break;
+    await sleep(2200);
+  }
+  onStep('result'); stepState('result', 'active', '');
+  for (let i = 0; i < 8; i++) {
+    try { const c = await gh('GET', `/repos/${S.repo}/contents/.roblox-push/result.json?ref=${BRANCH}`);
+      const j = JSON.parse(decodeURIComponent(escape(atob(c.content.replace(/\n/g, ''))))); if (j.id === id) return { run, result: j }; } catch (e) { if (e.status && e.status !== 404) throw e; }
+    await sleep(2000);
+  }
+  throw new GhError(-3, 'no result');
+}
+const SCOPE_FIX = { 'universe:write': '<b>universe</b> › write', 'universe.place:write': '<b>universe-places</b> › write', 'asset:write': '<b>assets</b> › read + write', 'asset:read': '<b>assets</b> › read + write' };
+function scopeHint(msg) { const m = String(msg || '').match(/<([\w.:-]+?)(?::\d+)?(?::(read|write))?>/); if (!m) return ''; const key = m[1].replace(/:\d+$/, '') + (m[2] ? ':' + m[2] : ''); return SCOPE_FIX[key] || SCOPE_FIX[m[1]] || ''; }
+function finishPage(r, req, covers, icon, secs, runUrl) {
+  const done = (r.meta && r.meta.done) || {}, errors = (r.meta && r.meta.errors) || [];
+  const textOk = 'name/description (experience)' in done || 'name/description (place)' in done;
+  const patch = { place: String(game_place(r, req)), universe: r.universeId ? String(r.universeId) : null };
+  if (textOk && req.displayName) { patch.name = req.displayName; patch.pageName = req.displayName; patch.customName = 0; }
+  if (textOk && req.description) patch.desc = req.description;
+  if ('thumbnails' in done && covers[0]) patch.cover = covers[0].preview;
+  upsertGame(patch);
+  const mod = (v) => (Array.isArray(v) ? v[0] : v) === 'Approved' ? 'en ligne' : 'en modération';
+  const lines = [];
+  if (req.displayName) lines.push(['Nom', textOk ? ['y', '✓ ' + req.displayName] : ['n', 'refusé']]);
+  if (req.description) lines.push(['Description', textOk ? ['y', '✓ mise à jour'] : ['n', 'refusée']]);
+  if (req.thumbnails.length) lines.push(['Couverture' + (req.thumbnails.length > 1 ? 's' : ''), 'thumbnails' in done ? ['w', '✓ ' + mod(done.thumbnails)] : ['n', 'refusée']]);
+  if (req.icon) lines.push(['Icône', 'icon' in done ? ['w', '✓ ' + mod(done.icon)] : ['n', 'refusée']]);
+  const table = `<div class="checks">${lines.map(([k, [c, v]]) => `<div><span>${k}</span><em class="${c}">${esc(v)}</em></div>`).join('')}</div>`;
+  addHist({ ok: !errors.length && !r.error, place: req.placeId, name: 'Page du jeu', at: Date.now() });
+  if (!errors.length && !r.error) {
+    stepState('result', 'done'); L.target = 100;
+    setTimeout(() => {
+      warpBurst(); const fl = $('flash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
+      $('launch').classList.add('win', 'done');
+      $('final').innerHTML = `<div class="rays"></div><div class="vtitle">Page du jeu mise à jour</div>
+        ${covers[0] ? `<div class="cover" style="max-width:340px;pointer-events:none;box-shadow:0 20px 50px -20px #000,0 0 0 2px var(--g) inset"><img src="${covers[0].preview}" alt=""></div>` : '<div style="font-size:64px;position:relative">✨</div>'}
+        ${table}<div class="vsub">${Math.round(secs)} s · les images apparaissent après la modération Roblox</div>
+        <a class="cta" href="https://www.roblox.com/games/${encodeURIComponent(req.placeId)}" target="_blank" rel="noopener">Voir la page sur Roblox</a>
+        <button class="cta alt" id="closeL">Terminé</button>`;
+      $('closeL').onclick = closeLaunch; celebrate(innerWidth / 2, innerHeight * .35, 140);
+    }, 600);
+    return;
+  }
+  stepState('result', 'error');
+  const first = errors[0] || r.error || {};
+  const hint = scopeHint(first.message);
+  const fix = hint ? `La clé Roblox n'a pas la permission pour ça. Sur <b>create.roblox.com › Credentials</b>, ouvre ta clé et ajoute ${hint} pour ce jeu. Inutile de la régénérer.`
+    : (FIX[first.code] || 'Détail ci-dessous.');
+  fail(Object.keys(done).length ? 'Page mise à jour en partie' : 'Mise à jour refusée', table + `<div style="margin-top:12px">${fix}</div>`, errors.map((e) => `${e.what}: ${e.code} ${e.message}`).join('\n') || (r.error && r.error.message), runUrl);
+}
+function game_place(r, req) { return r.placeId || req.placeId; }
+
 /* ---------- history / settings ---------- */
-function addHist(h) { Store.set('hist', [h, ...Store.get('hist', [])].slice(0, 20)); }
+function addHist(h) { Store.set('hist', [h, ...Store.get('hist', [])].slice(0, 60)); renderGame(); }
 function renderHist() {
   const l = Store.get('hist', []); $('hist').innerHTML = l.length ? '' : '<li>Aucune publication.</li>';
   l.forEach((h) => { const li = document.createElement('li');
@@ -1285,13 +1596,21 @@ document.querySelectorAll('[data-howto]').forEach((b) => b.addEventListener('cli
 }));
 
 /* ---------- spotlight tour on the main screen ---------- */
-const TOUR = [
-  { el: () => $('addTile') || $('tiles'), k: 'Étape 1', h: 'Ajoute ton jeu', p: 'Touche <b>+</b> et colle le lien de ton jeu (roblox.com/games/…). Il reste mémorisé en tuile.' },
-  { el: () => $('drop'), k: 'Étape 2', h: 'Choisis le fichier', p: 'Touche ici pour prendre ton <b>.rbxl</b>, <b>.rbxlx</b> ou <b>.zip</b> dans l\'app Fichiers.' },
-  { el: () => $('orb'), k: 'Étape 3', h: 'Maintiens pour publier', p: '<b>Garde le doigt</b> sur l\'orbe jusqu\'à ce que l\'anneau soit plein. Un simple toucher ne fait rien, pas d\'accident.', round: true },
-  { el: () => $('mode'), k: 'Astuce', h: 'En ligne ou brouillon', p: '<b>Brouillon</b> enregistre sans montrer aux joueurs. Parfait pour tester.' },
-  { el: () => $('helpBtn'), k: 'Besoin d\'aide ?', h: 'Le bouton ?', p: 'Revois cette visite et les réponses aux questions courantes. <b>Avatar</b> = réglages.' },
-];
+const TOURS = {
+  main: { flag: 'toured', steps: [
+    { el: () => $('addTile'), k: 'Étape 1', h: 'Ajoute ton jeu', p: 'Touche <b>+</b> et colle le lien de ton jeu (roblox.com/games/…). Ensuite, <b>touche sa tuile</b> pour ouvrir son menu.' },
+    { el: () => $('helpBtn'), k: 'Besoin d\'aide ?', h: 'Le bouton ?', p: 'Revois la visite et les réponses aux questions courantes.' },
+    { el: () => $('avatarBtn'), k: 'Réglages', h: 'Ton avatar', p: 'Clé Roblox, test Luau, historique complet, déconnexion.' },
+  ] },
+  game: { flag: 'touredGame', steps: [
+    { el: () => $('drop'), k: 'Mettre à jour · 1', h: 'Choisis le fichier', p: 'Ton nouveau <b>.zip</b>, <b>.rbxl</b> ou <b>.rbxlx</b>. Un zip de simples scripts suffit : le robot crée le projet.' },
+    { el: () => $('orb'), k: 'Mettre à jour · 2', h: 'Maintiens pour publier', p: '<b>Garde le doigt</b> sur l\'orbe jusqu\'à ce que l\'anneau soit plein. Un simple toucher ne fait rien.', round: true },
+    { el: () => $('mode'), k: 'Astuce', h: 'En ligne ou brouillon', p: '<b>Brouillon</b> enregistre sans montrer aux joueurs. Parfait pour tester.' },
+    { el: () => $('gFloorRow'), k: 'Option', h: 'Sol automatique', p: 'Désactivé : le robot n\'ajoute <b>rien</b> à ton jeu. Active-le seulement si ton jeu n\'a pas de sol.' },
+    { el: () => $('backBtn'), k: 'Navigation', h: 'Retour à tes jeux', p: 'Chaque jeu a son propre menu, ses options et son historique.' },
+  ] },
+};
+let TOUR = TOURS.main.steps, tourKind = 'main';
 let tourI = -1;
 function placeTour() {
   const st = TOUR[tourI]; const el = st.el(); if (!el) return;
@@ -1310,19 +1629,22 @@ function tourStep(n) {
   $('tSkip').onclick = endTour; $('tNext').onclick = () => tourStep(n + 1);
   setTimeout(placeTour, reduced ? 0 : 380); placeTour();
 }
-function startTour() { closeSheets(); $('coach').classList.add('on'); tourStep(0); }
-function endTour() { $('coach').classList.remove('on'); tourI = -1; Store.set('toured', true); }
+function startTour(kind) {
+  tourKind = kind || ($('gameScr').classList.contains('away') ? 'main' : 'game'); TOUR = TOURS[tourKind].steps;
+  closeSheets(); $('coach').classList.add('on'); tourStep(0);
+}
+function endTour() { $('coach').classList.remove('on'); tourI = -1; Store.set(TOURS[tourKind].flag, true); }
 addEventListener('resize', () => tourI >= 0 && placeTour());
-$('main').addEventListener('scroll', () => tourI >= 0 && placeTour(), { passive: true });
+['main', 'gameScr'].forEach((id) => $(id).addEventListener('scroll', () => tourI >= 0 && placeTour(), { passive: true }));
 $('helpBtn').addEventListener('click', () => openSheet('helpSheet'));
-$('replayTour').addEventListener('click', () => setTimeout(startTour, 350));
+$('replayTour').addEventListener('click', () => setTimeout(() => startTour(), 350));
 
 /* ---------- boot ---------- */
 renderFile();
 (async function boot() {
   if (!(S.token && S.repo && Store.get('onboarded', false))) return;
   showMain();
-  if (!Store.get('toured', false)) setTimeout(startTour, 1200);
+  if (!Store.get('toured', false)) setTimeout(() => startTour('main'), 1200);
   try { await gh('GET', `/repos/${S.repo}`); ensureInstalled().catch(() => {}); }
   catch (e) { if (e.status === 401) { toast('Jeton expiré : reconnecte-toi.', 4000); Store.set('onboarded', false); setTimeout(() => location.reload(), 1600); } }
 })();
