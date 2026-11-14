@@ -9,6 +9,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as AC from './anim-core.js';
 import * as PG from './pet-gen.js';
+import { createLibrary } from '../library/forge-lib.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -432,7 +433,8 @@ let currentTab = 'gen';
 function setTab(id) { if (id !== 'anim' && currentTab === 'anim') anim.playing = false; currentTab = id; document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === id)); renderPane(); $('pane').scrollTop = 0; }
 document.querySelectorAll('.tab').forEach((b) => b.onclick = () => setTab(b.dataset.tab));
 const pane = $('pane');
-function renderPane() { ({ gen: paneGen, index: paneIndex, rar: paneRarity, body: paneBody, parts: paneParts, fx: paneFx, anim: paneAnim, code: paneCode, lib: paneLib, export: paneExport })[currentTab](); }
+const LIB = createLibrary({ studio: 'pet', toast });
+function renderPane() { ({ gen: paneGen, index: paneIndex, rar: paneRarity, body: paneBody, parts: paneParts, fx: paneFx, anim: paneAnim, code: paneCode, lib: () => LIB.render(pane), export: paneExport })[currentTab](); }
 
 function paneRarity() {
   pane.innerHTML = `<div class="sec"><h3>Rareté <small>change couleurs + effets</small></h3><div class="grid2">${RARITIES.map((r) => `<button class="rarbtn${r.id === pet.rarity ? ' on' : ''}" data-r="${esc(r.id)}" style="background:${r.bg}">${esc(r.id)}</button>`).join('')}</div></div>
@@ -639,8 +641,8 @@ function zip(files) {
   return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
 }
 async function buildPack() {
-  await loadKit(); const n = safeName(pet.name), files = scriptFiles();
-  return zip([
+  await loadKit(); const n = safeName(pet.name), files = scriptFiles(), lib = await LIB.packFiles();
+  return zip([...lib,
     { path: `ReplicatedStorage/ForgePets/${n}.model.json`, data: JSON.stringify(modelJson(), null, 2) },
     { path: 'ReplicatedStorage/ForgeConfig.lua', data: files.find((f) => f.id === 'cfg').text },
     { path: 'ServerScriptService/ForgePetController.server.lua', data: files.find((f) => f.id === 'ctrl').text },
@@ -1235,5 +1237,5 @@ async function buildIndexPack() {
 }
 
 /* ---------- boot ---------- */
-resize(); rebuild(); renderPane(); syncUndo(); loop();
-window.__forge = { PG, INDEX, idxPet, openGenerated, fromGenerated, buildIndexPack, thumbOf, get pet() { return pet; }, modelJson, buildPack, select, setTab, AC, anim, animData, animDataLua, exportNames, getRig, offsetsAt, curClip, get lastPose() { return lastPose; }, gizmo, meshes, renderPane }; // used by automated tests
+resize(); rebuild(); renderPane(); syncUndo(); loop(); LIB.prompt();
+window.__forge = { LIB, PG, INDEX, idxPet, openGenerated, fromGenerated, buildIndexPack, thumbOf, get pet() { return pet; }, modelJson, buildPack, select, setTab, AC, anim, animData, animDataLua, exportNames, getRig, offsetsAt, curClip, get lastPose() { return lastPose; }, gizmo, meshes, renderPane }; // used by automated tests
