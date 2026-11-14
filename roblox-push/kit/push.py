@@ -18,6 +18,7 @@ written to disk or put in result.json. Only the Python standard library is used.
 from __future__ import annotations
 
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -196,26 +197,15 @@ def script_kind(p: Path) -> str:
 
 
 def returns_value(p: Path) -> bool:
-    """True if the file ends with a `return` statement, i.e. it is really a ModuleScript."""
+    """True if the file has a top-level `return` (a line starting with it, outside comments):
+    that is how a ModuleScript hands back its value, even when `return {` spans many lines."""
     try:
         text = p.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return True
-    lines = []
-    in_block = False
-    for raw in text.splitlines():
-        line = raw.strip()
-        if in_block:
-            if "]]" in line:
-                in_block = False
-            continue
-        if line.startswith("--[[") or line.startswith("--[=["):
-            in_block = "]]" not in line[4:]
-            continue
-        if not line or line.startswith("--"):
-            continue
-        lines.append(line)
-    return bool(lines) and lines[-1].split("--")[0].strip().startswith("return")
+    text = re.sub(r"--\[(=*)\[.*?\]\1\]", "", text, flags=re.S)  # block comments
+    text = re.sub(r"--[^\n]*", "", text)                             # line comments
+    return re.search(r"^return\b", text, flags=re.M) is not None
 
 
 def find_root(base: Path) -> Path:
