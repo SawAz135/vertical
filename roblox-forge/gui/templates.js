@@ -2,6 +2,7 @@
    takes the colours of the game. Sizes use Scale (+ aspect ratio) so they fit
    phones, tablets and PCs. Buttons are wired with real behaviours (Forge attributes). */
 import { N, corner, stroke, grad, pad, list, gridL, aspect, tsize } from './gui-core.js';
+import { STUD_TEMPLATES } from './stud.js';
 
 const T = (name, text, props = {}, kids = [], anim) => N('TextLabel', name, { Text: text, BackgroundTransparency: 1, TextColor3: '$text', Font: '$font', TextScaled: true, ...props }, kids, anim ? { anim } : {});
 // In Roblox a UIGradient also tints the button's own text, so gradient buttons carry their text in a child label.
@@ -142,6 +143,7 @@ export const TEMPLATES = [
         N('Frame', 'Fill', { Size: [p, 0, 1, 0], BackgroundColor3: '#ffffff' }, [corner(0.5, 0), grad(g, 90)]),
         T('Label', txt, { Size: [1, 0, 0.82, 0], Position: [0.5, 0, 0.5, 0], AnchorPoint: [0.5, 0.5], ZIndex: 3, TextStrokeTransparency: 0.3 })]))]),
   ] },
+  ...STUD_TEMPLATES,
 ];
 export function defaultProject() {
   const root = N('ScreenGui', 'ForgeGui', { ResetOnSpawn: false, IgnoreGuiInset: true, DisplayOrder: 5 }, []);

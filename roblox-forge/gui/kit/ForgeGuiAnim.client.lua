@@ -10,6 +10,7 @@
 	  ForgeIdle   = "pulse" | "float" | "spin" | "wiggle" | "shine" | "rainbow"   (ForgePeriod = s)
 	  ForgeAction = "toggle" (ForgeTarget = window name) | "close" | "switch" | "roll" (ForgeTarget, ForgeRollItems)
 	  ForgeBind   = "Coins" (leaderstats value) with ForgeFormat = "🪙 {v}"
+	  ForgeStuds  = 18     -> fills the frame with stud dots (stud size in px), refilled when it resizes
 	Results for your scripts: button attribute ForgeOn (switch), ScreenGui attribute ForgeLastRoll (roll).
 	The easing maths are the same as the studio preview.
 ]]
@@ -284,10 +285,91 @@ local function switch(button)
 	button.BackgroundColor3 = Color3.fromHex(button:GetAttribute(on and "ForgeOnColor" or "ForgeOffColor"))
 end
 
+-- Studs: a frame with ForgeStuds = size (px) gets a grid of stud dots that follows its size
+-- (the bright "stud" look of simulator GUIs, made of real frames: no image upload needed).
+local MAX_STUDS = 240
+local studJobs = {}
+local function fillStuds(obj)
+	local size = obj:GetAttribute("ForgeStuds")
+	if type(size) ~= "number" or size < 6 then return end
+	local abs = obj.AbsoluteSize
+	if abs.X < 4 or abs.Y < 4 then return end
+	local layer = obj:FindFirstChild("ForgeStudLayer")
+	local grid
+	if not layer then
+		layer = Instance.new("Frame")
+		layer.Name = "ForgeStudLayer"
+		layer.BackgroundTransparency = 1
+		layer.AnchorPoint = Vector2.new(0.5, 0.5)
+		layer.Position = UDim2.fromScale(0.5, 0.5)
+		layer.Size = UDim2.new(1, -6, 1, -6)
+		layer.ClipsDescendants = true
+		layer.ZIndex = obj.ZIndex
+		layer.LayoutOrder = -1
+		grid = Instance.new("UIGridLayout")
+		grid.SortOrder = Enum.SortOrder.LayoutOrder
+		grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		grid.VerticalAlignment = Enum.VerticalAlignment.Center
+		grid.Parent = layer
+		layer.Parent = obj
+	else
+		grid = layer:FindFirstChildOfClass("UIGridLayout")
+	end
+	-- the scale of an opening window is not the real size: use the size without UIScale
+	local scale = obj:FindFirstChildOfClass("UIScale")
+	local k = scale and scale.Scale > 0.05 and scale.Scale or 1
+	local w, h = abs.X / k, abs.Y / k
+	local s = size
+	local cols, rows = math.ceil(w / s), math.ceil(h / s)
+	while cols * rows > MAX_STUDS do
+		s *= 1.15
+		cols, rows = math.ceil(w / s), math.ceil(h / s)
+	end
+	local d = math.max(2, math.floor(s * 0.56))
+	grid.CellSize = UDim2.fromOffset(d, d)
+	grid.CellPadding = UDim2.fromOffset(math.floor(s - d), math.floor(s - d))
+	local have = {}
+	for _, c in layer:GetChildren() do
+		if c:IsA("Frame") then table.insert(have, c) end
+	end
+	local want = cols * rows
+	for i = #have + 1, want do
+		local dot = Instance.new("Frame")
+		dot.Name = "Stud"
+		dot.BackgroundColor3 = Color3.new(1, 1, 1)
+		dot.BackgroundTransparency = 0.74
+		dot.BorderSizePixel = 0
+		dot.ZIndex = obj.ZIndex
+		dot.LayoutOrder = i
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(1, 0)
+		c.Parent = dot
+		local st = Instance.new("UIStroke")
+		st.Color = Color3.new(0, 0, 0)
+		st.Transparency = 0.84
+		st.Thickness = 1
+		st.Parent = dot
+		dot.Parent = layer
+	end
+	for i = want + 1, #have do have[i]:Destroy() end
+end
+local function watchStuds(obj)
+	fillStuds(obj)
+	obj:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		local token = (studJobs[obj] or 0) + 1
+		studJobs[obj] = token
+		task.delay(0.25, function()
+			if studJobs[obj] == token and obj.Parent then fillStuds(obj) end
+		end)
+	end)
+	obj.Destroying:Connect(function() studJobs[obj] = nil end)
+end
+
 local function hookObject(obj, gui)
 	if not obj:IsA("GuiObject") then return end
 	local a = obj:GetAttributes()
 	if a.ForgeIdle or a.ForgeOpen or a.ForgeHover or a.ForgePress then stateOf(obj) end
+	if a.ForgeStuds then task.defer(watchStuds, obj) end
 	if a.ForgeOpen then
 		obj:GetPropertyChangedSignal("Visible"):Connect(function()
 			local st = stateOf(obj)

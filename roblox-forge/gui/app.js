@@ -1,6 +1,7 @@
 // Roblox Forge - GUI Studio. What you build here is a real Roblox ScreenGui (exported 1:1 with Rojo).
 import * as G from './gui-core.js';
 import { TEMPLATES, defaultProject } from './templates.js';
+import { STUD_ALL } from './stud.js';
 import { createLibrary } from '../library/forge-lib.js';
 
 const $ = (id) => document.getElementById(id);
@@ -238,12 +239,18 @@ function paneTpl() {
       ${proj.customTheme ? `<button class="th${proj.theme === 'custom' ? ' on' : ''}" data-th="custom">${themeDots(proj.customTheme)}${esc(proj.customTheme.label || 'Perso')}</button>` : ''}</div>
       <div class="btns"><label class="btn pri" style="cursor:pointer">🎨 Couleurs de mon jeu (image)<input type="file" id="themeImg" accept="image/*" hidden></label><button class="btn" id="editTheme">🖌️ Régler le thème</button></div>
       <div id="themeEd"></div></div>
+    <div class="sec"><h3>🧱 Kit Stud <small>style simulateurs populaires</small></h3>
+      <div class="note" style="margin-bottom:8px">Panneaux colorés à picots, gros contours noirs, police ronde : HUD + 8 fenêtres reliées à leurs boutons. Les picots sont de vrais objets créés en jeu par ForgeGuiAnim.</div>
+      <div class="btns"><button class="btn pri" id="studAll" style="flex:1">🧱 Ajouter le kit Stud complet</button></div></div>
     <div class="sec"><h3>Modèles <small>${list.length} / ${TEMPLATES.length}</small></h3>
       <input class="search" id="tq" placeholder="🔎 boutique, œuf, rng, quêtes, hud…" value="${esc(ui.q)}">
       <div class="tpls" style="margin-top:10px">${list.map((t) => `<div class="tpl"><div class="mini" data-mini="${t.id}"></div><div class="meta"><span>${t.e}</span><b>${t.label}</b><button data-add="${t.id}">＋ Ajouter</button></div></div>`).join('') || '<div class="note">Aucun modèle pour cette recherche.</div>'}</div></div>`;
   $('tq').oninput = (e) => { ui.q = e.target.value; const pos = e.target.selectionStart; paneTpl(); const i = $('tq'); i.focus(); i.setSelectionRange(pos, pos); };
   pane.querySelectorAll('[data-th]').forEach((b) => b.onclick = () => { snapshot(); proj.theme = b.dataset.th; save(); draw(); paneTpl(); toast('Thème ' + theme().label); });
   pane.querySelectorAll('[data-add]').forEach((b) => b.onclick = () => addTemplate(b.dataset.add));
+  $('studAll').onclick = () => { snapshot(); proj.theme = 'stud'; const before = proj.root.children.length;
+    for (const id of STUD_ALL) { const t = TEMPLATES.find((x) => x.id === id); for (const n of t.make(!t.win)) { n.name = G.uniqueName(proj.root, n.name); proj.root.children.push(n); } }
+    save(); draw(); paneTpl(); toast('🧱 Kit Stud : ' + (proj.root.children.length - before) + ' éléments ajoutés · ▶ pour tester'); };
   $('themeImg').onchange = (e) => { const f = e.target.files[0]; if (!f) return; const img = new Image(); img.onload = () => {
     const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.drawImage(img, 0, 0, 64, 64);
     const t = G.themeFromPixels(g.getImageData(0, 0, 64, 64).data, 'Mon jeu'); URL.revokeObjectURL(img.src); if (!t) return toast('Image illisible');
@@ -267,6 +274,7 @@ function themeEditor() {
 }
 function addTemplate(id) {
   const t = TEMPLATES.find((x) => x.id === id); snapshot();
+  if (t.theme && proj.theme !== t.theme && !proj.root.children.some((c) => /^Stud|^Money$|^TopBar$/.test(c.name))) { proj.theme = t.theme; toast('🧱 Thème Stud activé'); }
   const hasHud = proj.root.children.some((c) => c.name === 'Menu' || c.name === 'Currency');
   const nodes = t.make(!(t.win && hasHud));
   for (const n of nodes) { const base = n.name; n.name = G.uniqueName(proj.root, base); if (n.name !== base) toast('Déjà un « ' + base + ' » : renommé ' + n.name); proj.root.children.push(n); }

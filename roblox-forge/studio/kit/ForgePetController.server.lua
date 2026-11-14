@@ -63,7 +63,17 @@ local function rigTogether(model)
 		if d:IsA("BasePart") and d ~= body and d ~= root then
 			local info = rig[d.Name]
 			local parent = info and info.parent and model:FindFirstChild(info.parent)
-			joint(parent and parent:IsA("BasePart") and parent or body, d)
+			parent = parent and parent:IsA("BasePart") and parent or body
+			if d:GetAttribute("ForgeWeld") then
+				-- voxel blocks: rigidly welded to their bone (cheap, never animated on their own)
+				local weld = Instance.new("WeldConstraint")
+				weld.Name = "ForgeWeld"
+				weld.Part0 = parent
+				weld.Part1 = d
+				weld.Parent = d
+			else
+				joint(parent, d)
+			end
 		end
 	end
 	return root, body
