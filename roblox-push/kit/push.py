@@ -171,10 +171,10 @@ ALIASES = {  # common folder names -> (service, child folder name or None)
     "modules": ("ReplicatedStorage", "Modules"), "gui": ("StarterGui", None), "ui": ("StarterGui", None),
     "map": ("Workspace", "Map"), "maps": ("Workspace", "Map"), "models": ("Workspace", "Models"),
 }
-RUNS_ON = {  # where a plain .lua with no final `return` is meant to run
-    "ServerScriptService": "server", "StarterPlayerScripts": "client", "StarterCharacterScripts": "client",
-    "StarterGui": "client", "StarterPack": "client", "ReplicatedFirst": "client", "Workspace": "server",
-}
+SERVER_RUNS = {"ServerScriptService", "Workspace"}  # where a legacy Script runs
+CLIENT_RUNS = {"StarterPlayerScripts", "StarterCharacterScripts", "StarterGui", "StarterPack", "ReplicatedFirst"}
+CLIENT_HINTS = ("LocalPlayer", "PlayerGui", "UserInputService", "CurrentCamera", "RenderStepped", "ContextActionService",
+                "GuiService", "GetMouse", "StarterGui:SetCore", "TouchEnabled", "PlayerScripts")
 
 
 def is_script(p: Path) -> bool:
@@ -224,31 +224,71 @@ def find_root(base: Path) -> Path:
         depth = len(d.relative_to(base).parts)
         if score > best_score or (score == best_score and score > 0 and depth < len(best.relative_to(base).parts)):
             best, best_score = d, score
-    if best_score <= 0:  # no structure at all: the shallowest folder that holds files
-        holders = [p.parent for p in base.rglob("*") if p.is_file() and "__MACOSX" not in p.parts]
-        best = min(holders, key=lambda p: len(p.parts)) if holders else base
+    if best_score <= 0:
+        # No recognisable structure. Strip wrapper folders (a zip of "MyGame/") but keep a
+        # folder the code refers to by name, or whose scripts rely on their neighbours.
+        code = "\n".join(p.read_text(encoding="utf-8", errors="replace") for p in base.rglob("*") if p.is_file() and is_script(p))
+        best = base
+        while True:
+            kids = [c for c in best.iterdir() if c.name not in ("__MACOSX", ".DS_Store")]
+            if len(kids) != 1 or not kids[0].is_dir():
+                break
+            only = kids[0]
+            named = f'"{only.name}"' in code or f".{only.name}." in code or f".{only.name}\n" in code or f"'{only.name}'" in code
+            if named or any(uses_neighbours(p) for p in only.rglob("*") if p.is_file() and is_script(p)):
+                break
+            best = only
     return best
 
 
-def make_script_runnable(path: Path, where: str) -> Path:
-    """A plain .lua with no final return, placed where code runs, becomes a Script/LocalScript."""
-    if script_kind(path) != "module" or returns_value(path):
-        return path
-    run = RUNS_ON.get(where)
-    if not run:
-        return path
-    target = path.with_name(path.name[: -len(path.suffix)] + f".{run}{path.suffix}")
-    path.rename(target)
+def runs_where(path: Path, svc: str | None = None) -> str:
+    """'module', 'server' or 'client': from the file name, else from the code and its folder."""
+    kind = script_kind(path)
+    if kind != "module" or returns_value(path):
+        return kind
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if any(h in text for h in CLIENT_HINTS) or svc in CLIENT_RUNS:
+        return "client"
+    return "server"
+
+
+def uses_neighbours(path: Path) -> bool:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    return "script.Parent" in text or "script:FindFirstAncestor" in text or "script:WaitForChild" in text
+
+
+def base_name(path: Path) -> str:
+    name = path.name
+    for suffix in (".server.luau", ".server.lua", ".client.luau", ".client.lua", ".luau", ".lua"):
+        if name.lower().endswith(suffix):
+            return name[: -len(suffix)]
+    return path.stem
+
+
+def set_kind(path: Path, run: str) -> Path:
+    """Rename so Rojo makes the right object: .server = Script, .client = LocalScript."""
+    ext = ".luau" if path.name.lower().endswith(".luau") else ".lua"
+    target = path.with_name(f"{base_name(path)}.{run}{ext}")
+    if target != path:
+        path.rename(target)
     return target
 
 
+def set_run_context(script: Path, context: str) -> None:
+    meta = script.with_name(base_name(script) + ".meta.json")
+    data = json.loads(meta.read_text()) if meta.exists() else {}
+    data.setdefault("properties", {})["RunContext"] = context
+    meta.write_text(json.dumps(data, indent=2))
+
+
 def auto_project(source: Path, out: Path) -> tuple[Path, list[str]]:
-    """Copy `source` into `out`, arrange it, write default.project.json. Returns (project, notes)."""
+    """Copy `source` into `out`, arrange it so every script runs, write default.project.json."""
     root = find_root(source)
     shutil.copytree(root, out / "game", ignore=shutil.ignore_patterns("__MACOSX", ".DS_Store", ".git"))
-    game = out / "game"
+    game, moved_root = out / "game", out / "moved"
     tree: dict = {"$className": "DataModel"}
     notes: list[str] = []
+    placements: list[tuple[Path, str, str | None]] = []  # (folder on disk, service, child name)
 
     def service(name: str) -> dict:
         if name in PLAYER_CONTAINERS.values():
@@ -256,68 +296,103 @@ def auto_project(source: Path, out: Path) -> tuple[Path, list[str]]:
             return sp.setdefault(name, {"$className": name})
         return tree.setdefault(name, {"$className": name})
 
-    def mount(node: dict, child: str | None, folder: Path, where: str) -> None:
-        for f in list(folder.rglob("*")):
-            if f.is_file() and is_script(f):
-                new = make_script_runnable(f, where)
-                if new != f:
-                    notes.append(f"{f.name} -> {new.name}")
-        rel = folder.relative_to(out).as_posix()
+    def mount(svc: str, child: str | None, folder: Path) -> None:
+        node, rel = service(svc), folder.relative_to(out).as_posix()
         if child:
             node[child] = {"$path": rel}
         else:
             node["$path"] = rel
+        placements.append((folder, svc, child))
 
+    # 1. place every top-level folder / loose file
     loose_dir = game / "_loose"
+    loose_files = [e for e in game.iterdir() if e.is_file() and is_script(e)]
+    if any(uses_neighbours(e) for e in loose_files):
+        # Loose scripts that reach their neighbours (script.Parent...) must stay together.
+        together = game / "_together" / "Game"
+        together.mkdir(parents=True)
+        for e in [e for e in game.iterdir() if e.is_file()]:
+            e.rename(together / e.name)
+        mount("ReplicatedStorage", "Game", together)
+        notes.append("fichiers liés entre eux → ReplicatedStorage/Game")
     for entry in sorted(game.iterdir()):
         key = entry.name.lower()
         if entry.is_dir():
             if key in SERVICES:
-                mount(service(SERVICES[key]), None, entry, SERVICES[key])
+                mount(SERVICES[key], None, entry)
             elif key in PLAYER_CONTAINERS:
-                mount(service(PLAYER_CONTAINERS[key]), None, entry, PLAYER_CONTAINERS[key])
+                mount(PLAYER_CONTAINERS[key], None, entry)
             elif key in ALIASES:
-                svc, child = ALIASES[key]
-                mount(service(svc), child, entry, svc)
-            elif entry.name != "_loose":
-                # Unknown folder of code: shared modules are the safest guess.
-                mount(service("ReplicatedStorage"), entry.name, entry, "ReplicatedStorage")
-                notes.append(f"{entry.name}/ -> ReplicatedStorage")
+                mount(ALIASES[key][0], ALIASES[key][1], entry)
+            elif entry.name not in ("_loose", "_together"):
+                mount("ReplicatedStorage", entry.name, entry)  # unknown code folder: shared
+                notes.append(f"{entry.name}/ → ReplicatedStorage")
         elif entry.is_file():
-            kind = script_kind(entry) if is_script(entry) else None
             suffix = entry.suffix.lower()
-            if kind == "server":
-                svc = "ServerScriptService"
-            elif kind == "client":
-                svc = "StarterPlayerScripts"
-            elif kind == "module":
-                svc = "ReplicatedStorage"
+            if is_script(entry):
+                run = runs_where(entry)  # loose: no folder to go by
+                svc = {"server": "ServerScriptService", "client": "StarterPlayerScripts"}.get(run, "ReplicatedStorage")
             elif suffix in (".rbxm", ".rbxmx"):
                 svc = "Workspace"
             elif suffix in (".json", ".txt", ".csv", ".toml"):
                 svc = "ReplicatedStorage"
             else:
-                continue  # images, readmes...: Roblox assets cannot come from a zip
+                continue  # images, sounds, readmes: Roblox assets cannot come from a zip
             dest = loose_dir / svc
             dest.mkdir(parents=True, exist_ok=True)
-            moved = dest / entry.name
-            entry.rename(moved)
-            if kind == "module" and not returns_value(moved):
-                # A loose script that returns nothing is a game script: run it on the server.
-                runnable = moved.with_name(moved.name[: -len(moved.suffix)] + f".server{moved.suffix}")
-                svc_dir = loose_dir / "ServerScriptService"
-                svc_dir.mkdir(parents=True, exist_ok=True)
-                moved.rename(svc_dir / runnable.name)
-                notes.append(f"{entry.name} -> ServerScriptService/{runnable.name}")
+            entry.rename(dest / entry.name)
     if loose_dir.exists():
         for svc_dir in sorted(loose_dir.iterdir()):
             if any(svc_dir.iterdir()):
-                node = service(svc_dir.name)
-                node[f"Loose{svc_dir.name}"] = {"$path": svc_dir.relative_to(out).as_posix()}
+                mount(svc_dir.name, "Loose" + svc_dir.name, svc_dir)
 
-    # Players need something to stand on: add a baseplate + spawn unless the game brings a world.
+    # 2. make sure every script actually runs where it ends up
+    def move(script: Path, folder: Path, child: str | None, svc_to: str, run: str) -> None:
+        # Keep the sub-folder path; a whole-service folder moves to the target's root.
+        dest = moved_root / svc_to / (child or "") / script.relative_to(folder)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        script.rename(dest)
+        set_kind(dest, run)
+
+    for folder, svc, child in placements:
+        for f in sorted(p for p in folder.rglob("*") if p.is_file() and is_script(p)):
+            run = runs_where(f, svc)
+            label = f.relative_to(game).as_posix().replace("_together/", "").replace("_loose/", "")
+            if run == "module":
+                continue
+            if run == "server":
+                if svc in SERVER_RUNS:
+                    set_kind(f, "server")
+                elif svc == "ReplicatedStorage" and uses_neighbours(f):
+                    set_run_context(set_kind(f, "server"), "Server")
+                    notes.append(f"{label} → script serveur (laissé avec ses voisins, RunContext Server)")
+                else:
+                    move(f, folder, child, "ServerScriptService", "server")
+                    notes.append(f"{label} → déplacé dans ServerScriptService")
+            else:  # client
+                if svc in CLIENT_RUNS:
+                    set_kind(f, "client")
+                elif svc == "ReplicatedStorage":
+                    # Roblox's own recommendation: a Script with RunContext Client in ReplicatedStorage.
+                    set_run_context(set_kind(f, "server"), "Client")
+                    notes.append(f"{label} → script joueur (RunContext Client)")
+                else:
+                    move(f, folder, child, "StarterPlayerScripts", "client")
+                    notes.append(f"{label} → déplacé dans StarterPlayerScripts")
+    if moved_root.exists():
+        for svc_dir in sorted(moved_root.iterdir()):
+            node = service(svc_dir.name)
+            for sub in sorted(svc_dir.iterdir()):
+                if sub.name.endswith(".meta.json"):
+                    continue
+                name = sub.name if sub.is_dir() else base_name(sub)
+                while name in node:
+                    name += "_"
+                node[name] = {"$path": sub.relative_to(out).as_posix()}
+
+    # 3. players need something to stand on: baseplate + spawn unless the game brings a world
     workspace = tree.get("Workspace", {})
-    has_world = any(k != "$className" for k in workspace) or (game / "Workspace").exists()
+    has_world = any(k != "$className" for k in workspace)
     if not has_world:
         tree.setdefault("Workspace", {"$className": "Workspace"}).update({
             "Baseplate": {"$className": "Part", "$properties": {
@@ -327,7 +402,7 @@ def auto_project(source: Path, out: Path) -> tuple[Path, list[str]]:
                 "Anchored": True, "Size": [12, 1, 12], "CFrame": {"CFrame": {"position": [0, 0.5, 0], "orientation": [[1, 0, 0], [0, 1, 0], [0, 0, 1]]}}, "Neutral": True, "Duration": 0,
                 "Color": [0.45, 0.35, 1.0], "Material": "Neon"}},
         })
-        notes.append("Workspace: baseplate + spawn added")
+        notes.append("Workspace : sol + point d'apparition ajoutés")
 
     project = out / "default.project.json"
     project.write_text(json.dumps({"name": "AutoProject", "tree": tree}, indent=2))
