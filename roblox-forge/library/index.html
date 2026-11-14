@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05040c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Forge Library">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Forge Library</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#05040c;--glass:rgba(22,18,44,.6);--line:rgba(170,150,255,.14);--line2:rgba(170,150,255,.3);--text:#f4f1ff;--muted:#a39bc9;--faint:#6b6491;
+  --v:#7c5cff;--c:#3ee6ff;--g:#ffd45c;--ok:#3dffa8;--ease:cubic-bezier(.2,.8,.2,1);--spring:cubic-bezier(.3,1.5,.45,1)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:var(--bg)}
+body{margin:0;color:var(--text);font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;
+  background:radial-gradient(90% 50% at 20% 0%,rgba(124,92,255,.32),transparent 60%),radial-gradient(70% 40% at 100% 30%,rgba(62,230,255,.14),transparent 60%),var(--bg);background-attachment:fixed;min-height:100vh}
+button,input{font:inherit;color:inherit}
+.wrap{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 40px)}
+header{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.mark{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;font-size:22px;flex:none;background:conic-gradient(from 210deg,var(--v),#3b1fb8,var(--c),var(--v));box-shadow:0 12px 30px -10px rgba(124,92,255,.9),0 0 0 1px #fff3 inset}
+h1{margin:0;font-size:24px;font-weight:850;letter-spacing:-.025em}
+h1 span{background:linear-gradient(90deg,var(--c),var(--v),var(--g));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--muted);font-size:13px}
+.search{position:sticky;top:0;z-index:5;padding:12px 0 10px;margin:0 -16px;padding-left:16px;padding-right:16px;
+  background:linear-gradient(180deg,rgba(5,4,12,.96) 70%,rgba(5,4,12,0));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.sbox{display:flex;align-items:center;gap:10px;padding:0 14px;border-radius:18px;background:rgba(3,2,10,.7);box-shadow:0 0 0 1px var(--line2) inset,0 10px 30px -14px #000}
+.sbox input{flex:1;min-width:0;border:0;background:none;outline:none;padding:15px 0;font-size:16px}
+.sbox b{color:var(--muted);font-size:18px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:10px 0 2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:0;border-radius:12px;padding:8px 12px;font-size:13px;font-weight:750;color:var(--muted);background:#ffffff0c;box-shadow:0 0 0 1px var(--line) inset;transition:all .25s var(--ease)}
+.chip em{font-style:normal;opacity:.65;margin-left:5px;font-weight:600}
+.chip.on{color:#05040c;background:linear-gradient(135deg,var(--c),#8fb0ff);box-shadow:0 8px 20px -8px rgba(62,230,255,.8)}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:8px;font-size:13px;color:var(--muted)}
+.row>span{white-space:nowrap}
+.toggles{display:flex;gap:8px}
+.tg{border:0;border-radius:10px;padding:6px 10px;font-size:12.5px;font-weight:700;color:var(--muted);background:#ffffff0a;box-shadow:0 0 0 1px var(--line) inset}
+.tg.on{color:var(--text);background:rgba(124,92,255,.3);box-shadow:0 0 0 1px rgba(124,92,255,.6) inset}
+.list{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-top:8px}
+.card{min-width:0;overflow:hidden}
+.card{padding:14px 15px;border-radius:20px;background:linear-gradient(160deg,rgba(34,26,72,.6),rgba(14,11,30,.55));box-shadow:0 0 0 1px var(--line) inset;animation:in .45s var(--ease) both}
+@keyframes in{from{opacity:0;transform:translateY(8px)}}
+.top{display:flex;align-items:flex-start;gap:10px}
+.ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:18px;flex:none;background:#ffffff10;box-shadow:0 0 0 1px var(--line) inset}
+.nm{flex:1;min-width:0}
+.nm a{color:var(--text);text-decoration:none;font-weight:800;font-size:15.5px;word-break:break-word}
+.nm .own{color:var(--muted);font-weight:600}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+.b{font-size:11px;font-weight:800;padding:3px 7px;border-radius:7px;background:#ffffff10;color:var(--muted)}
+.b.lic{color:var(--ok);background:rgba(61,255,168,.1)}
+.b.cur{color:#05040c;background:linear-gradient(135deg,var(--g),#ffb84d)}
+.b.st{color:var(--g)}
+.desc{color:#cfc8ee;font-size:14px;margin-top:8px;line-height:1.45}
+.inst{display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 8px 8px 12px;border-radius:12px;background:rgba(3,2,10,.65);box-shadow:0 0 0 1px var(--line) inset}
+.inst code{flex:1;min-width:0;font:12px ui-monospace,Menlo,monospace;color:var(--c);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp{border:0;border-radius:9px;padding:6px 10px;font-size:12px;font-weight:800;background:#ffffff16}
+.more{display:block;width:100%;margin:14px 0;border:0;border-radius:16px;padding:14px;font-weight:800;background:#ffffff10;box-shadow:0 0 0 1px var(--line2) inset}
+.empty{text-align:center;color:var(--muted);padding:40px 10px}
+.note{margin-top:22px;font-size:12px;color:var(--faint);line-height:1.5;text-align:center}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 18px);transform:translate(-50%,160%);padding:11px 16px;border-radius:14px;font-weight:700;font-size:14px;
+  background:rgba(22,18,44,.95);box-shadow:0 12px 30px rgba(0,0,0,.5),0 0 0 1px var(--line2) inset;transition:transform .45s var(--spring);z-index:20}
+.toast.on{transform:translate(-50%,0)}
+.skel{height:92px;border-radius:20px;background:linear-gradient(100deg,#ffffff08 30%,#ffffff14 50%,#ffffff08 70%);background-size:300% 100%;animation:sk 1.3s linear infinite}
+@keyframes sk{from{background-position:120% 0}to{background-position:-120% 0}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><div class="mark">📚</div><div><h1><span>Forge</span> Library</h1><div class="sub" id="sub">Chargement des ressources…</div></div></header>
+  <div class="search">
+    <div class="sbox"><b>⌕</b><input id="q" type="search" placeholder="Rechercher : aura, pet, tween, inventaire, terrain…" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    <div class="chips" id="cats"></div>
+    <div class="row"><span id="count"></span><div class="toggles"><button class="tg" id="tCur">⭐ Top</button><button class="tg" id="tWally">📦 Wally</button><button class="tg" id="tSort">↕ Pertinence</button></div></div>
+  </div>
+  <div class="list" id="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+  <button class="more" id="more" hidden>Voir plus</button>
+  <p class="note">Chaque ressource appartient à son auteur et garde sa licence (toutes ici sont libres : MIT, Apache-2.0, BSD, MPL, CC0…). Vérifie la licence sur la page du projet avant de l'intégrer, et crédite l'auteur.<br>Sources : recherche GitHub, registre Wally, listes communautaires « awesome-roblox ». Les projets liés à la triche ou aux exécuteurs de scripts sont exclus.</p>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const CAT = { all: ['✨', 'Tout'], ui: ['🎛️', 'Interfaces'], animation: ['🌀', 'Animations'], vfx: ['💥', 'Effets'], pets: ['🐾', 'Pets & RNG'], map: ['🗺️', 'Maps'],
+  systems: ['🧩', 'Systèmes'], network: ['📡', 'Réseau'], physics: ['⚙️', 'Physique'], camera: ['🎥', 'Caméra'], audio: ['🔊', 'Son'], framework: ['🏗️', 'Frameworks'],
+  utility: ['🧰', 'Utilitaires'], tools: ['🛠️', 'Outils'] };
+const PAGE = 40;
+let DATA = [], view = [], shown = 0, cat = 'all', onlyCur = false, onlyWally = false, sortMode = 0;
+const SORTS = ['pertinence', 'étoiles', 'récent'];
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 1800); }
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+// French words people will type -> English terms used by the libraries
+const SYN = { aura: 'aura particle glow', effet: 'effect vfx particle', effets: 'effect vfx particle', particule: 'particle', eclair: 'lightning', foudre: 'lightning',
+  animation: 'animation tween spring', ressort: 'spring', interface: 'ui gui', bouton: 'button ui', menu: 'menu ui', boutique: 'shop store', inventaire: 'inventory',
+  sauvegarde: 'datastore save profile', donnees: 'datastore data', terrain: 'terrain', carte: 'map', camera: 'camera', son: 'sound audio', musique: 'music',
+  oeuf: 'egg hatch', oeufs: 'egg hatch', tirage: 'rng gacha weighted', rarete: 'rarity loot weighted', echange: 'trading trade', classement: 'leaderboard', quete: 'quest',
+  combat: 'combat hitbox', vehicule: 'vehicle', reseau: 'network remote', tremblement: 'shake', cinematique: 'cinematic cutscene' };
+function terms(q) { return norm(q).split(/\s+/).filter(Boolean).map((t) => [t, ...(SYN[t] || '').split(' ').filter((x) => x && x !== t)]); }
+// Words of a resource: split names on / - _ . and camelCase so "TweenPlus" gives "tween", "plus".
+function words(e) {
+  if (!e._w) {
+    const raw = (e.id + ' ' + e.description + ' ' + (e.topics || []).join(' ')).replace(/([a-z])([A-Z])/g, '$1 $2');
+    e._w = norm(raw).split(/[^a-z0-9]+/).filter(Boolean);
+    e._n = norm(e.id.replace(/([a-z])([A-Z])/g, '$1 $2')).split(/[^a-z0-9]+/).filter(Boolean);
+  }
+  return e._w;
+}
+function matches(e, groups) {
+  if (!groups.length) return 1;
+  const w = words(e); let s = 0;
+  for (const [orig, ...syn] of groups) {
+    const pre = (t) => w.some((x) => x.startsWith(t));
+    if (pre(orig)) s += e._n.some((x) => x.startsWith(orig)) ? 6 : 3;
+    else if (syn.some(pre)) s += e._n.some((x) => syn.some((t) => x.startsWith(t))) ? 2 : 1;
+    else return 0;
+  }
+  return s;
+}
+function apply() {
+  const groups = terms($('q').value);
+  view = [];
+  for (const e of DATA) {
+    if (cat !== 'all' && e.category !== cat) continue;
+    if (onlyCur && !e.curated) continue;
+    if (onlyWally && !e.wally) continue;
+    const m = matches(e, groups); if (!m) continue;
+    view.push([e, m]);
+  }
+  const key = [(a, b) => b[1] * 20 + b[0].score - (a[1] * 20 + a[0].score), (a, b) => b[0].stars - a[0].stars, (a, b) => String(b[0].updated || '').localeCompare(String(a[0].updated || ''))][sortMode];
+  view.sort(key);
+  shown = 0; $('list').innerHTML = ''; $('count').textContent = view.length.toLocaleString('fr-FR') + ' ressource' + (view.length > 1 ? 's' : '');
+  if (!view.length) $('list').innerHTML = '<div class="empty">Rien trouvé. Essaie un autre mot (en anglais aussi : tween, particle, inventory…).</div>';
+  render();
+}
+function card(e) {
+  const [ic] = CAT[e.category] || CAT.utility;
+  const [owner, name] = e.id.includes('/') ? e.id.split('/') : ['', e.id];
+  const upd = e.updated ? new Date(e.updated).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : '';
+  const div = document.createElement('div'); div.className = 'card';
+  div.innerHTML = `<div class="top"><div class="ic">${ic}</div><div class="nm"><a href="${esc(e.url)}" target="_blank" rel="noopener"><span class="own">${esc(owner)}/</span>${esc(name)}</a>
+    <div class="meta">${e.curated ? '<span class="b cur">Recommandée</span>' : ''}<span class="b lic">${esc(e.license)}</span>${e.stars ? `<span class="b st">★ ${e.stars.toLocaleString('fr-FR')}</span>` : ''}${upd ? `<span class="b">màj ${upd}</span>` : ''}<span class="b">${esc((CAT[e.category] || CAT.utility)[1])}</span></div></div></div>
+    ${e.description ? `<div class="desc">${esc(e.description)}</div>` : ''}
+    ${e.wally ? `<div class="inst"><code>${esc(e.wally)}</code><button class="cp">Copier</button></div>` : ''}`;
+  const cp = div.querySelector('.cp');
+  if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(e.wally); toast('Copié ✓'); } catch { toast('Copie impossible'); } };
+  return div;
+}
+function render() {
+  const frag = document.createDocumentFragment();
+  for (const [e] of view.slice(shown, shown + PAGE)) frag.appendChild(card(e));
+  $('list').appendChild(frag); shown = Math.min(view.length, shown + PAGE);
+  $('more').hidden = shown >= view.length;
+}
+function chips(cats) {
+  const box = $('cats'); box.innerHTML = '';
+  const total = DATA.length;
+  for (const [k, [ic, label]] of Object.entries(CAT)) {
+    const n = k === 'all' ? total : cats[k] || 0; if (!n) continue;
+    const b = document.createElement('button'); b.className = 'chip' + (k === cat ? ' on' : ''); b.innerHTML = `${ic} ${label}<em>${n.toLocaleString('fr-FR')}</em>`;
+    b.onclick = () => { cat = k; [...box.children].forEach((c) => c.classList.toggle('on', c === b)); apply(); };
+    box.appendChild(b);
+  }
+}
+let deb; $('q').addEventListener('input', () => { clearTimeout(deb); deb = setTimeout(apply, 120); });
+$('tCur').onclick = () => { onlyCur = !onlyCur; $('tCur').classList.toggle('on', onlyCur); apply(); };
+$('tWally').onclick = () => { onlyWally = !onlyWally; $('tWally').classList.toggle('on', onlyWally); apply(); };
+$('tSort').onclick = () => { sortMode = (sortMode + 1) % 3; $('tSort').textContent = '↕ ' + SORTS[sortMode][0].toUpperCase() + SORTS[sortMode].slice(1); apply(); };
+$('more').onclick = render;
+new IntersectionObserver((es) => { if (es[0].isIntersecting && shown < view.length) render(); }, { rootMargin: '600px' }).observe($('more'));
+fetch('catalog.json', { cache: 'no-cache' }).then((r) => r.json()).then((c) => {
+  DATA = c.items;
+  $('sub').textContent = `${c.count.toLocaleString('fr-FR')} ressources libres · mis à jour le ${new Date(c.generated).toLocaleDateString('fr-FR')}`;
+  chips(c.categories); apply();
+}).catch(() => { $('list').innerHTML = '<div class="empty">Impossible de charger le catalogue. Vérifie ta connexion.</div>'; });
+</script>
+</body>
+</html>
