@@ -1,0 +1,83 @@
+/* =====================================================================
+   Roblox Forge - shared interface (all studios)
+   iPhone: clean top bar + bottom sheet.  PC / iPad landscape: left app rail,
+   3D view in the middle, tools docked on the right.  Loaded after each
+   studio's own styles, so it only refines and re-lays out.
+   ===================================================================== */
+:root{--fx-bg:#07060f;--fx-panel:rgba(15,13,28,.96);--fx-raise:rgba(255,255,255,.045);--fx-line:rgba(190,180,255,.12);--fx-line2:rgba(190,180,255,.24);
+  --fx-text:#f3f1fb;--fx-muted:#a29cc2;--fx-acc:#7c5cff;--fx-acc2:#3ee6ff;--fx-r:14px;--fx-side:clamp(360px,31vw,460px);--fx-rail:0px;
+  --fx-font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","Segoe UI",Roboto,sans-serif}
+
+/* ---------- typography & controls ---------- */
+body{font-family:var(--fx-font);letter-spacing:-.005em}
+button,input,select,textarea{font-family:inherit}
+:focus-visible{outline:2px solid var(--fx-acc2);outline-offset:2px;border-radius:10px}
+.sec{border-radius:16px !important;background:var(--fx-raise) !important;box-shadow:0 0 0 1px var(--fx-line) inset !important}
+.sec h3{font-size:14.5px;letter-spacing:-.01em;font-weight:800;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+.sec h3 small{font-weight:600;color:var(--fx-muted);font-size:11.5px;letter-spacing:0}
+.note{color:var(--fx-muted)}
+.btn{transition:transform .12s,background .15s,box-shadow .15s;min-height:40px}
+.btn:active,.chip:active,.card:active,.ib:active{transform:scale(.97)}
+.btn.pri{background:linear-gradient(135deg,#8b6bff,#5a3cf0) !important;box-shadow:0 6px 18px -6px rgba(124,92,255,.7),0 0 0 1px rgba(255,255,255,.12) inset !important;color:#fff}
+.btn:disabled{opacity:.5}
+.chip.on,.tab.on{background:linear-gradient(135deg,var(--fx-acc2),var(--fx-acc)) !important;color:#07060f !important;box-shadow:none !important}
+textarea,input[type=text],input[type=search],input[type=number],input[type=password]{border-radius:12px}
+@media (hover:hover){.btn:hover{background:rgba(255,255,255,.1)}.btn.pri:hover{filter:brightness(1.08)}.chip:hover,.card:hover,.tab:hover{box-shadow:0 0 0 1px var(--fx-line2) inset}.ib:hover{box-shadow:0 0 0 1px rgba(190,180,255,.45) inset}}
+.pane::-webkit-scrollbar{width:8px}.pane::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:8px}
+
+/* ---------- top bar ---------- */
+.hud .title{min-width:0;flex:0 1 auto;margin-right:auto;overflow:hidden;padding:5px 12px 5px 10px;border-radius:12px;background:rgba(8,7,18,.62);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 0 0 1px var(--fx-line) inset;pointer-events:auto}
+.hud .title b,.hud .title small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hud .title b{font-size:15px;letter-spacing:-.01em}
+.hud .title small{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--fx-muted);font-weight:700}
+.fx-menu{pointer-events:auto;display:flex !important;align-items:center;gap:7px;width:auto !important;padding:0 11px 0 9px !important}
+.fx-menu svg{width:18px;height:18px}
+.fx-menu .fx-mark{width:20px;height:20px;border-radius:6px;background:conic-gradient(from 210deg,#3ee6ff,#7c5cff,#ff5fd2,#ffd45c,#3ee6ff);box-shadow:0 0 0 1px rgba(255,255,255,.25) inset}
+.fx-menu b{font-size:13px;font-weight:800;letter-spacing:-.01em}
+@media (max-width:420px){.fx-menu b{display:none}}
+
+/* ---------- app navigator (drawer on iPhone, rail on PC) ---------- */
+.fx-scrim{position:fixed;inset:0;background:rgba(3,2,10,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:60;opacity:0;pointer-events:none;transition:opacity .25s}
+.fx-drawer{position:fixed;top:0;bottom:0;left:0;width:min(86vw,340px);z-index:61;background:linear-gradient(180deg,#13102a,#0b0919);box-shadow:1px 0 0 var(--fx-line2),30px 0 60px rgba(0,0,0,.5);
+  transform:translateX(-102%);transition:transform .34s cubic-bezier(.2,.9,.25,1);display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 14px) 12px calc(env(safe-area-inset-bottom) + 14px)}
+body.fx-open .fx-scrim{opacity:1;pointer-events:auto}body.fx-open .fx-drawer{transform:none}
+.fx-brand{display:flex;align-items:center;gap:10px;padding:4px 8px 14px}
+.fx-brand .fx-mark{width:34px;height:34px;border-radius:10px;background:conic-gradient(from 210deg,#3ee6ff,#7c5cff,#ff5fd2,#ffd45c,#3ee6ff);box-shadow:0 0 0 1px rgba(255,255,255,.25) inset,0 8px 20px -8px #7c5cff}
+.fx-brand b{display:block;font-size:17px;letter-spacing:-.02em}.fx-brand small{color:var(--fx-muted);font-size:11.5px;font-weight:600}
+.fx-nav{display:flex;flex-direction:column;gap:4px;overflow-y:auto}
+.fx-item{display:flex;align-items:center;gap:12px;padding:10px;border-radius:13px;color:var(--fx-text);text-decoration:none;transition:background .15s}
+.fx-item .fx-ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;flex:none;background:rgba(255,255,255,.06);box-shadow:0 0 0 1px var(--fx-line) inset;color:var(--c,#cfc8ff)}
+.fx-item .fx-ic svg{width:20px;height:20px}
+.fx-item b{display:block;font-size:14px;font-weight:750}.fx-item small{display:block;color:var(--fx-muted);font-size:11.5px;line-height:1.3}
+.fx-item.on{background:rgba(124,92,255,.16);box-shadow:0 0 0 1px rgba(124,92,255,.45) inset}
+.fx-item.on .fx-ic{background:linear-gradient(135deg,var(--fx-acc2),var(--fx-acc));color:#07060f;box-shadow:none}
+@media (hover:hover){.fx-item:hover{background:rgba(255,255,255,.05)}}
+.fx-sep{height:1px;background:var(--fx-line);margin:8px 6px}
+.fx-foot{margin-top:auto;padding:10px 8px 0;color:var(--fx-muted);font-size:11px;line-height:1.5}
+.fx-foot kbd{font:600 10.5px var(--fx-font);padding:1px 6px;border-radius:6px;background:rgba(255,255,255,.08);box-shadow:0 0 0 1px var(--fx-line2) inset;color:var(--fx-text)}
+
+/* ---------- PC / iPad landscape: rail + docked tools ---------- */
+.fx-rail{display:none}
+@media (min-width:900px) and (orientation:landscape){
+  body.fx-shell{--fx-rail:68px}
+  .fx-rail{position:fixed;left:0;top:0;bottom:0;width:var(--fx-rail);z-index:20;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0;background:#0a0816;box-shadow:1px 0 0 var(--fx-line)}
+  .fx-rail .fx-mark{width:34px;height:34px;border-radius:10px;margin-bottom:10px;background:conic-gradient(from 210deg,#3ee6ff,#7c5cff,#ff5fd2,#ffd45c,#3ee6ff);box-shadow:0 0 0 1px rgba(255,255,255,.25) inset}
+  .fx-rail a{position:relative;width:46px;height:46px;border-radius:13px;display:grid;place-items:center;color:#cfc8ff;text-decoration:none;transition:background .15s}
+  .fx-rail a svg{width:21px;height:21px}
+  .fx-rail a.on{background:linear-gradient(135deg,var(--fx-acc2),var(--fx-acc));color:#07060f}
+  .fx-rail a:hover{background:rgba(255,255,255,.07)}.fx-rail a.on:hover{background:linear-gradient(135deg,var(--fx-acc2),var(--fx-acc))}
+  .fx-rail a::after{content:attr(data-tip);position:absolute;left:56px;top:50%;translate:0 -50%;white-space:nowrap;background:#1c1838;color:#fff;font:700 12px var(--fx-font);padding:6px 10px;border-radius:9px;box-shadow:0 0 0 1px var(--fx-line2),0 8px 20px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .15s}
+  .fx-rail a:hover::after{opacity:1}
+  .fx-rail .fx-bottom{margin-top:auto}
+  body.fx-shell .fx-menu{display:none !important}
+  body.fx-shell #view{left:var(--fx-rail) !important;right:var(--fx-side) !important;top:0 !important;height:100% !important;width:auto !important}
+  body.fx-shell #panel,body.fx-shell #sheet{left:auto !important;right:0 !important;top:0 !important;bottom:0 !important;width:var(--fx-side) !important;height:auto !important;border-radius:0 !important;
+    box-shadow:-1px 0 0 var(--fx-line2),-24px 0 48px -12px rgba(0,0,0,.45) !important;padding-top:10px}
+  body.fx-shell .grip{display:none !important}
+  body.fx-shell.playing #view{right:0 !important}
+  body.fx-shell .tabs{flex-wrap:wrap;overflow:visible}
+  body.fx-shell .pane{padding-bottom:28px}
+  body.fx-shell header{left:var(--fx-rail)}
+  body.fx-page{padding-left:var(--fx-rail)}
+  body.fx-page main,body.fx-page header>*{max-width:1080px;margin-left:auto;margin-right:auto}
+}

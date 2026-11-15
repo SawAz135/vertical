@@ -438,7 +438,7 @@ function loop() {
    5. LAYOUT: resizable split between viewport and panel
    ===================================================================== */
 function resize() {
-  const vh = view.getBoundingClientRect().height, w = innerWidth;
+  const vr = view.getBoundingClientRect(), vh = vr.height, w = Math.round(vr.width) || innerWidth;
   renderer.setSize(w, vh, false); composer.setSize(w, vh); bloom.setSize(w / 2, vh / 2);
   camera.aspect = w / vh; camera.updateProjectionMatrix();
 }

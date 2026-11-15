@@ -487,7 +487,7 @@ function loop() {
   else { sun.target.position.copy(controls.target); sun.position.copy(controls.target).add(skyMat.uniforms.sunDir.value.clone().multiplyScalar(300)); }
   sky.position.copy(camera.position); controls.update(); composer.render();
 }
-function resize() { const r = view.getBoundingClientRect(), w = innerWidth, h = r.height; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.setSize(w / 2, h / 2); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+function resize() { const r = view.getBoundingClientRect(), w = Math.round(r.width) || innerWidth, h = r.height; renderer.setSize(w, h, false); composer.setSize(w, h); bloom.setSize(w / 2, h / 2); camera.aspect = w / h; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize);
 { let y0 = null, h0 = 0; const grip = $('grip');
   grip.addEventListener('pointerdown', (e) => { y0 = e.clientY; h0 = view.getBoundingClientRect().height; grip.setPointerCapture(e.pointerId); });
