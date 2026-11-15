@@ -22,6 +22,9 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
+local BadgeService = game:GetService("BadgeService")
+local AnalyticsService = game:GetService("AnalyticsService")
+local TextService = game:GetService("TextService")
 
 local folder = ReplicatedStorage:WaitForChild("ForgeSystems")
 local cfg = require(folder:WaitForChild("Config"))
@@ -159,6 +162,8 @@ end
 
 -- state sent to the client (only what the UI needs)
 local function today() return math.floor(os.time() / 86400) end
+local tradeView -- defined with the trading actions below
+local closeTradeOnLeave = function() end
 local function stateOf(player)
 	local s = sessions[player]
 	local d = s.data
@@ -169,18 +174,67 @@ local function stateOf(player)
 		currencies = d.currencies, rebirths = d.rebirths, pets = d.pets, pity = d.pity,
 		maxPets = maxPets, maxEquip = maxEquip, perks = s.perks, multiplier = L.multiplier(cfg, d, s.perks),
 		rebirthCost = L.rebirthCost(cfg, d.rebirths), daily = { streak = d.daily.streak, ready = dailyReady, next = dailyNext },
-		quests = { progress = q.progress, claimed = q.claimed }, saved = s.canSave,
+		quests = { progress = q.progress, claimed = q.claimed }, saved = s.canSave, trade = tradeView(player),
 	}
 end
 local function sendState(player)
 	if sessions[player] and sessions[player].loaded then push:FireClient(player, stateOf(player)) end
 end
 
-local function give(player, currency, amount)
+-- analytics (Creator Hub > Analytics): economy sources/sinks and the onboarding funnel ----
+local ANALYTICS = cfg.analytics ~= false
+local function economy(player, source, currency, amount, kind, sku)
+	if not ANALYTICS or amount == 0 then return end
+	local s = sessions[player]
+	pcall(AnalyticsService.LogEconomyEvent, AnalyticsService, player,
+		source and Enum.AnalyticsEconomyFlowType.Source or Enum.AnalyticsEconomyFlowType.Sink,
+		currency, math.abs(amount), s and s.data.currencies[currency] or 0, kind, sku)
+end
+local FUNNEL = { "Arrivée", "Premier œuf", "Premier pet équipé", "Premier rebirth" }
+local function funnel(player, step)
+	local s = sessions[player]
+	if not ANALYTICS or not s or (s.data.funnel or 0) >= step then return end
+	s.data.funnel = step
+	pcall(AnalyticsService.LogOnboardingFunnelStepEvent, AnalyticsService, player, step, FUNNEL[step])
+end
+
+-- badges: { id = <real badge id>, name, when = "join"|"hatch"|"rebirth"|"pets"|"rarity", value } ----
+local function checkBadges(player)
+	local s = sessions[player]
+	if not s or not s.loaded then return end
+	for _, b in cfg.badges or {} do
+		if b.id and b.id > 0 and not s.badges[b.id] then
+			local d, ok = s.data, false
+			if b.when == "join" then ok = true
+			elseif b.when == "hatch" then ok = d.stats.hatched >= (b.value or 1)
+			elseif b.when == "rebirth" then ok = d.rebirths >= (b.value or 1)
+			elseif b.when == "pets" then ok = L.count(d) >= (b.value or 1)
+			elseif b.when == "rarity" then
+				for _, p in d.pets do
+					local def = L.petById(cfg, p.id)
+					if def and L.tierOf(cfg, def.rarity) >= L.tierOf(cfg, b.value) then ok = true break end
+				end
+			end
+			if ok then
+				s.badges[b.id] = true -- once per session, even if Roblox is slow
+				task.spawn(function()
+					local okHas, has = pcall(BadgeService.UserHasBadgeAsync, BadgeService, player.UserId, b.id)
+					if okHas and not has then
+						local okAward = pcall(BadgeService.AwardBadge, BadgeService, player.UserId, b.id)
+						if okAward then notify:FireClient(player, "🏅 Badge : " .. (b.name or "?"), "good") end
+					end
+				end)
+			end
+		end
+	end
+end
+
+local function give(player, currency, amount, kind, sku)
 	local s = sessions[player]
 	if not s or type(amount) ~= "number" or amount ~= amount then return end
 	if s.data.currencies[currency] == nil then return end
 	s.data.currencies[currency] += amount
+	if kind then economy(player, true, currency, amount, kind, sku) end
 	if currency == cfg.main and amount > 0 then
 		s.data.stats.collected += amount
 		L.addProgress(s.data, today(), "collect", amount, cfg.quests)
@@ -192,16 +246,21 @@ local petModels = ReplicatedStorage:FindFirstChild("ForgePets")
 local function followPet(player)
 	local s = sessions[player]
 	if not s or not petModels then return end
-	local best, bestPower = nil, -1
+	-- every equipped pet that has a 3D model follows (strongest first)
+	local list = {}
 	for _, p in s.data.pets do
 		if p.eq then
 			local def = L.petById(cfg, p.id)
-			if def and def.power > bestPower then
-				local model = petModels:FindFirstChild(def.model or def.name) or petModels:FindFirstChild(def.id)
-				if model then best, bestPower = model.Name, def.power end
-			end
+			local model = def and (petModels:FindFirstChild(def.model or def.name) or petModels:FindFirstChild(def.id))
+			if model then table.insert(list, { name = model.Name, power = def.power }) end
 		end
 	end
+	table.sort(list, function(x, y) return x.power > y.power end)
+	local names = {}
+	for _, it in list do table.insert(names, it.name) end
+	local joined = #names > 0 and table.concat(names, ",") or nil
+	if player:GetAttribute("ForgePets") ~= joined then player:SetAttribute("ForgePets", joined) end
+	local best = names[1]
 	if player:GetAttribute("ForgePet") ~= best then player:SetAttribute("ForgePet", best) end
 end
 
@@ -239,7 +298,7 @@ MarketplaceService.ProcessReceipt = function(info)
 	if not product then return Enum.ProductPurchaseDecision.NotProcessedYet end
 	local receipts = s.data.receipts
 	if not receipts[info.PurchaseId] then
-		give(player, product.currency, product.amount)
+		give(player, product.currency, product.amount, "IAP", "product_" .. tostring(product.id))
 		receipts[info.PurchaseId] = os.time()
 		-- keep the receipt list small
 		local list = {}
@@ -365,7 +424,7 @@ end
 
 -- actions -------------------------------------------------------------------
 local rng = Random.new()
-local COOLDOWN = { hatch = 0.45, equip = 0.12, unequip = 0.12, equipBest = 0.8, sell = 0.12, sellAll = 1.5, rebirth = 1, daily = 1.5, claimQuest = 0.5, redeem = 2, state = 0.5 }
+local COOLDOWN = { rename = 3, tradeRequest = 2, tradeOffer = 0.3, tradeReady = 0.5, tradeCancel = 0.5, hatch = 0.45, equip = 0.12, unequip = 0.12, equipBest = 0.8, sell = 0.12, sellAll = 1.5, rebirth = 1, daily = 1.5, claimQuest = 0.5, redeem = 2, state = 0.5 }
 
 local function nearEgg(player, eggId)
 	local pos = stands[eggId]
@@ -386,6 +445,8 @@ function actions.hatch(player, s, eggId, count)
 	local maxPets = L.limits(cfg, s.perks)
 	if L.count(s.data) + count > maxPets then return { ok = false, err = "Inventaire plein : vends des pets" } end
 	s.data.currencies[egg.currency] -= cost
+	economy(player, false, egg.currency, cost, "Shop", "egg_" .. egg.id)
+	funnel(player, 2)
 	local luck = L.luck(cfg, s.perks)
 	local results = {}
 	for _ = 1, count do
@@ -403,7 +464,9 @@ function actions.hatch(player, s, eggId, count)
 	L.addProgress(s.data, today(), "hatch", count, cfg.quests)
 	-- auto-equip into free slots
 	local _, maxEquip = L.limits(cfg, s.perks)
-	for _, r in results do L.equip(s.data, r.uid, maxEquip) end
+	for _, r in results do
+		if L.equip(s.data, r.uid, maxEquip) and s.data.pets[r.uid].eq then funnel(player, 3) end
+	end
 	hatched:FireClient(player, egg.id, results)
 	return { ok = true }
 end
@@ -411,6 +474,7 @@ function actions.equip(player, s, uid)
 	if type(uid) ~= "string" then return { ok = false } end
 	local _, maxEquip = L.limits(cfg, s.perks)
 	local ok, err = L.equip(s.data, uid, maxEquip)
+	if ok then funnel(player, 3) end
 	return { ok = ok, err = err == "limit" and ("Maximum " .. maxEquip .. " pets équipés") or err }
 end
 function actions.unequip(player, s, uid)
@@ -425,7 +489,7 @@ function actions.sell(player, s, uid)
 	if type(uid) ~= "string" or not s.data.pets[uid] then return { ok = false, err = "Pet introuvable" } end
 	if s.data.pets[uid].eq then return { ok = false, err = "Déséquipe-le d'abord" } end
 	local value = L.sell(cfg, s.data, uid)
-	give(player, cfg.main, value)
+	give(player, cfg.main, value, "Gameplay", "sell")
 	return { ok = true, value = value }
 end
 function actions.sellAll(player, s, maxTier)
@@ -438,7 +502,7 @@ function actions.sellAll(player, s, maxTier)
 			n += 1
 		end
 	end
-	give(player, cfg.main, total)
+	give(player, cfg.main, total, "Gameplay", "sellAll")
 	return { ok = true, value = total, n = n }
 end
 function actions.rebirth(player, s)
@@ -447,7 +511,8 @@ function actions.rebirth(player, s)
 	if (s.data.currencies[rb.currency] or 0) < cost then return { ok = false, err = "Il faut " .. L.abbreviate(cost) .. " " .. rb.currency } end
 	s.data.currencies[rb.currency] = 0
 	s.data.rebirths += 1
-	if rb.reward then give(player, rb.reward.currency, rb.reward.amount) end
+	if rb.reward then give(player, rb.reward.currency, rb.reward.amount, "Gameplay", "rebirth") end
+	funnel(player, 4)
 	L.addProgress(s.data, today(), "rebirth", 1, cfg.quests)
 	return { ok = true, rebirths = s.data.rebirths }
 end
@@ -457,7 +522,7 @@ function actions.daily(player, s)
 	local reward = cfg.daily[index]
 	s.data.daily.last = today()
 	s.data.daily.streak = streak
-	give(player, reward.currency, reward.amount)
+	give(player, reward.currency, reward.amount, "TimedReward", "daily")
 	return { ok = true, day = index, streak = streak, currency = reward.currency, amount = reward.amount }
 end
 function actions.claimQuest(player, s, qid)
@@ -465,7 +530,7 @@ function actions.claimQuest(player, s, qid)
 		if quest.id == qid then
 			if not L.canClaimQuest(s.data, today(), quest) then return { ok = false, err = "Quête pas finie" } end
 			L.questsForDay(s.data, today()).claimed[quest.id] = true
-			give(player, quest.currency, quest.amount)
+			give(player, quest.currency, quest.amount, "TimedReward", "quest_" .. quest.id)
 			return { ok = true, currency = quest.currency, amount = quest.amount }
 		end
 	end
@@ -474,9 +539,152 @@ end
 function actions.redeem(player, s, code)
 	local c, err = L.redeem(cfg, s.data, code, os.time())
 	if not c then return { ok = false, err = ({ used = "Code déjà utilisé", expired = "Code expiré", unknown = "Code inconnu", invalid = "Code invalide" })[err] or err } end
-	give(player, c.currency, c.amount)
+	give(player, c.currency, c.amount, "Gameplay", "code")
 	return { ok = true, currency = c.currency, amount = c.amount }
 end
+-- pet names typed by players are always filtered by Roblox before anyone sees them
+function actions.rename(player, s, uid, text)
+	local pet = type(uid) == "string" and s.data.pets[uid]
+	if not pet then return { ok = false, err = "Pet introuvable" } end
+	if type(text) ~= "string" then return { ok = false } end
+	text = string.gsub(text, "^%s+", ""):gsub("%s+$", "")
+	if #text == 0 then pet.nick = nil return { ok = true } end
+	if utf8.len(text) == nil or utf8.len(text) > 20 then return { ok = false, err = "20 caractères maximum" } end
+	local ok, result = pcall(TextService.FilterStringAsync, TextService, text, player.UserId)
+	if not ok then return { ok = false, err = "Filtre Roblox indisponible, réessaie" } end
+	local ok2, clean = pcall(result.GetNonChatStringForBroadcastAsync, result)
+	if not ok2 then return { ok = false, err = "Filtre Roblox indisponible, réessaie" } end
+	pet.nick = clean
+	return { ok = true, nick = clean }
+end
+
+-- trading: both players invite each other, put pets on the table, both press ready;
+-- the swap is re-validated and done in one step on the server, then both saves run
+local trades, invites = {}, {}
+local TRADE_MAX = (cfg.trading and cfg.trading.max) or 8
+tradeView = function(player)
+	local t = trades[player]
+	if not t then return nil end
+	local o = trades[t.with]
+	local theirs = {}
+	for _, uid in (o and o.offer) or {} do
+		local p = sessions[t.with] and sessions[t.with].data.pets[uid]
+		if p then table.insert(theirs, { id = p.id, nick = p.nick }) end
+	end
+	return { with = t.with.Name, withId = t.with.UserId, mine = t.offer, theirs = theirs, ready = t.ready, theirReady = o and o.ready or false }
+end
+local function closeTrade(player, msg)
+	local t = trades[player]
+	if not t then return end
+	trades[player] = nil
+	local other = t.with
+	if trades[other] and trades[other].with == player then
+		trades[other] = nil
+		if msg then notify:FireClient(other, msg, "bad") end
+		sendState(other)
+	end
+end
+function actions.tradeRequest(player, s, userId)
+	if cfg.trading and cfg.trading.enabled == false then return { ok = false, err = "Échanges désactivés" } end
+	local other = Players:GetPlayerByUserId(tonumber(userId) or 0)
+	if not other or other == player or not sessions[other] or not sessions[other].loaded then return { ok = false, err = "Joueur introuvable" } end
+	if trades[player] or trades[other] then return { ok = false, err = "Déjà en échange" } end
+	invites[player] = invites[player] or {}
+	invites[player][other.UserId] = os.clock()
+	local back = invites[other] and invites[other][player.UserId]
+	if back and os.clock() - back < 60 then
+		invites[player][other.UserId], invites[other][player.UserId] = nil, nil
+		trades[player] = { with = other, offer = {}, ready = false }
+		trades[other] = { with = player, offer = {}, ready = false }
+		notify:FireClient(other, "🤝 Échange ouvert avec " .. player.Name, "good")
+		sendState(other)
+		return { ok = true, opened = true }
+	end
+	notify:FireClient(other, "🤝 " .. player.Name .. " veut échanger : ouvre Échange et invite-le aussi", "info")
+	return { ok = true, opened = false }
+end
+function actions.tradeOffer(player, s, list)
+	local t = trades[player]
+	if not t then return { ok = false, err = "Pas d'échange en cours" } end
+	if type(list) ~= "table" or #list > TRADE_MAX then return { ok = false, err = "Maximum " .. TRADE_MAX .. " pets" } end
+	local clean, seen = {}, {}
+	for _, uid in list do
+		local p = type(uid) == "string" and s.data.pets[uid]
+		if not p or seen[uid] then return { ok = false, err = "Pet invalide" } end
+		if p.eq then return { ok = false, err = "Déséquipe d'abord tes pets à échanger" } end
+		seen[uid] = true
+		table.insert(clean, uid)
+	end
+	t.offer = clean
+	t.ready = false
+	if trades[t.with] then trades[t.with].ready = false end
+	sendState(t.with)
+	return { ok = true }
+end
+local function commitTrade(a, b)
+	local sa, sb, ta, tb = sessions[a], sessions[b], trades[a], trades[b]
+	local function stillOwned(sess, offer)
+		for _, uid in offer do
+			local p = sess.data.pets[uid]
+			if not p or p.eq then return false end
+		end
+		return true
+	end
+	if not (sa and sb and stillOwned(sa, ta.offer) and stillOwned(sb, tb.offer)) then return false, "Les pets ont changé" end
+	local maxA = L.limits(cfg, sa.perks)
+	local maxB = L.limits(cfg, sb.perks)
+	if L.count(sa.data) - #ta.offer + #tb.offer > maxA or L.count(sb.data) - #tb.offer + #ta.offer > maxB then return false, "Inventaire plein" end
+	local moveA, moveB = {}, {}
+	for _, uid in ta.offer do table.insert(moveA, sa.data.pets[uid]); sa.data.pets[uid] = nil end
+	for _, uid in tb.offer do table.insert(moveB, sb.data.pets[uid]); sb.data.pets[uid] = nil end
+	local function receive(sess, pets)
+		for _, p in pets do
+			local uid = "p" .. sess.data.nextUid
+			sess.data.nextUid += 1
+			sess.data.pets[uid] = { id = p.id, eq = false, nick = p.nick }
+		end
+	end
+	receive(sa, moveB)
+	receive(sb, moveA)
+	sa.dirty, sb.dirty = true, true
+	return true
+end
+function actions.tradeReady(player, s)
+	local t = trades[player]
+	if not t then return { ok = false, err = "Pas d'échange en cours" } end
+	t.ready = true
+	local other = t.with
+	local o = trades[other]
+	if o and o.ready then
+		local done, why = commitTrade(player, other)
+		trades[player], trades[other] = nil, nil
+		if done then
+			task.spawn(save, player, false)
+			task.spawn(save, other, false)
+			for _, p in { player, other } do
+				notify:FireClient(p, "🤝 Échange terminé !", "good")
+				followPet(p)
+				syncStats(p)
+				checkBadges(p)
+			end
+		else
+			notify:FireClient(other, "Échange annulé : " .. why, "bad")
+		end
+		sendState(other)
+		return { ok = done, err = not done and ("Échange annulé : " .. why) or nil, done = done }
+	end
+	sendState(other)
+	return { ok = true }
+end
+closeTradeOnLeave = function(player)
+	closeTrade(player, "🤝 " .. player.Name .. " est parti : échange annulé")
+	invites[player] = nil
+end
+function actions.tradeCancel(player)
+	closeTrade(player, "🤝 " .. player.Name .. " a annulé l'échange")
+	return { ok = true }
+end
+
 function actions.state() return { ok = true } end
 
 request.OnServerInvoke = function(player, action, a, b)
@@ -493,6 +701,7 @@ request.OnServerInvoke = function(player, action, a, b)
 		s.dirty = true
 		syncStats(player)
 		followPet(player)
+		checkBadges(player)
 	end
 	sendState(player)
 	return result
@@ -501,7 +710,7 @@ end
 -- players -------------------------------------------------------------------
 local function onJoin(player)
 	if sessions[player] then return end
-	local s = { perks = {}, limiter = L.newLimiter(), loaded = false, canSave = store ~= nil, joined = os.clock() }
+	local s = { perks = {}, badges = {}, limiter = L.newLimiter(), loaded = false, canSave = store ~= nil, joined = os.clock() }
 	sessions[player] = s
 	makeStats(player)
 	local data, why = load(player)
@@ -522,10 +731,13 @@ local function onJoin(player)
 	s.loaded = true
 	syncStats(player)
 	followPet(player)
+	funnel(player, 1)
+	checkBadges(player)
 	sendState(player)
 end
 
 local function onLeave(player)
+	closeTradeOnLeave(player)
 	local s = sessions[player]
 	if not s then return end
 	if s.loaded then
@@ -678,4 +890,44 @@ end)
 
 if RunService:IsStudio() and not store then
 	print("[ForgeSystems] running without DataStores (enable Studio API access to test saving)")
+end
+
+-- anti-cheat: horizontal speed check (rubber-band, never kicks; set the player
+-- attribute ForgeTeleporting = true around your own teleports) ----------------
+if not (cfg.antiCheat and cfg.antiCheat.speed == false) then
+	local last, strikes = {}, {}
+	task.spawn(function()
+		while true do
+			task.wait(0.5)
+			for _, player in Players:GetPlayers() do
+				local char = player.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				local hum = char and char:FindFirstChildOfClass("Humanoid")
+				if not root or not hum or hum.Health <= 0 or hum.SeatPart or player:GetAttribute("ForgeTeleporting") then
+					last[player] = root and root.Position or nil
+					strikes[player] = 0
+				else
+					local pos, prev = root.Position, last[player]
+					local moved = prev and Vector3.new(pos.X - prev.X, 0, pos.Z - prev.Z).Magnitude or 0
+					local allowed = (hum.WalkSpeed * 1.5 + 24) * 0.5
+					if prev and moved > allowed then
+						strikes[player] = (strikes[player] or 0) + 1
+						if strikes[player] >= 2 then
+							root.CFrame = CFrame.new(prev) * root.CFrame.Rotation
+							root.AssemblyLinearVelocity = Vector3.zero
+							strikes[player] = 0
+						else
+							last[player] = pos
+						end
+					else
+						strikes[player] = math.max(0, (strikes[player] or 0) - 1)
+						last[player] = pos
+					end
+				end
+			end
+			for player in last do
+				if not player.Parent then last[player], strikes[player] = nil, nil end
+			end
+		end
+	end)
 end

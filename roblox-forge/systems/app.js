@@ -101,9 +101,9 @@ $('h1').onclick = () => previewHatch(1); $('h3').onclick = () => previewHatch(3)
 function fillEggSel() { const s = $('eggSel'); s.innerHTML = cfg.eggs.map((e) => `<option value="${esc(e.id)}"${e.id === eggSel ? ' selected' : ''}>${esc(e.emoji)} ${esc(e.name)} · ${S.abbreviate(e.price)} ${esc(e.currency)}</option>`).join(''); s.onchange = () => { eggSel = s.value; sim = null; render(); }; }
 
 /* ======================= panes ======================= */
-const TABS = { eggs: '🥚 Œufs', pets: '🐾 Pets', rar: '💎 Raretés', eco: '💰 Économie', rew: '🎁 Récompenses', robux: '💳 Robux', export: '📦 Export' };
+const TABS = { eggs: '🥚 Œufs', pets: '🐾 Pets', rar: '💎 Raretés', eco: '💰 Économie', rew: '🎁 Récompenses', robux: '💳 Robux', adv: '🛡️ Avancé', export: '📦 Export' };
 function tabs() { $('tabs').innerHTML = Object.entries(TABS).map(([k, l]) => `<button class="tab${k === tab ? ' on' : ''}" data-t="${k}">${l}</button>`).join(''); $('tabs').querySelectorAll('[data-t]').forEach((b) => b.onclick = () => { tab = b.dataset.t; render(); }); }
-function render() { tabs(); fillEggSel(); ({ eggs: paneEggs, pets: panePets, rar: paneRar, eco: paneEco, rew: paneRew, robux: paneRobux, export: paneExport })[tab](); }
+function render() { tabs(); fillEggSel(); ({ eggs: paneEggs, pets: panePets, rar: paneRar, eco: paneEco, rew: paneRew, robux: paneRobux, adv: paneAdv, export: paneExport })[tab](); }
 const pane = () => $('pane');
 const curOpts = (sel) => cfg.currencies.map((c) => `<option${c.name === sel ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
 // generic binder: inputs with data-k="path.to.value" edit cfg
@@ -254,6 +254,24 @@ function paneRobux() {
   del('data-dg', cfg.gamepasses); del('data-dp', cfg.products);
   $('addG').onclick = () => { cfg.gamepasses.push({ id: 0, name: 'Nouveau pass', perk: 'storage' }); save(); paneRobux(); };
   $('addP').onclick = () => { cfg.products.push({ id: 0, name: 'Pack', currency: cfg.currencies[1]?.name || cfg.main, amount: 100 }); save(); paneRobux(); };
+}
+
+function paneAdv() {
+  cfg.badges ||= []; cfg.trading ||= { enabled: true, max: 8 }; cfg.antiCheat ||= { speed: true }; if (cfg.analytics === undefined) cfg.analytics = true;
+  pane().innerHTML = `<div class="sec"><h3>🏅 Badges <small>id 0 = pas encore créé</small></h3>${cfg.badges.map((b, i) => `<div class="sec" style="margin:6px 0"><div class="row"><input type="text" data-k="badges.${i}.name" value="${esc(b.name)}"><button class="x" data-db="${i}">✕</button></div>
+      <div class="row"><select class="f" data-k="badges.${i}.when">${Object.entries(S.BADGE_WHEN).map(([k, l]) => `<option value="${k}"${k === b.when ? ' selected' : ''}>${l}</option>`).join('')}</select>${b.when === 'rarity' ? `<select class="f" data-k="badges.${i}.value">${cfg.rarities.map((r) => `<option${r.name === b.value ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select>` : b.when === 'join' ? '' : `<input type="number" data-k="badges.${i}.value" value="${+b.value || 1}">`}</div>
+      <div class="row"><label>Id badge</label><input type="number" data-k="badges.${i}.id" value="${b.id}" style="max-width:none"></div></div>`).join('')}
+      <button class="btn" id="addB">＋ Badge</button><div class="note" style="margin-top:6px">Crée les badges sur create.roblox.com (ton jeu → Badges), colle leurs numéros. Le serveur les donne une fois (BadgeService).</div></div>
+    <div class="sec"><h3>🤝 Échanges entre joueurs</h3><div class="row"><label><input type="checkbox" data-k="trading.enabled"${cfg.trading.enabled ? ' checked' : ''}> Activés</label><label style="min-width:auto">Max pets</label><input type="number" data-k="trading.max" value="${cfg.trading.max}"></div>
+      <div class="note">Les deux joueurs s'invitent, posent leurs pets, puis « Prêt » des deux côtés : le serveur revérifie tout et fait l'échange d'un coup, puis sauvegarde les deux.</div></div>
+    <div class="sec"><h3>🛡️ Anti-triche</h3><div class="row"><label><input type="checkbox" data-k="antiCheat.speed"${cfg.antiCheat.speed ? ' checked' : ''}> Vitesse anormale → retour en arrière</label></div>
+      <div class="note">Ne kicke jamais. Pour tes propres téléportations : player:SetAttribute("ForgeTeleporting", true) pendant le saut. Les remotes sont déjà validés et limités côté serveur.</div></div>
+    <div class="sec"><h3>📊 Statistiques Roblox</h3><div class="row"><label><input type="checkbox" data-k="analytics"${cfg.analytics ? ' checked' : ''}> Activées</label></div>
+      <div class="note">Dépenses et gains (œufs, ventes, cadeaux, codes, achats Robux) et parcours des nouveaux joueurs (arrivée → 1er œuf → 1er pet équipé → 1er rebirth), visibles dans Creator Hub → Analytics.</div></div>
+    <div class="sec"><h3>✏️ Noms de pets</h3><div class="note">Les joueurs peuvent renommer leurs pets (20 caractères) : chaque nom passe par le filtre Roblox (TextService) avant d'être affiché.</div></div>`;
+  bindAll(pane(), (el) => { if (/\.when$/.test(el.dataset.k)) { const i = +el.dataset.k.split('.')[1]; cfg.badges[i].value = cfg.badges[i].when === 'rarity' ? cfg.rarities.at(-3)?.name || cfg.rarities[0].name : 1; save(); paneAdv(); } });
+  pane().querySelectorAll('[data-db]').forEach((b) => b.onclick = () => { cfg.badges.splice(+b.dataset.db, 1); save(); paneAdv(); });
+  $('addB').onclick = () => { cfg.badges.push({ id: 0, name: 'Nouveau badge', when: 'hatch', value: 10 }); save(); paneAdv(); };
 }
 
 /* ======================= export ======================= */
