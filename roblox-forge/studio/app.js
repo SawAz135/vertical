@@ -10,6 +10,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as AC from './anim-core.js';
 import * as PG from './pet-gen.js';
 import { VOX_SPECIES, voxelAnimal, voxelizeParts } from './voxel.js';
+import { voxelCritter, PET_VOXEL } from './voxel-critters.js';
 import { chibiPet, chibiFx, CHIBI_VARIANTS } from './chibi.js';
 import { createLibrary } from '../library/forge-lib.js';
 
@@ -1213,12 +1214,14 @@ function styled(g, style = petStyle) {
   if (style === 'simu') { const fx = { ...g.fx }; for (const [k, v] of Object.entries(chibiFx(petVariant, g))) fx[k] = { ...(fx[k] || {}), ...v };
     const out = { ...g, parts: chibiPet(g, PG.SPECIES[g.species], petVariant), fx, style, name: g.name + (petVariant !== 'normal' ? ' ' + { gold: 'Doré', rainbow: 'Arc-en-ciel', neon: 'Néon' }[petVariant] : '') };
     styleCache.set(key, out); return out; }
-  if (style === 'voxel' && VOX_SPECIES[g.species]) {
+  if (style === 'voxel' && (VOX_SPECIES[g.species] || PET_VOXEL[g.species])) {
     const hi = PG.RARITIES.indexOf(g.rarity) >= 4, E = g.element && PG.ELEMENTS[g.element], side = E ? PG.mix(g.c1, E.c[0], 0.55) : g.c1;
     const pal = (E || g.colored) ? { back: shade(side, -0.28), side, belly: E ? E.c[1] : shade(side, 0.45), muzzle: E ? E.c[1] : shade(side, 0.35), socks: shade(side, -0.4), dark: shade(side, -0.62), eye: g.glow || undefined } : null;
     if (pal && !pal.eye) delete pal.eye;
     const lx = g.lex || {}; // dictionary variants (zèbre, girafe, loup-garou…) and « avec des ailes »
-    parts = voxelAnimal(g.species, { palette: pal || lx.palette || null, flags: lx.flags, wings: g.wings || lx.wings, glowEyes: hi, eye: pal && pal.eye, scale: Math.min(1.3, lx.size || 1) }).parts;
+    const pv = PET_VOXEL[g.species]; // rabbits, owls, fish, bees… have their own voxel sculpture
+    if (pv && pv.critter) parts = voxelCritter(pv.critter, { color: pal ? pal.side : pv.color || null, scale: 1.3 * Math.min(1.3, lx.size || 1), voxel: 0.1, noProp: true }).parts.map((p) => ({ ...p }));
+    else parts = voxelAnimal(pv ? pv.animal : g.species, { palette: pal || lx.palette || null, flags: pv ? { ...pv.flags, ...(lx.flags || {}) } : lx.flags, wings: g.wings || lx.wings, glowEyes: hi, eye: pal && pal.eye, scale: Math.min(1.3, lx.size || 1) }).parts;
   } else parts = voxelizeParts(g.parts, style === 'blocs' ? 0.26 : 0.13).parts;
   const out = { ...g, parts, style }; styleCache.set(key, out); if (styleCache.size > 400) styleCache.delete(styleCache.keys().next().value); return out;
 }
@@ -1240,6 +1243,16 @@ function paneGen() {
       ${petStyle === 'simu' ? `<div class="chipwrap" style="margin-top:6px">${Object.entries(CHIBI_VARIANTS).map(([k, l]) => `<button class="chip${k === petVariant ? ' on' : ''}" data-vr="${k}">${l}</button>`).join('')}</div>` : ''}
       <div class="btns" style="margin-top:8px"><button class="btn pri" id="gGo" style="flex:1">✨ Générer 6 variantes</button><button class="btn" id="gDice">🎲 Surprise</button></div>
       <div class="vars" id="gVars">${genVars.map((g, i) => `<button class="var" data-v="${i}" style="--bg:${RAR_BG[g.rarity]}"><img alt="" src="${thumbOf(petStyle + petVariant + 'v' + g.seed + g.prompt, styled(g).parts)}"><b>${esc(styled(g).name)}</b><small>${esc(g.rarity)} · ${styled(g).parts.length} pièces</small></button>`).join('')}</div></div>
+    <div class="sec"><h3>🪄 Créer un modèle 3D par IA <small>gratuit · .glb</small></h3>
+      <textarea id="aiQ" class="lsearch" rows="2" placeholder="ex : renard rouge mignon avec une écharpe · golem de cristal bleu · poule blanche">${esc(aiPrompt)}</textarea>
+      <div class="chipwrap" style="margin-top:8px">${[['voxel', '🧊 Voxel'], ['cute', '🧸 Mignon'], ['real', '🎨 Réaliste'], ['none', '✍️ Libre']].map(([k, l]) => `<button class="chip${k === aiStyle ? ' on' : ''}" data-ais="${k}">${l}</button>`).join('')}</div>
+      <div class="btns" style="margin-top:8px"><button class="btn pri" id="aiGo" style="flex:1">🪄 Créer en 3D</button><label class="btn" style="cursor:pointer">🖼️ Depuis une image<input type="file" id="aiImgIn" accept="image/*" hidden></label></div>
+      <div class="aiprog"><i id="aiBar"></i></div><div class="note" id="aiSt" style="margin-top:6px">Le modèle est fabriqué par une IA 3D gratuite (Hunyuan3D-2 de Tencent pour le texte, TRELLIS.2 de Microsoft pour les images), puis transformé en pet ici. Compte 1 à 3 minutes.</div>
+      <div id="aiImg" class="aiimg"></div>
+      <div class="btns" style="margin-top:6px"><button class="btn" id="aiStop" style="display:none">✋ Arrêter</button><button class="btn" id="aiSave">💾 Télécharger le .glb</button></div>
+      <details style="margin-top:8px"><summary class="note" style="cursor:pointer">🔑 Plus de créations par jour (optionnel)</summary>
+        <div class="note">Sans compte, Hugging Face donne un petit quota gratuit par jour. Avec un compte <b>gratuit</b> (sans carte) sur huggingface.co → Settings → Access Tokens → jeton « Read », colle-le ici : il reste sur ton iPhone et n'est envoyé qu'à Hugging Face.</div>
+        <input id="aiTok" class="lsearch" type="password" autocomplete="off" placeholder="hf_…" value="${esc(aiTokenNow())}" style="margin-top:6px"></details></div>
     <div class="sec"><h3>📥 Importer un modèle 3D <small>Meshy, Sketchfab, Blender (.glb)</small></h3>
       <div class="note">Crée un modèle sur <b>meshy.ai</b> (offre gratuite : ~10 modèles/mois, licence CC BY non commerciale), télécharge-le en <b>.glb</b>, puis importe-le ici : il devient un pet en blocs, prêt pour Roblox. Ensuite, dans Export, <b>✨ Version HD Blender</b> envoie le vrai modèle dans ton jeu.</div>
       <label class="btn pri" style="display:flex;align-items:center;justify-content:center;margin-top:8px;cursor:pointer">📥 Choisir un fichier .glb<input type="file" id="glbIn" accept=".glb,model/gltf-binary" hidden></label>
@@ -1261,18 +1274,39 @@ function paneGen() {
   pane.querySelectorAll('[data-res]').forEach((b) => b.onclick = () => { importRes = +b.dataset.res; paneGen(); });
   $('glbIn').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; if (f.size > 40e6) return toast('Fichier trop gros (max 40 Mo)');
     toast('Import de ' + f.name + '…', 4000); await new Promise((r) => setTimeout(r, 30));
-    try { const buf = await f.arrayBuffer(), { voxelizeGLB } = await import('./meshimport.js'), MAX = 900; let r = null;
-      // keep Roblox happy: lower the detail until the pet fits in ~900 blocks
-      for (const [res, colors, smooth] of [[importRes, 14, 1], [importRes, 10, 2], [Math.round(importRes * 0.8), 10, 2], [Math.round(importRes * 0.65), 8, 2], [24, 6, 3]]) { r = await voxelizeGLB(buf.slice(0), { res, colors, smooth }); if (r.parts.length <= MAX) break; }
-      const name = safeName(f.name.replace(/\.glb$/i, '')).replace(/_/g, ' ');
-      const { plainGLB } = await import('./meshimport.js'), plain = await plainGLB(buf.slice(0));
-      importedGLB = { name: safeName(name), bytes: plain.bytes, converted: plain.converted };
-      snapshot(); pet = { v: 1, name, customName: true, body: 'cat', rarity: pet.rarity, c1: r.palette[0], c2: r.palette[1] || r.palette[0], fx: defaultFx(), scripts: {}, gen: { style: 'import', source: f.name },
-        parts: r.parts.map((p) => { const id = nid(); return { id, ...p, tint: false }; }) };
-      const ids = new Map(); r.parts.forEach((p, i) => ids.set(p.key, pet.parts[i].id)); for (const p of pet.parts) { if (p.parentKey) p.parent = ids.get(p.parentKey); delete p.key; delete p.parentKey; }
-      selId = null; save(); rebuild(); updateHud(); toast(`📥 ${name} : ${r.triangles.toLocaleString('fr')} triangles → ${pet.parts.length} blocs${plain.converted ? ' · compression ' + plain.from.join('+') + ' décodée' : ''}`, 3500);
-    } catch (err) { console.warn(err); toast('Import impossible : ' + (err.message || err)); } };
+    try { await importGLBBuffer(await f.arrayBuffer(), f.name); } catch (err) { console.warn(err); toast('Import impossible : ' + (err.message || err)); } };
+  // ---- 🪄 AI creation (free Hugging Face Spaces)
+  const aiSt = (st) => { const el = $('aiSt'); if (!el) return; el.textContent = st.msg || ''; if (st.frac != null) $('aiBar').style.width = Math.round(st.frac * 100) + '%'; if (st.image) $('aiImg').innerHTML = `<img alt="" src="${esc(st.image)}">`; };
+  const aiRun = async (fn) => { if (aiJob) return; aiJob = new AbortController(); paneGenAiBusy(true);
+    try { const { bytes, via } = await fn(aiJob.signal); aiLast = { bytes, name: safeName((aiPrompt || 'modele_ia').slice(0, 24)) + '.glb' };
+      aiSt({ msg: '✅ Modèle reçu (' + via + ', ' + Math.round(bytes.length / 1024) + ' Ko) : conversion en pet…', frac: 1 });
+      await importGLBBuffer(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), aiLast.name); aiSt({ msg: '✅ Pet créé par IA (' + via + '). Garde le .glb avec 💾.', frac: 1 });
+    } catch (err) { console.warn(err); aiSt({ msg: '⚠️ ' + (err.message || err) }); toast('IA : ' + (err.message || err), 5000); }
+    finally { aiJob = null; paneGenAiBusy(false); } };
+  $('aiGo').onclick = () => { aiPrompt = $('aiQ').value.trim(); if (!aiPrompt) return toast('Décris le modèle à créer'); aiRun(async (signal) => (await import('./ai3d.js')).textTo3D(aiPrompt, { style: aiStyle, onStatus: aiSt, signal })); };
+  $('aiImgIn').onchange = (e) => { const f = e.target.files[0]; if (!f) return; aiPrompt = f.name.replace(/\.\w+$/, ''); aiRun(async (signal) => (await import('./ai3d.js')).imageTo3D(f, { onStatus: aiSt, signal })); };
+  $('aiStop').onclick = () => { if (aiJob) aiJob.abort(); };
+  $('aiSave').onclick = () => { if (!aiLast) return toast('Crée d\u2019abord un modèle'); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([aiLast.bytes], { type: 'model/gltf-binary' })); a.download = aiLast.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); };
+  $('aiTok').onchange = async () => { (await import('./ai3d.js')).setToken($('aiTok').value); toast($('aiTok').value ? '🔑 Jeton gardé sur cet appareil' : 'Jeton effacé'); };
+  pane.querySelectorAll('[data-ais]').forEach((b) => b.onclick = () => { aiStyle = b.dataset.ais; pane.querySelectorAll('[data-ais]').forEach((x) => x.classList.toggle('on', x === b)); });
 }
+function paneGenAiBusy(on) { const g = $('aiGo'), st = $('aiStop'); if (g) g.disabled = on; if (st) st.style.display = on ? '' : 'none'; if (on && $('aiBar')) $('aiBar').style.width = '0%'; }
+let aiJob = null, aiLast = null, aiPrompt = '', aiStyle = 'voxel';
+const aiTokenNow = () => { try { return localStorage.getItem('forge.hfToken') || ''; } catch { return ''; } };
+/* .glb (file, Meshy, AI) → voxel pet + keep the real mesh for the Blender HD version */
+async function importGLBBuffer(buf, fileName) {
+  const { voxelizeGLB, plainGLB } = await import('./meshimport.js'), MAX = 900; let r = null;
+  // keep Roblox happy: lower the detail until the pet fits in ~900 blocks
+  for (const [res, colors, smooth] of [[importRes, 14, 1], [importRes, 10, 2], [Math.round(importRes * 0.8), 10, 2], [Math.round(importRes * 0.65), 8, 2], [24, 6, 3]]) { r = await voxelizeGLB(buf.slice(0), { res, colors, smooth }); if (r.parts.length <= MAX) break; }
+  const f = { name: fileName }, name = safeName(fileName.replace(/\.glb$/i, '')).replace(/_/g, ' ');
+  const plain = await plainGLB(buf.slice(0));
+  importedGLB = { name: safeName(name), bytes: plain.bytes, converted: plain.converted };
+  snapshot(); pet = { v: 1, name, customName: true, body: 'cat', rarity: pet.rarity, c1: r.palette[0], c2: r.palette[1] || r.palette[0], fx: defaultFx(), scripts: {}, gen: { style: 'import', source: f.name },
+    parts: r.parts.map((p) => { const id = nid(); return { id, ...p, tint: false }; }) };
+  const ids = new Map(); r.parts.forEach((p, i) => ids.set(p.key, pet.parts[i].id)); for (const p of pet.parts) { if (p.parentKey) p.parent = ids.get(p.parentKey); delete p.key; delete p.parentKey; }
+  selId = null; save(); rebuild(); updateHud(); toast(`📥 ${name} : ${r.triangles.toLocaleString('fr')} triangles → ${pet.parts.length} blocs${plain.converted ? ' · compression ' + plain.from.join('+') + ' décodée' : ''}`, 3500);
+}
+
 function setPetStyle(st, redraw) { petStyle = st; try { localStorage.setItem('forge.petStyle', st); } catch {} toast(PET_STYLES[st] + ' : tous les pets passent dans ce style'); redraw(); }
 let importRes = 40, importedGLB = null;
 const INDEX = PG.index100(); let idxFilter = 'all', idxCache = new Map();
@@ -1311,4 +1345,4 @@ async function buildIndexPack() {
 
 /* ---------- boot ---------- */
 resize(); rebuild(); renderPane(); syncUndo(); loop(); LIB.prompt();
-window.__forge = { LIB, PG, styled, get importedGLB() { return importedGLB; }, setVariant: (v) => { petVariant = v; }, get petStyle() { return petStyle; }, setPetStyle, INDEX, idxPet, openGenerated, fromGenerated, buildIndexPack, thumbOf, get pet() { return pet; }, modelJson, buildPack, select, setTab, AC, anim, animData, animDataLua, exportNames, getRig, offsetsAt, curClip, get lastPose() { return lastPose; }, gizmo, meshes, renderPane }; // used by automated tests
+window.__forge = { LIB, PG, styled, importGLBBuffer, get aiLast() { return aiLast; }, get importedGLB() { return importedGLB; }, setVariant: (v) => { petVariant = v; }, get petStyle() { return petStyle; }, setPetStyle, INDEX, idxPet, openGenerated, fromGenerated, buildIndexPack, thumbOf, get pet() { return pet; }, modelJson, buildPack, select, setTab, AC, anim, animData, animDataLua, exportNames, getRig, offsetsAt, curClip, get lastPose() { return lastPose; }, gizmo, meshes, renderPane }; // used by automated tests
