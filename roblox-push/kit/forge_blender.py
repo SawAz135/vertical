@@ -111,6 +111,60 @@ def material(color, mat, transparency=0.0):
     return m
 
 
+_vmats = {}
+
+
+def voxel_material(color, mat):
+    """Voxel pets: each merged block is shaded as the little cubes it is made of (bevelled edge + own tint per cube),
+    like hand-made voxel figurines, without splitting the Roblox model into more parts."""
+    key = (color, mat)
+    if key in _vmats:
+        return _vmats[key]
+    m = material(color, mat).copy()
+    m.name = f'Voxel_{color}'
+    nt = m.node_tree; N = nt.nodes.new; L = nt.links.new
+    bsdf = nt.nodes['Principled BSDF']
+    tc = N('ShaderNodeTexCoord')
+    vs = N('ShaderNodeAttribute'); vs.attribute_type = 'OBJECT'; vs.attribute_name = 'vsize'
+    vc = N('ShaderNodeAttribute'); vc.attribute_type = 'OBJECT'; vc.attribute_name = 'vcorner'
+    geo = N('ShaderNodeNewGeometry')
+    nobj = N('ShaderNodeVectorTransform'); nobj.vector_type = 'NORMAL'; nobj.convert_from = 'WORLD'; nobj.convert_to = 'OBJECT'
+    L(geo.outputs['Normal'], nobj.inputs['Vector'])
+    def vm(op, a, b=None, c=None):
+        n = N('ShaderNodeVectorMath'); n.operation = op
+        for i, v in enumerate((a, b, c)):
+            if v is None:
+                continue
+            if isinstance(v, (tuple, list)):
+                n.inputs[i].default_value = v
+            else:
+                L(v, n.inputs[i])
+        return n.outputs[1] if op in ('DOT_PRODUCT', 'LENGTH', 'DISTANCE') else n.outputs[0]
+    nn = vm('NORMALIZE', nobj.outputs['Vector'])
+    na = vm('ABSOLUTE', nn)
+    g = vm('MULTIPLY', vm('ADD', tc.outputs['Object'], (0.5, 0.5, 0.5)), vs.outputs['Vector'])
+    g = vm('SUBTRACT', g, vm('SCALE', nn, None) if False else vm('MULTIPLY', nn, (0.5, 0.5, 0.5)))
+    cell = vm('FLOOR', vm('ADD', g, (0.001, 0.001, 0.001)))
+    fr = vm('SUBTRACT', g, cell)
+    e3 = vm('ADD', vm('MINIMUM', fr, vm('SUBTRACT', (1, 1, 1), fr)), vm('MULTIPLY', na, (9, 9, 9)))
+    sep = N('ShaderNodeSeparateXYZ'); L(e3, sep.inputs[0])
+    m1 = N('ShaderNodeMath'); m1.operation = 'MINIMUM'; L(sep.outputs[0], m1.inputs[0]); L(sep.outputs[1], m1.inputs[1])
+    m2 = N('ShaderNodeMath'); m2.operation = 'MINIMUM'; L(m1.outputs[0], m2.inputs[0]); L(sep.outputs[2], m2.inputs[1])
+    bev = N('ShaderNodeMapRange'); L(m2.outputs[0], bev.inputs['Value']); bev.inputs['From Min'].default_value = 0.0; bev.inputs['From Max'].default_value = 0.14
+    bev.inputs['To Min'].default_value = 0.72; bev.inputs['To Max'].default_value = 1.0
+    wn = N('ShaderNodeTexWhiteNoise'); wn.noise_dimensions = '3D'; L(vm('ADD', cell, vc.outputs['Vector']), wn.inputs['Vector'])
+    tint = N('ShaderNodeMapRange'); L(wn.outputs['Value'], tint.inputs['Value']); tint.inputs['To Min'].default_value = 0.9; tint.inputs['To Max'].default_value = 1.07
+    f = N('ShaderNodeMath'); f.operation = 'MULTIPLY'; L(bev.outputs['Result'], f.inputs[0]); L(tint.outputs['Result'], f.inputs[1])
+    mix = N('ShaderNodeMix'); mix.data_type = 'RGBA'; mix.blend_type = 'MULTIPLY'; mix.inputs['Factor'].default_value = 1.0
+    mix.inputs['A'].default_value = bsdf.inputs['Base Color'].default_value
+    cf = N('ShaderNodeCombineColor'); L(f.outputs[0], cf.inputs[0]); L(f.outputs[0], cf.inputs[1]); L(f.outputs[0], cf.inputs[2])
+    L(cf.outputs[0], mix.inputs['B']); L(mix.outputs['Result'], bsdf.inputs['Base Color'])
+    # small bevel in the normal so every cube edge catches the light
+    bv = N('ShaderNodeBevel'); bv.inputs['Radius'].default_value = 0.012; L(bv.outputs['Normal'], bsdf.inputs['Normal'])
+    _vmats[key] = m
+    return m
+
+
 def build_parts(parts, coll):
     objs = []
     for i, p in enumerate(parts):
@@ -122,7 +176,12 @@ def build_parts(parts, coll):
         o = bpy.data.objects.new(p.get('name', f'Part{i}'), prim(shape))
         o.matrix_world = rbx_matrix(p)
         o.data = o.data.copy()
-        o.data.materials.append(material(p.get('color', '#a3a2a5'), p.get('material', 'Plastic'), p.get('transparency', 0) or 0))
+        vox = p.get('vox') if shape == 'Block' and p.get('material') not in ('Neon', 'Glass', 'ForceField') else None
+        o.data.materials.append(voxel_material(p.get('color', '#a3a2a5'), p.get('material', 'Plastic')) if vox else material(p.get('color', '#a3a2a5'), p.get('material', 'Plastic'), p.get('transparency', 0) or 0))
+        if vox:  # read by the voxel shader: block size in cubes + the block corner on the voxel grid (per-cube tint)
+            sz = p.get('size', [1, 1, 1])
+            o['vsize'] = [sz[0] / vox, sz[1] / vox, sz[2] / vox]
+            o['vcorner'] = [(p['pos'][k] - sz[k] / 2) / vox for k in range(3)]
         o['forge_shape'] = shape
         o['forge_group'] = f"{p.get('color')}|{p.get('material')}|{round(p.get('transparency', 0) or 0, 2)}"
         coll.objects.link(o)
