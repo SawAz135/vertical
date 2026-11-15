@@ -5,6 +5,7 @@
    ===================================================================== */
 import { P, block, cyl, ball, model, rng, THEMES, GENERATORS, role } from './map-core.js';
 import { parseScene, buildScene } from './map-scene.js';
+import { voxelScenery, voxelTag } from './map-voxel.js';
 
 const M = (c, m) => ({ c, m });
 const D = 180 / Math.PI;
@@ -169,7 +170,7 @@ export function parseMap(text) {
   for (const [k, w] of Object.entries(WORDS.extra)) if (has(w)) out.extras.push(k);
   return out;
 }
-export function generateFromText(text, seed) {
+export function generateFromText(text, seed, o = {}) {
   const q = parseMap(text), r = rng(seed ?? [...String(text)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)), scene = parseScene(text);
   const sceneIds = new Set(scene.items.map((i) => i.id)); q.extras = q.extras.filter((e) => !sceneIds.has(e));
   if ((scene.farm || scene.items.length) && !q.gen) q.gen = 'lobby';
@@ -181,9 +182,16 @@ export function generateFromText(text, seed) {
   const walk = (n) => { if (n.children) n.children.forEach(walk); else { bx[0] = Math.min(bx[0], n.pos[0]); bx[1] = Math.min(bx[1], n.pos[2]); bx[2] = Math.max(bx[2], n.pos[0]); bx[3] = Math.max(bx[3], n.pos[2]); } };
   core.forEach(walk);
   const extras = q.extras.flatMap((e) => (e === 'house' ? ['house', 'house', 'house', 'house', 'house'] : [e]));
-  const deco = scenery(T, theme, bx, r, q.big ? 1.4 : q.small ? 0.6 : 1, extras);
+  const density = (q.big ? 1.4 : q.small ? 0.6 : 1) * (o.density || 1);
+  let deco;
+  if (o.voxel) { // 🧊 voxel style: cube terrain + voxel trees, rocks, flowers, clouds; landmarks keep their detailed models
+    deco = voxelScenery(theme, bx, r, density, []);
+    extras.forEach((e, i) => { const a = (i / Math.max(1, extras.length)) * Math.PI * 2 + 0.7, R = Math.max(bx[2] - bx[0], bx[3] - bx[1]) / 2 + 70, x = (bx[0] + bx[2]) / 2 + Math.cos(a) * R, z = (bx[1] + bx[3]) / 2 + Math.sin(a) * R;
+      if (BUILD[e]) deco.push(BUILD[e](T, x, z, r, -0.5)); });
+  } else deco = scenery(T, theme, bx, r, density, extras);
   if (scene.farm || scene.items.length) { const center = [bx[2] + 48, (bx[1] + bx[3]) / 2]; deco.push(model(scene.farm ? 'Farm' : 'Scene', buildScene(T, scene, center, r))); }
   if (wantsIsland) { const land = GENERATORS.island.make(T, r, { size: 160 }); deco.push(model('Island', land.filter((n) => n.name !== 'Ocean' && n.name !== 'SeaFloor' && n.name !== 'Spawn')));
     deco.push(block('Ocean', [1400, 1, 1400], [0, -3.4, 0], { c: T.water, m: 'Glass' }, { transparency: 0.25, canCollide: false })); }
+  if (o.voxel) { voxelTag(core); voxelTag(deco.filter((m) => m.name !== 'Terrain' && !/^(Oak|Pine|Birch|CherryTree|SnowyPine|Palm|Cactus|DeadTree|Lollipop|Crystal|Mushroom|Rock|Bush|Cloud|Flowers)$/.test(m.name))); }
   return { gen, theme, opts, children: [model('Gameplay', core), model('Scenery', deco)], light: T.light };
 }
