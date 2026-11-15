@@ -34,6 +34,9 @@ export const VOX_SPECIES = {
   panda: { fr: 'Panda', body: 1.15, legs: 0.85, neckDrop: 0.05, snout: 0.75, ears: 'round', tail: 'stub', cols: { back: '#f6f6f6', side: '#f6f6f6', belly: '#f6f6f6', muzzle: '#f6f6f6', dark: '#1b1b20', nose: '#141418', eye: '#141418', socks: '#1b1b20' }, panda: true },
   cerf: { fr: 'Cerf', body: 0.95, legs: 1.35, neckDrop: -0.35, snout: 1.15, ears: 'leaf', tail: 'stub', cols: { back: '#a8703f', side: '#b98250', belly: '#f4e6d2', muzzle: '#f4e6d2', dark: '#3b2716', nose: '#141418', eye: '#1b1310', socks: '#8a5a33' }, antlers: '#e8dcc2', spots: true },
   licorne: { fr: 'Licorne', body: 1.0, legs: 1.35, neckDrop: -0.45, snout: 1.25, ears: 'leaf', tail: 'mane', cols: { back: '#fbf7ff', side: '#f4ecff', belly: '#ffffff', muzzle: '#ffffff', dark: '#d9c9f0', nose: '#ffb3d1', eye: '#7c5cff', socks: '#e9dcff' }, horn: '#ffd45c', rainbow: true },
+  vache: { fr: 'Vache', body: 1.25, legs: 0.95, neckDrop: 0.2, snout: 0.85, ears: 'leaf', tail: 'tuft', cols: { back: '#f6f3ec', side: '#f6f3ec', belly: '#f6f3ec', muzzle: '#f2b3b3', dark: '#2b2523', nose: '#e08f95', eye: '#1b1310', socks: '#2b2523' }, cowSpots: '#2b2523', hornsSmall: '#f1e6c8' },
+  cochon: { fr: 'Cochon', body: 1.1, legs: 0.7, neckDrop: 0.3, snout: 0.5, ears: 'floppy', tail: 'stub', cols: { back: '#f59fb3', side: '#f7aec0', belly: '#fac2cf', muzzle: '#f28aa3', dark: '#c9677f', nose: '#e0607e', eye: '#1b1310', socks: '#e7899f' }, pigNose: true },
+  mouton: { fr: 'Mouton', body: 1.15, legs: 0.8, neckDrop: 0.25, snout: 0.75, ears: 'leaf', tail: 'stub', cols: { back: '#f7f5f0', side: '#efece5', belly: '#e9e5dc', muzzle: '#3b3432', dark: '#2e2827', nose: '#1c1716', eye: '#1b1310', socks: '#3b3432' }, wool: true },
   dragon: { fr: 'Dragon', body: 1.15, legs: 0.95, neckDrop: -0.3, snout: 1.45, ears: 'horns', tail: 'dragon', cols: { back: '#2f9e57', side: '#3fb36b', belly: '#e8f2b0', muzzle: '#3fb36b', dark: '#1d5c33', nose: '#1d1d1d', eye: '#ff5a1f', socks: '#2f9e57' }, wings: true, spikes: '#f2e6c9' },
 };
 
@@ -70,6 +73,7 @@ function anatomy(sp, k) {
       else if (sp.ears === 'leaf') e = sdCone(p, base, [base[0] + s(0.3 * sx), base[1] + s(0.2), base[2] + s(0.1)], s(0.1), s(0.03));
       else if (sp.ears === 'horns') e = sdCone(p, base, [base[0] + s(0.15 * sx), base[1] + s(0.45), base[2] + s(0.5)], s(0.11), s(0.02));
       if (e < d) bone = 'Ear' + (sx < 0 ? 'L' : 'R'); d = Math.min(d, e); }
+    if (sp.hornsSmall) for (const sx of [-1, 1]) { const h = sdCone(p, [s(0.22 * sx), headC[1] + s(0.38), headC[2] + s(0.05)], [s(0.42 * sx), headC[1] + s(0.62), headC[2] - s(0.05)], s(0.07), s(0.03)); if (h < d) bone = 'Horn'; d = Math.min(d, h); }
     if (sp.horn) { const h = sdCone(p, [0, headC[1] + s(0.3), headC[2] - s(0.2)], [0, headC[1] + s(0.95), headC[2] - s(0.45)], s(0.09), s(0.015)); if (h < d) bone = 'Horn'; d = Math.min(d, h); }
     if (sp.antlers) for (const sx of [-1, 1]) { const b0 = [s(0.18 * sx), headC[1] + s(0.3), headC[2] + s(0.1)], b1 = [s(0.5 * sx), headC[1] + s(0.85), headC[2] + s(0.15)], b2 = [s(0.6 * sx), headC[1] + s(1.25), headC[2] - s(0.1)];
       const a = Math.min(sdCone(p, b0, b1, s(0.06), s(0.05)), sdCone(p, b1, b2, s(0.05), s(0.03)), sdCone(p, b1, [s(0.35 * sx), headC[1] + s(1.15), headC[2] + s(0.35)], s(0.04), s(0.02)));
@@ -95,7 +99,7 @@ function colourAt(sp, p, bone, A, k, e) {
   if (sp.panda) { if (bone === 'Head' && len(x - s(0.2), p[1] - (headC[1] + s(0.06)), p[2] - (headC[2] - s(0.27))) < s(0.17)) return c.dark;
     if (bone.startsWith('Ear') || bone.startsWith('Leg') || (bone === 'Body' && p[2] < A.chest[2] + s(0.45) && p[1] > s(1.2))) return c.dark; }
   if (bone.startsWith('Ear')) return p[1] > headC[1] + s(0.42) ? c.dark : (p[2] < headC[2] + s(0.1) && x < s(0.28) ? mixc(c.muzzle, '#ffb3c1', 0.35) : c.back);
-  if (bone === 'Horn') return sp.horn; if (bone.startsWith('Antler')) return sp.antlers;
+  if (bone === 'Horn') return sp.horn || sp.hornsSmall; if (bone.startsWith('Antler')) return sp.antlers;
   if (bone.startsWith('Wing')) return p[1] > s(2.3) ? c.back : mixc(c.belly, c.side, 0.3);
   // tail tip
   if (bone === 'Tail1') { const tt = len(p[0] - tailEnd[0], p[1] - tailEnd[1], p[2] - tailEnd[2]); if (sp.tailTip && tt < s(0.35)) return sp.tailTip; if (sp.tail === 'tuft' && tt < s(0.25)) return c.dark;
@@ -103,6 +107,11 @@ function colourAt(sp, p, bone, A, k, e) {
   // mane
   if (sp.mane && bone === 'Head' && p[2] > headC[2] - s(0.05) && len(p[0], p[1] - headC[1], p[2] - headC[2]) > s(0.4)) return mixc(sp.mane, '#5b2a0a', Math.max(0, Math.sin(p[1] * 9) * 0.3));
   if (sp.rainbow && bone === 'Body' && p[1] > s(2.0) && p[2] < s(-0.6)) return ['#ff7ab6', '#ffd45c', '#7cf7ff', '#b98bff'][Math.floor((p[2] + 10) / s(0.15)) % 4];
+  // farm animals
+  if (sp.pigNose && bone === 'Head' && p[2] < snoutTip[2] + s(0.1)) return (len(x - s(0.07), p[1] - snoutTip[1], 0) < s(0.045)) ? '#7a2d40' : c.nose;
+  if (sp.wool) { if (bone === 'Head' || bone.startsWith('Ear')) return p[1] > headC[1] + s(0.3) && bone === 'Head' ? c.back : c.muzzle; if (bone.startsWith('Leg') && p[1] < s(0.75)) return c.socks;
+    return Math.sin(p[0] * 23) * Math.sin(p[1] * 19) * Math.sin(p[2] * 21) > 0.25 ? c.side : c.back; }
+  if (sp.cowSpots && (bone === 'Body' || bone === 'Head' && p[2] > headC[2] - s(0.1)) && Math.sin(p[0] * 7 + 1.3) * Math.sin(p[2] * 6.2) * Math.sin(p[1] * 5.1 + 0.7) > 0.32) return sp.cowSpots;
   // muzzle / chest / belly / legs
   if (bone === 'Head') { if (p[2] < headC[2] - s(0.22) && p[1] < headC[1] - s(0.0)) return c.muzzle; if (sp.mask && p[1] < headC[1] + s(0.02) && x > s(0.18)) return c.muzzle; return p[1] > headC[1] + s(0.15) ? c.back : c.side; }
   if (bone.startsWith('Leg')) { if (p[1] < s(0.05) && p[2] < A.chest[2] - s(0.05) + (bone.includes('B') ? s(1.9) : 0) && sp.ears !== 'round') return '#141418';
@@ -153,8 +162,10 @@ const shadeHex = (hex, f) => { const n = parseInt(hex.slice(1), 16), c = [(n >> 
 const noise3 = (x, y, z) => { let h = (x * 374761393 + y * 668265263 + z * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 const FLAT = /^#(0d0b10|141418|1b1215|ffffff|c43a3a)$/; // eyes, claws, mouth, teeth: keep pure
 export function voxelAnimal(speciesId, opts = {}) {
-  const sp = VOX_SPECIES[speciesId] || VOX_SPECIES.loup, k = opts.scale || 1, v = (opts.voxel || 0.11) * k, f = anatomy(sp, k), e = opts.palette;
-  const sp2 = e ? { ...sp, cols: { ...sp.cols, ...e } } : sp;
+  const sp = VOX_SPECIES[speciesId] || VOX_SPECIES.loup, k = opts.scale || 1, v = (opts.voxel || 0.11) * k, e = opts.palette;
+  let sp2 = e ? { ...sp, cols: { ...sp.cols, ...e } } : sp;
+  if (opts.wings) sp2 = { ...sp2, wings: true }; // « avec des ailes » on any animal
+  const f = anatomy(sp2, k);
   const min = [-2.6 * k, 0, -3.1 * k], max = [2.6 * k, 3.6 * k, 3.6 * k], nx = Math.ceil((max[0] - min[0]) / v), ny = Math.ceil((max[1] - min[1]) / v), nz = Math.ceil((max[2] - min[2]) / v);
   const N = nx * ny * nz, at = (x, y, z) => x + nx * (y + ny * z);
   // pass 1: shape, bone, base colour
@@ -180,7 +191,7 @@ export function voxelAnimal(speciesId, opts = {}) {
       fct = Math.round(fct / 0.09) * 0.09;                                   // quantised so blocks still merge
       if (Math.abs(fct - 1) > 0.01) col = shadeHex(col, fct);
     }
-    if (!visible && shading) { grid[i] = WILD; continue; }
+    if (!visible) { grid[i] = WILD; continue; } // hidden inside: lets visible blocks grow through
     const key = `${bone}|${col}|${mat}`; let id = keyIdx.get(key); if (!id) { keys.push(key); id = keys.length; keyIdx.set(key, id); } grid[i] = id; }
   const boxes = greedy(grid, nx, ny, nz);
   return { parts: toParts(boxes, keys, min, v), voxels: fill.reduce((s, g) => s + g, 0), name: sp.fr };
