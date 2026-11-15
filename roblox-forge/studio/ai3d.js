@@ -83,6 +83,6 @@ export async function imageTo3D(blob, { onStatus, signal, detail = 'normal' } = 
   const { handle_file } = await loadLib(), app = await connect(SPACES.image, onStatus);
   try { await run(app, '/start_session', {}, onStatus, signal); } catch { /* older builds start the session on load */ }
   await run(app, '/image_to_3d', { image: handle_file(blob), seed: Math.floor(Math.random() * 1e6), resolution: detail === 'high' ? '1024' : '512' }, onStatus, signal);
-  const out = await run(app, '/extract_glb', { decimation_target: detail === 'high' ? 120000 : 40000, texture_size: detail === 'high' ? 2048 : 1024 }, onStatus, signal);
+  const out = await run(app, '/extract_glb', { decimation_target: detail === 'high' ? 300000 : 100000, texture_size: detail === 'high' ? 2048 : 1024 }, onStatus, signal);
   const url = fileUrl(out[0]) || fileUrl(out[1]); if (!url) throw new Error('Le serveur n’a pas renvoyé de .glb');
   onStatus?.({ msg: 'Téléchargement du modèle…' }); return { bytes: await fetchBytes(url, signal), via: 'TRELLIS.2' }; }
