@@ -16,3 +16,6 @@ Run: `blender -b -noaudio -P forge_blender.py -- pet pet.json out --render 1024 
 
 ## Robot (push.py `blender` step)
 `stage` counts `ForgeBlender/*.json` in the new pack → `has_blender`; the workflow installs Blender then runs `push.py blender`: renders copied to `.roblox-push/renders/`, fbx uploaded (`upload_model`, assetType Model, `model/fbx`), ids written to `ReplicatedStorage/ForgeHDMeshes.lua`, ForgeBlender removed, pack rewritten (stored copy too). Failures are reported per job, never fatal. Result: `result.blender[]` shown in the app.
+
+## QA gate
+`asset_qa(objs)` runs before every HD export: merge duplicate vertices, dissolve degenerate geometry, delete loose vertices, recalc outward normals; reports islands (floating parts), non-manifold edges and meshes over Roblox's 20 000-triangle limit. The report goes to `report.json` → `result.blender[].qa` → shown in the Roblox Push app.

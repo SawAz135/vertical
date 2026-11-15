@@ -4,7 +4,7 @@ description: Use when a user wants to bring an outside 3D model (Meshy free plan
 ---
 
 # 3D model import (.glb)
-Meshy API is paid (Pro plan): stay $0 by having the user generate on meshy.ai (free plan ≈ 10 models/month, CC BY non-commercial licence) and download **.glb**. Draco-compressed .glb is not supported (no DRACOLoader) — ask for an uncompressed export.
+Meshy API is paid (Pro plan): stay $0 by having the user generate on meshy.ai (free plan ≈ 10 models/month, CC BY non-commercial licence) and download **.glb**. Draco and Meshopt .glb are decoded in the browser (vendored DRACOLoader + meshopt decoder; CSP needs 'wasm-unsafe-eval' and worker-src blob:). For the robot, `plainGLB()` re-exports compressed files as a plain .glb with GLTFExporter, because Ubuntu's Blender has no Draco library.
 
 ## Browser: `meshimport.js` `voxelizeGLB(buffer, {height:3.4, res:40, colors:14, smooth:1})`
 1. Area-weighted triangle sampling; colour = texture (canvas, respects `tex.flipY`) × material colour, else vertex colour, else material colour.

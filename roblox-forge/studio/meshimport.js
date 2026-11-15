@@ -12,9 +12,19 @@
    ===================================================================== */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { greedyMerge, partsFromBoxes, WILD } from './voxel.js';
 
-const loadGLB = (buffer) => new Promise((res, rej) => new GLTFLoader().parse(buffer, '', res, rej));
+// compressed exports (Draco, Meshopt) decode locally: decoders are vendored next to three.js
+let draco = null;
+function loader() {
+  const l = new GLTFLoader();
+  if (!draco) { draco = new DRACOLoader(); draco.setDecoderPath(new URL('./vendor/three/jsm/libs/draco/', import.meta.url).href); }
+  l.setDRACOLoader(draco); l.setMeshoptDecoder(MeshoptDecoder);
+  return l;
+}
+const loadGLB = (buffer) => new Promise((res, rej) => loader().parse(buffer, '', res, rej));
 
 // texture -> pixel reader (canvas), cached per texture
 function texReader(tex) {
@@ -98,4 +108,17 @@ export async function voxelizeGLB(buffer, { height = 3.4, res = 40, colors = 14,
   for (let i = 0; i < N; i++) { if (cnt[i]) { grid[i] = assign[i] + 1; voxels++; } else if (!outside[i]) { grid[i] = WILD; voxels++; } }
   const parts = partsFromBoxes(greedyMerge(grid, nx, ny, nz), keys, min, v);
   return { parts, voxels, palette: cent.map(hex), triangles, size: [nx * v, ny * v, nz * v] };
+}
+
+/** Blender on the robot (Ubuntu build) cannot read Draco / Meshopt: re-export such files
+    as a plain .glb here (same meshes, materials and textures). Plain files are returned as is. */
+export async function plainGLB(buffer) {
+  const u8 = new Uint8Array(buffer), dv = new DataView(buffer);
+  let used = [];
+  try { if (dv.getUint32(0, true) === 0x46546c67) { const len = dv.getUint32(12, true); used = JSON.parse(new TextDecoder().decode(u8.subarray(20, 20 + len))).extensionsUsed || []; } } catch {}
+  if (!used.some((e) => /draco|meshopt/i.test(e))) return { bytes: u8, converted: false };
+  const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
+  const gltf = await loadGLB(buffer.slice(0));
+  const out = await new GLTFExporter().parseAsync(gltf.scene, { binary: true });
+  return { bytes: new Uint8Array(out), converted: true, from: used.filter((e) => /draco|meshopt/i.test(e)) };
 }

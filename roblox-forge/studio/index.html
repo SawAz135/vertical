@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Forge Studio">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: https://api.github.com https://raw.githubusercontent.com; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: https://api.github.com https://raw.githubusercontent.com; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Forge Studio</title>
 <link rel="icon" href="data:,">
@@ -184,6 +184,7 @@ textarea.lsearch{resize:none;font-size:15px;line-height:1.35}
     <a class="ib" href="../gui/" title="GUI Studio" style="text-decoration:none">🖥️</a>
     <a class="ib" href="../map/" title="Map Studio" style="text-decoration:none">🗺️</a>
     <a class="ib" href="../systems/" title="Systems Studio" style="text-decoration:none">🎰</a>
+    <a class="ib" href="../skills/" title="Skills" style="text-decoration:none">📚</a>
     <div class="title"><b id="petName">Mon pet</b><span class="rar" id="rarBadge">Commun</span></div>
     <button class="ib" id="undo" title="Annuler">↶</button>
     <button class="ib" id="redo" title="Rétablir">↷</button>
