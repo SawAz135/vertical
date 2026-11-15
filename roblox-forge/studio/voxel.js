@@ -165,6 +165,7 @@ export function voxelAnimal(speciesId, opts = {}) {
   const sp = VOX_SPECIES[speciesId] || VOX_SPECIES.loup, k = opts.scale || 1, v = (opts.voxel || 0.11) * k, e = opts.palette;
   let sp2 = e ? { ...sp, cols: { ...sp.cols, ...e } } : sp;
   if (opts.wings) sp2 = { ...sp2, wings: true }; // « avec des ailes » on any animal
+  if (opts.flags) sp2 = { ...sp2, ...opts.flags }; // lexicon variants: horse = unicorn without horn, zebra = striped horse…
   const f = anatomy(sp2, k);
   const min = [-2.6 * k, 0, -3.1 * k], max = [2.6 * k, 3.6 * k, 3.6 * k], nx = Math.ceil((max[0] - min[0]) / v), ny = Math.ceil((max[1] - min[1]) / v), nz = Math.ceil((max[2] - min[2]) / v);
   const N = nx * ny * nz, at = (x, y, z) => x + nx * (y + ny * z);

@@ -31,6 +31,7 @@ function onSurface(c, size, d, push = 0) { const l = Math.hypot(...d), u = d.map
 const facing = (d) => [0, r3(Math.atan2(-d[0], -d[2]) * D), 0]; // part's front (-Z) looks along d (horizontal)
 
 /* ---------- vocabulary ---------- */
+import { LEX } from '../map/map-lexicon.js';
 export const SPECIES = {
   chat: { fr: 'Chat', e: '🐱', plan: 'quad', ears: 'pointy', tail: 'curl', base: ['#ffa94d', '#fff1e0'], words: 'chat chaton cat kitty minou felin' },
   chien: { fr: 'Chien', e: '🐶', plan: 'quad', ears: 'floppy', tail: 'wag', snout: 1.25, base: ['#c98b5a', '#fbe9d7'], words: 'chien chiot dog puppy toutou' },
@@ -99,8 +100,16 @@ const COLORS = { rouge: '#ff3b4a', red: '#ff3b4a', bleu: '#3a7bff', blue: '#3a7b
 export function parse(text) {
   const t = ' ' + norm(text).replace(/[^\w\s\/-]/g, ' ') + ' ', has = (words) => words.split(' ').some((w) => w && t.includes(' ' + w + ' ') || (w.length > 4 && t.includes(w)));
   const out = { species: null, element: null, styles: [], rarity: null, colors: [], name: null, wings: /\b(ailes?|ailee?s?|wings?|winged|volant)\b/.test(t) };
-  let t2 = t; for (const [k, s] of Object.entries(SPECIES)) if (has(s.words)) { out.species = k; for (const w of s.words.split(' ')) if (w) t2 = t2.replace(' ' + w + ' ', ' '); break; }
+  // compound dictionary names first (loup-garou, tigre blanc, chat noir…), with the name as typed (accents kept)
+  const orig = String(text).toLowerCase().replace(/[^\p{L}\p{N}\s'-]/gu, ' ').split(/\s+/).filter(Boolean), toks = t.trim().split(/\s+/);
+  const asTyped = (i, n) => orig.slice(i, i + n).join(' ') || toks.slice(i, i + n).join(' ');
+  for (let i = 0; i < toks.length && !out.species; i++) for (const [w, n] of [[toks[i] + '_' + (toks[i + 1] || ''), 2], [toks[i].replace(/-/g, '_'), 1]]) { const e = w.includes('_') ? LEX.get(w) : null;
+    if (e && e.kind === 'animal' && SPECIES[e.species]) { out.species = e.species; out.lex = { ...e, word: asTyped(i, n) }; break; } }
+  let t2 = t; if (!out.species) for (const [k, s] of Object.entries(SPECIES)) if (has(s.words)) { out.species = k; for (const w of s.words.split(' ')) if (w) t2 = t2.replace(' ' + w + ' ', ' '); break; }
   const has2 = (words) => words.split(' ').some((w) => w && t2.includes(' ' + w + ' ') || (w.length > 4 && t2.includes(w)));
+  // not one of the 34 base species? use the scene dictionary (zèbre, pégase, loup-garou, girafe…) mapped onto a base species
+  if (!out.species) { for (let i = 0; i < toks.length; i++) { const two = toks[i] + '_' + (toks[i + 1] || ''), w = LEX.has(two) ? two : toks[i], e = LEX.get(w);
+      if (e && e.kind === 'animal' && SPECIES[e.species]) { out.species = e.species; out.lex = { ...e, word: asTyped(i, w.includes('_') ? 2 : 1) }; t2 = t2.replace(' ' + toks[i] + ' ', ' '); break; } } }
   for (const [k, e] of Object.entries(ELEMENTS)) if (has2(e.words)) { out.element = k; break; }
   for (const [k, s] of Object.entries(STYLES)) if (has(s.words)) out.styles.push(k);
   for (const [k, w] of Object.entries(RARITY_WORDS)) if (has(w)) out.rarity = k;
@@ -505,6 +514,7 @@ export function generate(text, seed) {
   if (el) { if (keepsLook) { c2 = mix(sp.base[1], el.c[1], 0.3); } else { c1 = element === 'neon' ? mix(sp.base[0], '#2a2a3f', 0.55) : el.c[0]; c2 = mix(el.c[1], sp.base[1], 0.35); } }
   // variants: a real shift of palette, not just noise
   const vk = r(); if (!q.colors.length && !keepsLook) { if (vk < 0.25) c1 = shiftHue(c1, 22); else if (vk < 0.5) c1 = shiftHue(c1, -22); else if (vk < 0.62) c1 = lighten(c1, 0.25); else if (vk < 0.72) c1 = darken(c1, 0.18); }
+  if (q.lex && q.lex.palette && !q.colors.length && !el) { c1 = q.lex.palette.side; c2 = q.lex.palette.belly; }
   if (q.colors[0]) c1 = q.colors[0]; if (q.colors[1]) c2 = q.colors[1]; else if (q.colors[0]) c2 = lighten(q.colors[0], 0.7);
     const glow = el ? el.glow : hsl(Math.floor(r() * 360), 0.9, 0.62);
   const P = { q, sp, species, element, rarity, rarityTier, styles: q.styles, c1, c2, c3: el ? el.c[1] : darken(c1, 0.25), glow, dark: sp.dark, iris: mix(glow, c1, 0.3),
@@ -517,9 +527,10 @@ export function generate(text, seed) {
     if (!sp.pattern && r() < 0.28) P.sp.pattern = r() < 0.5 ? 'spots' : 'socks'; }
   P.eyeScale = 0.92 + r() * 0.26; P.accessory = r() < 0.45 ? ['scarf', 'bow', 'collar', 'bell'][Math.floor(r() * 4)] : null;
   const B = Builder(r), anat = PLANS[sp.plan](B, P); decorate(B, P, anat);
-  const name = q.name || (el ? `${sp.fr} ${el.fr}` : `${sp.fr} ${['Étoilé', 'Joyeux', 'Royal', 'Mystique', 'Sauvage', 'Doux', 'Rapide', 'Brillant'][Math.floor(r() * 8)]}`);
+  const base = q.lex ? q.lex.word.replace(/(aux)$/, 'al').replace(/s$/, '').replace(/(^|[\s-])\p{L}/gu, (c) => c.toUpperCase()) : sp.fr;
+  const name = q.name || (el ? `${base} ${el.fr}` : `${base} ${['Étoilé', 'Joyeux', 'Royal', 'Mystique', 'Sauvage', 'Doux', 'Rapide', 'Brillant'][Math.floor(r() * 8)]}`);
   const BODY = { quad: species === 'dragon' ? 'dragon' : species === 'chien' || species === 'loup' || species === 'renard' ? 'dog' : species === 'lapin' ? 'bunny' : 'cat', slime: 'slime', ghost: 'spirit', robot: 'robot' };
-  return { name, species, element, rarity, rarityTier, emoji: sp.e, c1, c2, glow, parts: B.parts, fx: effects(P), body: BODY[sp.plan] || 'cat', seed: s, prompt: text || '' };
+  return { name, species, element, rarity, rarityTier, emoji: sp.e, c1, c2, glow, parts: B.parts, fx: effects(P), body: BODY[sp.plan] || 'cat', seed: s, prompt: text || '', lex: q.lex || null, wings: !!q.wings, colored: q.colors.length > 0 };
 }
 
 /* ---------- the 100-pet index ---------- */

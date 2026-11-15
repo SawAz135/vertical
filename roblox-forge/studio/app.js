@@ -1215,9 +1215,10 @@ function styled(g, style = petStyle) {
     styleCache.set(key, out); return out; }
   if (style === 'voxel' && VOX_SPECIES[g.species]) {
     const hi = PG.RARITIES.indexOf(g.rarity) >= 4, E = g.element && PG.ELEMENTS[g.element], side = E ? PG.mix(g.c1, E.c[0], 0.55) : g.c1;
-    const pal = E ? { back: shade(side, -0.28), side, belly: E.c[1], muzzle: E.c[1], socks: shade(side, -0.4), dark: shade(side, -0.62), eye: g.glow || undefined } : null;
+    const pal = (E || g.colored) ? { back: shade(side, -0.28), side, belly: E ? E.c[1] : shade(side, 0.45), muzzle: E ? E.c[1] : shade(side, 0.35), socks: shade(side, -0.4), dark: shade(side, -0.62), eye: g.glow || undefined } : null;
     if (pal && !pal.eye) delete pal.eye;
-    parts = voxelAnimal(g.species, { palette: pal, glowEyes: hi, eye: pal && pal.eye }).parts;
+    const lx = g.lex || {}; // dictionary variants (zèbre, girafe, loup-garou…) and « avec des ailes »
+    parts = voxelAnimal(g.species, { palette: pal || lx.palette || null, flags: lx.flags, wings: g.wings || lx.wings, glowEyes: hi, eye: pal && pal.eye, scale: Math.min(1.3, lx.size || 1) }).parts;
   } else parts = voxelizeParts(g.parts, style === 'blocs' ? 0.26 : 0.13).parts;
   const out = { ...g, parts, style }; styleCache.set(key, out); if (styleCache.size > 400) styleCache.delete(styleCache.keys().next().value); return out;
 }
