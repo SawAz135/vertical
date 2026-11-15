@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Créer tout">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://router.huggingface.co; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Créer tout · Roblox Forge</title>
 <link rel="icon" href="data:,">
@@ -65,6 +65,8 @@ html,body{overflow-x:hidden}
 #toast.on{opacity:1}
 .empty{display:none}
 body.has .empty{display:block}body:not(.has) .needs{display:none}
+.aim{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}#tokBox{margin-top:8px}#tokBox summary{cursor:pointer}
+.warn{list-style:none;margin:8px 0 0;padding:0}.warn li{font-size:13px;color:#ffcf7a;padding:3px 0}.warn li::before{content:"⚠️ "}
 </style>
 <link rel="stylesheet" href="../ui/forge-ui.css">
 <script type="module" src="../ui/forge-shell.js"></script>
@@ -78,6 +80,10 @@ body.has .empty{display:block}body:not(.has) .needs{display:none}
     <textarea id="q" rows="3" placeholder="ex : map simulator avec shop fonctionnel et sell fonctionnel, ajoute un bouton +1 force"></textarea>
     <div class="chips" id="ex"></div>
     <div class="row"><button class="btn pri big" id="go">✨ Créer le jeu</button></div>
+    <div class="aim"><span class="note" style="margin:0">Compréhension :</span><button class="chip" data-mode="ai">🧠 IA</button><button class="chip" data-mode="rules">📐 Règles</button><span class="note" id="aiState" style="margin:0"></span></div>
+    <details id="tokBox"><summary class="note">🔑 Activer l’IA gratuite (jeton Hugging Face)</summary>
+      <div class="note">L’IA comprend n’importe quelle phrase. Elle utilise les crédits gratuits d’un compte Hugging Face <b>gratuit</b> (sans carte) : huggingface.co → Settings → Access Tokens → « Create new token » (type « Read » ou « Inference »). Colle-le ici : il reste sur ton appareil et n’est envoyé qu’à Hugging Face. C’est le même jeton que pour l’IA 3D des pets.</div>
+      <input id="tok" type="password" autocomplete="off" placeholder="hf_…" style="width:100%;height:44px;border:0;border-radius:12px;background:rgba(0,0,0,.35);box-shadow:0 0 0 1px var(--line2) inset;padding:0 12px;margin-top:8px"></details>
   </div>
   <div class="grid needs">
     <div>
@@ -85,7 +91,7 @@ body.has .empty{display:block}body:not(.has) .needs{display:none}
         <textarea id="edit" rows="2" placeholder="ex : ajoute un bouton +5 vitesse · ajoute des œufs · enlève la boutique · ajoute un code VIP"></textarea>
         <div class="chips" id="exEdit"></div>
         <div class="row"><button class="btn pri big" id="apply">Appliquer</button></div>
-        <ul class="done" id="done" style="margin-top:10px"></ul></div>
+        <ul class="done" id="done" style="margin-top:10px"></ul><ul class="warn" id="warn"></ul><div class="note" id="via"></div></div>
       <div class="card"><h3>🧩 Dans ton jeu <small id="fcount"></small></h3><div class="feat" id="feat"></div></div>
     </div>
     <div class="sticky">
