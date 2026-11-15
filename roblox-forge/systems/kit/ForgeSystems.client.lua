@@ -340,10 +340,11 @@ end
 button("✕", COL.red, { Size = UDim2.fromScale(0.1, 0.8), Position = UDim2.fromScale(0.985, 0.5), AnchorPoint = Vector2.new(1, 0.5), ZIndex = 23, Parent = bar }, closePanel).Size = UDim2.fromScale(0.09, 0.8)
 
 local pages = {}
+local petMode, renaming, tradeSel = "equip", nil, {}
 local function show(name)
 	for _, c in body:GetChildren() do c:Destroy() end
 	current = name
-	title.Text = ({ pets = "🐾 Mes pets", quests = "📜 Quêtes du jour", daily = "🎁 Cadeau du jour", codes = "🎟️ Codes", rebirth = "♻️ Rebirth" })[name]
+	title.Text = ({ pets = "🐾 Mes pets", quests = "📜 Quêtes du jour", daily = "🎁 Cadeau du jour", codes = "🎟️ Codes", rebirth = "♻️ Rebirth", trade = "🤝 Échange", rename = "✏️ Renommer" })[name]
 	pages[name]()
 	if not panel.Visible then
 		panel.Visible = true
@@ -351,7 +352,7 @@ local function show(name)
 		tween(panel.UIScale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
 	end
 end
-local function refresh() if current and current ~= "codes" and panel.Visible then show(current) end end
+local function refresh() if current and current ~= "codes" and current ~= "rename" and panel.Visible then show(current) end end
 
 function pages.pets()
 	if not state then return end
@@ -361,6 +362,10 @@ function pages.pets()
 	button("💰 Vendre communs", COL.orange, { Size = UDim2.fromScale(0.2, 0.1), Position = UDim2.fromScale(1, 0), AnchorPoint = Vector2.new(1, 0), ZIndex = 22, Parent = body }, function()
 		local r = ask("sellAll", 2)
 		if r.ok then toast("+" .. L.abbreviate(r.value) .. " " .. cfg.main .. " (" .. r.n .. " pets)", "good") end
+	end)
+	button(petMode == "rename" and "✏️ Renommer : ON" or "✏️ Renommer", petMode == "rename" and COL.purple or COL.navy, { Size = UDim2.fromScale(0.2, 0.1), Position = UDim2.fromScale(0.58, 0), AnchorPoint = Vector2.new(1, 0), ZIndex = 22, Parent = body }, function()
+		petMode = petMode == "rename" and "equip" or "rename"
+		show("pets")
 	end)
 	local grid = new("ScrollingFrame", { Size = UDim2.fromScale(1, 0.86), Position = UDim2.fromScale(0, 0.14), BackgroundTransparency = 1, ScrollBarThickness = 6, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), ZIndex = 22, Parent = body }, {
 		new("UIGridLayout", { CellSize = UDim2.fromScale(0.15, 0.32), CellPadding = UDim2.fromScale(0.012, 0.03), SortOrder = Enum.SortOrder.LayoutOrder }),
@@ -377,8 +382,10 @@ function pages.pets()
 	end)
 	for i, it in list do
 		local slot = button(it.def and it.def.emoji or "?", { "#3b4170", "#1d2140" }, { LayoutOrder = i, ZIndex = 23, Parent = grid }, function()
+			if petMode == "rename" then renaming = it.uid show("rename") return end
 			ask(it.p.eq and "unequip" or "equip", it.uid)
 		end)
+		if it.p.nick then label({ Text = it.p.nick, Size = UDim2.fromScale(1.1, 0.22), Position = UDim2.fromScale(0.5, 1.02), AnchorPoint = Vector2.new(0.5, 1), ZIndex = 26, Parent = slot }) end
 		slot.UIStroke.Color = hex(it.rar.color)
 		slot.UIStroke.Thickness = it.p.eq and 4 or 2.5
 		if it.p.eq then label({ Text = "✔", TextColor3 = Color3.fromRGB(125, 255, 90), Size = UDim2.fromScale(0.35, 0.35), Position = UDim2.fromScale(1, 0), AnchorPoint = Vector2.new(0.8, 0.2), ZIndex = 25, Parent = slot }) end
@@ -457,12 +464,85 @@ function pages.rebirth()
 	button("♻️ Rebirth", have >= state.rebirthCost and COL.green or COL.grey, { Size = UDim2.fromScale(0.45, 0.2), Position = UDim2.fromScale(0.5, 1), AnchorPoint = Vector2.new(0.5, 1), ZIndex = 22, Parent = body }, doRebirth)
 end
 
+function pages.rename()
+	local p = state and renaming and state.pets[renaming]
+	if not p then show("pets") return end
+	local def = L.petById(cfg, p.id)
+	label({ Text = (def and def.emoji or "?") .. "  " .. (def and def.name or ""), Size = UDim2.fromScale(0.8, 0.2), Position = UDim2.fromScale(0.5, 0.02), AnchorPoint = Vector2.new(0.5, 0), ZIndex = 22, Parent = body })
+	local box = new("TextBox", { Text = p.nick or "", PlaceholderText = "Nouveau nom (20 max)", ClearTextOnFocus = false, Font = Enum.Font.FredokaOne, TextScaled = true, TextColor3 = Color3.new(1, 1, 1), PlaceholderColor3 = Color3.fromRGB(170, 175, 210), BackgroundColor3 = Color3.fromRGB(15, 16, 36), Size = UDim2.fromScale(0.8, 0.2), Position = UDim2.fromScale(0.5, 0.42), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 22, Parent = body }, { corner(0, 10), stroke(Color3.new(0, 0, 0), 3), new("UIPadding", { PaddingLeft = UDim.new(0.04, 0), PaddingRight = UDim.new(0.04, 0) }) })
+	label({ Text = "Le nom est vérifié par le filtre Roblox", TextColor3 = Color3.fromRGB(190, 195, 230), Size = UDim2.fromScale(0.8, 0.08), Position = UDim2.fromScale(0.5, 0.58), AnchorPoint = Vector2.new(0.5, 0), ZIndex = 22, Parent = body })
+	button("✔ Valider", COL.green, { Size = UDim2.fromScale(0.4, 0.18), Position = UDim2.fromScale(0.28, 0.96), AnchorPoint = Vector2.new(0.5, 1), ZIndex = 22, Parent = body }, function()
+		local r = ask("rename", renaming, box.Text)
+		if r.ok then toast(r.nick and ("✏️ " .. r.nick) or "Nom retiré", "good") show("pets") end
+	end)
+	button("Retour", COL.grey, { Size = UDim2.fromScale(0.4, 0.18), Position = UDim2.fromScale(0.72, 0.96), AnchorPoint = Vector2.new(0.5, 1), ZIndex = 22, Parent = body }, function() show("pets") end)
+end
+
+function pages.trade()
+	if not state then return end
+	local t = state.trade
+	if not t then
+		label({ Text = "Invite un joueur. L'échange s'ouvre quand il t'invite aussi.", Size = UDim2.fromScale(1, 0.12), ZIndex = 22, TextWrapped = true, Parent = body })
+		local list = new("ScrollingFrame", { Size = UDim2.fromScale(1, 0.84), Position = UDim2.fromScale(0, 0.16), BackgroundTransparency = 1, ScrollBarThickness = 6, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), ZIndex = 22, Parent = body }, {
+			new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }) })
+		local n = 0
+		for _, other in Players:GetPlayers() do
+			if other ~= player then
+				n += 1
+				local row = new("Frame", { Size = UDim2.new(1, 0, 0, 44), BackgroundColor3 = Color3.new(1, 1, 1), LayoutOrder = n, ZIndex = 22, Parent = list }, { corner(0, 10), grad(COL.navy), stroke(Color3.new(0, 0, 0), 3) })
+				label({ Text = other.DisplayName, Size = UDim2.fromScale(0.6, 0.6), Position = UDim2.fromScale(0.04, 0.5), AnchorPoint = Vector2.new(0, 0.5), TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = row })
+				button("🤝 Inviter", COL.green, { Size = UDim2.fromScale(0.3, 0.75), Position = UDim2.fromScale(0.97, 0.5), AnchorPoint = Vector2.new(1, 0.5), ZIndex = 23, Parent = row }, function()
+					local r = ask("tradeRequest", other.UserId)
+					if r.ok then toast(r.opened and "🤝 Échange ouvert !" or "Invitation envoyée", "good") end
+				end)
+			end
+		end
+		if n == 0 then label({ Text = "Personne d'autre sur le serveur", TextColor3 = Color3.fromRGB(190, 195, 230), Size = UDim2.new(1, 0, 0, 30), ZIndex = 23, Parent = list }) end
+		return
+	end
+	tradeSel = {}
+	for _, uid in t.mine do tradeSel[uid] = true end
+	label({ Text = "Échange avec " .. t.with, Size = UDim2.fromScale(1, 0.1), ZIndex = 22, Parent = body })
+	local function column(x, titleText, ready)
+		label({ Text = titleText .. (ready and "  ✔ prêt" or ""), TextColor3 = ready and Color3.fromRGB(125, 255, 90) or Color3.new(1, 1, 1), Size = UDim2.fromScale(0.48, 0.08), Position = UDim2.fromScale(x, 0.11), ZIndex = 22, Parent = body })
+		return new("ScrollingFrame", { Size = UDim2.fromScale(0.48, 0.58), Position = UDim2.fromScale(x, 0.2), BackgroundColor3 = Color3.fromRGB(15, 16, 36), BackgroundTransparency = 0.2, ScrollBarThickness = 5, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), ZIndex = 22, Parent = body }, {
+			corner(0, 10), new("UIGridLayout", { CellSize = UDim2.fromScale(0.3, 0.28), CellPadding = UDim2.fromScale(0.03, 0.03), SortOrder = Enum.SortOrder.LayoutOrder }) })
+	end
+	local mine = column(0, "Ton offre (touche tes pets)", t.ready)
+	local i = 0
+	for uid, p in state.pets do
+		if not p.eq then
+			i += 1
+			local def = L.petById(cfg, p.id)
+			local on = tradeSel[uid]
+			local b = button(def and def.emoji or "?", on and COL.green or { "#3b4170", "#1d2140" }, { LayoutOrder = on and i or 1000 + i, ZIndex = 23, Parent = mine }, function()
+				tradeSel[uid] = not tradeSel[uid] or nil
+				local list = {}
+				for k in tradeSel do table.insert(list, k) end
+				ask("tradeOffer", list)
+			end)
+			b.UIStroke.Color = hex(select(2, rarityOf(p.id)).color)
+		end
+	end
+	local theirs = column(0.52, "Son offre", t.theirReady)
+	for k, p in t.theirs do
+		local def = L.petById(cfg, p.id)
+		local f = new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), LayoutOrder = k, ZIndex = 23, Parent = theirs }, { corner(0, 8), grad({ "#3b4170", "#1d2140" }), stroke(hex(select(2, rarityOf(p.id)).color), 3) })
+		label({ Text = def and def.emoji or "?", Size = UDim2.fromScale(0.8, 0.8), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 24, Parent = f })
+	end
+	button(t.ready and "✔ Prêt" or "Prêt", t.ready and COL.grey or COL.green, { Size = UDim2.fromScale(0.45, 0.16), Position = UDim2.fromScale(0.25, 1), AnchorPoint = Vector2.new(0.5, 1), ZIndex = 22, Parent = body }, function()
+		local r = ask("tradeReady")
+		if r.done then toast("🤝 Échange terminé !", "good") end
+	end)
+	button("Annuler", COL.red, { Size = UDim2.fromScale(0.45, 0.16), Position = UDim2.fromScale(0.75, 1), AnchorPoint = Vector2.new(0.5, 1), ZIndex = 22, Parent = body }, function() ask("tradeCancel") end)
+end
+
 -- dock (right side)
-local dock = new("Frame", { Name = "Dock", Size = UDim2.fromScale(0.07, 0.5), Position = UDim2.new(1, -10, 0.55, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Parent = ui }, {
+local dock = new("Frame", { Name = "Dock", Size = UDim2.fromScale(0.07, 0.6), Position = UDim2.new(1, -10, 0.55, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Parent = ui }, {
 	new("UIListLayout", { Padding = UDim.new(0.02, 0), VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }),
 })
-for i, d in { { "pets", "🐾", COL.blue }, { "quests", "📜", COL.purple }, { "daily", "🎁", COL.pink }, { "codes", "🎟️", COL.green }, { "rebirth", "♻️", COL.orange } } do
-	local b = button(d[2], d[3], { Name = d[1], Size = UDim2.fromScale(1, 0.18), LayoutOrder = i, Parent = dock }, function()
+for i, d in { { "pets", "🐾", COL.blue }, { "trade", "🤝", COL.green }, { "quests", "📜", COL.purple }, { "daily", "🎁", COL.pink }, { "codes", "🎟️", COL.green }, { "rebirth", "♻️", COL.orange } } do
+	local b = button(d[2], d[3], { Name = d[1], Size = UDim2.fromScale(1, 0.15), LayoutOrder = i, Parent = dock }, function()
 		if current == d[1] and panel.Visible then closePanel() else show(d[1]) end
 	end)
 	new("UIAspectRatioConstraint", { AspectRatio = 1, DominantAxis = Enum.DominantAxis.Width, Parent = b })

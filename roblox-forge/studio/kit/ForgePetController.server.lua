@@ -1,6 +1,7 @@
 --[[
 	Roblox Forge - pet controller (server).
-	Gives every player a pet from ReplicatedStorage.ForgePets and makes it follow them.
+	Gives every player a pet from ReplicatedStorage.ForgePets and makes it follow them
+	(several pets with the player attribute ForgePets = "A,B,C", set by Forge Systems).
 	Pick a pet per player with:  player:SetAttribute("ForgePet", "PetName")
 	Play an animation made in the studio:  player:SetAttribute("ForgePetAnim", "Danse")
 	The pet moves with physics (AlignPosition / AlignOrientation), so it glides smoothly.
@@ -101,30 +102,47 @@ local function addTrail(body, fx)
 	trail.Parent = body
 end
 
-local active = {}
+local active = {} -- [player] = { pet states }
 
 local function removePet(player)
-	local state = active[player]
-	if state then
+	for _, state in active[player] or {} do
 		state.model:Destroy()
-		active[player] = nil
 	end
+	active[player] = nil
 end
 
-local function spawnPet(player, character)
-	removePet(player)
-	local root = character:WaitForChild("HumanoidRootPart", 10)
-	if not root or not player.Parent then return end
-	local name = player:GetAttribute("ForgePet") or Config.DefaultPet
-	local template = Pets:FindFirstChild(name) or Pets:FindFirstChildWhichIsA("Model")
-	if not template then return end
+-- which pets follow: "ForgePets" = "A,B,C" (several, set by Forge Systems from the equipped
+-- pets), else "ForgePet" = "A", else Config.DefaultPet
+local function petNames(player)
+	local list = {}
+	local many = player:GetAttribute("ForgePets")
+	if type(many) == "string" and many ~= "" then
+		for name in string.gmatch(many, "[^,]+") do
+			if #list < 8 then table.insert(list, name) end
+		end
+	end
+	if #list == 0 then table.insert(list, player:GetAttribute("ForgePet") or Config.DefaultPet) end
+	return list
+end
 
+-- one pet: Config.Offset; several: an arc behind the player
+local function slotOffset(i, n)
+	if n == 1 then return Config.Offset end
+	local a = (i - (n + 1) / 2) * 0.62
+	local r = 4 + n * 0.25
+	return Vector3.new(math.sin(a) * r, Config.Offset.Y, math.cos(a) * r)
+end
+
+local function spawnOne(player, root, name, index, count)
+	local template = Pets:FindFirstChild(name) or Pets:FindFirstChildWhichIsA("Model")
+	if not template then return nil end
 	local model = template:Clone()
 	local petRoot, body = rigTogether(model)
 	local fx = readFx(model)
-	model.Name = player.Name .. "_Pet"
+	model.Name = player.Name .. "_Pet" .. (index > 1 and index or "")
 	model:SetAttribute("ForgeOwner", player.UserId)
-	model:PivotTo(root.CFrame * CFrame.new(Config.Offset))
+	local offset = slotOffset(index, count)
+	model:PivotTo(root.CFrame * CFrame.new(offset))
 
 	local attachment = Instance.new("Attachment")
 	attachment.Name = "ForgeAlign"
@@ -147,20 +165,35 @@ local function spawnPet(player, character)
 	model.Parent = workspace
 	pcall(function() petRoot:SetNetworkOwner(nil) end)
 	CollectionService:AddTag(model, "ForgePet")
-	active[player] = { model = model, body = body, align = align, orient = orient, fx = fx, root = root, seed = math.random() * 10 }
+	return { model = model, body = body, align = align, orient = orient, fx = fx, root = root, offset = offset, seed = math.random() * 10 }
+end
+
+local function spawnPet(player, character)
+	removePet(player)
+	local root = character:WaitForChild("HumanoidRootPart", 10)
+	if not root or not player.Parent then return end
+	local names = petNames(player)
+	local states = {}
+	for i, name in names do
+		local st = spawnOne(player, root, name, i, #names)
+		if st then table.insert(states, st) end
+	end
+	active[player] = states
 end
 
 RunService.Heartbeat:Connect(function()
 	local t = os.clock()
-	for _, s in active do
-		if not s.root.Parent then continue end
-		local fx = s.fx
-		local floatOn = fx.float and fx.float.on
-		local bob = floatOn and math.sin(t * (fx.float.speed or 2) + s.seed) * (fx.float.height or 0.6) or 0
-		local target = s.root.CFrame * CFrame.new(Config.Offset + Vector3.new(0, bob, 0))
-		s.align.Position = target.Position
-		local spin = (fx.spin and fx.spin.on) and t * math.rad(fx.spin.speed or 90) or 0
-		s.orient.CFrame = s.root.CFrame.Rotation * CFrame.Angles(0, spin, 0)
+	for _, states in active do
+		for _, s in states do
+			if not s.root.Parent then continue end
+			local fx = s.fx
+			local floatOn = fx.float and fx.float.on
+			local bob = floatOn and math.sin(t * (fx.float.speed or 2) + s.seed) * (fx.float.height or 0.6) or 0
+			local target = s.root.CFrame * CFrame.new(s.offset + Vector3.new(0, bob, 0))
+			s.align.Position = target.Position
+			local spin = (fx.spin and fx.spin.on) and t * math.rad(fx.spin.speed or 90) or 0
+			s.orient.CFrame = s.root.CFrame.Rotation * CFrame.Angles(0, spin, 0)
+		end
 	end
 end)
 
@@ -171,16 +204,19 @@ local function hook(player)
 	end)
 	if player.Character then task.spawn(spawnPet, player, player.Character) end
 	player:GetAttributeChangedSignal("ForgePetAnim"):Connect(function()
-		local state = active[player]
 		local name = player:GetAttribute("ForgePetAnim")
-		if state and type(name) == "string" and name ~= "" then
-			state.model:SetAttribute("ForgeAnimPlay", name .. "#" .. string.format("%.3f", os.clock()))
+		if type(name) == "string" and name ~= "" then
+			for _, state in active[player] or {} do
+				state.model:SetAttribute("ForgeAnimPlay", name .. "#" .. string.format("%.3f", os.clock()))
+			end
 			player:SetAttribute("ForgePetAnim", nil)
 		end
 	end)
-	player:GetAttributeChangedSignal("ForgePet"):Connect(function()
-		if player.Character then spawnPet(player, player.Character) end
-	end)
+	for _, attr in { "ForgePet", "ForgePets" } do
+		player:GetAttributeChangedSignal(attr):Connect(function()
+			if player.Character then spawnPet(player, player.Character) end
+		end)
+	end
 end
 Players.PlayerAdded:Connect(hook)
 for _, player in Players:GetPlayers() do hook(player) end

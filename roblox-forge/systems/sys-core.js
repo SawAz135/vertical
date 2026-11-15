@@ -4,6 +4,7 @@
    simulation and hatch preview behave exactly like the game.
    ===================================================================== */
 export const PERKS = { luck2x: '🍀 Chance ×2', coins2x: '💰 Pièces ×2', equip: '🐾 +2 pets équipés', storage: '🎒 +100 places', triple: '🥚 Ouvrir ×3', auto: '⚡ Ouverture auto' };
+export const BADGE_WHEN = { join: '👋 En arrivant', hatch: '🥚 Œufs ouverts ≥', pets: '🐾 Pets possédés ≥', rebirth: '♻️ Rebirths ≥', rarity: '💎 Obtenir un pet de rareté' };
 export const QUEST_TYPES = { hatch: '🥚 Ouvrir des œufs', collect: '🪙 Gagner la monnaie principale', rebirth: '♻️ Faire des rebirths', playtime: '⏱️ Minutes de jeu' };
 
 export function defaultConfig() {
@@ -40,6 +41,10 @@ export function defaultConfig() {
     gamepasses: [{ id: 0, name: 'Chance ×2', perk: 'luck2x' }, { id: 0, name: 'Pièces ×2', perk: 'coins2x' }, { id: 0, name: '+2 Pets', perk: 'equip' }, { id: 0, name: 'Ouvrir ×3', perk: 'triple' }],
     products: [{ id: 0, name: '100 Gems', currency: 'Gems', amount: 100 }, { id: 0, name: '50K Coins', currency: 'Coins', amount: 50000 }],
     income: { amount: 5, every: 1 },
+    badges: [{ id: 0, name: 'Bienvenue', when: 'join', value: 1 }, { id: 0, name: 'Premier œuf', when: 'hatch', value: 1 }, { id: 0, name: '100 œufs', when: 'hatch', value: 100 }, { id: 0, name: 'Légendaire !', when: 'rarity', value: 'Légendaire' }, { id: 0, name: 'Premier rebirth', when: 'rebirth', value: 1 }],
+    trading: { enabled: true, max: 8 },
+    antiCheat: { speed: true },
+    analytics: true,
     hatchRange: 22,
     leaderboard: { enabled: true, stat: 'Coins', pos: [0, 40] },
     autosave: 60,
