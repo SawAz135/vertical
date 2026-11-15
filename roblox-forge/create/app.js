@@ -6,6 +6,7 @@
    ===================================================================== */
 import { applyText, emptySpec, configOf } from './game-spec.js';
 import { buildMap, buildPack, padsFor } from './game-pack.js';
+import { aiUnderstand, hasToken, getToken, setToken } from './ai-spec.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -13,7 +14,8 @@ const toast = (t, ms = 2400) => { const el = $('toast'); el.textContent = t; el.
 const Store = { get(k, d) { try { const v = localStorage.getItem('forge.create.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('forge.create.' + k, JSON.stringify(v)); } catch {} } };
 
-let spec = Store.get('spec', null), seed = Store.get('seed', 7), map = null, lastDone = Store.get('done', []);
+let spec = Store.get('spec', null), seed = Store.get('seed', 7), map = null, lastDone = Store.get('done', []), lastWarn = Store.get('warn', []), lastVia = Store.get('via', '');
+let mode = Store.get('mode', 'ai');
 
 const EXAMPLES = ['map simulator avec shop fonctionnel et sell fonctionnel, ajoute un bouton +1 force',
   'simulator de vitesse dans la neige avec boutique, vente, rebirth, des oeufs et 4 zones', 'tycoon dans le désert avec une boutique avec épée, sac et potion, codes et cadeau quotidien',
@@ -26,12 +28,25 @@ document.querySelectorAll('[data-ed]').forEach((b) => b.onclick = () => { $('edi
 
 const busy = (on, t) => { $('busy').classList.toggle('on', on); if (t) $('busyT').textContent = t; };
 const tick = () => new Promise((r) => setTimeout(r, 30));
-function save() { Store.set('spec', spec); Store.set('seed', seed); Store.set('done', lastDone); }
+function save() { Store.set('spec', spec); Store.set('seed', seed); Store.set('done', lastDone); Store.set('warn', lastWarn); Store.set('via', lastVia); }
+/* understanding: AI when a free token is set (and the mode is AI), otherwise the rules; the AI never blocks: any failure → rules */
+async function understand(text, prev) {
+  if (mode === 'ai' && hasToken()) {
+    try { const r = await aiUnderstand(text, prev, { onStatus: (t) => busy(true, t) }); return { ...r, via: '🧠 compris par l\u2019IA (' + r.model.split('/')[1] + ')' }; }
+    catch (e) { const r = applyText(text, prev); return { ...r, unsupported: [], via: '📐 compris par les règles — IA : ' + (e.message || e) }; }
+  }
+  const r = applyText(text, prev); return { ...r, unsupported: [], via: mode === 'ai' ? '📐 compris par les règles (ajoute ton jeton gratuit pour l\u2019IA)' : '📐 compris par les règles' };
+}
+function renderMode() { document.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('on', b.dataset.mode === mode));
+  $('aiState').textContent = mode === 'ai' ? (hasToken() ? '✅ jeton prêt' : '→ ajoute ton jeton gratuit') : 'hors ligne, sans compte'; $('tok').value = getToken(); }
+document.querySelectorAll('[data-mode]').forEach((b) => b.onclick = () => { mode = b.dataset.mode; Store.set('mode', mode); if (mode === 'ai' && !hasToken()) $('tokBox').open = true; renderMode(); });
+$('tok').onchange = () => { setToken($('tok').value); renderMode(); toast(hasToken() ? '🔑 Jeton gardé sur cet appareil' : $('tok').value ? 'Ce n\u2019est pas un jeton hf_ valide' : 'Jeton effacé'); };
+renderMode();
 
 async function create() {
   const text = $('q').value.trim(); if (!text) return toast('Décris ton jeu');
   busy(true, 'Construction du jeu…'); await tick();
-  try { const r = applyText(text, null); spec = r.spec; lastDone = r.done; seed = Math.floor(Math.random() * 1e6);
+  try { const r = await understand(text, null); spec = r.spec; lastDone = r.done; lastWarn = r.unsupported || []; lastVia = r.via; seed = Math.floor(Math.random() * 1e6); busy(true, 'Construction de la carte…'); await tick();
     map = buildMap(spec, seed); spec.theme = map.theme; save(); render(); toast('✨ Jeu créé : ' + r.done.length + ' éléments');
     document.querySelector('.grid').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (e) { console.error(e); toast('Erreur : ' + (e.message || e)); } finally { busy(false); }
@@ -40,7 +55,7 @@ async function applyEdit() {
   const text = $('edit').value.trim(); if (!text) return toast('Écris ce que tu veux changer');
   if (!spec) { $('q').value = text; return create(); }
   const before = JSON.stringify([spec.genre, spec.theme, spec.zones, spec.voxel]);
-  const r = applyText(text, spec); spec = r.spec; lastDone = r.done.length ? r.done : ['(rien compris : essaie « ajoute un bouton +5 vitesse »)'];
+  busy(true, 'Je modifie ton jeu…'); await tick(); const r = await understand(text, spec); busy(false); spec = r.spec; lastDone = r.done.length ? r.done : ['(rien compris : essaie « ajoute un bouton +5 vitesse »)']; lastWarn = r.unsupported || []; lastVia = r.via;
   if (JSON.stringify([spec.genre, spec.theme, spec.zones, spec.voxel]) !== before || !map) { busy(true, 'Nouvelle carte…'); await tick(); map = buildMap(spec, seed); spec.theme = map.theme; busy(false); }
   else map = withPads(map);
   save(); render(); $('edit').value = ''; toast(r.done.length ? '✏️ ' + r.done.join(' · ') : 'Rien à changer');
@@ -53,6 +68,7 @@ function render() {
   document.body.classList.toggle('has', !!spec);
   if (!spec) return;
   $('done').innerHTML = lastDone.map((d) => `<li>${esc(d)}</li>`).join('');
+  $('warn').innerHTML = (lastWarn || []).map((w) => `<li>pas encore possible : ${esc(w)}</li>`).join(''); $('via').textContent = lastVia || '';
   const F = [];
   F.push({ i: '🗺️', t: `Carte ${spec.genre} · ${spec.theme}`, s: `${spec.voxel === false ? 'classique' : 'voxel (terrain en cubes, arbres, fleurs…)'} · plateformes du jeu près du spawn` });
   if (spec.stats.length) F.push({ i: spec.stats[0].e, t: 'Stats', s: spec.stats.map((s) => s.e + ' ' + s.id + (s.start ? ` (départ ${s.start})` : '')).join(' · ') });

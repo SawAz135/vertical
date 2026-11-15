@@ -135,8 +135,8 @@ function addButton(spec, b, done) {
       spec.buttons.push({ id: uid(spec, 'Boost' + b.mult), label, action: 'boost', mult: b.mult, duration: b.duration, cooldown: Math.max(b.duration, 5), cost: b.cost ? { amount: b.cost.amount, money: ensureMoney(spec, b.cost.money).id } : null, color: '#ff9f1a' });
       done.push(`bouton boost ×${b.mult} pendant ${b.duration} s${b.cost ? ` (coûte ${b.cost.amount} ${b.cost.money.id})` : ''}`); return; }
     case 'add': {
-      let target; const st = findStat(b.word), mo = !st && findMoney(b.word);
-      if (mo) target = ensureMoney(spec, mo); else if (st) target = ensureStat(spec, st); else if (b.word && b.word.length > 2 && !STOP.has(b.word)) target = ensureStat(spec, { id: cap(b.word.replace(/s$/, '')), e: '⭐' }); else target = S;
+      let target; const nw = norm(b.word || '').replace(/s$/, ''), have = b.word && (spec.stats.find((x) => norm(x.id).replace(/s$/, '') === nw) || spec.money.find((x) => norm(x.id).replace(/s$/, '') === nw)); const st = !have && findStat(b.word), mo = !have && !st && findMoney(b.word);
+      if (have) target = have; else if (mo) target = ensureMoney(spec, mo); else if (st) target = ensureStat(spec, st); else if (b.word && b.word.length > 2 && !STOP.has(b.word)) target = ensureStat(spec, { id: cap(b.word.replace(/s$/, '')), e: '⭐' }); else target = S;
       const amount = b.amount || 1, cost = b.cost ? { amount: b.cost.amount, money: ensureMoney(spec, b.cost.money).id } : null;
       if (spec.buttons.some((x) => x.action === 'add' && x.stat === target.id && x.amount === amount && JSON.stringify(x.cost) === JSON.stringify(cost))) return done.push(`bouton +${amount} ${target.id} (déjà là)`);
       spec.buttons.push({ id: uid(spec, 'Add' + amount + target.id), label: `${target.e} +${amount} ${target.id}${cost ? ` · ${cost.amount} ${b.cost.money.e}` : ''}`, action: 'add', stat: target.id, amount, cooldown: 0.25, cost, color: color(spec) });
@@ -209,8 +209,8 @@ export function applyText(text, prev) {
     if (m) for (const part of m[1].split(/,|\bet\b|\band\b/)) { if (Object.entries(FEAT).some(([k, re]) => k !== 'combat' && k !== 'health' && re.test(' ' + part + ' ')) || /\b(combat|pvp|bouton|button)\b/.test(part)) break; const n = part.replace(/\b(un|une|des|de|du|le|la|les|a|an|the|fonctionnel(le)?s?|working|script|qui marche\w*)\b/g, ' ').replace(/\s+/g, ' ').trim();
       if (n && n.length > 2 && !findStat(n) && !findMoney(n) && !/\d/.test(n) && !Object.entries(FEAT).some(([k, re]) => k !== 'combat' && k !== 'health' && re.test(' ' + n + ' ')) && !/(bouton|button)/.test(n)) { names.push(original(text, n)); shopNames.push(n); } }
     if (!spec.shop || names.length) { spec.shop = shopFor(spec, names, act); done.push(`boutique : ${spec.shop.items.map((i) => i.name).join(', ')}`); } addButton(spec, { kind: 'shop' }, []); }
-  if (FEAT.rebirth.test(t) && !/\b(coute|prix|cost)\b/.test(t)) { if (!spec.rebirth) { spec.rebirth = rebirthDefault(spec); done.push('rebirth'); } addButton(spec, { kind: 'rebirth' }, []); }
-  if (FEAT.eggs.test(t) && !/\b(coute|prix|cost)\b/.test(t)) { if (!spec.eggs) { spec.eggs = eggsDefault(spec); done.push('œufs et pets (multiplicateurs)'); } }
+  if (FEAT.rebirth.test(t) && !/\b(prix|cout|price|cost) (?:du |de |of |the )*(rebirth|renaissance)|\b(rebirth|renaissance)\w* (?:coute|costs?|passe)/.test(t)) { if (!spec.rebirth) { spec.rebirth = rebirthDefault(spec); done.push('rebirth'); } addButton(spec, { kind: 'rebirth' }, []); }
+  if (FEAT.eggs.test(t) && !/\b(prix|cout|price|cost) (?:de l |de |du |des |of |the )*(oeufs?|eggs?)|\b(oeufs?|eggs?) (?:coute|costs?|passe)/.test(t)) { if (!spec.eggs) { spec.eggs = eggsDefault(spec); done.push('œufs et pets (multiplicateurs)'); } }
   { const z = t.match(/\b(\d+|deux|trois|quatre|cinq|six)\s+(zones?|mondes?|worlds?)\b/); if (z) { spec.zones = Math.min(6, Math.max(2, num(z[1]) || 3)); done.push(spec.zones + ' zones à débloquer'); } else if (FEAT.zones.test(t) && !spec.zones) { spec.zones = 3; done.push('3 zones à débloquer'); } }
   if (FEAT.daily.test(t) && !spec.daily) { spec.daily = { amount: 100, money: mainMoney(spec).id }; done.push('cadeau quotidien'); }
   if (FEAT.codes.test(t)) { const cm = [...String(text).matchAll(/codes?\s+[«"]?([A-Za-z0-9_]{3,20})[»"]?/g)].map((x) => x[1].toUpperCase()).filter((c) => !/^(SECRET|PROMO|VIP)$/.test(c) || true).filter((c) => !['QUI', 'POUR', 'AVEC', 'DONNE'].includes(c));
@@ -268,4 +268,74 @@ export function configOf(spec) {
     zones: spec.zones, daily: spec.daily, codes: spec.codes, pass: spec.pass, autoTrain: spec.autoTrain, board: spec.board, combat: spec.combat,
     datastore: 'ForgeGame_' + (norm(spec.title || 'Game').replace(/[^a-z0-9]/g, '').slice(0, 30) || 'game') + '_v1' };
   return '-- Roblox Forge « Créer tout » : configuration du jeu (modifiable)\nreturn ' + toLua(c) + '\n';
+}
+
+/* =====================================================================
+   AI bridge: a language model describes the game as an « intent » (simple,
+   human-like JSON); intentToSpec checks and cleans every field (bounded
+   numbers, clean names, known effects only) and builds the same spec as the
+   rules. specToIntent gives the current game back to the model for edits.
+   ===================================================================== */
+const clean = (v, max = 40) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/[\ud800-\udfff](?![\udc00-\udfff])/g, '').replace(/[<>{}\\`$]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+const clamp = (v, a, b, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(b, Math.max(a, n)) : d; };
+const idOf = (name) => clean(name, 20).replace(/[^\p{L}\p{N} _-]/gu, '').trim();
+const EFFECTS = new Set(['perClick', 'mult', 'sellMult', 'capacity', 'speed', 'damage', 'health']);
+const EMOJI = (e, d) => { const s = clean(e, 8); return s && /\p{Extended_Pictographic}/u.test(s) ? s : d; };
+export function specToIntent(spec) {
+  if (!spec) return null;
+  return { title: spec.title, genre: spec.genre, theme: spec.theme, voxel: spec.voxel !== false,
+    activity: spec.train ? { stat: spec.train.stat, tool: spec.train.toolName, perClick: spec.train.perClick } : null,
+    stats: spec.stats.map((s) => ({ name: s.id, emoji: s.e, start: s.start || 0 })), money: spec.money.map((m) => ({ name: m.id, emoji: m.e, start: m.start || 0 })),
+    sell: spec.sell ? { from: spec.sell.from, to: spec.sell.to, rate: spec.sell.rate } : null,
+    shop: spec.shop ? { items: spec.shop.items.map((i) => ({ name: i.name, emoji: i.e, effect: i.effect, value: i.value, price: i.price, money: i.money })) } : null,
+    rebirth: spec.rebirth ? { cost: spec.rebirth.cost, stat: spec.rebirth.costStat, bonus: spec.rebirth.bonus } : null,
+    eggs: spec.eggs ? { price: spec.eggs.price, money: spec.eggs.money, pets: spec.eggs.pets.map((p) => ({ name: p.name, mult: p.mult, chance: p.w })) } : null,
+    zones: spec.zones, daily: spec.daily, codes: spec.codes, gamepass: spec.pass ? { mult: spec.pass.mult } : null, auto: spec.autoTrain,
+    leaderboard: spec.board ? { stat: spec.board.stat } : null, combat: spec.combat ? { damage: spec.combat.damage, reward: spec.combat.reward, health: !!spec.combat.health } : null,
+    buttons: spec.buttons.map((b) => ({ type: b.action, stat: b.stat, amount: b.amount, mult: b.mult, seconds: b.duration, cost: b.cost ? { amount: b.cost.amount, money: b.cost.money } : null })) };
+}
+export function intentToSpec(I, text = '') {
+  const spec = emptySpec(), done = [], G = ['simulator', 'tycoon', 'obby', 'arena', 'island', 'city', 'cave', 'sky', 'lobby'], TH = ['plaine', 'desert', 'neige', 'lave', 'bonbon', 'neon', 'espace'];
+  if (!I || typeof I !== 'object') throw new Error('réponse IA vide');
+  spec.genre = G.includes(I.genre) ? I.genre : 'simulator'; spec.theme = TH.includes(I.theme) ? I.theme : null; spec.voxel = I.voxel !== false; spec.mapText = text;
+  spec.title = clean(I.title, 40).replace(/[^\p{L}\p{N} '’!?.,:&+-]/gu, '').replace(/\s+/g, ' ').trim() || 'Mon jeu';
+  const statFrom = (x, d = '⭐') => { const name = idOf(x && (x.name || x.stat || x)); if (!name) return null; const known = findStat(name); return ensureStat(spec, known ? { ...known, id: known.id } : { id: cap(name), e: EMOJI(x && x.emoji, d) }); };
+  const moneyFrom = (x) => { const name = idOf(x && (x.name || x)); if (!name) return null; const known = findMoney(name); return ensureMoney(spec, known || { id: cap(name), e: EMOJI(x && x.emoji, '🪙') }); };
+  for (const s of Array.isArray(I.stats) ? I.stats.slice(0, 8) : []) { const t = statFrom(s); if (t) t.start = clamp(s.start, 0, 1e12, 0); }
+  for (const m of Array.isArray(I.money) ? I.money.slice(0, 4) : []) { const t = moneyFrom(m); if (t) t.start = clamp(m.start, 0, 1e12, 0); }
+  if (spec.genre === 'tycoon' && !spec.money.length) ensureMoney(spec, MONEY.cash);
+  const statId = (n) => { const name = idOf(n); if (!name) return mainStat(spec).id; const m = spec.money.find((x) => norm(x.id) === norm(name)) || findMoney(name); if (m) return ensureMoney(spec, m.id ? m : m).id; return (statFrom({ name }) || mainStat(spec)).id; };
+  const moneyId = (n) => { const name = idOf(n); if (!name) return mainMoney(spec).id; return (moneyFrom({ name }) || mainMoney(spec)).id; };
+  if (I.activity && (I.activity.stat || I.activity.name)) { const st = statFrom({ name: I.activity.stat || I.activity.name, emoji: I.activity.emoji }); spec.train = { stat: st.id, perClick: clamp(I.activity.perClick, 1, 1e6, 1), cooldown: 0.2, tool: true, toolName: clean(I.activity.tool, 24) || 'Entraînement' }; done.push(`activité : ${st.e} ${st.id} (outil ${spec.train.toolName})`); }
+  else if (spec.genre === 'simulator') { spec.train = trainDefault(spec); }
+  if (I.sell) { spec.sell = { from: statId(I.sell.from), to: moneyId(I.sell.to), rate: clamp(I.sell.rate, 0.01, 1e6, 1), keep: false }; done.push(`vente : ${spec.sell.from} → ${spec.sell.to}`); }
+  if (I.shop && Array.isArray(I.shop.items) && I.shop.items.length) {
+    const base = itemsFrom(I.shop.items.slice(0, 12).map((x) => [clean(x.name, 30) || 'Objet', EMOJI(x.emoji, '⭐'), EFFECTS.has(x.effect) ? x.effect : undefined]), mainMoney(spec).id);
+    I.shop.items.slice(0, 12).forEach((x, i) => { if (x.value != null) base[i].value = clamp(x.value, 0.01, 1e9, base[i].value); if (x.price != null) base[i].price = clamp(x.price, 0, 1e12, base[i].price); if (x.money) base[i].money = moneyId(x.money); });
+    const seen = new Set(); spec.shop = { stat: mainStat(spec).id, items: base.filter((x) => (seen.has(x.id) ? false : seen.add(x.id))) }; done.push('boutique : ' + spec.shop.items.map((i) => i.name).join(', '));
+  } else if (I.shop) { spec.shop = shopFor(spec, []); done.push('boutique : ' + spec.shop.items.map((i) => i.name).join(', ')); }
+  if (I.rebirth) { spec.rebirth = { costStat: statId(I.rebirth.stat), cost: clamp(I.rebirth.cost, 1, 1e15, 1000), growth: 2.5, bonus: clamp(I.rebirth.bonus, 0.05, 10, 0.5) }; done.push('rebirth'); }
+  if (I.eggs) { const pets = Array.isArray(I.eggs.pets) && I.eggs.pets.length ? I.eggs.pets.slice(0, 10).map((p) => ({ name: clean(p.name, 20) || 'Pet', mult: clamp(p.mult, 1, 1000, 1.5), w: clamp(p.chance, 0.01, 1000, 10) })) : eggsDefault(spec).pets;
+    spec.eggs = { price: clamp(I.eggs.price, 1, 1e12, 250), money: moneyId(I.eggs.money), pets }; done.push('œufs et pets'); }
+  spec.zones = Math.round(clamp(I.zones, 0, 6, 0)); if (spec.zones === 1) spec.zones = 2; if (spec.zones) done.push(spec.zones + ' zones');
+  if (I.daily) { spec.daily = { amount: clamp(I.daily.amount, 1, 1e12, 100), money: moneyId(I.daily.money) }; done.push('cadeau quotidien'); }
+  if (Array.isArray(I.codes)) for (const c of I.codes.slice(0, 20)) { const code = clean(c && (c.code || c), 20).toUpperCase().replace(/[^A-Z0-9_]/g, ''); if (code.length >= 3 && !spec.codes.some((x) => x.code === code)) spec.codes.push({ code, amount: clamp(c.amount, 1, 1e12, 500), money: moneyId(c.money) }); }
+  if (spec.codes.length) done.push('codes : ' + spec.codes.map((c) => c.code).join(', '));
+  if (I.gamepass) { spec.pass = { mult: clamp(I.gamepass.mult, 1.1, 100, 2), price: 99, id: 0 }; done.push(`gamepass ×${spec.pass.mult}`); }
+  if (I.auto) { spec.autoTrain = true; spec.train ||= trainDefault(spec); done.push('auto-entraînement'); }
+  if (I.combat) { spec.combat = { damage: clamp(I.combat.damage, 1, 10000, 20), reward: clamp(I.combat.reward, 0, 1e9, 25), money: mainMoney(spec).id, cooldown: 0.6, range: 7, health: !!I.combat.health }; ensureStat(spec, STATS.kills); done.push('combat PvP'); }
+  if (I.leaderboard) { spec.board = { stat: statId(I.leaderboard.stat || (spec.combat ? 'Kills' : mainStat(spec).id)), top: 10 }; done.push(`classement (${spec.board.stat})`); }
+  for (const b of Array.isArray(I.buttons) ? I.buttons.slice(0, 16) : []) {
+    const type = String(b && b.type || ''), cost = b.cost && b.cost.amount ? { amount: clamp(b.cost.amount, 1, 1e12, 1), money: { id: moneyId(b.cost.money), e: (spec.money.find((m) => m.id === moneyId(b.cost.money)) || {}).e || '🪙' } } : null;
+    if (type === 'add') addButton(spec, { kind: 'add', amount: clamp(b.amount, 1, 1e12, 1), word: idOf(b.stat) || mainStat(spec).id, cost: cost && { amount: cost.amount, money: findMoney(cost.money.id) || cost.money } }, done);
+    else if (type === 'boost') addButton(spec, { kind: 'boost', mult: clamp(b.mult, 1.1, 100, 2), duration: Math.round(clamp(b.seconds, 1, 3600, 30)), cost: cost && { amount: cost.amount, money: findMoney(cost.money.id) || cost.money } }, done);
+    else if (['sell', 'shop', 'rebirth', 'egg', 'home', 'train', 'daily'].includes(type)) addButton(spec, { kind: type }, done);
+  }
+  if (spec.genre === 'simulator') { spec.train ||= trainDefault(spec); if (!spec.buttons.some((b) => b.action === 'train')) addButton(spec, { kind: 'train' }, []); }
+  if (spec.sell && !spec.buttons.some((b) => b.action === 'sell')) addButton(spec, { kind: 'sell' }, []);
+  if (spec.shop && !spec.buttons.some((b) => b.action === 'shop')) addButton(spec, { kind: 'shop' }, []);
+  if (spec.rebirth && !spec.buttons.some((b) => b.action === 'rebirth')) addButton(spec, { kind: 'rebirth' }, []);
+  if (!spec.stats.length && !spec.money.length) mainMoney(spec);
+  const unsupported = (Array.isArray(I.unsupported) ? I.unsupported : []).map((x) => clean(x, 80)).filter(Boolean).slice(0, 6);
+  spec.log.push({ text, done, ai: true }); return { spec, done, unsupported };
 }
