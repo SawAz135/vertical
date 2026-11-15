@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07060f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Créer tout">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Créer tout · Roblox Forge</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#07060f;--line:rgba(190,180,255,.12);--line2:rgba(190,180,255,.24);--text:#f3f1fb;--muted:#a29cc2;--v:#7c5cff;--c:#3ee6ff;--g:#ffd45c;--ok:#3dd68c}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:var(--bg)}
+body{margin:0;color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;
+  background:radial-gradient(100% 50% at 50% 0%,#1d1446 0%,#0c0920 50%,#07060f 100%) fixed}
+button,input,textarea{font:inherit;color:inherit}
+header{position:sticky;top:0;z-index:10;padding:calc(env(safe-area-inset-top) + 10px) 14px 10px;background:rgba(7,6,15,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+.top{display:flex;align-items:center;gap:10px;max-width:1180px;margin:0 auto}
+.ib{height:38px;min-width:38px;border:0;border-radius:12px;background:rgba(255,255,255,.06);box-shadow:0 0 0 1px var(--line2) inset;display:grid;place-items:center;color:inherit;text-decoration:none}
+.title{flex:1;min-width:0}.title b{display:block;font-size:17px;letter-spacing:-.02em}.title small{display:block;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+main{max-width:1180px;margin:0 auto;padding:14px 14px calc(env(safe-area-inset-bottom) + 40px)}
+.hero{text-align:center;padding:18px 6px 6px}.hero h1{margin:0;font-size:clamp(24px,5.4vw,38px);letter-spacing:-.03em;line-height:1.1}
+.hero h1 span{background:linear-gradient(90deg,#3ee6ff,#7c5cff,#ff5fd2,#ffd45c);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--muted);margin:8px auto 0;max-width:640px;font-size:14.5px}
+.card{background:rgba(255,255,255,.04);box-shadow:0 0 0 1px var(--line) inset;border-radius:18px;padding:14px;margin:12px 0}
+.card h3{margin:0 0 10px;font-size:14.5px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.card h3 small{color:var(--muted);font-weight:600;font-size:11.5px}
+textarea{width:100%;border:0;border-radius:14px;background:rgba(0,0,0,.35);box-shadow:0 0 0 1px var(--line2) inset;padding:12px 14px;resize:vertical;min-height:84px;font-size:16px;line-height:1.4}
+textarea:focus{outline:none;box-shadow:0 0 0 2px var(--v) inset}
+.row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.btn{min-height:44px;border:0;border-radius:13px;padding:0 16px;font-weight:800;font-size:14px;background:rgba(255,255,255,.07);box-shadow:0 0 0 1px var(--line2) inset;cursor:pointer}
+.btn.pri{background:linear-gradient(135deg,#8b6bff,#5a3cf0);box-shadow:0 8px 22px -8px rgba(124,92,255,.8),0 0 0 1px rgba(255,255,255,.12) inset;color:#fff}
+.btn.go{background:linear-gradient(135deg,#2fd27e,#1a9c5a);color:#fff;box-shadow:0 8px 22px -8px rgba(47,210,126,.6)}
+.btn.big{flex:1;min-height:52px;font-size:15px}
+.btn:disabled{opacity:.5}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0;margin-top:10px}.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:0;border-radius:11px;padding:7px 11px;font-size:12.5px;font-weight:700;background:rgba(255,255,255,.06);box-shadow:0 0 0 1px var(--line) inset;cursor:pointer;white-space:nowrap}
+.grid{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}.grid>div,.card{min-width:0}
+html,body{overflow-x:hidden}
+@media (min-width:900px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);align-items:start}.sticky{position:sticky;top:76px}}
+.done{list-style:none;margin:0;padding:0}.done li{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13.5px}.done li:last-child{border:0}.done li::before{content:"✓";color:var(--ok);font-weight:900}
+.feat{display:flex;flex-direction:column;gap:8px}
+.f{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.035);box-shadow:0 0 0 1px var(--line) inset}
+.f .i{font-size:20px;width:30px;text-align:center}.f .t{flex:1;min-width:0}.f b{display:block;font-size:13.5px}.f small{display:block;color:var(--muted);font-size:12px;line-height:1.35}
+.f .x{border:0;background:rgba(255,77,109,.14);color:#ff8fa3;border-radius:10px;width:32px;height:32px;cursor:pointer;flex:none}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.bb{display:inline-flex;align-items:center;gap:6px;border-radius:10px;padding:5px 6px 5px 10px;font-size:12.5px;font-weight:800;color:#fff;box-shadow:0 0 0 2px #14101f inset}
+.bb button{border:0;background:rgba(0,0,0,.25);color:#fff;border-radius:7px;width:22px;height:22px;cursor:pointer;font-size:12px}
+/* in-game GUI preview */
+.screen{position:relative;aspect-ratio:16/9;border-radius:16px;overflow:hidden;box-shadow:0 0 0 1px var(--line2),0 20px 40px -20px #000;background:#3a6}
+.screen canvas{position:absolute;inset:0;width:100%;height:100%}
+.gcount{position:absolute;left:2.2%;top:4%;display:flex;flex-direction:column;gap:1.4cqh;width:28%}
+.screen{container-type:size}
+.gc{display:flex;align-items:center;gap:6%;height:8.5cqh;border-radius:2.2cqh;padding:0 4%;font:900 4.6cqh/1 "Fredoka One",system-ui,sans-serif;color:#fff;-webkit-text-stroke:.5px #14101f;box-shadow:0 0 0 .55cqh #14101f inset,0 .6cqh 0 rgba(0,0,0,.25)}
+.gbtn{position:absolute;right:2.2%;top:50%;translate:0 -50%;display:flex;flex-direction:column;gap:1.6cqh;width:27%}
+.gb{height:10.5cqh;border-radius:2.6cqh;display:grid;place-items:center;font:900 4.4cqh/1 system-ui,sans-serif;color:#fff;text-shadow:0 .3cqh 0 #14101f;box-shadow:0 0 0 .6cqh #14101f inset,0 .8cqh 0 rgba(0,0,0,.3);white-space:nowrap;overflow:hidden;padding:0 4%}
+.gpad{position:absolute;font:800 3.2cqh/1 system-ui;color:#fff;text-shadow:0 1px 2px #000;translate:-50% -50%;white-space:nowrap}
+.note{color:var(--muted);font-size:12.5px;margin-top:8px}
+.busy{position:fixed;inset:0;z-index:50;display:none;place-items:center;background:rgba(5,4,12,.6);backdrop-filter:blur(6px)}
+.busy.on{display:grid}.busy div{padding:18px 22px;border-radius:16px;background:#151230;box-shadow:0 0 0 1px var(--line2);font-weight:800}
+.busy i{display:inline-block;width:18px;height:18px;border-radius:50%;border:3px solid #ffffff33;border-top-color:#fff;animation:sp .8s linear infinite;vertical-align:-3px;margin-right:10px}@keyframes sp{to{transform:rotate(1turn)}}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);translate:-50% 0;background:#1c1838;box-shadow:0 0 0 1px var(--line2),0 10px 30px #000;border-radius:14px;padding:10px 16px;font-weight:800;font-size:13.5px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60;max-width:92vw;text-align:center}
+#toast.on{opacity:1}
+.empty{display:none}
+body.has .empty{display:block}body:not(.has) .needs{display:none}
+</style>
+<link rel="stylesheet" href="../ui/forge-ui.css">
+<script type="module" src="../ui/forge-shell.js"></script>
+</head>
+<body>
+<header><div class="top"><div class="title"><b>✨ Créer tout</b><small>une phrase → un jeu complet qui marche</small></div><a class="ib" href="../map/" title="Map Studio" id="toMapTop">🗺️</a></div></header>
+<main>
+  <section class="hero"><h1>Décris ton jeu, <span>il se construit en entier</span></h1>
+    <p>Carte, scripts qui marchent, interface avec tes boutons, sauvegarde : tout est créé et prêt à publier sur Roblox. Ensuite, demande des changements comme à un développeur : « ajoute un bouton +5 vitesse ».</p></section>
+  <div class="card"><h3>🧠 Ton jeu</h3>
+    <textarea id="q" rows="3" placeholder="ex : map simulator avec shop fonctionnel et sell fonctionnel, ajoute un bouton +1 force"></textarea>
+    <div class="chips" id="ex"></div>
+    <div class="row"><button class="btn pri big" id="go">✨ Créer le jeu</button></div>
+  </div>
+  <div class="grid needs">
+    <div>
+      <div class="card"><h3>✏️ Modifier ton jeu <small>écris comme à un développeur</small></h3>
+        <textarea id="edit" rows="2" placeholder="ex : ajoute un bouton +5 vitesse · ajoute des œufs · enlève la boutique · ajoute un code VIP"></textarea>
+        <div class="chips" id="exEdit"></div>
+        <div class="row"><button class="btn pri big" id="apply">Appliquer</button></div>
+        <ul class="done" id="done" style="margin-top:10px"></ul></div>
+      <div class="card"><h3>🧩 Dans ton jeu <small id="fcount"></small></h3><div class="feat" id="feat"></div></div>
+    </div>
+    <div class="sticky">
+      <div class="card"><h3>📱 Aperçu dans Roblox <small>interface générée + carte vue du dessus</small></h3>
+        <div class="screen" id="screen"><canvas id="mapc"></canvas><div class="gcount" id="gcount"></div><div class="gbtn" id="gbtn"></div><div id="gpads"></div></div>
+        <div class="note" id="mapInfo"></div></div>
+      <div class="card"><h3>🚀 Publier</h3>
+        <div class="row"><button class="btn go big" id="toGame">🎮 Ajouter à mon jeu</button></div>
+        <div class="row"><button class="btn big" id="dl">📦 Télécharger (.zip)</button><button class="btn big" id="toMap">🗺️ Retoucher la carte</button></div>
+        <div class="row"><button class="btn" id="reroll">🎲 Autre carte</button><button class="btn" id="reset">🧹 Nouveau jeu</button></div>
+        <div class="note">« Ajouter à mon jeu » ouvre Roblox Push : la carte, les scripts et l'interface sont ajoutés à ton jeu sans rien effacer.</div></div>
+    </div>
+  </div>
+</main>
+<div class="busy" id="busy"><div><i></i><span id="busyT">Construction…</span></div></div>
+<div id="toast"></div>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -176,8 +176,8 @@ export function generateFromText(text, seed, o = {}) {
   if ((scene.farm || scene.items.length) && !q.gen) q.gen = 'lobby';
   if (scene.farm && !q.theme) q.theme = 'plaine';
   const wantsIsland = /\b(ile|island|plage)\b/.test(norm(text)) && q.gen !== 'island';
-  const gen = q.gen || (q.extras.length ? 'lobby' : pick(r, ['obby', 'lobby', 'island', 'arena', 'simulator'])), theme = q.theme || pick(r, Object.keys(THEMES)), T = THEMES[theme], G = GENERATORS[gen];
-  const opts = Object.fromEntries(Object.entries(G.opts).map(([k, [a, b, d]]) => [k, Math.round(q.big ? b * 0.85 : q.small ? a : d)]));
+  const gen = q.gen || (q.extras.length ? 'lobby' : pick(r, ['obby', 'lobby', 'island', 'arena', 'simulator'])), theme = q.theme || (o.theme && THEMES[o.theme] ? o.theme : null) || pick(r, Object.keys(THEMES)), T = THEMES[theme], G = GENERATORS[gen];
+  const opts = { ...Object.fromEntries(Object.entries(G.opts).map(([k, [a, b, d]]) => [k, Math.round(q.big ? b * 0.85 : q.small ? a : d)])), ...(o.gen === gen && o.opts ? o.opts : {}) };
   const core = G.make(T, r, opts), bx = [Infinity, Infinity, -Infinity, -Infinity];
   const walk = (n) => { if (n.children) n.children.forEach(walk); else { bx[0] = Math.min(bx[0], n.pos[0]); bx[1] = Math.min(bx[1], n.pos[2]); bx[2] = Math.max(bx[2], n.pos[0]); bx[3] = Math.max(bx[3], n.pos[2]); } };
   core.forEach(walk);

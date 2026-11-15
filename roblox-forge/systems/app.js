@@ -283,7 +283,7 @@ function crc32(u8) { let c = 0xffffffff; for (let i = 0; i < u8.length; i++) c =
 function zip(files) {
   const enc = new TextEncoder(), parts = [], central = []; let off = 0;
   for (const f of files) {
-    const name = enc.encode(f.path), data = enc.encode(f.data), crc = crc32(data);
+    const name = enc.encode(f.path), data = typeof f.data === "string" ? enc.encode(f.data) : f.data, crc = crc32(data);
     const lh = new DataView(new ArrayBuffer(30)); lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint32(14, crc, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, name.length, true);
     parts.push(new Uint8Array(lh.buffer), name, data);
     const ch = new DataView(new ArrayBuffer(46)); ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint32(16, crc, true); ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true); ch.setUint16(28, name.length, true); ch.setUint32(42, off, true);
