@@ -272,7 +272,7 @@ function partJson(p) {
   return node;
 }
 function nodeJson(n) {
-  if (n.cls === 'Model' || n.cls === 'Folder') { const out = { name: n.name, className: n.cls, children: (n.children || []).map(nodeJson) }; if (n.tycoon) out.attributes = { ForgeTycoon: true }; return out; }
+  if (n.cls === 'Model' || n.cls === 'Folder') { const out = { name: n.name, className: n.cls, children: (n.children || []).map(nodeJson) }; if (n.tycoon || n.attributes) out.attributes = { ...(n.attributes || {}), ...(n.tycoon ? { ForgeTycoon: true } : {}) }; return out; }
   return partJson(n);
 }
 export function mapModel(map) {

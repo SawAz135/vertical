@@ -185,6 +185,61 @@ function hud() {
   ];
 }
 
+/* ---------- Trade (two offers, ready / cancel) ---------- */
+function trade(vis) {
+  const side = (name, title, g, x) => Blk(name, g, { Size: [0.47, 0, 0.74, 0], Position: [x, 0, 0.1, 0], ZIndex: 7 }, [
+    T('Head', title, { Size: [0.9, 0, 0.14, 0], Position: [0.5, 0, 0.03, 0], AnchorPoint: [0.5, 0], ZIndex: 9 }),
+    N('Frame', 'Slots', { Size: [0.92, 0, 0.76, 0], Position: [0.5, 0, 0.2, 0], AnchorPoint: [0.5, 0], BackgroundTransparency: 1, ZIndex: 8 }, [gridL([0.3, 0, 0.45, 0], [0.04, 0, 0.06, 0], 'Center'),
+      ...Array.from({ length: 6 }, (_, i) => Blk('Slot' + (i + 1), COL.navy, { LayoutOrder: i, ZIndex: 9 }, [T('Icon', i < 2 ? ['🐉', '🦊'][i] : '', { Size: [0.7, 0, 0.7, 0], Position: [0.5, 0, 0.5, 0], AnchorPoint: [0.5, 0.5], ZIndex: 10 })], {}, 10))])], {}, 18);
+  return win('Trade', 'Échange', '🤝', 1.6, [
+    T('With', 'Avec Joueur2', { Size: [0.6, 0, 0.08, 0], Position: [0.5, 0, 0, 0], AnchorPoint: [0.5, 0], ZIndex: 8 }),
+    side('Mine', 'Ton offre', COL.blue, 0), side('Theirs', 'Son offre  ✔', COL.purple, 0.53),
+    Btn('Ready', 'Prêt', COL.green, { Size: [0.3, 0, 0.13, 0], Position: [0.3, 0, 1, 0], AnchorPoint: [0.5, 1], ZIndex: 8 }, { idle: 'pulse', period: 1.4 }),
+    Btn('Cancel', 'Annuler', COL.red, { Size: [0.3, 0, 0.13, 0], Position: [0.7, 0, 1, 0], AnchorPoint: [0.5, 1], ZIndex: 8 }, { action: 'close' }),
+  ], { vis, title: COL.green, body: ['#2a2f55', '#171a36'], studs: 22 });
+}
+
+/* ---------- Season pass (free + premium tracks, levels) ---------- */
+function seasonPass(vis) {
+  const tiers = Array.from({ length: 8 }, (_, i) => F('Tier' + (i + 1), { LayoutOrder: i, ZIndex: 7 }, [
+    T('Level', 'Niv. ' + (i + 1), { Size: [1, 0, 0.12, 0], ZIndex: 8 }),
+    Blk('Free', i < 3 ? COL.green : COL.grey, { Size: [1, 0, 0.38, 0], Position: [0, 0, 0.14, 0], ZIndex: 8 }, [T('Icon', ['🪙', '🧪', '🥚', '💎', '🍀', '🪙', '⚡', '🎁'][i], { Size: [0.7, 0, 0.7, 0], Position: [0.5, 0, 0.5, 0], AnchorPoint: [0.5, 0.5], ZIndex: 9 })], {}, 10),
+    Blk('Premium', COL.yellow, { Size: [1, 0, 0.38, 0], Position: [0, 0, 0.58, 0], ZIndex: 8 }, [T('Icon', ['🐱', '✨', '👑', '🐉', '🌈', '🦄', '🔥', '🌌'][i], { Size: [0.7, 0, 0.7, 0], Position: [0.5, 0, 0.5, 0], AnchorPoint: [0.5, 0.5], ZIndex: 9 }),
+      ...(i >= 3 ? [T('Lock', '🔒', { Size: [0.4, 0, 0.4, 0], Position: [1, 0, 0, 0], AnchorPoint: [0.9, 0.1], ZIndex: 10 })] : [])], {}, 10)]));
+  return win('SeasonPass', 'Pass de saison', '🎫', 1.6, [
+    T('Track', '🆓 Gratuit                                   👑 Premium', { Size: [1, 0, 0.07, 0], ZIndex: 8, TextXAlignment: 'Left' }),
+    N('Frame', 'Bar', { Size: [1, 0, 0.06, 0], Position: [0, 0, 0.09, 0], BackgroundColor3: '#141833', ZIndex: 8 }, [corner(0.5, 0), stroke(K, 2.5, 0, 'Border'),
+      N('Frame', 'Fill', { Size: [0.34, 0, 1, 0], BackgroundColor3: '#ffffff', ZIndex: 9 }, [corner(0.5, 0), grad(COL.green, 90)]), T('Xp', '340 / 1000 XP', { Size: [1, 0, 0.9, 0], Position: [0.5, 0, 0.5, 0], AnchorPoint: [0.5, 0.5], ZIndex: 10 })]),
+    N('ScrollingFrame', 'Tiers', { Size: [1, 0, 0.62, 0], Position: [0, 0, 0.18, 0], BackgroundTransparency: 1, ScrollBarThickness: 6, ScrollBarImageColor3: '#ffd21f', AutomaticCanvasSize: 'X', CanvasSize: [0, 0, 0, 0], ZIndex: 7 }, [
+      list('Horizontal', 8, 'Left', 'Center'), ...tiers.map((t) => ({ ...t, props: { ...t.props, Size: [0.17, 0, 0.95, 0] } }))]),
+    Btn('BuyPremium', '👑 Premium ⏣ 399', COL.yellow, { Size: [0.46, 0, 0.13, 0], Position: [0.5, 0, 1, 0], AnchorPoint: [0.5, 1], ZIndex: 8 }, { idle: 'shine', period: 2.2 }),
+  ], { vis, title: COL.purple, body: ['#2a2f55', '#171a36'], studs: 22 });
+}
+
+/* ---------- Settings with accessibility options ---------- */
+function access(vis) {
+  const rows = [['Music', '🎵 Musique', true], ['Sfx', '🔊 Effets sonores', true], ['Shake', '📳 Tremblements d\'écran', true], ['Colorblind', '🎨 Mode daltonien', false], ['BigText', '🔠 Texte plus grand', false], ['Flash', '⚡ Réduire les flashs', false]];
+  return win('Settings', 'Paramètres', '⚙️', 1.6, [N('ScrollingFrame', 'List', { Size: [1, 0, 1, 0], BackgroundTransparency: 1, ScrollBarThickness: 6, AutomaticCanvasSize: 'Y', CanvasSize: [0, 0, 0, 0], ZIndex: 7 }, [list('Vertical', 8, 'Center', 'Top'),
+    ...rows.map(([n, l, on], i) => Blk(n, COL.navy, { Size: [1, 0, 0, 0], LayoutOrder: i, ZIndex: 8 }, [aspect(6.5),
+      T('Label', l, { Size: [0.66, 0, 0.6, 0], Position: [0.04, 0, 0.5, 0], AnchorPoint: [0, 0.5], TextXAlignment: 'Left', ZIndex: 9 }),
+      Btn('Toggle', on ? 'ON' : 'OFF', on ? COL.green : COL.red, { Size: [0.22, 0, 0.66, 0], Position: [0.96, 0, 0.5, 0], AnchorPoint: [1, 0.5], ZIndex: 9 }, { action: 'switch' })], {}, 14))])],
+  { vis, title: COL.grey, body: ['#2a2f55', '#171a36'], studs: 22 });
+}
+
+/* ---------- Tutorial hint bubble + bouncing arrow ---------- */
+function tutorial() {
+  // readable on any background: dark text without outline on a white bubble, big step badge
+  const plain = (name, text, props) => N('TextLabel', name, { Text: text, BackgroundTransparency: 1, Font: '$font', TextScaled: true, TextColor3: '#1d2140', ...props });
+  return [F('Tutorial', { Size: [0.46, 0, 0.2, 0], Position: [0.5, 0, 0.18, 0], AnchorPoint: [0.5, 0] }, [
+    N('Frame', 'Bubble', { Size: [1, 0, 1, 0], BackgroundColor3: '#ffffff', ZIndex: 20 }, [corner(0, 14), stroke(K, 4, 0, 'Border'), grad(['#ffffff', '#e9f1ff'], 90),
+      N('Frame', 'Badge', { Size: [0.24, 0, 0.32, 0], Position: [0.03, 0, 0.1, 0], BackgroundColor3: '#ffffff', ZIndex: 21 }, [corner(0.5, 0), grad(COL.blue, 90), stroke(K, 2.5, 0, 'Border'),
+        T('Step', 'Étape 1/3', { Size: [0.86, 0, 0.7, 0], Position: [0.5, 0, 0.5, 0], AnchorPoint: [0.5, 0.5], ZIndex: 22 })]),
+      plain('Text', 'Approche-toi de l\'œuf et touche « Ouvrir » !', { Size: [0.94, 0, 0.46, 0], Position: [0.03, 0, 0.48, 0], TextXAlignment: 'Left', TextWrapped: true, ZIndex: 21 }),
+      Btn('Skip', 'Passer', COL.grey, { Size: [0.2, 0, 0.3, 0], Position: [0.97, 0, 0.1, 0], AnchorPoint: [1, 0], ZIndex: 22 }, { action: 'close' })]),
+    T('Arrow', '👇', { Size: [0.16, 0, 0.7, 0], Position: [0.5, 0, 1.04, 0], AnchorPoint: [0.5, 0], ZIndex: 21 }, [], { idle: 'float', period: 0.9 }),
+  ], { open: 'pop', window: false })];
+}
+
 export const STUD_THEME = { label: 'Stud', panel: '#1d2140', panel2: '#3b4170', primary: '#3fd0ff', primary2: '#1677ff', accent: '#ffd21f', text: '#ffffff', muted: '#c7cde0', good: '#5ee03a', bad: '#ff3b3b', stroke: '#000000', font: 'FredokaOne' };
 const TAG = 'stud studs simulator simulateur populaire brainrot lego blocs ';
 export const STUD_TEMPLATES = [
@@ -196,6 +251,10 @@ export const STUD_TEMPLATES = [
   { id: 'stud_gears', e: '🛠️', label: 'Stud · Équipements', tags: TAG + 'gears outils stock rareté bois wood liste', win: 'Gears', theme: 'stud', make: (vis) => [gears(vis)] },
   { id: 'stud_index', e: '📘', label: 'Stud · Index', tags: TAG + 'index collection pets decouvrir', win: 'Index', theme: 'stud', make: (vis) => [index(vis)] },
   { id: 'stud_rebirth', e: '♻️', label: 'Stud · Rebirth', tags: TAG + 'rebirth renaissance barre progression', win: 'Rebirth', theme: 'stud', make: (vis) => [rebirth(vis)] },
+  { id: 'stud_trade', e: '🤝', label: 'Stud · Échange', tags: TAG + 'trade echange troc offre pret', win: 'Trade', theme: 'stud', make: (vis) => [trade(vis)] },
+  { id: 'stud_pass', e: '🎫', label: 'Stud · Pass de saison', tags: TAG + 'season pass saison battle pass premium niveaux xp', win: 'SeasonPass', theme: 'stud', make: (vis) => [seasonPass(vis)] },
+  { id: 'stud_settings', e: '⚙️', label: 'Stud · Paramètres', tags: TAG + 'settings parametres accessibilite daltonien son options', win: 'Settings', theme: 'stud', make: (vis) => [access(vis)] },
+  { id: 'stud_tutorial', e: '👉', label: 'Stud · Tutoriel', tags: TAG + 'tutorial tutoriel aide etape fleche onboarding', win: false, theme: 'stud', make: () => tutorial() },
   { id: 'stud_auras', e: '✨', label: 'Stud · Auras', tags: TAG + 'auras trails traînées equiper selection', win: 'Auras', theme: 'stud', make: (vis) => auras(vis) },
 ];
-export const STUD_ALL = ['stud_hud', 'stud_daily', 'stud_shop', 'stud_store', 'stud_confirm', 'stud_gears', 'stud_index', 'stud_rebirth', 'stud_auras'];
+export const STUD_ALL = ['stud_hud', 'stud_daily', 'stud_shop', 'stud_store', 'stud_confirm', 'stud_gears', 'stud_index', 'stud_rebirth', 'stud_auras', 'stud_trade', 'stud_pass', 'stud_settings'];

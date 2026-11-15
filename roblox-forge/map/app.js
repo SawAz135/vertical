@@ -8,6 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import * as MC from './map-core.js';
 import * as MM from './map-models.js';
+import { PROPS, PROP_CATS } from './map-props.js';
 import { createLibrary } from '../library/forge-lib.js';
 
 const $ = (id) => document.getElementById(id);
@@ -494,6 +495,9 @@ function paneObj() {
       ${[['pine', '🌲', 'Sapin'], ['oak', '🌳', 'Chêne'], ['cherry', '🌸', 'Cerisier'], ['cactus', '🌵', 'Cactus'], ['rocks', '🪨', 'Rochers'], ['crystals', '💎', 'Cristaux'], ['flowers', '🌷', 'Fleurs'], ['house', '🏠', 'Maison'],
         ['castle', '🏰', 'Château'], ['temple', '🏛️', 'Temple'], ['windmill', '🌬️', 'Moulin'], ['statue', '🗽', 'Statue'], ['waterfall', '💧', 'Cascade'], ['volcano', '🌋', 'Volcan'], ['fence', '🚧', 'Clôture'], ['bridge', '🌉', 'Pont'], ['cloud', '☁️', 'Nuage']]
         .map(([k, e, l]) => `<button class="card" data-deco="${k}"><span class="e">${e}</span>${l}</button>`).join('')}</div></div>
+    <div class="sec"><h3>🧰 Ressources <small>${Object.keys(PROPS).length} modèles</small></h3>
+      <div class="chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${Object.entries(PROP_CATS).map(([k, l]) => `<button class="card" style="width:auto;padding:6px 10px" data-pcat="${k}"${(ui.propCat || 'village') === k ? ' aria-pressed="true"' : ''}>${l}${(ui.propCat || 'village') === k ? ' ✓' : ''}</button>`).join('')}</div>
+      <div class="cards">${Object.entries(PROPS).filter(([, p]) => p.cat === (ui.propCat || 'village')).map(([k, p]) => `<button class="card" data-prop="${k}"><span class="e">${p.e}</span>${p.fr}</button>`).join('')}</div></div>
     <div class="sec"><h3>Hiérarchie <small>${rows.length} éléments</small></h3><ul class="tree">${rows.slice(0, 600).map(({ n, d }) => `<li data-id="${n.id}" class="${sel.has(n.id) ? 'on' : ''}" style="padding-left:${8 + d * 14}px">${n.cls === 'Model' ? `<span class="tw" data-tw="${n.id}">${ui.open.has(n.id) ? '▾' : '▸'}</span>📦` : `<span class="tw"></span>${n.role ? MC.ROLES[n.role.type].e : '▫️'}`} ${esc(n.name)}<span class="cl">${n.cls === 'Model' ? MC.partsOf(n).length + ' pièces' : MC.PART_CLASSES[n.cls]}</span></li>`).join('')}</ul></div>`;
   pane.querySelectorAll('[data-pal]').forEach((b) => b.onclick = () => { const [cls, shape] = PALETTE[+b.dataset.pal], at = dropPoint();
     const size = cls === 'TrussPart' ? [2, 10, 2] : cls === 'SpawnLocation' ? [6, 1, 6] : shape === 'Cylinder' ? [6, 4, 4] : shape === 'Ball' ? [4, 4, 4] : [4, 4, 4];
@@ -511,6 +515,9 @@ function paneObj() {
       waterfall: () => [MM.waterfall(t, at.x, at.z, r, at.y)], volcano: () => [MM.volcano(t, at.x, at.z, r, at.y, 0.6)], fence: () => [MM.fence(t, at.x - 15, at.z, at.x + 15, at.z, at.y)], bridge: () => [MM.bridge(t, at.x, at.z - 15, at.x, at.z + 15, at.y)],
       cloud: () => [MM.cloud(at.x, at.y + 40, at.z, r)] }[b.dataset.deco]();
     insert(n, 'Décor ajouté'); });
+  pane.querySelectorAll('[data-pcat]').forEach((b) => b.onclick = () => { ui.propCat = b.dataset.pcat; paneObj(); });
+  pane.querySelectorAll('[data-prop]').forEach((b) => b.onclick = () => { const at = dropPoint(), r = MC.rng(Math.floor(Math.random() * 1e6)), p = PROPS[b.dataset.prop];
+    insert([p.build(T(), at.x, at.z, r, at.y)], p.e + ' ' + p.fr + ' ajouté'); });
   pane.querySelectorAll('[data-tw]').forEach((s) => s.onclick = (e) => { e.stopPropagation(); const id = s.dataset.tw; ui.open.has(id) ? ui.open.delete(id) : ui.open.add(id); paneObj(); });
   pane.querySelectorAll('.tree li').forEach((li) => li.onclick = () => { select(li.dataset.id); focusOn(selParts()); });
 }
