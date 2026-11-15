@@ -263,8 +263,10 @@ def cmd_pet(src, out, hd, render, samples):
         for o in objs:
             bv = o.modifiers.new('Bevel', 'BEVEL'); bv.width = 0.012; bv.segments = 2; bv.limit_method = 'NONE'
     mn, mx = bounds(objs); size = (mx - mn).length
+    qa = None
     if hd:
         objs = fuse_hd(objs, max(size / 4, 0.5))
+        qa = asset_qa(objs)  # clean before export
     name = ''.join(ch for ch in data.get('name', 'Pet') if ch.isalnum()) or 'Pet'
     os.makedirs(out, exist_ok=True)
     report = {'name': data.get('name'), 'parts': len(data['parts']), 'meshes': len(objs), 'triangles': sum(tri_count(o) for o in objs)}
@@ -275,6 +277,7 @@ def cmd_pet(src, out, hd, render, samples):
         bpy.ops.export_scene.gltf(filepath=os.path.join(out, name + '.glb'), use_selection=True, export_apply=True, export_yup=True)
         bpy.ops.export_scene.fbx(filepath=os.path.join(out, name + '.fbx'), use_selection=True, apply_unit_scale=True, axis_forward='-Z', axis_up='Y', bake_space_transform=True)
         report['export'] = [name + '.glb', name + '.fbx']
+        report['qa'] = qa
         report['maxTrianglesPerMesh'] = max(tri_count(o) for o in objs)
     if render:
         mn, mx = bounds(objs); c = (mn + mx) / 2; r = max((mx - mn).length / 2, 0.5)
@@ -338,6 +341,55 @@ def cmd_map(src, out, width, samples):
     json.dump(report, open(os.path.join(out, 'report.json'), 'w')); print('FORGE', json.dumps(report))
 
 
+ROBLOX_TRI_LIMIT = 20000  # per MeshPart
+
+
+def asset_qa(objs, fix=True):
+    """Game-asset QA gate (blender-asset-qa / blender-game-optimization skills): merge duplicate
+    vertices, drop loose and degenerate geometry, make normals point outwards, then report what is
+    left that a human should look at (open edges, floating parts, meshes over Roblox's limit)."""
+    report = {'meshes': 0, 'triangles': 0, 'merged': 0, 'loose': 0, 'nonManifoldEdges': 0, 'islands': 0, 'overLimit': [], 'fixed': fix}
+    for o in objs:
+        if o.type != 'MESH':
+            continue
+        bm = bmesh.new(); bm.from_mesh(o.data)
+        if fix:
+            n0 = len(bm.verts)
+            bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+            report['merged'] += n0 - len(bm.verts)
+            bmesh.ops.dissolve_degenerate(bm, dist=1e-6, edges=bm.edges)
+            loose = [v for v in bm.verts if not v.link_faces]
+            report['loose'] += len(loose)
+            if loose:
+                bmesh.ops.delete(bm, geom=loose, context='VERTS')
+            bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        report['nonManifoldEdges'] += sum(1 for e in bm.edges if not e.is_manifold)
+        # floating parts = connected face islands
+        seen, islands = set(), 0
+        for f in bm.faces:
+            if f.index in seen:
+                continue
+            islands += 1; stack = [f]
+            while stack:
+                g = stack.pop()
+                if g.index in seen:
+                    continue
+                seen.add(g.index)
+                for e in g.edges:
+                    for h in e.link_faces:
+                        if h.index not in seen:
+                            stack.append(h)
+        report['islands'] += islands
+        tris = sum(len(f.verts) - 2 for f in bm.faces)
+        report['triangles'] += tris; report['meshes'] += 1
+        if tris > ROBLOX_TRI_LIMIT:
+            report['overLimit'].append({'mesh': o.name, 'triangles': tris})
+        if fix:
+            bm.to_mesh(o.data); o.data.update()
+        bm.free()
+    return report
+
+
 def cmd_import(src, out, hd, render, samples):
     """A .glb made elsewhere (Meshy free plan, Sketchfab, Blender): turned to face like a Roblox pet,
     3.4 studs tall, one mesh under Roblox's 20 000 triangle limit, textures embedded in the .fbx."""
@@ -369,7 +421,8 @@ def cmd_import(src, out, hd, render, samples):
         bpy.ops.object.modifier_apply(modifier='Decimate')
     bpy.ops.object.shade_smooth()
     os.makedirs(out, exist_ok=True)
-    report = {'name': name, 'trianglesIn': tris, 'triangles': tri_count(o)}
+    qa = asset_qa([o])
+    report = {'name': name, 'trianglesIn': tris, 'triangles': tri_count(o), 'qa': qa}
     if hd:
         bpy.ops.export_scene.fbx(filepath=os.path.join(out, name + '.fbx'), use_selection=True, apply_unit_scale=True, axis_forward='-Z', axis_up='Y',
                                  bake_space_transform=True, path_mode='COPY', embed_textures=True)

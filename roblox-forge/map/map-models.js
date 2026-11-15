@@ -133,10 +133,20 @@ const BUILD = { oak: (T, x, z, r, y) => oak(T, x, z, r, y), cherry: (T, x, z, r,
 export function scenery(T, themeId, bounds, r, density = 1, extras = []) {
   const out = [], [x0, z0, x1, z1] = bounds, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, R = Math.max(x1 - x0, z1 - z0) / 2 + 60;
   out.push(block('Ground', [R * 2.6, 2, R * 2.6], [cx, -1.5, cz], T.ground));
+  // set dressing in clusters (groves, rock fields, flower beds) with Poisson-style spacing:
+  // a few cluster centres around the play area, 2–6 props of the SAME kind per cluster,
+  // plus a sprinkle of singles so the ring never looks tiled
   const kinds = SCENERY[themeId] || SCENERY.plaine, n = Math.round(26 * density), placed = [];
+  const free = (x, z, gap) => !(x > x0 - 20 && x < x1 + 20 && z > z0 - 20 && z < z1 + 20) && !placed.some(([px, pz]) => Math.hypot(px - x, pz - z) < gap);
+  const clusters = Math.max(3, Math.round(n / 5));
+  for (let c = 0; c < clusters && placed.length < n; c++) {
+    const a = r() * Math.PI * 2, d = R * (0.6 + r() * 0.5), ccx = cx + Math.cos(a) * d, ccz = cz + Math.sin(a) * d, kind = pick(r, kinds), want = 2 + Math.floor(r() * 5);
+    for (let k = 0, got = 0; k < want * 6 && got < want && placed.length < n; k++) {
+      const aa = r() * Math.PI * 2, dd = 6 + r() * 24, x = ccx + Math.cos(aa) * dd, z = ccz + Math.sin(aa) * dd;
+      if (!free(x, z, 12)) continue; placed.push([x, z]); got++; out.push(BUILD[kind](T, x, z, r, -0.5)); }
+  }
   for (let k = 0; k < n * 3 && placed.length < n; k++) { const a = r() * Math.PI * 2, d = R * (0.55 + r() * 0.6), x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d;
-    if (x > x0 - 20 && x < x1 + 20 && z > z0 - 20 && z < z1 + 20) continue; if (placed.some(([px, pz]) => Math.hypot(px - x, pz - z) < 22)) continue;
-    placed.push([x, z]); out.push(BUILD[pick(r, kinds)](T, x, z, r, -0.5)); }
+    if (!free(x, z, 22)) continue; placed.push([x, z]); out.push(BUILD[pick(r, kinds)](T, x, z, r, -0.5)); }
   for (const e of extras) { const a = r() * Math.PI * 2, d = R * 0.9, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d; if (BUILD[e]) out.push(BUILD[e](T, x, z, r, -0.5)); }
   out.push(mountains(T, cx, cz, R * 1.45, r, -1));
   for (let k = 0; k < Math.round(8 * density); k++) out.push(cloud(cx + (r() - 0.5) * R * 2.6, 90 + r() * 60, cz + (r() - 0.5) * R * 2.6, r, 1 + r()));

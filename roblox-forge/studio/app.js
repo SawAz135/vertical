@@ -1264,11 +1264,12 @@ function paneGen() {
       // keep Roblox happy: lower the detail until the pet fits in ~900 blocks
       for (const [res, colors, smooth] of [[importRes, 14, 1], [importRes, 10, 2], [Math.round(importRes * 0.8), 10, 2], [Math.round(importRes * 0.65), 8, 2], [24, 6, 3]]) { r = await voxelizeGLB(buf.slice(0), { res, colors, smooth }); if (r.parts.length <= MAX) break; }
       const name = safeName(f.name.replace(/\.glb$/i, '')).replace(/_/g, ' ');
-      importedGLB = { name: safeName(name), bytes: new Uint8Array(buf) };
+      const { plainGLB } = await import('./meshimport.js'), plain = await plainGLB(buf.slice(0));
+      importedGLB = { name: safeName(name), bytes: plain.bytes, converted: plain.converted };
       snapshot(); pet = { v: 1, name, customName: true, body: 'cat', rarity: pet.rarity, c1: r.palette[0], c2: r.palette[1] || r.palette[0], fx: defaultFx(), scripts: {}, gen: { style: 'import', source: f.name },
         parts: r.parts.map((p) => { const id = nid(); return { id, ...p, tint: false }; }) };
       const ids = new Map(); r.parts.forEach((p, i) => ids.set(p.key, pet.parts[i].id)); for (const p of pet.parts) { if (p.parentKey) p.parent = ids.get(p.parentKey); delete p.key; delete p.parentKey; }
-      selId = null; save(); rebuild(); updateHud(); toast(`📥 ${name} : ${r.triangles.toLocaleString('fr')} triangles → ${pet.parts.length} blocs`, 3500);
+      selId = null; save(); rebuild(); updateHud(); toast(`📥 ${name} : ${r.triangles.toLocaleString('fr')} triangles → ${pet.parts.length} blocs${plain.converted ? ' · compression ' + plain.from.join('+') + ' décodée' : ''}`, 3500);
     } catch (err) { console.warn(err); toast('Import impossible : ' + (err.message || err)); } };
 }
 function setPetStyle(st, redraw) { petStyle = st; try { localStorage.setItem('forge.petStyle', st); } catch {} toast(PET_STYLES[st] + ' : tous les pets passent dans ce style'); redraw(); }

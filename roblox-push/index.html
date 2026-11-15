@@ -1423,7 +1423,7 @@ function win(r, secs) {
     <div class="vsub">${Math.round(secs)} s · place ${esc(r.placeId)}</div>
     ${r.packs && r.packs.length ? `<div class="vsub">Packs dans le jeu : ${r.packs.map(esc).join(', ')}</div>` : ''}
     ${r.autoProject && r.action !== 'addpack' ? `<details class="raw"><summary>✨ Projet Roblox créé automatiquement</summary><pre>${esc(['Scripts rangés dans les bons services Roblox.', ...r.autoProject].join('\n'))}</pre></details>` : ''}
-    ${r.blender ? `<div class="vsub">✨ Blender : ${r.blender.map((b) => esc(b.name) + (b.assetId ? ' · mesh HD ' + esc(b.assetId) : '') + (b.error ? ' · ⚠️ ' + esc(String(b.error).slice(0, 120)) : '')).join(' · ')}</div><div id="hdRenders" style="display:grid;gap:8px;margin:10px 0"></div>` : ''}
+    ${r.blender ? `<div class="vsub">✨ Blender : ${r.blender.map((b) => esc(b.name) + (b.assetId ? ' · mesh HD ' + esc(b.assetId) : '') + (b.qa ? ' · contrôle qualité : ' + esc(b.qa.merged) + ' points fusionnés, ' + esc(b.qa.islands) + ' morceaux' + (b.qa.nonManifoldEdges ? ', ' + esc(b.qa.nonManifoldEdges) + ' bords ouverts' : '') + (b.qa.overLimit && b.qa.overLimit.length ? ', ⚠️ trop de triangles' : ' ✓') : '') + (b.error ? ' · ⚠️ ' + esc(String(b.error).slice(0, 120)) : '')).join(' · ')}</div><div id="hdRenders" style="display:grid;gap:8px;margin:10px 0"></div>` : ''}
     ${r.luau && r.luau.ran ? `<details class="raw" open><summary>Test Luau ✓</summary><pre>${esc((r.luau.logs || []).join('\n') || JSON.stringify(r.luau.results))}</pre></details>` : ''}
     <a class="cta" href="${esc(r.playUrl)}" target="_blank" rel="noopener">▶ Jouer dans Roblox</a>
     <button class="cta alt" id="closeL">Terminé</button>`;

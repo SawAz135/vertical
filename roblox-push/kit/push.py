@@ -817,6 +817,13 @@ def blender() -> None:
             dest = renders / f"{safe_pack_name(name)}_{safe_pack_name(png.stem)}.png"
             shutil.copy(png, dest)
             info.setdefault("renders", []).append(str(dest))
+        try:
+            rep = json.loads((out / "report.json").read_text(encoding="utf-8"))
+            if rep.get("qa"):
+                info["qa"] = rep["qa"]
+            info["triangles"] = rep.get("triangles")
+        except (OSError, ValueError):
+            pass
         fbx = next(iter(sorted(out.glob("*.fbx"))), None)
         if job.get("mesh") and fbx:
             try:
