@@ -43,6 +43,9 @@ export const SPECIES = {
   lapin: { fr: 'Lapin', e: '🐰', plan: 'quad', ears: 'long', tail: 'puff', base: ['#f5f2f7', '#ffd6e6'], words: 'lapin bunny rabbit lapinou' },
   cerf: { fr: 'Cerf', e: '🦌', plan: 'quad', ears: 'pointy', tail: 'puff', antlers: true, base: ['#b9824f', '#f7e3cc'], words: 'cerf deer biche faon renne reindeer' },
   licorne: { fr: 'Licorne', e: '🦄', plan: 'quad', ears: 'pointy', tail: 'mane', mane: 'rainbow', unihorn: true, base: ['#fbf7ff', '#ffd6f5'], words: 'licorne unicorn' },
+  vache: { fr: 'Vache', e: '🐮', plan: 'quad', ears: 'round', tail: 'tuft', snout: 1.1, pattern: 'spots', base: ['#f6f3ec', '#f2b3b3'], words: 'vache vaches veau taureau cow cows bull' },
+  cochon: { fr: 'Cochon', e: '🐷', plan: 'quad', ears: 'floppy', tail: 'curl', snout: 0.8, base: ['#f7aec0', '#fac2cf'], words: 'cochon cochons porc porcelet pig pigs piggy' },
+  mouton: { fr: 'Mouton', e: '🐑', plan: 'quad', ears: 'floppy', tail: 'puff', snout: 0.9, base: ['#f3f0ea', '#3b3432'], words: 'mouton moutons brebis agneau sheep lamb' },
   dragon: { fr: 'Dragon', e: '🐉', plan: 'quad', ears: 'fin', tail: 'dragon', snout: 1.5, horns: 'curved', wings: 'membrane', spikes: true, base: ['#3fb36b', '#e8f7c8'], words: 'dragon drake wyvern dragonnet' },
   axolotl: { fr: 'Axolotl', e: '🦎', plan: 'quad', ears: 'gills', tail: 'fishtail', base: ['#ff9ecb', '#ffe3f0'], words: 'axolotl salamandre' },
   hibou: { fr: 'Hibou', e: '🦉', plan: 'bird', beak: 'hook', tufts: true, base: ['#8b6a4a', '#f3dfc2'], words: 'hibou chouette owl' },
@@ -95,7 +98,7 @@ const COLORS = { rouge: '#ff3b4a', red: '#ff3b4a', bleu: '#3a7bff', blue: '#3a7b
 /* ---------- parsing ---------- */
 export function parse(text) {
   const t = ' ' + norm(text).replace(/[^\w\s\/-]/g, ' ') + ' ', has = (words) => words.split(' ').some((w) => w && t.includes(' ' + w + ' ') || (w.length > 4 && t.includes(w)));
-  const out = { species: null, element: null, styles: [], rarity: null, colors: [], name: null };
+  const out = { species: null, element: null, styles: [], rarity: null, colors: [], name: null, wings: /\b(ailes?|ailee?s?|wings?|winged|volant)\b/.test(t) };
   let t2 = t; for (const [k, s] of Object.entries(SPECIES)) if (has(s.words)) { out.species = k; for (const w of s.words.split(' ')) if (w) t2 = t2.replace(' ' + w + ' ', ' '); break; }
   const has2 = (words) => words.split(' ').some((w) => w && t2.includes(' ' + w + ' ') || (w.length > 4 && t2.includes(w)));
   for (const [k, e] of Object.entries(ELEMENTS)) if (has2(e.words)) { out.element = k; break; }
@@ -461,6 +464,7 @@ function decorate(B, P, anat) {
       B.add('Gem' + (i + 1), 'Ball', [0.13, 0.13, 0.13], [Math.cos(a) * 0.46 * k, y + 0.02, z + Math.sin(a) * 0.46 * k], [0, 0, 0], hsl(i * 60, 0.9, 0.6), 'Neon'); } }
   if (st.includes('ange') || e === 'lumiere' || P.rarity === 'Divin') { const y = top[1] + 0.75; for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 2; B.add('Halo' + (i + 1), 'Ball', [0.16, 0.16, 0.16], [Math.cos(a) * 0.55 * k, y, top[2] + Math.sin(a) * 0.55 * k], [0, 0, 0], '#fff1a8', 'Neon'); }
     if (!P.sp.wings && P.sp.plan === 'quad') wings(B, P, 'angel', [0, 1.6 * k, 0.2 * k], k); }
+  if (P.q && P.q.wings && !P.sp.wings && !st.includes('ange') && !st.includes('demon')) wings(B, P, P.sp.plan === 'quad' ? 'angel' : 'feather', [0, 1.6 * k, 0.2 * k], k); // « avec des ailes »
   if (st.includes('demon')) { if (P.sp.horns !== 'curved' && P.sp.plan !== 'robot') horns(B, head, { ...P, horn: '#2a1a1f' }, k * 0.7);
     if (!P.sp.wings && P.sp.plan === 'quad') wings(B, { ...P, c1: '#3a1420', c2: '#7a1f2f' }, 'membrane', [0, 1.6 * k, 0.2 * k], k * 0.8); }
   if (st.includes('cyber') && P.sp.plan !== 'robot') { const p = onSurface(head.c, head.s, [0, 0.12, -1], 0.02); B.add('Visor', 'Block', [head.s[0] * 0.85, 0.24 * k, 0.08], p, [0, 0, 0], P.glow, 'Neon', 0.15);
@@ -503,7 +507,7 @@ export function generate(text, seed) {
   const vk = r(); if (!q.colors.length && !keepsLook) { if (vk < 0.25) c1 = shiftHue(c1, 22); else if (vk < 0.5) c1 = shiftHue(c1, -22); else if (vk < 0.62) c1 = lighten(c1, 0.25); else if (vk < 0.72) c1 = darken(c1, 0.18); }
   if (q.colors[0]) c1 = q.colors[0]; if (q.colors[1]) c2 = q.colors[1]; else if (q.colors[0]) c2 = lighten(q.colors[0], 0.7);
     const glow = el ? el.glow : hsl(Math.floor(r() * 360), 0.9, 0.62);
-  const P = { sp, species, element, rarity, rarityTier, styles: q.styles, c1, c2, c3: el ? el.c[1] : darken(c1, 0.25), glow, dark: sp.dark, iris: mix(glow, c1, 0.3),
+  const P = { q, sp, species, element, rarity, rarityTier, styles: q.styles, c1, c2, c3: el ? el.c[1] : darken(c1, 0.25), glow, dark: sp.dark, iris: mix(glow, c1, 0.3),
     horn: element === 'or' ? '#ffcf3d' : element === 'glace' ? '#dff6ff' : '#f2e6d0', mat: element === 'or' ? 'Foil' : element === 'cristal' ? 'Glass' : 'SmoothPlastic', mat2: 'SmoothPlastic',
     size: (q.styles.includes('geant') ? 1.25 : q.styles.includes('mignon') ? 0.92 : 1) * (0.96 + r() * 0.08), style: sp.plan === 'robot' ? 'robot' : q.styles.includes('mignon') ? 'mignon' : null,
     fierce: q.styles.includes('demon') || element === 'ombre' || species === 'dragon' };
