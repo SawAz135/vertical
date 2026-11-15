@@ -193,7 +193,26 @@ const GEO = {
     const s = new THREE.Shape(); s.moveTo(-0.5, -0.5); s.lineTo(0.5, -0.5); s.lineTo(0.5, 0.5); s.lineTo(-0.5, -0.5);
     const g = new THREE.ExtrudeGeometry(s, { depth: 1, bevelEnabled: false }); g.translate(0, 0, -0.5); g.rotateY(-Math.PI / 2); g.computeVertexNormals(); return g; })(),
 };
-function matFor(p) {
+/* voxel pets: every merged block is drawn as the little cubes it is made of — a bevelled edge and its own
+   tint per cube (hand-made voxel figurine look) — without adding parts to the Roblox model. */
+function voxelize(m, p) {
+  if (!p.vox || p.shape !== 'Block' || p.material === 'Neon' || p.material === 'Glass' || p.material === 'ForceField') return m;
+  const corner = new THREE.Vector3(...p.pos.map((x, i) => (x - p.size[i] / 2) / p.vox));
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, { uVox: { value: p.vox }, uSize: { value: new THREE.Vector3(...p.size) }, uCorner: { value: corner } });
+    sh.vertexShader = 'varying vec3 vVoxL; varying vec3 vVoxN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vVoxL = position; vVoxN = normal;');
+    sh.fragmentShader = 'uniform float uVox; uniform vec3 uSize; uniform vec3 uCorner; varying vec3 vVoxL; varying vec3 vVoxN;\nfloat vh(vec3 c){ return fract(sin(dot(c, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }\n'
+      + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      { vec3 n = abs(vVoxN); vec3 g = (vVoxL + 0.5) * uSize / uVox - sign(vVoxN) * n * 0.5; vec3 c = floor(g + 1e-3); vec3 f = g - c;
+        vec3 e3 = min(f, 1.0 - f) + n * 9.0; float e = min(min(e3.x, e3.y), e3.z);
+        float tint = 0.9 + 0.17 * vh(c + uCorner);
+        float bevel = mix(0.72, 1.0, smoothstep(0.0, 0.14, e)) + (1.0 - smoothstep(0.0, 0.1, e)) * 0.10 * step(0.5, f.y + f.x - 0.5);
+        diffuseColor.rgb *= tint * bevel; }`);
+  };
+  m.customProgramCacheKey = () => 'forgeVoxel'; return m;
+}
+function matFor(p) { return voxelize(matForBase(p), p); }
+function matForBase(p) {
   const color = new THREE.Color(p.color); const t = p.transparency || 0;
   const base = { color, transparent: t > 0, opacity: 1 - t };
   switch (p.material) {
@@ -1220,7 +1239,7 @@ function styled(g, style = petStyle) {
     if (pal && !pal.eye) delete pal.eye;
     const lx = g.lex || {}; // dictionary variants (zèbre, girafe, loup-garou…) and « avec des ailes »
     const pv = PET_VOXEL[g.species]; // rabbits, owls, fish, bees… have their own voxel sculpture
-    if (pv && pv.critter) parts = voxelCritter(pv.critter, { color: pal ? pal.side : pv.color || null, scale: 1.3 * Math.min(1.3, lx.size || 1), voxel: 0.1, noProp: true }).parts.map((p) => ({ ...p }));
+    if (pv && pv.critter) parts = voxelCritter(pv.critter, { color: pal ? pal.side : pv.color || null, scale: 1.3 * Math.min(1.3, lx.size || 1), voxel: 0.085, noProp: true }).parts.map((p) => ({ ...p }));
     else parts = voxelAnimal(pv ? pv.animal : g.species, { palette: pal || lx.palette || null, flags: pv ? { ...pv.flags, ...(lx.flags || {}) } : lx.flags, wings: g.wings || lx.wings, glowEyes: hi, eye: pal && pal.eye, scale: Math.min(1.3, lx.size || 1) }).parts;
   } else parts = voxelizeParts(g.parts, style === 'blocs' ? 0.26 : 0.13).parts;
   const out = { ...g, parts, style }; styleCache.set(key, out); if (styleCache.size > 400) styleCache.delete(styleCache.keys().next().value); return out;

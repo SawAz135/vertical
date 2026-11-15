@@ -30,7 +30,7 @@ const bez = (p0, p1, p2, t) => [0, 1, 2].map((i) => (1 - t) * (1 - t) * p0[i] + 
 const SP = (o) => ({ head: 1, neckLen: 0, paw: 'paw', claws: true, muzzle: 'canine', ridge: 0, ruff: 0, ...o });
 export const VOX_SPECIES = {
   loup: SP({ fr: 'Loup', body: 0.88, legs: 1.05, neckDrop: 0.3, snout: 1.2, head: 1.15, bellyHi: 1.45, sockHi: 0.85, ears: 'pointy', tail: 'bushy', ridge: 1, ruff: 1,
-    cols: { back: '#6c717a', saddle: '#555a63', side: '#80858e', belly: '#f4f4f4', muzzle: '#f4f4f4', dark: '#373b43', nose: '#141418', eye: '#f2a52b', socks: '#f4f4f4' }, mask: true, snarl: true, brows: true }),
+    cols: { back: '#6c717a', saddle: '#555a63', side: '#80858e', belly: '#f4f4f4', muzzle: '#f4f4f4', dark: '#373b43', nose: '#141418', eye: '#4fa8ff', socks: '#f4f4f4' }, mask: true, snarl: true, brows: true, irisRing: true, tongue: true }),
   tigre: SP({ fr: 'Tigre', body: 1.0, legs: 0.98, pawsOnly: true, neckDrop: 0.12, snout: 0.85, muzzle: 'feline', ears: 'round', tail: 'long', ruff: 0.6, head: 1.22, bellyHi: 1.22,
     cols: { back: '#f2861b', side: '#f79d34', belly: '#fbfaf5', muzzle: '#fbfaf5', dark: '#1d1715', nose: '#e8a090', eye: '#f2c94c', socks: '#fbfaf5' }, stripes: true }),
   renard: SP({ fr: 'Renard', body: 0.85, legs: 0.9, neckDrop: 0.0, snout: 1.35, ears: 'big', tail: 'bushy', ruff: 0.8, ridge: 0.4,
@@ -106,7 +106,7 @@ function anatomy(sp, k) {
   const headC = [0, s((1.98 - sp.neckDrop) * L + 0.1 + nl), s(-1.42 * B - 0.25 - nl * 0.28)];
   const HB = sp.muzzle === 'equine' ? [s(0.36 * hs), s(0.4 * hs), s(0.42 * hs)] : [s(0.5 * hs * W), s(0.44 * hs), s(0.47 * hs)]; // cranium half-size
   const mz = sp.muzzle, snLen = s(0.56 * sp.snout * hs), front = headC[2] - HB[2];
-  const MH = { canine: [0.27, 0.19], feline: [0.3, 0.2], equine: [0.29, 0.24], bovine: [0.4, 0.27], pig: [0.3, 0.26], trunk: [0.26, 0.24] }[mz] || [0.27, 0.19]; // muzzle half w/h
+  const MH = { canine: [0.23, 0.17], feline: [0.24, 0.16], equine: [0.29, 0.24], bovine: [0.4, 0.27], pig: [0.3, 0.26], trunk: [0.26, 0.24] }[mz] || [0.27, 0.19]; // muzzle half w/h
   const muzC = [0, headC[1] - s((mz === 'equine' ? 0.2 : mz === 'bovine' ? 0.16 : 0.14) * hs), front - snLen / 2 + s(0.12)];
   const snoutTip = [0, muzC[1], front - snLen + s(0.08)];
   const eyeC = sp.sideEyes ? [s(0.38 * hs), headC[1] + s(0.13 * hs), headC[2] - s(0.2 * hs)] : [s(0.25 * hs * W), headC[1] + s(0.1 * hs), front - s(0.01)];
@@ -124,7 +124,7 @@ function anatomy(sp, k) {
   return function evalAt(p) {
     let tag = '', bone = 'Body';
     // ----- torso: deep chest block + lighter rear block, stepped together
-    let d = smin(sdRBox(p, [0, chest[1] + s(sp.hump ? 0.1 : 0.04), chest[2]], [s(0.5 * B * W), s(0.48 * B), s(0.6 * B)], s(0.14)), sdRBox(p, hip, [s(0.44 * B * W), s(0.42 * B), s(0.56 * B)], s(0.14)), s(0.18));
+    let d = smin(sdRBox(p, [0, chest[1] + s(sp.hump ? 0.1 : 0.04), chest[2]], [s(0.5 * B * W), s(0.48 * B), s(0.6 * B)], s(0.3 * B)), sdRBox(p, hip, [s(0.44 * B * W), s(0.42 * B), s(0.56 * B)], s(0.28 * B)), s(0.25));
     if (sp.ruff >= 1 || sp.mask) d = smin(d, sdRBox(p, [0, chest[1] - s(0.12), chest[2] - s(0.42 * B)], [s(0.46 * B * W), s(0.5 * B), s(0.3 * B)], s(0.12)), s(0.1)); // fluffy chest
     if (sp.hump) d = smin(d, sdRBox(p, [0, chest[1] + s(0.5 * B), chest[2] + s(0.1)], [s(0.32 * B), s(0.2 * B), s(0.36 * B)], s(0.12)), s(0.15));
     if (sp.wool) d -= s(0.06) * (0.5 + 0.5 * Math.sign(Math.sin(p[0] / s(0.16)) * Math.sin(p[1] / s(0.16)) * Math.sin(p[2] / s(0.16))));
@@ -133,7 +133,7 @@ function anatomy(sp, k) {
     const nk = sdBeam(p, [0, chest[1] + s(0.12), chest[2] - s(0.25 * B)], [0, headC[1] - s(0.06), headC[2] + s(0.18 * hs)], [s(0.36 * B * W), s(0.42 * B), s(0.32 * B)], [s(0.32 * hs * W * (nl ? 0.75 : 1)), s(0.34 * hs), s(0.3 * hs)], s(0.1), nl ? 7 : 3);
     d = smin(d, nk, s(0.12));
     // ----- head: cranium block, muzzle block, jaw, cheeks, nose
-    let head = sdRBox(p, headC, HB, s(0.1)), htag = '';
+    let head = sdRBox(p, headC, HB, s(0.2 * hs)), htag = '';
     if (mz === 'pig') { head = smin(head, sdRBox(p, muzC, [s(MH[0] * hs), s(MH[1] * hs), snLen / 2 + s(0.05)], s(0.06)), s(0.06)); const disc = sdCylZ(p, [0, snoutTip[1], snoutTip[2] - s(0.04)], s(0.25 * hs), s(0.07)); if (disc < head) htag = 'disc'; head = Math.min(head, disc); }
     else if (mz === 'trunk') { let td = 1e9; for (let i = 0; i < 7; i++) { const a = bez(...trunk, i / 7), b = bez(...trunk, (i + 1) / 7); td = Math.min(td, sdRBox(p, a, [s((0.24 - i * 0.022) * hs), s(0.12 * hs), s((0.24 - i * 0.022) * hs)], s(0.06)), sdCone(p, a, b, s((0.22 - i * 0.022) * hs), s((0.22 - (i + 1) * 0.022) * hs))); }
       if (td < head) htag = 'trunk'; head = smin(head, td, s(0.08)); }
@@ -195,7 +195,7 @@ function anatomy(sp, k) {
       if (sp.horseMane) { const f = sdCone(p, [0, headC[1] + s(0.48 * hs), headC[2] + s(0.1)], [s(0.06), headC[1] + s(0.3 * hs), headC[2] - s(0.32 * hs)], s(0.12), s(0.05)); if (f < d) { tag = 'mane'; bone = 'Head'; } d = Math.min(d, f); } }
     // ----- ears / horns
     for (const [ei, base] of ears.entries()) { const sx = ei ? 1 : -1; let e = 1e9;
-      if (sp.ears === 'pointy' || sp.ears === 'big') { const h = (sp.ears === 'big' ? 0.62 : 0.5) * hs; e = sdBeam(p, [base[0], base[1] + s(0.02), base[2]], [base[0] + s(0.04 * sx), base[1] + s(h), base[2] + s(0.04)], [s(0.21 * hs), s(0.07), s(0.09 * hs)], [s(0.05), s(0.07), s(0.06)], s(0.01), 6); }
+      if (sp.ears === 'pointy' || sp.ears === 'big') { const h = (sp.ears === 'big' ? 0.62 : 0.5) * hs; e = sdBeam(p, [base[0], base[1] + s(0.02), base[2]], [base[0] + s(0.04 * sx), base[1] + s(h), base[2] + s(0.04)], [s(0.25 * hs), s(0.07), s(0.12 * hs)], [s(0.06), s(0.07), s(0.07)], s(0.01), 6); }
       else if (sp.ears === 'round') e = sdRBox(p, [base[0] + s(0.1 * sx * hs), base[1] + s(0.16 * hs), base[2] + s(0.04)], [s(0.13 * hs), s(0.12 * hs), s(0.07 * hs)], s(0.05));
       else if (sp.ears === 'mouse') e = sdEll(p, [base[0] + s(0.12 * sx), base[1] + s(0.1), base[2]], [s(0.24), s(0.24), s(0.06)]);
       else if (sp.ears === 'floppy') e = sdCone(p, [base[0] + s(0.12 * sx), base[1], base[2]], [base[0] + s(0.26 * sx), base[1] - s(0.44), base[2] - s(0.02)], s(0.13), s(0.11));
@@ -213,9 +213,9 @@ function anatomy(sp, k) {
     if (sp.antlers) for (const sx of [-1, 1]) { const b0 = [s(0.18 * sx), headC[1] + s(0.3), headC[2] + s(0.1)], b1 = [s(0.5 * sx), headC[1] + s(0.85), headC[2] + s(0.15)], b2 = [s(0.6 * sx), headC[1] + s(1.25), headC[2] - s(0.1)];
       const a = Math.min(sdCone(p, b0, b1, s(0.06), s(0.05)), sdCone(p, b1, b2, s(0.05), s(0.03)), sdCone(p, b1, [s(0.35 * sx), headC[1] + s(1.15), headC[2] + s(0.35)], s(0.04), s(0.02)), sdCone(p, [s(0.32 * sx), headC[1] + s(0.55), headC[2] + s(0.12)], [s(0.3 * sx), headC[1] + s(0.75), headC[2] - s(0.2)], s(0.035), s(0.02)));
       if (a < d) { bone = 'Antler' + (sx < 0 ? 'L' : 'R'); tag = ''; } d = Math.min(d, a); }
-    if (sp.mane) { const rr = len(p[0], p[1] - headC[1], p[2] - headC[2]), ang = Math.atan2(p[1] - headC[1], p[0]), spike = s(0.1) * Math.max(0, Math.sin(ang * 7 + p[2] * 3)); // jagged lion mane
-      const m = sdEll(p, [0, headC[1] - s(0.05), headC[2] + s(0.22)], [s(0.72), s(0.74), s(0.5)]) - spike;
-      if (p[2] > headC[2] - s(0.12)) { if (m < d) { bone = 'Head'; tag = 'mane'; } d = smin(d, m, s(0.06)); } void rr; }
+    if (sp.mane) { const ang = Math.atan2(p[1] - headC[1], p[0]), spike = s(0.13) * Math.max(0, Math.sin(ang * 9 + p[2] * 4)) + s(0.05) * hash2(Math.floor(ang * 6), Math.floor(p[2] / s(0.15)));
+      const m = Math.min(sdEll(p, [0, headC[1] - s(0.02), headC[2] + s(0.2)], [s(0.88), s(0.92), s(0.55)]), sdEll(p, [0, headC[1] - s(0.55), headC[2] + s(0.35)], [s(0.55), s(0.6), s(0.45)])) - spike;
+      if (p[2] > headC[2] - s(0.1)) { if (m < d) { bone = 'Head'; tag = 'mane'; } d = smin(d, m, s(0.06)); } }
     if (sp.wings) for (const sx of [-1, 1]) { const w0 = [s(0.45 * sx), s(2.0 * L), s(-0.3)], w1 = [s(1.6 * sx), s(2.9 * L), s(0.0)];
       let w = sdCone(p, w0, w1, s(0.09), s(0.05)), wt = 'wingBone';
       for (const [fy, fz, fr] of [[2.35, 0.05, 0.62], [2.1, 0.32, 0.55], [1.92, 0.58, 0.45]]) { const f = Math.max(sdEll(p, [s(1.15 * sx), s(fy * L), s(fz)], [s(0.85), s(fr), s(0.06)]), -(p[1] - s(1.65 * L))); if (f < w) { w = f; wt = 'feather' + Math.round(fz * 10); } }
@@ -241,6 +241,7 @@ function colourAt(sp, p, bone, A, k, e) {
   if (tag === 'tongue') return '#ff6f8a';
   if (tag === 'udder') return '#f2a7b5';
   if (tag === 'knob') return c.dark;
+  if (tag === 'mane' && sp.mane) { const h = hash2(Math.floor(p[0] / s(0.1)) + Math.floor(p[2] / s(0.1)) * 13, Math.floor(p[1] / s(0.1))); return h < 0.3 ? shadeHex(sp.mane, 0.72) : h > 0.8 ? mixc(sp.mane, '#e0a24a', 0.45) : sp.mane; }
   if (tag === 'mane') return sp.rainbow ? RAINBOW[Math.floor((p[1] + p[2] + 20) / s(0.18)) % 4] : (c.mane || c.dark);
   if (tag === 'disc') return len(x - s(0.08 * hs), p[1] - snoutTip[1] - s(0.02), 0) < s(0.05) && p[2] < snoutTip[2] ? '#7a2d40' : c.nose;
   if (tag === 'nose') { if (p[2] < snoutTip[2] - s(0.05) && p[1] < snoutTip[1] + s(0.06 * hs) && x > s(0.03) && x < s(0.09 * hs) && sp.muzzle !== 'canine' && sp.muzzle !== 'feline') return '#1b1215'; return c.nose; }
@@ -248,9 +249,11 @@ function colourAt(sp, p, bone, A, k, e) {
   if (tag.startsWith('feather')) return sp.rainbow ? RAINBOW[+tag.slice(7) % 4] : tag === 'feather0' ? c.back : tag === 'feather3' ? mixc(c.side, c.belly, 0.4) : mixc(c.belly, c.side, 0.25);
   if (tag === 'wingBone') return c.back;
   // eyes. Front-facing hunters: a square amber eye with a black pupil, a dark rim and (wolf) a pale brow, like the reference figures.
-  if (bone === 'Head' && !sp.sideEyes) { const ex = eyeC[0], dx = x - ex, dy = p[1] - eyeC[1], R = s(0.1 * hs), H = s(0.075 * hs), onFace = p[2] < eyeC[2] + s(0.12);
-    if (onFace && Math.abs(dx) < R && Math.abs(dy) < H) { if (dx < -R * 0.15 && dy < H * 0.6 && dy > -H * 0.8) return '#0d0b10'; if (dx > R * 0.45 && dy > H * 0.3) return '#ffffff'; return e?.eye || c.eye; }
-    if (onFace && Math.abs(dx) < R * 1.45 && dy > -H * 1.5 && dy < H * 1.7) { if (sp.brows && !sp.stripes && dy > H && Math.abs(dx) < R * 1.1) return c.muzzle; return c.dark; } }
+  if (bone === 'Head' && !sp.sideEyes) { const ex = eyeC[0], dx = x - ex, dy = p[1] - eyeC[1], R = s(0.12 * hs), onFace = p[2] < eyeC[2] + s(0.14);
+    if (onFace && Math.abs(dx) < R && Math.abs(dy) < R * 1.05) { // big glossy eye: black pupil, white glint, coloured ring for light-eyed species
+      if (dx > R * 0.3 && dy > R * 0.35) return '#ffffff';
+      if (sp.irisRing && (Math.abs(dx) > R * 0.55 || dy < -R * 0.5)) return e?.eye || c.eye; return '#0d0b10'; }
+    if (sp.brows && onFace && Math.abs(dx) < R * 1.1 && dy > R * 1.05 && dy < R * 1.9) return c.muzzle; }
   if (bone === 'Head' && sp.sideEyes) { const ex = eyeC[0] * Math.sign(p[0] || 1), de = len(p[0] - ex, p[1] - eyeC[1], p[2] - eyeC[2]), R = s(0.12 * hs);
     if (de < R) { if (len(p[0] - ex, p[1] - eyeC[1] - R * 0.4, p[2] - eyeC[2] + R * 0.35) < R * 0.4) return '#ffffff'; return de < R * 0.8 ? '#0d0b10' : (e?.eye || c.eye); }
     if (de < R * 1.3 && p[1] > eyeC[1] + R * 0.5) return c.dark; }
@@ -310,8 +313,8 @@ function colourAt(sp, p, bone, A, k, e) {
     if (p[1] < bellyY) return c.belly;
     if (p[2] < A.chest[2] - s(0.42 * sp.body) + jag && p[1] < s(1.75 * L) && x < s(0.36 * sp.body)) return c.belly; // chest bib
     if (sp.scales && x < s(0.08) && p[1] > s(2.0)) return sp.spikes;
-    if (sp.stripes) { const h = clamp((p[1] - bellyY) / s(0.9), 0, 1), P = s(sp.stripes === true ? 0.3 : 0.45), u = p[2] - (p[1] - bellyY) * 0.45 + Math.sin(p[1] / s(0.25) + i0(p)) * s(0.06), i = Math.floor(u / P), band = u / P - i;
-      if (h > 0.1 && band < (sp.stripes === true ? 0.06 + 0.16 * h : 0.05 + 0.08 * h) && !(h < 0.45 && hash2(i, p[0] > 0 ? 5 : 9) < 0.35)) return c.dark; }
+    if (sp.stripes) { const h = clamp((p[1] - bellyY) / s(0.9), 0, 1), P = s(sp.stripes === true ? 0.27 : 0.45), u = p[2] - (p[1] - bellyY) * 0.45 + Math.sin(p[1] / s(0.25) + i0(p)) * s(0.06), i = Math.floor(u / P), band = u / P - i;
+      if (h > 0.1 && band < (sp.stripes === true ? 0.1 + 0.2 * h : 0.05 + 0.08 * h) && !(h < 0.45 && hash2(i, p[0] > 0 ? 5 : 9) < 0.35)) return c.dark; }
     if (sp.spots && (Math.sin(p[0] * 31) * Math.sin(p[2] * 27) * Math.sin(p[1] * 23)) > 0.55 && p[1] > s(1.6)) return '#fbf3e6';
     if (sp.spikes && x < s(0.08) && p[1] > s(2.0)) return sp.spikes;
     if (c.saddle && p[1] > s(1.95 * L) + jag) return c.saddle;
@@ -351,7 +354,7 @@ function toParts(boxes, keys, origin, v) {
   const byBone = new Map();
   const parts = boxes.map((b, i) => { const [bone, color, mat] = keys[b.key - 1].split('|');
     const p = { key: 'v' + i, name: bone, shape: 'Block', size: [r3(b.w * v), r3(b.h * v), r3(b.d * v)], pos: [r3(origin[0] + (b.x + b.w / 2) * v), r3(origin[1] + (b.y + b.h / 2) * v), r3(origin[2] + (b.z + b.d / 2) * v)],
-      rot: [0, 0, 0], color, material: mat || 'SmoothPlastic', transparency: 0, vol: b.w * b.h * b.d };
+      rot: [0, 0, 0], color, material: mat || 'SmoothPlastic', transparency: 0, vox: r3(v), vol: b.w * b.h * b.d };
     const cur = byBone.get(bone); if (!cur || p.vol > cur.vol) byBone.set(bone, p); return p; });
   for (const p of parts) { const rep = byBone.get(p.name); if (rep !== p) { p.name = p.name + '_v'; p.parentKey = rep.key; p.weld = true; } delete p.vol; }
   // body first (the rig root)
@@ -387,6 +390,7 @@ export function voxelizeField(f, paint, min, max, v, opts = {}) {
       const ao = Math.min(1, open / 50);                                   // ~50 of 124 cells are open on a flat face
       let fct = ao < 0.42 ? 0.86 : 1;                                        // only deep creases (armpits, under the jaw) darken
       if (!filled(x, y + 1, z) && ao > 0.9) fct *= 1.04;                     // sun-lit tops
+      if (opts.texture === true) { const h = noise3(x, y, z); fct *= h < 0.22 ? 0.9 : h > 0.84 ? 1.08 : 1; } // per-cube tint: the hand-made voxel figurine look
       fct = Math.round(fct / 0.06) * 0.06;                                   // quantised so blocks still merge
       if (Math.abs(fct - 1) > 0.01) col = shadeHex(col, fct);
     }
@@ -396,7 +400,7 @@ export function voxelizeField(f, paint, min, max, v, opts = {}) {
   return { parts: toParts(boxes, keys, min, v), voxels: fill.reduce((s, g) => s + g, 0) };
 }
 export function voxelAnimal(speciesId, opts = {}) {
-  const sp = VOX_SPECIES[speciesId] || VOX_SPECIES.loup, k = opts.scale || 1, v = (opts.voxel || 0.11) * k, e = opts.palette;
+  const sp = VOX_SPECIES[speciesId] || VOX_SPECIES.loup, k = opts.scale || 1, v = (opts.voxel || 0.085) * k, e = opts.palette;
   const morph = (opts.flags && opts.flags.morph && VOX_MORPHS[opts.flags.morph]) || null;
   let sp2 = morph ? { ...sp, ...morph, cols: { ...sp.cols, ...morph.cols } } : sp; // body plan first (elephant, giraffe, horse…)
   if (e) sp2 = { ...sp2, cols: { ...sp2.cols, ...e } };

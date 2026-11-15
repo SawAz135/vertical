@@ -117,21 +117,24 @@ const CRITTERS = {
       F.add(Math.max(sdCone(p, [0, y0 + 0.6, -0.4], [0, y0 + (kind === 'whale' ? 1.0 : 1.9), 0.35], 0.42, 0.05), -(p[1] - y0 - 0.5)), 'fin', 0.06);
       F.add(Math.max(sdEll(p, [0, y0 + 0.35, 2.75], [0.08, 1.05, 0.38]), -(p[2] - 2.1)) - 0.02, 'tail', 0.08);
       for (const sx of [-1, 1]) { F.add(sdCone(p, [0.7 * sx, y0 - 0.4, -0.7], [1.6 * sx, y0 - 0.95, 0.1], 0.18, 0.06), 'fin', 0.06); EYE(F, p, [0.45 * sx, y0 + 0.25, -1.95], 0.1); }
+      if (kind === 'shark') F.cut(sdEll(p, [0, y0 - 0.28, -2.75], [0.48, 0.3, 0.75])); // open jaws
       return F.out(); },
     paint(t, p, o) { const kind = o.kind || 'shark', c = o.color || { shark: '#7b8494', dolphin: '#7aa2c9', whale: '#3a5a8a', seal: '#7a7f88' }[kind];
-      if (t === 'eye') return '#14141c'; if (kind === 'shark' && t === 'body' && Math.abs(p[0]) > 0.55 && p[2] > -1.55 && p[2] < -1.0 && Math.sin(p[2] * 40) > 0.4 && p[1] > 1.2 && p[1] < 1.8) return shadeHex(c, 0.6); // gills
+      if (t === 'eye') return len(Math.abs(p[0]) - 0.5, p[1] - 1.72, p[2] + 2.0) < 0.07 ? '#ffffff' : '#14141c';
+      if (kind === 'shark') { const dm = sdEll(p, [0, 1.12, -2.75], [0.48, 0.3, 0.75]); if (dm < 0.14 && p[2] < -1.95) return Math.abs(p[1] - 1.12) > 0.17 && (Math.floor(p[0] * 7 + 20) % 2 === 0 || Math.abs(p[1] - 1.12) > 0.24) ? '#ffffff' : '#d9455a'; }
+      if (kind === 'shark' && t === 'body' && Math.abs(p[0]) > 0.55 && p[2] > -1.55 && p[2] < -1.0 && Math.sin(p[2] * 40) > 0.4 && p[1] > 1.2 && p[1] < 1.8) return shadeHex(c, 0.6); // gills
       if (kind === 'whale' && p[1] < 1.0 && Math.sin(p[0] * 30) > 0.4) return '#c9d4e0'; return p[1] < 1.2 ? '#eef2f5' : t === 'fin' || t === 'tail' ? shadeHex(c, 0.85) : c; } },
   butterfly: { box: [[-2.0, 0, -1.4], [2.0, 4.2, 1.4]],
     build(p, o = {}) { const F = Field(), y0 = 2.6;
       F.add(sdCone(p, [0, y0, -0.55], [0, y0, 0.75], 0.13, 0.07), 'body'); F.add(sdEll(p, [0, y0 + 0.02, -0.7], [0.16, 0.16, 0.16]), 'head');
       for (const sx of [-1, 1]) { F.add(sdCone(p, [0.06 * sx, y0 + 0.1, -0.8], [0.32 * sx, y0 + 0.7, -1.25], 0.06, 0.05), 'antenna'); F.add(sdEll(p, [0.33 * sx, y0 + 0.7, -1.25], [0.06, 0.06, 0.06]), 'antenna');
-        const tilt = (q) => [q[0], q[1] - Math.abs(q[0]) * 0.35, q[2]], q = tilt(p);
-        F.add(sdEll(q, [0.95 * sx, y0 + 0.05, -0.32], [0.85, 0.11, 0.62]), sx < 0 ? 'wingL' : 'wingR');
-        F.add(sdEll(q, [0.72 * sx, y0 - 0.02, 0.48], [0.62, 0.11, 0.48]), sx < 0 ? 'wingL' : 'wingR'); }
+        const q = [p[0], p[1], p[2] - Math.abs(p[0]) * 0.25]; // wings raised in a shallow V, facing the viewer
+        F.add(sdEll(q, [0.82 * sx, y0 + 0.62, -0.05], [0.8, 0.72, 0.1]), sx < 0 ? 'wingL' : 'wingR');
+        F.add(sdEll(q, [0.6 * sx, y0 - 0.38, 0.05], [0.56, 0.5, 0.1]), sx < 0 ? 'wingL' : 'wingR'); }
       if (!o.noProp) { F.add(sdCylY(p, [0, y0 / 2 - 0.1, 0], 0.09, y0 / 2 - 0.15), 'stem'); F.add(sdEll(p, [0, y0 - 0.32, 0], [0.42, 0.14, 0.42]), 'flower'); } // flower it rests on
       return F.out(); },
     paint(t, p, o) { const c = o.color || '#9a5cff'; if (t === 'stem') return '#3e9a48'; if (t === 'flower') return len(p[0], p[2]) < 0.16 ? '#ffd84d' : '#ff8ac0';
-      if (t.startsWith('wing')) { const r = len(Math.abs(p[0]) - 0.85, p[2] + 0.1), edge = (len(p[0], p[2]) > 1.3 || Math.abs(p[0]) > 1.55);
+      if (t.startsWith('wing')) { const y0 = 2.6, up = p[1] > y0, r = len(Math.abs(p[0]) - (up ? 0.95 : 0.65), p[1] - (up ? y0 + 0.7 : y0 - 0.4)), edge = up ? len((Math.abs(p[0]) - 0.82) / 0.8, (p[1] - y0 - 0.62) / 0.72) > 0.8 : len((Math.abs(p[0]) - 0.6) / 0.56, (p[1] - y0 + 0.38) / 0.5) > 0.78;
         if (edge) return hash2(Math.floor(p[0] * 7), Math.floor(p[2] * 7)) > 0.6 ? '#ffffff' : '#1d1b26'; return r < 0.22 ? mixc(c, '#ffffff', 0.6) : Math.abs(p[0]) < 0.35 ? shadeHex(c, 0.7) : c; }
       return '#1d1b26'; } },
   bee: { box: [[-1.6, 0, -1.4], [1.6, 3.6, 1.6]],
@@ -216,6 +219,31 @@ const CRITTERS = {
       return F.out(); },
     paint(t, p, o) { const c = o.color || '#c86bff'; if (t === 'eye') return len(Math.abs(p[0]) - 0.36, p[1] - 1.55, p[2] + 0.62) < 0.08 ? '#14141c' : '#ffffff';
       if (t === 'arm' && p[1] < 0.3) return hash2(Math.floor(p[0] * 6), Math.floor(p[2] * 6)) > 0.5 ? mixc(c, '#ffffff', 0.55) : c; return hash2(Math.floor(p[0] * 5 + 9), Math.floor(p[1] * 5)) > 0.85 ? shadeHex(c, 0.78) : c; } },
+  jellyfish: { box: [[-1.4, 0, -1.4], [1.4, 3.6, 1.4]],
+    build(p, o = {}) { const F = Field(), y0 = 2.5;
+      F.add(Math.max(sdEll(p, [0, y0, 0], [1.0, 0.85, 1.0]), -(p[1] - y0 + 0.15)), 'bell');
+      for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; F.add(sdEll(p, [Math.cos(a) * 0.92, y0 - 0.15, Math.sin(a) * 0.92], [0.17, 0.13, 0.17]), 'rim', 0.04); }
+      for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + 0.2, r0 = 0.62, pts = [0, 1, 2, 3, 4].map((j) => [Math.cos(a) * (r0 + Math.sin(j * 1.3 + i) * 0.14), y0 - 0.25 - j * 0.48, Math.sin(a) * (r0 + Math.cos(j * 1.1 + i) * 0.14)]);
+        for (let j = 0; j < 4; j++) F.add(sdCone(p, pts[j], pts[j + 1], 0.09, 0.07), 'tentacle'); }
+      for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + 0.8; for (let j = 0; j < 4; j++) F.add(sdEll(p, [Math.cos(a) * 0.22 + Math.sin(j * 2 + i) * 0.08, y0 - 0.45 - j * 0.38, Math.sin(a) * 0.22], [0.15, 0.22, 0.15]), 'arm', 0.05); }
+      for (const sx of [-1, 1]) EYE(F, p, [0.3 * sx, y0 + 0.05, -0.86], 0.11);
+      return F.out(); },
+    paint(t, p, o) { const c = o.color || '#ff8ad8'; if (t === 'eye') return p[1] > 2.58 && Math.abs(p[0]) > 0.3 ? '#ffffff' : '#14141c';
+      if (t === 'bell') return hash2(Math.floor(p[0] * 4 + 9), Math.floor(p[2] * 4 + 9) + Math.floor(p[1] * 4) * 31) > 0.82 ? mixc(c, '#ffffff', 0.6) : p[1] > 3.0 ? mixc(c, '#ffffff', 0.25) : c;
+      if (t === 'rim') return shadeHex(c, 0.85); if (t === 'arm') return mixc(c, '#ffffff', 0.35); return mixc(c, '#c86bff', 0.25); } },
+  axolotl: { box: [[-1.6, 0, -1.6], [1.6, 2.2, 2.4]],
+    build(p, o = {}) { const F = Field();
+      F.add(sdCone(p, [0, 0.62, -0.2], [0, 0.55, 1.1], 0.5, 0.36), 'body'); F.add(sdEll(p, [0, 0.85, -0.75], [0.7, 0.55, 0.58]), 'head', 0.18);
+      F.add(Math.max(sdEll(p, [0, 0.62, 1.55], [0.08, 0.42, 0.75]), -(p[2] - 1.0)), 'fin', 0.05);
+      for (const sx of [-1, 1]) { EYE(F, p, [0.4 * sx, 0.98, -1.18], 0.1);
+        for (const [gy, gz, k2] of [[1.35, -0.55, 1], [1.12, -0.48, 0.9], [0.88, -0.45, 0.8]]) { const b0 = [0.55 * sx, gy - 0.1, gz], b1 = [(0.95 + 0.15 * k2) * sx, gy + 0.32 * k2, gz + 0.2];
+          F.add(sdCone(p, b0, b1, 0.08, 0.06), 'gill'); for (let j = 1; j <= 3; j++) { const q = [b0[0] + (b1[0] - b0[0]) * j / 3.3, b0[1] + (b1[1] - b0[1]) * j / 3.3, b0[2] + (b1[2] - b0[2]) * j / 3.3]; F.add(sdEll(q.map((v, i) => p[i] - v + (i === 1 ? 0 : 0)).map((v, i) => v), [0, 0, 0], [0.1, 0.07, 0.09]), 'frond'); } }
+        for (const lz of [-0.25, 0.75]) F.add(Math.min(sdCone(p, [0.42 * sx, 0.45, lz], [0.7 * sx, 0.12, lz - 0.1], 0.1, 0.08), sdEll(p, [0.75 * sx, 0.06, lz - 0.16], [0.14, 0.06, 0.14])), 'leg'); }
+      return F.out(); },
+    paint(t, p, o) { const c = o.color || '#ffb8d2'; if (t === 'eye') return p[1] > 1.02 && Math.abs(p[0]) > 0.42 ? '#ffffff' : '#14141c';
+      if (t === 'head' && p[2] < -1.25 && Math.abs(p[1] - 0.72) < 0.04 && Math.abs(p[0]) < 0.32) return shadeHex(c, 0.55); // smile
+      if (t === 'gill' || t === 'frond') return t === 'frond' ? '#ff5fa8' : '#ff7ab8'; if (t === 'fin') return mixc(c, '#ffffff', 0.35);
+      return hash2(Math.floor(p[0] * 5 + 9), Math.floor(p[2] * 5 + 9)) > 0.9 && p[1] > 0.9 ? '#ff9ac4' : c; } },
 };
 /* lexicon types that reuse a sculpture with a variant */
 const ALIAS = { parrot: ['bird', { crest: true, color: '#e8413a', wing: '#2f6fdf', belly: '#ffd84d', hooked: true }], eagle: ['bird', { hooked: true, color: '#5a3a22', belly: '#5a3a22', head: '#f6f6f2', crest: false, beak: '#ffc93c', leg: '#ffc93c' }], phoenix: ['bird', { fan: true, crest: true, color: '#ff6a1a', wing: '#e8413a', belly: '#ffd84d', crestColor: '#ffd84d', beak: '#ffd84d', leg: '#e8413a', fire: true }],
@@ -241,4 +269,4 @@ export function voxelCritter(type, o = {}) {
 /** Pet-generator species that have no quadruped rig get their own voxel sculpture (morph or critter). */
 export const PET_VOXEL = { lapin: { animal: 'chat', flags: { morph: 'lapin' } }, hibou: { critter: 'owl' }, pingouin: { critter: 'penguin' }, poussin: { critter: 'chicken', color: '#ffd84d' },
   phenix: { critter: 'phoenix' }, serpent: { critter: 'snake' }, poisson: { critter: 'fish' }, requin: { critter: 'shark' }, pieuvre: { critter: 'octopus' }, abeille: { critter: 'bee' },
-  papillon: { critter: 'butterfly' }, araignee: { critter: 'spider' } };
+  papillon: { critter: 'butterfly' }, araignee: { critter: 'spider' }, meduse: { critter: 'jellyfish' }, axolotl: { critter: 'axolotl' } };
