@@ -8,6 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import * as MC from './map-core.js';
 import * as MM from './map-models.js';
+import * as MV from './map-voxel.js';
 import { PROPS, PROP_CATS } from './map-props.js';
 import { createLibrary } from '../library/forge-lib.js';
 
@@ -26,7 +27,18 @@ const Store = {
    ===================================================================== */
 let map = Store.get('map', null) || MC.newMap('obby', 'plaine', 7);
 let sel = new Set(), undoStack = [], redoStack = [];
-const ui = { tab: 'gen', snap: 1, multi: false, gen: { id: map.gen?.id || 'obby', theme: map.theme || 'plaine', seed: map.gen?.seed || 7, opts: clone(map.gen?.opts || {}) }, open: new Set() };
+/* complete maps: one tap, everything placed (gameplay + buildings + animals + voxel world) */
+const FULL_MAPS = [
+  { e: '🏝️', name: 'Île Simulator', desc: 'œufs, boutique, coffre, palmiers, perroquets', text: 'simulator sur une île tropicale avec 4 socles d\u2019œuf, une boutique, un coffre, 6 palmiers et 3 perroquets' },
+  { e: '🌲', name: 'Village de la forêt', desc: 'maisons, puits, feu de camp, cerfs, renards', text: 'lobby dans une forêt avec un village de 6 maisons, un puits, un feu de camp, 3 cerfs et 2 renards' },
+  { e: '🐄', name: 'Grande ferme', desc: 'grange, silo, champs, vaches, cochons, poules', text: 'une ferme avec 4 vaches, 3 cochons, 2 moutons, 5 poules, un canard et un tracteur' },
+  { e: '🏰', name: 'Royaume enneigé', desc: 'arène, château, loups, ours polaires, pingouins', text: 'arène enneigée avec un château, 3 loups, 2 ours polaires et 4 pingouins' },
+  { e: '🏜️', name: 'Tycoon du désert', desc: 'usine, temple, chameaux, cactus', text: 'tycoon dans le désert avec un temple, 3 chameaux et 4 cactus' },
+  { e: '☁️', name: 'Obby des nuages', desc: 'parcours, arc-en-ciel, pégases', text: 'obby dans le ciel avec un arc-en-ciel, 3 pégases et 2 papillons' },
+  { e: '🍭', name: 'Monde bonbon', desc: 'simulator, licornes, sucettes', text: 'simulator bonbon avec 4 licornes, 6 sucettes, 3 papillons et un coffre' },
+  { e: '🌋', name: 'Arène du volcan', desc: 'combat, dragons, cristaux, cascade', text: 'arène volcan avec 2 dragons, des cristaux et une cascade' },
+];
+const ui = { tab: 'gen', snap: 1, multi: false, gen: { id: map.gen?.id || 'obby', theme: map.theme || 'plaine', seed: map.gen?.seed || 7, opts: clone(map.gen?.opts || {}) }, open: new Set(), mapStyle: (() => { try { return localStorage.getItem('forge.mapStyle') || 'voxel'; } catch { return 'voxel'; } })() };
 function snapshot() { undoStack.push(JSON.stringify(map)); if (undoStack.length > 40) undoStack.shift(); redoStack = []; syncUndo(); }
 let saveT = 0; function save() { clearTimeout(saveT); saveT = setTimeout(() => Store.set('map', map), 250); }
 function syncUndo() { $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length; }
@@ -145,27 +157,31 @@ const CORNER = (() => { // CornerWedgePart: tall corner at (+X, top, -Z), slopes
   const uv = []; for (let i = 0; i < pos.length / 3; i++) uv.push(pos[i * 3] + 0.5, pos[i * 3 + 1] + 0.5); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); return g; })();
 function scaledUV(g, s) { g = g.clone(); const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * s, uv.getY(i) * s); return g; }
 /* voxel animals: show the little cubes of each merged block (bevel + own tint), same as Pet Studio and the ForgeVoxel material in Roblox */
-function voxMat(p) {
-  const m = material(p).clone(), half = new THREE.Vector3(...p.size).multiplyScalar(0.5), corner = new THREE.Vector3(...p.pos.map((x, i) => Math.round((x - p.size[i] / 2) / p.vox)));
+function voxMat(p) { // shared per colour: the cube size / block corner / half size travel as vertex attributes
+  const key = 'vox|' + p.color + '|' + (p.transparency || 0); if (matCache.has(key)) return matCache.get(key);
+  const m = material(p).clone();
   m.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, { uVox: { value: p.vox }, uHalf: { value: half }, uCorner: { value: corner } });
-    sh.vertexShader = 'varying vec3 vVoxL; varying vec3 vVoxN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vVoxL = position; vVoxN = normal;');
-    sh.fragmentShader = 'uniform float uVox; uniform vec3 uHalf; uniform vec3 uCorner; varying vec3 vVoxL; varying vec3 vVoxN;\nfloat vh(vec3 c){ return fract(sin(dot(c, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }\n'
+    sh.vertexShader = 'attribute vec4 voxA; attribute vec3 voxH; varying vec3 vVoxL; varying vec3 vVoxN; varying vec4 vVoxA; varying vec3 vVoxH;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vVoxL = position; vVoxN = normal; vVoxA = voxA; vVoxH = voxH;');
+    sh.fragmentShader = 'varying vec3 vVoxL; varying vec3 vVoxN; varying vec4 vVoxA; varying vec3 vVoxH;\nfloat vh(vec3 c){ return fract(sin(dot(c, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }\n'
       + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-      { vec3 n = abs(vVoxN); vec3 g = (vVoxL + uHalf) / uVox - sign(vVoxN) * n * 0.5; vec3 c = floor(g + 1e-3); vec3 f = g - c;
+      { vec3 n = abs(vVoxN); vec3 g = (vVoxL + vVoxH) / vVoxA.w - sign(vVoxN) * n * 0.5; vec3 c = floor(g + 1e-3); vec3 f = g - c;
         vec3 e3 = min(f, 1.0 - f) + n * 9.0; float e = min(min(e3.x, e3.y), e3.z);
-        diffuseColor.rgb *= (0.9 + 0.17 * vh(c + uCorner)) * mix(0.72, 1.0, smoothstep(0.0, 0.14, e)); }`);
+        diffuseColor.rgb *= (0.9 + 0.17 * vh(c + vVoxA.xyz)) * mix(0.72, 1.0, smoothstep(0.0, 0.14, e)); }`);
   };
-  m.customProgramCacheKey = () => 'forgeVoxelMap'; return m;
+  m.customProgramCacheKey = () => 'forgeVoxelMap'; matCache.set(key, m); return m;
 }
+function voxGeo(p) { const g = boxGeo(p.size[0], p.size[1], p.size[2]), n = g.attributes.position.count, A = new Float32Array(n * 4), H = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { for (let k = 0; k < 3; k++) { A[i * 4 + k] = Math.round((p.pos[k] - p.size[k] / 2) / p.vox); H[i * 3 + k] = p.size[k] / 2; } A[i * 4 + 3] = p.vox; }
+  g.setAttribute('voxA', new THREE.BufferAttribute(A, 4)); g.setAttribute('voxH', new THREE.BufferAttribute(H, 3)); return g; }
 function makeMesh(p) {
-  let geo, mat = p.vox && p.cls === 'Part' && (!p.shape || p.shape === 'Block') && p.material === 'SmoothPlastic' ? voxMat(p) : material(p), scale = [1, 1, 1];
+  const isVox = p.vox && p.cls === 'Part' && (!p.shape || p.shape === 'Block') && p.material === 'SmoothPlastic';
+  let geo, mat = isVox ? voxMat(p) : material(p), scale = [1, 1, 1];
   if (p.cls === 'WedgePart') { geo = scaledUV(WEDGE, Math.max(...p.size) / 8); scale = p.size; }
   else if (p.cls === 'CornerWedgePart') { geo = scaledUV(CORNER, Math.max(...p.size) / 8); scale = p.size; }
   else if (p.cls === 'TrussPart') { geo = boxGeo(p.size[0], p.size[1], p.size[2]); const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 4, uv.getY(i) * 4); mat = material(p, 'Truss'); }
   else if (p.shape === 'Cylinder') { geo = scaledUV(new THREE.CylinderGeometry(0.5, 0.5, 1, 40).rotateZ(Math.PI / 2), Math.max(...p.size) / 8); scale = p.size; }
   else if (p.shape === 'Ball') { geo = scaledUV(new THREE.SphereGeometry(0.5, 32, 20), p.size[0] / 6); scale = [p.size[0], p.size[0], p.size[0]]; }
-  else geo = boxGeo(p.size[0], p.size[1], p.size[2]);
+  else geo = isVox ? voxGeo(p) : boxGeo(p.size[0], p.size[1], p.size[2]);
   if (p.cls === 'SpawnLocation') mat = [mat, mat, material(p, 'Spawn'), mat, mat, mat];
   const m = new THREE.Mesh(geo, mat); m.scale.fromArray(scale); m.position.fromArray(p.pos); m.rotation.set(p.rot[0] * D2R, p.rot[1] * D2R, p.rot[2] * D2R, 'XYZ');
   m.castShadow = p.material !== 'Neon' && p.material !== 'ForceField' && (p.transparency || 0) < 0.6; m.receiveShadow = true; m.userData.id = p.id; m.userData.baseScale = scale;
@@ -178,18 +194,57 @@ function labelSprite(text, color = '#ffffff') {
 }
 let lightCount = 0;
 function addPart(p) {
-  const m = makeMesh(p); root.add(m); meshes.set(p.id, m);
+  const m = makeMesh(p); root.add(m); meshes.set(p.id, m); partIndex.set(p.id, p);
   if (p.light && lightCount < 24) { const l = new THREE.PointLight(p.color, (p.light.brightness || 2) * 6, p.light.range || 16, 1.6); l.position.copy(m.position); root.add(l); extras.push(l); lightCount++; m.userData.light = l; }
   const txt = p.label || (p.role ? { buybutton: `🛒 ${p.role.target} · ${p.role.price}`, claim: '🏳️ Réclamer', gate: `🔒 ${p.role.need} ${p.role.stat}` }[p.role.type] : null);
   if (txt) { const s = labelSprite(txt); s.position.set(p.pos[0], p.pos[1] + p.size[1] / 2 + 3, p.pos[2]); root.add(s); labels.set(p.id, s); }
 }
-function rebuildAll() {
-  for (const m of meshes.values()) { root.remove(m); m.geometry.dispose(); if (m.material && m.material.onBeforeCompile && m.material.customProgramCacheKey && m.material.customProgramCacheKey() === 'forgeVoxelMap') m.material.dispose(); } for (const s of labels.values()) { root.remove(s); s.material.map.dispose(); s.material.dispose(); }
-  for (const e of extras) root.remove(e); meshes.clear(); labels.clear(); extras.length = 0; lightCount = 0;
-  for (const p of MC.partsOf(map.root)) addPart(p);
-  refreshOutlines(); updateInfo(); if (gizmo.object) placePivot();
+/* ---------- render batching for voxel worlds ----------
+   A voxel map has ~10 000 cube blocks. Each part keeps its own (hidden) mesh for selection, collisions and
+   editing, but every voxel model (tree, rock, terrain, animal…) is DRAWN as one merged mesh: ~150 draw calls
+   instead of 10 000. Touching a model (move, resize, hide) splits it back into its parts. */
+const batches = new Map(), batchOf = new Map();
+const batchMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.05 });
+batchMat.onBeforeCompile = (sh) => {
+  sh.vertexShader = 'attribute vec3 voxL; attribute vec3 voxN; attribute vec4 voxA; attribute vec3 voxH; varying vec3 vVoxL; varying vec3 vVoxN; varying vec4 vVoxA; varying vec3 vVoxH;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vVoxL = voxL; vVoxN = voxN; vVoxA = voxA; vVoxH = voxH;');
+  sh.fragmentShader = 'varying vec3 vVoxL; varying vec3 vVoxN; varying vec4 vVoxA; varying vec3 vVoxH;\nfloat vh(vec3 c){ return fract(sin(dot(c, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }\n'
+    + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+    { vec3 n = abs(vVoxN); vec3 g = (vVoxL + vVoxH) / vVoxA.w - sign(vVoxN) * n * 0.5; vec3 c = floor(g + 1e-3); vec3 f = g - c;
+      vec3 e3 = min(f, 1.0 - f) + n * 9.0; float e = min(min(e3.x, e3.y), e3.z);
+      diffuseColor.rgb *= (0.9 + 0.17 * vh(c + vVoxA.xyz)) * mix(0.72, 1.0, smoothstep(0.0, 0.14, e)); }`);
+};
+batchMat.customProgramCacheKey = () => 'forgeVoxelBatch';
+function clearBatches() { for (const b of batches.values()) { root.remove(b.mesh); b.mesh.geometry.dispose(); } batches.clear(); batchOf.clear(); }
+function buildBatches() {
+  clearBatches();
+  const walk = (n) => { if (!n.children) return; const ps = n.children.filter((c) => !c.children && c.vox && c.cls === 'Part' && (!c.shape || c.shape === 'Block') && c.material === 'SmoothPlastic' && !c.role && !c.label && !c.light && (c.transparency || 0) === 0 && meshes.get(c.id));
+    if (n.cls === 'Model' && ps.length >= 8) makeBatch(n.id, ps); n.children.forEach(walk); };
+  walk(map.root);
 }
-function rebuildPart(p) { const old = meshes.get(p.id); if (old) { root.remove(old); old.geometry.dispose(); if (old.userData.light) root.remove(old.userData.light); }
+function makeBatch(id, ps) {
+  let nv = 0, ni = 0; for (const p of ps) { const g = meshes.get(p.id).geometry; nv += g.attributes.position.count; ni += g.index.count; }
+  const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), L = new Float32Array(nv * 3), N = new Float32Array(nv * 3), A = new Float32Array(nv * 4), H = new Float32Array(nv * 3), idx = new Uint32Array(ni);
+  let ov = 0, oi = 0; const v = new THREE.Vector3(), nm = new THREE.Matrix3(), c = new THREE.Color();
+  for (const p of ps) { const m = meshes.get(p.id); m.updateMatrixWorld(); const g = m.geometry, gp = g.attributes.position, gn = g.attributes.normal, ga = g.attributes.voxA, gh = g.attributes.voxH; nm.getNormalMatrix(m.matrixWorld); c.set(p.color);
+    for (let i = 0; i < gp.count; i++) { v.fromBufferAttribute(gp, i); L.set([v.x, v.y, v.z], (ov + i) * 3); v.applyMatrix4(m.matrixWorld); pos.set([v.x, v.y, v.z], (ov + i) * 3);
+      v.fromBufferAttribute(gn, i); N.set([v.x, v.y, v.z], (ov + i) * 3); v.applyMatrix3(nm).normalize(); nor.set([v.x, v.y, v.z], (ov + i) * 3); col.set([c.r, c.g, c.b], (ov + i) * 3);
+      A.set([ga.getX(i), ga.getY(i), ga.getZ(i), ga.getW(i)], (ov + i) * 4); H.set([gh.getX(i), gh.getY(i), gh.getZ(i)], (ov + i) * 3); }
+    for (let i = 0; i < g.index.count; i++) idx[oi + i] = g.index.array[i] + ov; ov += gp.count; oi += g.index.count; m.visible = false; batchOf.set(p.id, id); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('voxL', new THREE.BufferAttribute(L, 3)); geo.setAttribute('voxN', new THREE.BufferAttribute(N, 3)); geo.setAttribute('voxA', new THREE.BufferAttribute(A, 4)); geo.setAttribute('voxH', new THREE.BufferAttribute(H, 3)); geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, batchMat); mesh.castShadow = true; mesh.receiveShadow = true; mesh.raycast = () => {}; // picking stays on the per-part meshes
+  root.add(mesh); batches.set(id, { mesh, ids: ps.map((p) => p.id) });
+}
+function unbatch(partId) { const id = batchOf.get(partId); if (!id) return; const b = batches.get(id); batches.delete(id); root.remove(b.mesh); b.mesh.geometry.dispose();
+  for (const pid of b.ids) { batchOf.delete(pid); const m = meshes.get(pid); if (m) m.visible = !(play.hidden && play.hidden.has(pid)); } }
+function rebuildAll() {
+  clearBatches();
+  for (const m of meshes.values()) { root.remove(m); m.geometry.dispose(); } for (const s of labels.values()) { root.remove(s); s.material.map.dispose(); s.material.dispose(); }
+  for (const e of extras) root.remove(e); meshes.clear(); partIndex.clear(); labels.clear(); extras.length = 0; lightCount = 0;
+  for (const p of MC.partsOf(map.root)) addPart(p);
+  buildBatches(); refreshOutlines(); updateInfo(); if (gizmo.object) placePivot();
+}
+function rebuildPart(p) { unbatch(p.id); const old = meshes.get(p.id); if (old) { root.remove(old); old.geometry.dispose(); if (old.userData.light) root.remove(old.userData.light); }
   const s = labels.get(p.id); if (s) { root.remove(s); labels.delete(p.id); } addPart(p); }
 function updateInfo() { const s = MC.stats(map); $('mapName').textContent = map.name; $('mapInfo').textContent = `${s.parts} pièces · ${Object.values(s.roles).reduce((a, b) => a + b, 0)} gameplay · ${T().label}`; }
 
@@ -222,7 +277,7 @@ function select(id, add = ui.multi) { if (!add) sel.clear(); if (id) { if (add &
 let drag0 = null;
 gizmo.addEventListener('dragging-changed', (e) => {
   controls.enabled = !e.value;
-  if (e.value) { snapshot(); const ps = selParts(); drag0 = { inv: pivot.matrixWorld.clone().invert(), parts: ps.map((p) => ({ p, m: meshes.get(p.id).matrixWorld.clone(), size: p.size.slice() })) }; }
+  if (e.value) { snapshot(); const ps = selParts(); ps.forEach((p) => unbatch(p.id)); drag0 = { inv: pivot.matrixWorld.clone().invert(), parts: ps.map((p) => ({ p, m: meshes.get(p.id).matrixWorld.clone(), size: p.size.slice() })) }; }
   else { if (gizmo.getMode() === 'scale' && drag0) { for (const { p } of drag0.parts) rebuildPart(p); placePivot(); refreshOutlines(); } drag0 = null; save(); if (ui.tab === 'props') renderPane(); selectionChanged(); }
 });
 gizmo.addEventListener('objectChange', () => {
@@ -277,12 +332,19 @@ function buildAvatar() {
   const face = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.4), new THREE.MeshBasicMaterial({ color: '#1b1b1b' })); face.position.set(0, 4.55, -0.63); face.rotation.y = Math.PI; g.add(face);
   return g;
 }
-function partFor(id) { return MC.find(map.root, id); }
+const partIndex = new Map();
+function partFor(id) { return partIndex.get(id) || MC.find(map.root, id); }
 function ancestors(id) { const out = []; let p = play.parent.get(id); while (p) { out.push(p); p = play.parent.get(p.id); } return out; }
 function tycoonOf(id) { return ancestors(id).find((a) => a.tycoon) || null; }
-function rebuildSolids() { play.solids = [...meshes.entries()].filter(([id]) => { const p = partFor(id); return p && p.canCollide !== false && !play.hidden.has(id) && !(p.role?.type === 'gate' && gateOpen(p)); }).map(([, m]) => m); }
+function rebuildSolids() { play.all = [...meshes.entries()].filter(([id]) => { const p = partFor(id); return p && p.canCollide !== false && !play.hidden.has(id) && !(p.role?.type === 'gate' && gateOpen(p)); }).map(([, m]) => m);
+  play.nearAt = null; play.solids = play.all; nearSolids(); }
+/* only test collisions against parts around the player (a voxel world has ~10 000 parts) */
+function nearSolids() { const P = play, at = P.pos; if (!at || !P.all) return P.solids;
+  if (P.nearAt && P.nearAt.distanceTo(at) < 12 && P.t - (P.nearT || 0) < 0.5) return P.solids;
+  const b = new THREE.Sphere(); P.solids = P.all.filter((m) => { const g = m.geometry; if (!g.boundingSphere) g.computeBoundingSphere(); b.copy(g.boundingSphere).applyMatrix4(m.matrixWorld); return b.center.distanceTo(at) < b.radius + 60; });
+  P.nearAt = at.clone(); P.nearT = P.t; return P.solids; }
 const gateOpen = (p) => (play.stats[p.role.stat] || 0) >= p.role.need;
-function setHidden(n, hide) { for (const p of MC.partsOf(n)) { const m = meshes.get(p.id); if (m) m.visible = !hide; if (hide) play.hidden.add(p.id); else play.hidden.delete(p.id); const l = labels.get(p.id); if (l) l.visible = !hide; } }
+function setHidden(n, hide) { for (const p of MC.partsOf(n)) { unbatch(p.id); const m = meshes.get(p.id); if (m) m.visible = !hide; if (hide) play.hidden.add(p.id); else play.hidden.delete(p.id); const l = labels.get(p.id); if (l) l.visible = !hide; } }
 function addStat(name, v) { play.stats[name] = (play.stats[name] || 0) + v; drawStats(); }
 function drawStats() { $('stats').innerHTML = Object.entries(play.stats).map(([k, v]) => `<div><span>${esc(k)}</span><b>${MC_abbrev(v)}</b></div>`).join('') || '<div><span>▶ Jeu</span><b>OK</b></div>'; }
 const MC_abbrev = (v) => { const u = [[1e9, 'B'], [1e6, 'M'], [1e3, 'K']].find(([n]) => Math.abs(v) >= n); return u ? (v / u[0]).toFixed(1).replace(/\.0$/, '') + u[1] : String(Math.floor(v)); };
@@ -333,6 +395,7 @@ function playTick(dt) {
   const mv = fwd.multiplyScalar(-P.input.y).add(right.multiplyScalar(P.input.x)); if (mv.lengthSq() > 1) mv.normalize();
   if (P.fly) { P.pos.addScaledVector(mv, 48 * dt); P.pos.y += ((P.jump ? 1 : 0) - (P.downKey ? 1 : 0)) * 36 * dt; P.vel.set(0, 0, 0); P.grounded = false; }
   else {
+    nearSolids();
     let push = new THREE.Vector3();
     if (P.grounded && P.ground) { const gp = partFor(P.ground.userData.id); if (gp?.role?.type === 'conveyor') push = new THREE.Vector3(0, 0, -1).applyQuaternion(P.ground.quaternion).multiplyScalar(gp.role.speed || 16); }
     P.vel.x = mv.x * WALK + push.x; P.vel.z = mv.z * WALK + push.z; P.vel.y -= GRAV * dt;
@@ -450,6 +513,10 @@ function paneGen() {
       <div class="btns" style="margin-top:8px"><button class="btn pri" id="mapGo" style="flex:1">✨ Générer la map</button><button class="btn" id="mapDice">🎲</button></div>
       <div class="chips" style="margin-top:8px">${['une ferme avec 3 vaches et 3 cochons bleus avec des ailes', '2 dragons dorés géants, un château et une forêt', 'village avec 5 tentes rouges, un puits et un feu de camp', 'simulator avec 4 socles d\'œuf, une boutique et un coffre', 'tycoon dans le désert avec 3 moutons et des tonneaux'].map((x) => `<button class="chip" data-ex="${esc(x)}">${esc(x)}</button>`).join('')}</div>
       <div class="note" style="margin-top:6px">Comprend plus de 2764 mots (français et anglais, singulier et pluriel) : genre de jeu, thème, animaux (zèbre, pégase, loup-garou…), bâtiments (école, hôpital, pizzeria…), véhicules, meubles, nourriture, plantes, objets — avec le nombre (3, trois, quelques), la couleur (bleu, doré, turquoise…), « avec des ailes », géant / petit. Un mot inconnu compté (« 4 xylophones ») devient un objet avec son nom.</div></div>
+    <div class="sec"><h3>🎨 Style de la carte</h3><div class="chips">${[['classic', '🧱 Classique'], ['voxel', '🧊 Voxel']].map(([k, l]) => `<button class="chip${(ui.mapStyle || 'voxel') === k ? ' on' : ''}" data-mst="${k}">${l}</button>`).join('')}</div>
+      <div class="note" style="margin-top:6px">${(ui.mapStyle || 'voxel') === 'voxel' ? 'Voxel : terrain en cubes (collines, falaises, lacs, mer), arbres, rochers, buissons, fleurs, champignons et nuages sculptés en petits cubes, et toutes les pièces montrent leurs cubes (bord biseauté + nuance), comme les pets voxel.' : 'Classique : pièces lisses, arbres et décors faits de formes simples.'}</div>
+      <button class="btn big" id="toVoxel" style="margin-top:8px">🧊 Passer ma carte actuelle en voxel</button></div>
+    <div class="sec"><h3>🗺️ Cartes complètes <small>prêtes à jouer, un seul appui</small></h3><div class="cards">${FULL_MAPS.map((m, i) => `<button class="card fullmap" data-full="${i}"><span class="e">${m.e}</span><b>${m.name}</b><small>${m.desc}</small></button>`).join('')}</div></div>
     <div class="sec"><h3>Genre de jeu <small>tout est jouable</small></h3><div class="cards">${Object.entries(MC.GENERATORS).map(([id, x]) => `<button class="card${id === ui.gen.id ? ' on' : ''}" data-gen="${id}"><span class="e">${x.e}</span>${x.fr}</button>`).join('')}</div></div>
     <div class="sec"><h3>Thème <small>matériaux, couleurs, ambiance</small></h3><div class="chips">${Object.entries(MC.THEMES).map(([id, t]) => `<button class="chip${id === ui.gen.theme ? ' on' : ''}" data-th="${id}">${t.e} ${t.label}</button>`).join('')}</div>
       ${Object.entries(g.opts).map(([k, [a, b]]) => `<div class="row"><label>${OPT_FR[k] || k}</label><input type="range" data-opt="${k}" min="${a}" max="${b}" step="1" value="${ui.gen.opts[k]}"><span class="val">${ui.gen.opts[k]}</span></div>`).join('')}
@@ -459,11 +526,23 @@ function paneGen() {
     <div class="sec"><div class="note">${{ obby: 'Parcours avec sauts, lave, tourniquets, plateformes mobiles, tremplins, échelles, tapis et checkpoints (Stage dans le classement).', tycoon: 'Parcelles à réclamer : droppers → tapis → upgrader → collecteur qui donne du <b>Cash</b>. Les boutons verts achètent les droppers, murs et tour.', simulator: 'Zones de plus en plus riches remplies de pièces. Les portes s\'ouvrent quand tu as assez de <b>Coins</b>.', lobby: 'Place centrale avec fontaine, piliers lumineux, bancs et portails vers un balcon secret.', arena: 'Arène circulaire avec murs néon, couvertures, rampes et 4 points d\'apparition.', island: 'Île tropicale : océan, plage, palmiers, rochers, ponton.', city: 'Quartier : routes, trottoirs, immeubles éclairés, lampadaires.', cave: 'Tunnel de roche avec cristaux lumineux, bassins de lave et pièces.', sky: 'Îles flottantes reliées par des tremplins, avec checkpoints et nuages.' }[ui.gen.id]}</div></div>`;
   $('mapQ').oninput = (e) => (ui.mapQ = e.target.value);
   pane.querySelectorAll('[data-ex]').forEach((b) => b.onclick = () => { ui.mapQ = b.dataset.ex; $('mapQ').value = ui.mapQ; });
-  const fromText = (txt) => { if (MC.partsOf(map.root).length > 0 && !confirm('Remplacer la carte actuelle ? (↶ pour revenir)')) return; snapshot();
-    const g = MM.generateFromText(txt, Math.floor(Math.random() * 1e9)); map.theme = g.theme; map.lighting = { preset: g.light, over: {} }; map.gen = { id: g.gen, seed: 0, opts: g.opts, text: txt };
+  const fromText = (txt, o = {}, title) => { if (MC.partsOf(map.root).length > 0 && !confirm('Remplacer la carte actuelle ? (↶ pour revenir)')) return; snapshot();
+    const g = MM.generateFromText(txt, Math.floor(Math.random() * 1e9), { voxel: (ui.mapStyle || 'voxel') === 'voxel', ...o }); if (title) map.name = title.replace(/[^\p{L}\p{N}]+/gu, ''); map.theme = g.theme; map.lighting = { preset: g.light, over: {} }; map.gen = { id: g.gen, seed: 0, opts: g.opts, text: txt };
     map.root.children = g.children; sel.clear(); save(); rebuildAll(); applyLighting(); selectionChanged(); focusOn(MC.partsOf(map.root.children[0]));
     toast(`✨ ${MC.GENERATORS[g.gen].fr} · ${MC.THEMES[g.theme].label} · ${MC.stats(map).parts} pièces`); };
   $('mapGo').onclick = () => fromText(ui.mapQ || '');
+  pane.querySelectorAll('[data-mst]').forEach((b) => b.onclick = () => { ui.mapStyle = b.dataset.mst; try { localStorage.setItem('forge.mapStyle', ui.mapStyle); } catch {} paneGen(); });
+  pane.querySelectorAll('[data-full]').forEach((b) => b.onclick = () => { const m = FULL_MAPS[+b.dataset.full]; ui.mapQ = m.text; fromText(m.text, { density: 1.3, voxel: true }, m.name); });
+  $('toVoxel').onclick = () => { if (!MC.partsOf(map.root).length) return toast('Crée d\u2019abord une carte'); snapshot(); toast('🧊 Conversion en voxel…', 1500);
+    setTimeout(() => { const kids = map.root.children, game = kids.find((k) => k.name === 'Gameplay') || null, scen = kids.find((k) => k.name === 'Scenery');
+      const ps = MC.partsOf(game || { children: kids.filter((k) => k !== scen) }), bx = [Infinity, Infinity, -Infinity, -Infinity];
+      for (const p of ps) { bx[0] = Math.min(bx[0], p.pos[0]); bx[1] = Math.min(bx[1], p.pos[2]); bx[2] = Math.max(bx[2], p.pos[0]); bx[3] = Math.max(bx[3], p.pos[2]); }
+      if (!isFinite(bx[0])) bx.splice(0, 4, -40, -40, 40, 40);
+      MV.voxelTag(kids.filter((k) => k !== scen));
+      if (scen) { const keep = scen.children.filter((c) => !/^(Ground|Mountains|Cloud|Oak|Pine|Tree|Rocks|Flowers|Cactus|Crystals)/.test(c.name) && c.cls === 'Model'); MV.voxelTag(keep);
+        scen.children = [...MV.voxelScenery(map.theme || 'plaine', bx, MC.rng(Date.now() % 99991), 1, []), ...keep]; }
+      else map.root.children.push(MC.model('Scenery', MV.voxelScenery(map.theme || 'plaine', bx, MC.rng(Date.now() % 99991), 1, [])));
+      save(); rebuildAll(); selectionChanged(); toast('🧊 Carte en voxel · ' + MC.stats(map).parts + ' pièces'); }, 30); };
   $('mapDice').onclick = () => { const r = Math.random, g = ['obby', 'tycoon', 'simulator', 'lobby', 'arène', 'île', 'ville', 'grotte', 'ciel'], t = ['prairie', 'désert', 'neige', 'volcan', 'bonbon', 'néon', 'espace'], e = ['château', 'temple', 'cascade', 'moulin', 'statue', 'village', 'volcan'];
     ui.mapQ = `${g[Math.floor(r() * g.length)]} ${t[Math.floor(r() * t.length)]} avec ${e[Math.floor(r() * e.length)]} et ${e[Math.floor(r() * e.length)]}`; $('mapQ').value = ui.mapQ; fromText(ui.mapQ); };
   pane.querySelectorAll('[data-gen]').forEach((b) => b.onclick = () => { ui.gen.id = b.dataset.gen; ui.gen.opts = {}; paneGen(); });
@@ -475,7 +554,8 @@ function paneGen() {
     const th = MC.THEMES[ui.gen.theme]; map.theme = ui.gen.theme; map.lighting = { preset: th.light, over: {} }; map.gen = clone(ui.gen);
     { const r = MC.rng(ui.gen.seed), core = g.make(th, r, ui.gen.opts), bx = [Infinity, Infinity, -Infinity, -Infinity];
       for (const p of core.flatMap((n) => MC.partsOf(n))) { bx[0] = Math.min(bx[0], p.pos[0]); bx[1] = Math.min(bx[1], p.pos[2]); bx[2] = Math.max(bx[2], p.pos[0]); bx[3] = Math.max(bx[3], p.pos[2]); }
-      map.root.children = ui.scenery === false ? core : [MC.model('Gameplay', core), MC.model('Scenery', MM.scenery(th, ui.gen.theme, bx, r, 1))]; } sel.clear(); save(); rebuildAll(); applyLighting(); selectionChanged(); focusOn(MC.partsOf(map.root)); toast(g.e + ' ' + g.fr + ' créé · ' + MC.stats(map).parts + ' pièces'); };
+      const vox = (ui.mapStyle || 'voxel') === 'voxel'; if (vox) MV.voxelTag(core);
+      map.root.children = ui.scenery === false ? core : [MC.model('Gameplay', core), MC.model('Scenery', vox ? MV.voxelScenery(ui.gen.theme, bx, r, 1, []) : MM.scenery(th, ui.gen.theme, bx, r, 1))]; } sel.clear(); save(); rebuildAll(); applyLighting(); selectionChanged(); focusOn(MC.partsOf(map.root)); toast(g.e + ' ' + g.fr + ' créé · ' + MC.stats(map).parts + ' pièces'); };
   $('genAdd').onclick = () => { snapshot(); const th = MC.THEMES[ui.gen.theme], kids = g.make(th, MC.rng(ui.gen.seed), ui.gen.opts), grp = MC.model(g.fr.replace(/\W/g, '') || 'Zone', kids);
     const cur = new THREE.Box3(); MC.partsOf(map.root).forEach((p) => cur.expandByPoint(new THREE.Vector3(...p.pos)));
     const nb = new THREE.Box3(); MC.partsOf(grp).forEach((p) => nb.expandByPoint(new THREE.Vector3(...p.pos)));
