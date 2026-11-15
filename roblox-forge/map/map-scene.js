@@ -127,11 +127,11 @@ function scarecrow(x, z, y = 0) { return model('Scarecrow', [block('Post', [0.5,
   block('Shirt', [2.6, 2.6, 1.2], [x, y + 4.8, z], M('#3f86ff', 'Fabric')), ball('Head', 1.8, [x, y + 7, z], M('#e9c46a', 'Fabric')), cyl('Hat', 0.3, 3, [x, y + 7.9, z], M('#8a5a33', 'Fabric')), cyl('HatTop', 1, 1.6, [x, y + 8.5, z], M('#8a5a33', 'Fabric'))]); }
 
 /* ---------- animals on the map (voxel engine, coarser grid so a herd stays light) ---------- */
-function colorPalette(hex) { return { back: shade(hex, 0.82), side: hex, belly: shade(hex, 1.35), muzzle: shade(hex, 1.25), socks: shade(hex, 0.7), dark: shade(hex, 0.45), nose: shade(hex, 0.6) }; }
+function colorPalette(hex) { return { back: shade(hex, 0.82), side: hex, belly: shade(hex, 1.35), muzzle: shade(hex, 1.25), socks: shade(hex, 0.7), dark: shade(hex, 0.45), nose: shade(hex, 0.6), hoof: shade(hex, 0.4), mane: shade(hex, 0.55), saddle: shade(hex, 0.7) }; }
 const animalCache = new Map();
 export function animalModel(species, x, z, yaw, y = 0, o = {}) {
   const key = species + '|' + (o.color || '') + '|' + !!o.wings + '|' + (o.size || 1) + '|' + JSON.stringify(o.flags || {}) + JSON.stringify(o.palette || {});
-  if (!animalCache.has(key)) animalCache.set(key, voxelAnimal(VOX_SPECIES[species] ? species : 'loup', { voxel: 0.17 * Math.max(1, (o.size || 1) * 0.8), scale: 1.25 * (o.size || 1), palette: o.color ? colorPalette(o.color) : o.palette || null, flags: o.flags, wings: o.wings, shading: false }).parts);
+  if (!animalCache.has(key)) animalCache.set(key, voxelAnimal(VOX_SPECIES[species] ? species : 'loup', { voxel: 0.13 * Math.max(1, (o.size || 1) * 0.8), scale: 1.25 * (o.size || 1), palette: o.color ? colorPalette(o.color) : o.palette || null, flags: o.flags, wings: o.wings }).parts);
   const c = Math.cos(yaw), s = Math.sin(yaw), kids = animalCache.get(key).map((p) => {
     const dx = p.pos[0] * c + p.pos[2] * s, dz = -p.pos[0] * s + p.pos[2] * c;
     return P('Part', p.name, p.size, [x + dx, y + p.pos[1], z + dz], [0, yaw * 180 / Math.PI, 0], M(p.color, p.material), { canCollide: false });

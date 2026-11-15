@@ -19,3 +19,10 @@ Hidden interior voxels are `WILD`: they match any colour in `greedy`, so shading
 
 ## Budget
 Voxel 0.11 studs; target 450–650 parts. Measure with `node blendertest/mkvox.mjs loup,tigre` (prints voxels → parts). Render check: `blender -b -P roblox-forge/blender/forge_blender.py -- pet vox_x.json out --render 360`.
+
+## v3 "figurine" anatomy (matches the reference wolf / tiger / chicken)
+- Rounded boxes (`sdRBox`, `sdBeam`): chest + rear torso blocks, block cranium, block muzzle + jaw, pillar legs, flat paws with 4 claws, hooves, elephant pads.
+- Species features: muzzle (canine, feline, equine, bovine, pig, trunk), ears (pointy, round, floppy, leaf, side, pig, bunny, mouse, elephant, horns), ruff, ridge, manes, tusks, ossicones, udder.
+- Morphs (`flags.morph`): elephant, girafe, cheval, lapin, souris, singe. Patterns: stripes (thin diagonal), zebra, giraffe voronoi, rosettes, cow blobs.
+- Clean shading (crease AO + top light only). Greedy merge never lets a block tunnel through another bone (bone-tagged hidden cells, trimmed slabs).
+- `voxel-critters.js`: birds (cube chicken), duck, owl, penguin, bat, fish, shark/dolphin/whale/seal, butterfly, bee, ladybug/spider/crab, snake/lizard, worm, frog, turtle/snail, octopus, parrot, eagle, phoenix, flamingo, peacock, ostrich. `PET_VOXEL` maps pet species without a rig.

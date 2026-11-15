@@ -6,6 +6,7 @@
    Kenney-style rules: 3-tone colours, dark trims, chunky readable shapes.
    ===================================================================== */
 import { P, block, cyl, ball, model } from './map-core.js';
+import { voxelCritter } from '../studio/voxel-critters.js';
 
 const M = (c, m) => ({ c, m });
 const noCol = { canCollide: false };
@@ -115,22 +116,11 @@ export function food(T, x, z, r, y = 0, o = {}) { const t = o.type || 'apple', c
   return model(o.name || 'Food', k); }
 
 /* ---------- small creatures not in the voxel engine ---------- */
-export function critter(T, x, z, r, y = 0, o = {}) { const t = o.type || 'bird', c = o.color || pick(r, ['#ff9a3c', '#3f86ff', '#e8413a', '#ffd84d']), s = o.scale || 1, k = [];
-  if (t === 'bird' || t === 'chicken' || t === 'duck' || t === 'owl' || t === 'penguin') { const col = o.color || { chicken: '#f6f6f6', duck: '#f6f6f6', owl: '#8a5a33', penguin: '#2b2b33' }[t] || c;
-    k.push(ball('Body', 2.2 * s, [x, y + 1.6 * s, z], M(col, 'SmoothPlastic')), ball('Head', 1.5 * s, [x, y + 3 * s, z - 0.6 * s], M(t === 'duck' ? '#3e9a48' : col, 'SmoothPlastic')),
-      P('WedgePart', 'Beak', [0.5 * s, 0.4 * s, 0.7 * s], [x, y + 2.9 * s, z - 1.5 * s], [0, 180, 0], M('#ffb23e', 'SmoothPlastic'), noCol), ...[-0.4, 0.4].map((dx) => ball('Eye', 0.35 * s, [x + dx * s, y + 3.2 * s, z - 1.2 * s], M('#14141c', 'SmoothPlastic'), noCol)),
-      ...[-1, 1].map((sx) => block('Wing', [0.3 * s, 1.2 * s, 1.6 * s], [x + sx * 1.1 * s, y + 1.7 * s, z], M(shade(col, 0.8), 'SmoothPlastic'), { canCollide: false, rot: [0, 0, sx * 15] })), ...[-0.4, 0.4].map((dx) => block('Leg', [0.2 * s, 0.6 * s, 0.2 * s], [x + dx * s, y + 0.3 * s, z], M('#ffb23e', 'SmoothPlastic'), noCol)));
-    if (t === 'chicken') k.push(block('Comb', [0.25 * s, 0.6 * s, 0.8 * s], [x, y + 3.9 * s, z - 0.6 * s], M('#e8413a', 'SmoothPlastic'), noCol));
-    if (t === 'penguin') k.push(ball('Belly', 1.8 * s, [x, y + 1.6 * s, z - 0.4 * s], M('#f6f6f6', 'SmoothPlastic'), noCol)); }
-  else if (t === 'fish' || t === 'shark') { const L = t === 'shark' ? 3 : 1; k.push(P('Part', 'Body', [1.4 * s * L, 1.6 * s * L, 3 * s * L], [x, y + 1.2 * s * L, z], [0, 0, 0], M(t === 'shark' ? '#7b8494' : c, 'SmoothPlastic'), { shape: 'Ball' }), P('WedgePart', 'Tail', [0.3 * s * L, 1.4 * s * L, 1.2 * s * L], [x, y + 1.2 * s * L, z + 1.9 * s * L], [0, 0, 0], M(shade(t === 'shark' ? '#7b8494' : c, 0.8), 'SmoothPlastic'), noCol), ball('Eye', 0.3 * s * L, [x + 0.5 * s * L, y + 1.5 * s * L, z - 1 * s * L], M('#14141c', 'SmoothPlastic'), noCol)); if (t === 'shark') k.push(P('WedgePart', 'Fin', [0.3 * s * 3, 1.6 * s * 3, 1.2 * s * 3], [x, y + 3.4 * s * 3, z], [0, 180, 0], M('#7b8494', 'SmoothPlastic'), noCol)); }
-  else if (t === 'butterfly' || t === 'bee' || t === 'ladybug') { const col = o.color || { bee: '#ffd84d', ladybug: '#e8413a' }[t] || '#9a5cff';
-    k.push(ball('Body', 0.9 * s, [x, y + 3 * s, z], M(t === 'bee' ? '#ffd84d' : '#2b2b33', 'SmoothPlastic')), ...[-1, 1].map((sx) => block('Wing', [1.6 * s, 0.1 * s, 1.4 * s], [x + sx * 1 * s, y + 3.2 * s, z], M(t === 'bee' ? '#e6f6ff' : col, t === 'bee' ? 'Glass' : 'SmoothPlastic'), { canCollide: false, rot: [0, 0, sx * 20], transparency: t === 'bee' ? 0.4 : 0 })));
-    if (t === 'ladybug') k.length = 0, k.push(P('Part', 'Shell', [2 * s, 2 * s, 2 * s], [x, y + 0.8 * s, z], [0, 0, 0], M('#e8413a', 'SmoothPlastic'), { shape: 'Ball' }), ...[[-0.5, 0.3], [0.5, -0.2], [0, 0.6]].map(([dx, dz]) => ball('Dot', 0.4 * s, [x + dx * s, y + 1.75 * s, z + dz * s], M('#14141c', 'SmoothPlastic'), noCol))); }
-  else if (t === 'snake' || t === 'worm') for (let i = 0; i < 8; i++) k.push(ball('Seg', 1.1 * s, [x + Math.sin(i * 0.8) * 1.2 * s, y + 0.55 * s, z + i * 0.9 * s], M(i % 2 ? c : shade(c, 0.8), 'SmoothPlastic'), noCol));
-  else if (t === 'frog' || t === 'turtle') { const col = o.color || (t === 'frog' ? '#4cc46a' : '#3e9a48'); k.push(P('Part', 'Body', [2.6 * s, 2.6 * s, 2.6 * s], [x, y + 1 * s, z], [0, 0, 0], M(col, 'SmoothPlastic'), { shape: 'Ball' }));
-    if (t === 'frog') k.push(...[-0.5, 0.5].map((dx) => ball('Eye', 0.8 * s, [x + dx * s, y + 2.2 * s, z - 0.7 * s], M('#ffffff', 'SmoothPlastic'), noCol)));
-    else k.push(ball('Head', 1 * s, [x, y + 0.9 * s, z - 1.6 * s], M('#7bd35a', 'SmoothPlastic'), noCol), cyl('Shell', 0.8 * s, 2.9 * s, [x, y + 1.6 * s, z], M('#8a5a33', 'SmoothPlastic'), noCol)); }
-  return model(o.name || 'Critter', k); }
+export function critter(T, x, z, r, y = 0, o = {}) { // voxel sculptures (studio/voxel-critters.js), same look as the voxel pets
+  const sc = (o.scale || 1) * 1.4, yaw = r() * Math.PI * 2, c = Math.cos(yaw), sn = Math.sin(yaw);
+  const vc = voxelCritter(o.type || 'bird', { color: o.color || null, scale: sc, voxel: 0.17 / sc });
+  const k = vc.parts.map((p) => P('Part', p.name.replace(/_v$/, ''), p.size, [x + p.pos[0] * c + p.pos[2] * sn, y + p.pos[1], z - p.pos[0] * sn + p.pos[2] * c], [0, (yaw * 180) / Math.PI, 0], M(p.color, p.material), noCol));
+  return model(o.name || (o.type || 'critter').replace(/^./, (ch) => ch.toUpperCase()), k); }
 
 /* ---------- play & sport & fun ---------- */
 export function fun(T, x, z, r, y = 0, o = {}) { const t = o.type || 'balloon', c = o.color || pick(r, ['#e8413a', '#3f86ff', '#ffd84d', '#4cc46a', '#ff8ac0']), k = [];

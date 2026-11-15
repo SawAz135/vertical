@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Forge Studio">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: https://api.github.com https://raw.githubusercontent.com; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: https://api.github.com https://raw.githubusercontent.com https://huggingface.co https://*.hf.space; img-src 'self' data: blob: https://*.hf.space; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Forge Studio</title>
 <link rel="icon" href="data:,">
@@ -175,6 +175,8 @@ textarea.lsearch{resize:none;font-size:15px;line-height:1.35}
 .var small{position:relative;font-size:10px;font-weight:800;color:var(--muted)}
 .var .num{position:absolute;left:7px;top:5px;font:800 10px ui-monospace,Menlo,monospace;color:#ffffffa0;font-style:normal;z-index:1}
 .var:active{transform:scale(.96)}
+.aiprog{height:6px;border-radius:3px;background:rgba(255,255,255,.08);margin-top:10px;overflow:hidden}.aiprog i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3ee6ff,#7c5cff);transition:width .4s}
+.aiimg img{width:100%;max-width:220px;border-radius:12px;margin-top:8px;display:block}
 </style>
 </head>
 <body>
