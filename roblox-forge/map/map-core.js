@@ -268,6 +268,7 @@ function partJson(p) {
   if (p.label) attrs.ForgeLabel = p.label;
   if (p.follow) attrs.ForgeFollow = p.follow;
   if (p.vox) attrs.ForgeVox = p.vox;
+  if (p.attrs) Object.assign(attrs, p.attrs);
   if (Object.keys(attrs).length) node.attributes = attrs;
   if (p.light) node.children.push({ name: 'Light', className: 'PointLight', properties: { Color: hex01(p.color), Range: p.light.range || 16, Brightness: p.light.brightness || 2, Shadows: false } });
   return node;
