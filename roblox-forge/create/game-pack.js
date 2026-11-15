@@ -18,7 +18,9 @@ export function padsFor(spec, nodes) {
   let spawn = null; const find = (n) => { if (spawn) return; if (n.cls === 'SpawnLocation') spawn = n; (n.children || []).forEach(find); }; nodes.forEach(find);
   const sx = spawn ? spawn.pos[0] : 0, sz = spawn ? spawn.pos[2] : 0, sy = spawn ? spawn.pos[1] - spawn.size[1] / 2 : 0.5;
   const want = [spec.sell && 'Sell', spec.shop && 'Shop', spec.eggs && 'Egg', spec.rebirth && 'Rebirth', spec.train && 'Train'].filter(Boolean);
-  return MC.model('GamePads', want.map((zone, i) => {
+  const extra = spec.board ? [MC.model('Leaderboard', [MC.block('Board', [16, 10, 0.8], [sx, sy + 7, sz - 30], M('#16122a'), { attrs: { ForgeGameBoard: true }, canCollide: true }),
+    MC.block('Frame', [17, 11, 0.6], [sx, sy + 7, sz - 29.6], M('#ffd45c', 'Neon')), MC.block('Leg', [1, 2, 1], [sx - 6, sy + 1, sz - 30], M('#3a3a46'), { vox: 0.5 }), MC.block('Leg', [1, 2, 1], [sx + 6, sy + 1, sz - 30], M('#3a3a46'), { vox: 0.5 })])] : [];
+  return MC.model('GamePads', [...extra, ...want.map((zone, i) => {
     const n = want.length, a = n === 1 ? Math.PI * 1.5 : Math.PI * (1.12 + 0.76 * i / (n - 1)), R = 22, x = +(sx + Math.cos(a) * R).toFixed(2), z = +(sz + Math.sin(a) * R).toFixed(2), [txt, col] = PADS[zone];
     return MC.model(zone + 'Pad', [
       MC.block('Base', [11, 0.6, 11], [x, sy + 0.3, z], M('#2b2b33'), { vox: 0.5 }),
@@ -26,7 +28,7 @@ export function padsFor(spec, nodes) {
       MC.block('Post', [1, 7, 1], [x, sy + 4.1, z + 5], M('#3a3a46'), { vox: 0.5 }),
       MC.block('Sign', [10, 3, 0.6], [x, sy + 8.4, z + 5], M(col), { label: txt, vox: 0.5, canCollide: false }),
     ]);
-  }));
+  })]);
 }
 export function buildMap(spec, seed = 7) {
   const text = spec.mapText || `${spec.genre} ${spec.theme}`;
@@ -102,6 +104,8 @@ export function describe(spec) {
   if (spec.codes.length) out.push('Codes : ' + spec.codes.map((c) => c.code).join(', '));
   if (spec.pass) out.push(`Gamepass ×${spec.pass.mult} (mets son id dans Config.pass.id)`);
   if (spec.autoTrain) out.push('Auto-entraînement');
+  if (spec.combat) out.push(`Combat PvP : épée, ${spec.combat.damage} dégâts, Kills, +${spec.combat.reward} ${spec.combat.money} par kill`);
+  if (spec.board) out.push(`Classement : top ${spec.board.top} (${spec.board.stat})`);
   out.push('Sauvegarde automatique (DataStore, anti-duplication)');
   return out;
 }
