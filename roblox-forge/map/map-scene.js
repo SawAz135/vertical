@@ -134,7 +134,7 @@ export function animalModel(species, x, z, yaw, y = 0, o = {}) {
   if (!animalCache.has(key)) animalCache.set(key, voxelAnimal(VOX_SPECIES[species] ? species : 'loup', { voxel: 0.13 * Math.max(1, (o.size || 1) * 0.8), scale: 1.25 * (o.size || 1), palette: o.color ? colorPalette(o.color) : o.palette || null, flags: o.flags, wings: o.wings }).parts);
   const c = Math.cos(yaw), s = Math.sin(yaw), kids = animalCache.get(key).map((p) => {
     const dx = p.pos[0] * c + p.pos[2] * s, dz = -p.pos[0] * s + p.pos[2] * c;
-    return P('Part', p.name, p.size, [x + dx, y + p.pos[1], z + dz], [0, yaw * 180 / Math.PI, 0], M(p.color, p.material), { canCollide: false });
+    return P('Part', p.name, p.size, [x + dx, y + p.pos[1], z + dz], [0, yaw * 180 / Math.PI, 0], M(p.color, p.material), { canCollide: false, vox: p.vox });
   });
   return model(o.word ? o.word.replace(/eaux$/, 'eau').replace(/aux$/, 'al').replace(/([^s])s$/, '$1').replace(/[^a-z0-9]/gi, '').replace(/^./, (c) => c.toUpperCase()) : VOX_SPECIES[species] ? VOX_SPECIES[species].fr.replace(/\s/g, '') : 'Animal', kids, { attributes: { ForgeAnimal: species } });
 }

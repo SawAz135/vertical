@@ -26,3 +26,12 @@ Voxel 0.11 studs; target 450–650 parts. Measure with `node blendertest/mkvox.m
 - Morphs (`flags.morph`): elephant, girafe, cheval, lapin, souris, singe. Patterns: stripes (thin diagonal), zebra, giraffe voronoi, rosettes, cow blobs.
 - Clean shading (crease AO + top light only). Greedy merge never lets a block tunnel through another bone (bone-tagged hidden cells, trimmed slabs).
 - `voxel-critters.js`: birds (cube chicken), duck, owl, penguin, bat, fish, shark/dolphin/whale/seal, butterfly, bee, ladybug/spider/crab, snake/lizard, worm, frog, turtle/snail, octopus, parrot, eagle, phoenix, flamingo, peacock, ostrich. `PET_VOXEL` maps pet species without a rig.
+
+## Little-cube look everywhere (v4)
+- Parts carry `vox` (cube size, studs) → exported as attribute `ForgeVox`.
+- Pet Studio / Map Studio previews: shader in `voxelize()` / `voxMat()` (bevel + per-cube tint), no extra parts.
+- Blender: `voxel_material()` in forge_blender.py (object attributes `vsize`, `vcorner`).
+- Roblox: `studio/voxel-look.js` adds `ForgeVoxel/color.png`, `normal.png`, `voxel.json` + `ServerScriptService/ForgeVoxelLook.server.lua` to packs.
+  The robot step `push.py voxel` uploads the 2 images (Image assets, once; reused from stored packs) and writes `MaterialService/ForgeVoxel.model.json`
+  (MaterialVariant ColorMap/NormalMap can only be set at build time: PluginSecurity). The script clones it per cube size (`StudsPerTile = cube × 8`, × model scale).
+- Not verifiable offline: exact tile alignment on Roblox faces and part-colour tinting of MaterialVariants (documented by the community, tested only in mocks).

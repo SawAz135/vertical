@@ -76,6 +76,12 @@ jobs:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
         run: python3 .roblox-push/push.py blender
 
+      - name: Voxel figurine look (cube tile -> MaterialVariant)
+        if: steps.stage.outputs.has_voxel == 'true'
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 .roblox-push/push.py voxel
+
       - name: Add the packs
         if: steps.stage.outputs.has_packs == 'true'
         run: python3 .roblox-push/push.py merge

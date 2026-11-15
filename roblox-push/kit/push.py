@@ -498,6 +498,8 @@ def stage() -> None:
             with zipfile.ZipFile(packs_dir / f"{name}.zip") as z:
                 jobs = [n for n in z.namelist() if n.startswith("ForgeBlender/") and n.endswith(".json")]
             state["blenderJobs"] = len(jobs)
+            with zipfile.ZipFile(packs_dir / f"{name}.zip") as z:
+                state["voxelLook"] = "ForgeVoxel/voxel.json" in z.namelist()
             base = next((p for p in files if p.startswith(f"{place}/base.")), None)
             if not base:
                 raise PushError("NO_BASE", "This game was never published with Roblox Push, so there is no game to add the pack to.")
@@ -515,6 +517,7 @@ def stage() -> None:
         output("needs_build", "true" if state.get("kind") == "rojo" else "false")
         output("has_packs", "true" if packs else "false")
         output("has_blender", "true" if state.get("blenderJobs") else "false")
+        output("has_voxel", "true" if state.get("voxelLook") else "false")
     except PushError as err:
         fail(state, "stage", err)
 
@@ -856,6 +859,67 @@ def blender() -> None:
     step(state, "blender", all("error" not in r for r in results), f"{len(results)} job(s), {len(meshes)} HD mesh(es)")
 
 
+def voxel() -> None:
+    """Voxel figurine look: upload the pack's cube tile (ForgeVoxel/color.png + normal.png) once and
+    write MaterialService/ForgeVoxel (a MaterialVariant: its texture can only be set when the place is
+    built). Reuses the material of an already stored pack when there is one. Never fatal."""
+    state = load_state()
+    name = state.get("packName")
+    packs_dir = WORK / "packs"
+    src = WORK / "voxel" / "src"
+    if src.exists():
+        shutil.rmtree(src)
+    src.mkdir(parents=True)
+    safe_extract(packs_dir / f"{name}.zip", src)
+    look = src / "ForgeVoxel"
+    if not look.exists():
+        step(state, "voxel", True, "no voxel parts")
+        return
+    target = src / "MaterialService" / "ForgeVoxel.model.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    detail = ""
+    for other in sorted(packs_dir.glob("*.zip")):  # already uploaded with an earlier pack?
+        if other.stem == name:
+            continue
+        with zipfile.ZipFile(other) as z:
+            if "MaterialService/ForgeVoxel.model.json" in z.namelist():
+                target.write_bytes(z.read("MaterialService/ForgeVoxel.model.json"))
+                detail = f"material reused from pack {other.stem}"
+                break
+    ok = True
+    if not detail:
+        try:
+            conf = json.loads((look / "voxel.json").read_text(encoding="utf-8"))
+            cubes = int(conf.get("cubes") or 8)
+            creator = game_info(state["universe"]).get("creator") or {}
+            if not creator.get("id"):
+                raise PushError("NO_CREATOR", "Could not find who owns this game.")
+            color_id, mod1 = upload_image(look / "color.png", creator, "ForgeVoxel cube tile")
+            normal_id, mod2 = upload_image(look / "normal.png", creator, "ForgeVoxel cube relief")
+            target.write_text(json.dumps({"className": "MaterialVariant", "properties": {
+                "BaseMaterial": str(conf.get("baseMaterial") or "SmoothPlastic"), "ColorMap": f"rbxassetid://{color_id}",
+                "NormalMap": f"rbxassetid://{normal_id}", "StudsPerTile": 0.68, "MaterialPattern": "Regular"},
+                "attributes": {"Cubes": cubes}}, indent=1), encoding="utf-8")
+            detail = f"tile uploaded ({color_id}, {normal_id}; moderation {mod1}/{mod2})"
+        except PushError as err:
+            ok = False
+            detail = f"[{err.code}] {err}"
+            print(f"::warning::voxel look: {err}")
+            target.unlink(missing_ok=True)
+    shutil.rmtree(look)
+    if not any(target.parent.iterdir()):
+        target.parent.rmdir()
+    packed = WORK / "voxel" / f"{name}.zip"
+    with zipfile.ZipFile(packed, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in sorted(src.rglob("*")):
+            if f.is_file():
+                z.write(f, f.relative_to(src).as_posix())
+    shutil.copy(packed, packs_dir / f"{name}.zip")
+    shutil.copy(packed, ROOT / state["packFile"])
+    state["voxel"] = detail
+    step(state, "voxel", ok, detail)
+
+
 def update_place_asset(place: str, mask: str, request: dict) -> dict:
     body, content_type = multipart([("request", None, "application/json", json.dumps({"assetId": place, **request}).encode())])
     return roblox("PATCH", f"{API}/assets/v1/assets/{place}?updateMask={mask}", body, content_type)
@@ -959,6 +1023,7 @@ def finish() -> None:
         "packs": state.get("packs"),
         "packName": state.get("packName"),
         "blender": [{**r, "renders": [str(Path(x).relative_to(ROOT.parent)) for x in r.get("renders", [])]} for r in state.get("blender") or []] or None,
+        "voxel": state.get("voxel"),
         "steps": state.get("steps", {}),
         "luau": luau_info,
         "error": state.get("error"),
@@ -971,7 +1036,7 @@ def finish() -> None:
 
 
 if __name__ == "__main__":
-    commands = {"prepare": prepare, "stage": stage, "blender": blender, "build": build, "merge": merge, "publish": publish, "store": store, "luau": luau, "meta": meta, "finish": finish}
+    commands = {"prepare": prepare, "stage": stage, "blender": blender, "voxel": voxel, "build": build, "merge": merge, "publish": publish, "store": store, "luau": luau, "meta": meta, "finish": finish}
     if len(sys.argv) != 2 or sys.argv[1] not in commands:
         sys.exit(f"usage: push.py {{{'|'.join(commands)}}}")
     commands[sys.argv[1]]()

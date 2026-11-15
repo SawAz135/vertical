@@ -144,8 +144,22 @@ const CORNER = (() => { // CornerWedgePart: tall corner at (+X, top, -Z), slopes
   const pos = []; for (const t of f) for (const i of t) pos.push(...v[i]); const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
   const uv = []; for (let i = 0; i < pos.length / 3; i++) uv.push(pos[i * 3] + 0.5, pos[i * 3 + 1] + 0.5); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); return g; })();
 function scaledUV(g, s) { g = g.clone(); const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * s, uv.getY(i) * s); return g; }
+/* voxel animals: show the little cubes of each merged block (bevel + own tint), same as Pet Studio and the ForgeVoxel material in Roblox */
+function voxMat(p) {
+  const m = material(p).clone(), half = new THREE.Vector3(...p.size).multiplyScalar(0.5), corner = new THREE.Vector3(...p.pos.map((x, i) => Math.round((x - p.size[i] / 2) / p.vox)));
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, { uVox: { value: p.vox }, uHalf: { value: half }, uCorner: { value: corner } });
+    sh.vertexShader = 'varying vec3 vVoxL; varying vec3 vVoxN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vVoxL = position; vVoxN = normal;');
+    sh.fragmentShader = 'uniform float uVox; uniform vec3 uHalf; uniform vec3 uCorner; varying vec3 vVoxL; varying vec3 vVoxN;\nfloat vh(vec3 c){ return fract(sin(dot(c, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }\n'
+      + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      { vec3 n = abs(vVoxN); vec3 g = (vVoxL + uHalf) / uVox - sign(vVoxN) * n * 0.5; vec3 c = floor(g + 1e-3); vec3 f = g - c;
+        vec3 e3 = min(f, 1.0 - f) + n * 9.0; float e = min(min(e3.x, e3.y), e3.z);
+        diffuseColor.rgb *= (0.9 + 0.17 * vh(c + uCorner)) * mix(0.72, 1.0, smoothstep(0.0, 0.14, e)); }`);
+  };
+  m.customProgramCacheKey = () => 'forgeVoxelMap'; return m;
+}
 function makeMesh(p) {
-  let geo, mat = material(p), scale = [1, 1, 1];
+  let geo, mat = p.vox && p.cls === 'Part' && (!p.shape || p.shape === 'Block') && p.material === 'SmoothPlastic' ? voxMat(p) : material(p), scale = [1, 1, 1];
   if (p.cls === 'WedgePart') { geo = scaledUV(WEDGE, Math.max(...p.size) / 8); scale = p.size; }
   else if (p.cls === 'CornerWedgePart') { geo = scaledUV(CORNER, Math.max(...p.size) / 8); scale = p.size; }
   else if (p.cls === 'TrussPart') { geo = boxGeo(p.size[0], p.size[1], p.size[2]); const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 4, uv.getY(i) * 4); mat = material(p, 'Truss'); }
@@ -170,7 +184,7 @@ function addPart(p) {
   if (txt) { const s = labelSprite(txt); s.position.set(p.pos[0], p.pos[1] + p.size[1] / 2 + 3, p.pos[2]); root.add(s); labels.set(p.id, s); }
 }
 function rebuildAll() {
-  for (const m of meshes.values()) { root.remove(m); m.geometry.dispose(); } for (const s of labels.values()) { root.remove(s); s.material.map.dispose(); s.material.dispose(); }
+  for (const m of meshes.values()) { root.remove(m); m.geometry.dispose(); if (m.material && m.material.onBeforeCompile && m.material.customProgramCacheKey && m.material.customProgramCacheKey() === 'forgeVoxelMap') m.material.dispose(); } for (const s of labels.values()) { root.remove(s); s.material.map.dispose(); s.material.dispose(); }
   for (const e of extras) root.remove(e); meshes.clear(); labels.clear(); extras.length = 0; lightCount = 0;
   for (const p of MC.partsOf(map.root)) addPart(p);
   refreshOutlines(); updateInfo(); if (gizmo.object) placePivot();
@@ -680,7 +694,8 @@ function zip(files) {
 }
 async function buildPack() {
   await loadKit(); const sc = map.scripts || {}, L = MC.lightingModels(map), lib = await LIB.packFiles();
-  return zip([...lib,
+  const hasVox = (n) => n.vox || (n.children || []).some(hasVox), look = hasVox(map.root) ? await (await import('../studio/voxel-look.js')).voxelLookFiles('../studio/') : [];
+  return zip([...lib, ...look,
     { path: `Workspace/${map.name}.model.json`, data: JSON.stringify(MC.mapModel(map)) },
     ...Object.entries(L).map(([n, v]) => ({ path: `Lighting/${n}.model.json`, data: JSON.stringify(v, null, 1) })),
     { path: 'ServerScriptService/ForgeMap.server.lua', data: sc.server ?? KIT.server },

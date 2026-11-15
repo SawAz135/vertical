@@ -627,7 +627,7 @@ function modelJson() {
     if (p.shape === 'Ball') node.properties.Shape = 'Ball';
     if (p.shape === 'Cylinder') node.properties.Shape = 'Cylinder';
     if (p.shape === 'Ellipsoid') node.children.push({ name: 'Mesh', className: 'SpecialMesh', properties: { MeshType: 'Sphere' } });
-    if (p.tint || p.weld) node.attributes = { ...(p.tint ? { ForgeTint: true } : {}), ...(p.weld ? { ForgeWeld: true } : {}) };
+    if (p.tint || p.weld || p.vox) node.attributes = { ...(p.tint ? { ForgeTint: true } : {}), ...(p.weld ? { ForgeWeld: true } : {}), ...(p.vox ? { ForgeVox: p.vox } : {}) };
     return node;
   });
   const b = children[0];
@@ -676,6 +676,7 @@ async function buildPack(blender) {
     extra.push({ path: `ForgeBlender/${n}.json`, data: JSON.stringify(job) });
     if (blender.mesh) { if (!KIT.hd) KIT.hd = await (await fetch('kit/ForgeHD.server.lua', { cache: 'no-cache' })).text(); extra.push({ path: 'ServerScriptService/ForgeHD.server.lua', data: KIT.hd }); }
   }
+  if (pet.parts.some((p) => p.vox)) extra.push(...await (await import('./voxel-look.js')).voxelLookFiles('./')); // little-cube look in Roblox (MaterialVariant via the robot)
   return zip([...lib, ...extra,
     { path: `ReplicatedStorage/ForgePets/${n}.model.json`, data: JSON.stringify(modelJson(), null, 2) },
     { path: 'ReplicatedStorage/ForgeConfig.lua', data: files.find((f) => f.id === 'cfg').text },
@@ -683,7 +684,7 @@ async function buildPack(blender) {
     { path: 'StarterPlayerScripts/ForgePetFX.client.lua', data: files.find((f) => f.id === 'fxs').text },
     { path: 'StarterPlayerScripts/ForgePetAnim.client.lua', data: files.find((f) => f.id === 'anim').text },
     { path: 'ReplicatedStorage/ForgeAnimCore.lua', data: files.find((f) => f.id === 'core').text },
-    { path: 'LISEZ-MOI.txt', data: `Pack Roblox Forge : ${pet.name} (${pet.rarity})\n\n- ReplicatedStorage/ForgePets : le modèle du pet (pièces, particules, lumière, contour)\n- ServerScriptService : donne le pet à chaque joueur et le fait suivre\n- StarterPlayerScripts : anime les effets (anneaux, orbes, arc-en-ciel, éclairs…) et les animations (ForgePetAnim)\n- ReplicatedStorage/ForgeAnimCore : les calculs d'animation (courbes, mélange)\n- ReplicatedStorage/ForgeConfig : pet par défaut et position\n\nPour donner un autre pet à un joueur : player:SetAttribute("ForgePet", "NomDuPet")\nPour jouer une animation « Sur commande » : player:SetAttribute("ForgePetAnim", "Danse")\nPublie ce .zip avec Roblox Push (tu peux y ajouter les fichiers de ton jeu).\n` },
+    { path: 'LISEZ-MOI.txt', data: `Pack Roblox Forge : ${pet.name} (${pet.rarity})\n\n- ReplicatedStorage/ForgePets : le modèle du pet (pièces, particules, lumière, contour)\n- ServerScriptService : donne le pet à chaque joueur et le fait suivre\n- StarterPlayerScripts : anime les effets (anneaux, orbes, arc-en-ciel, éclairs…) et les animations (ForgePetAnim)\n- ReplicatedStorage/ForgeAnimCore : les calculs d'animation (courbes, mélange)\n- ReplicatedStorage/ForgeConfig : pet par défaut et position\n- ServerScriptService/ForgeVoxelLook (pets voxel) : montre les petits cubes (bord biseauté + nuance par cube) grâce au matériau ForgeVoxel que le robot Roblox Push installe\n\nPour donner un autre pet à un joueur : player:SetAttribute("ForgePet", "NomDuPet")\nPour jouer une animation « Sur commande » : player:SetAttribute("ForgePetAnim", "Danse")\nPublie ce .zip avec Roblox Push (tu peux y ajouter les fichiers de ton jeu).\n` },
   ]);
 }
 function paneExport() {

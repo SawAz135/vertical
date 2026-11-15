@@ -119,7 +119,7 @@ export function food(T, x, z, r, y = 0, o = {}) { const t = o.type || 'apple', c
 export function critter(T, x, z, r, y = 0, o = {}) { // voxel sculptures (studio/voxel-critters.js), same look as the voxel pets
   const sc = (o.scale || 1) * 1.4, yaw = r() * Math.PI * 2, c = Math.cos(yaw), sn = Math.sin(yaw);
   const vc = voxelCritter(o.type || 'bird', { color: o.color || null, scale: sc, voxel: 0.17 / sc });
-  const k = vc.parts.map((p) => P('Part', p.name.replace(/_v$/, ''), p.size, [x + p.pos[0] * c + p.pos[2] * sn, y + p.pos[1], z - p.pos[0] * sn + p.pos[2] * c], [0, (yaw * 180) / Math.PI, 0], M(p.color, p.material), noCol));
+  const k = vc.parts.map((p) => P('Part', p.name.replace(/_v$/, ''), p.size, [x + p.pos[0] * c + p.pos[2] * sn, y + p.pos[1], z - p.pos[0] * sn + p.pos[2] * c], [0, (yaw * 180) / Math.PI, 0], M(p.color, p.material), { canCollide: false, vox: p.vox }));
   return model(o.name || (o.type || 'critter').replace(/^./, (ch) => ch.toUpperCase()), k); }
 
 /* ---------- play & sport & fun ---------- */
