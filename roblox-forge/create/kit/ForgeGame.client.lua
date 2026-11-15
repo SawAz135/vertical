@@ -146,6 +146,20 @@ local function button(text, color, onClick)
 	b.Activated:Connect(onClick)
 	return b
 end
+local boostButtons = {}
+local boostEnds = 0
+task.spawn(function() -- boost countdown on its buttons
+	while true do
+		task.wait(1)
+		local left = math.floor(boostEnds - os.clock())
+		for btn, text in boostButtons do
+			local l = btn:FindFirstChildOfClass("TextLabel")
+			if l then
+				l.Text = left > 0 and string.format("🚀 Actif · %d s", left) or text
+			end
+		end
+	end
+end)
 for _, b in cfg.buttons or {} do
 	local color = hex(b.color)
 	if b.action == "add" then
@@ -162,6 +176,12 @@ for _, b in cfg.buttons or {} do
 				floatText("+" .. abbrev(gain), color)
 			end
 		end)
+	elseif b.action == "boost" then
+		local btn
+		btn = button(b.label, color, function()
+			ask("boost", b.id)
+		end)
+		boostButtons[btn] = b.label
 	elseif b.action == "sell" or b.action == "home" then
 		button(b.label, color, function()
 			ask(b.action)
@@ -278,7 +298,7 @@ end
 
 -- training tool -------------------------------------------------------------------------------
 local function hookTool(tool)
-	if tool:IsA("Tool") and tool.Name == "ForgeTrain" then
+	if tool:IsA("Tool") and tool:GetAttribute("ForgeTrain") then
 		tool.Activated:Connect(function()
 			local ok, gain = ask("train")
 			if ok then
@@ -326,6 +346,7 @@ State.OnClientEvent:Connect(function(s)
 			valueLabels[id].Text = abbrev(v)
 		end
 	end
+	boostEnds = os.clock() + (s.boostLeft or 0)
 	if valueLabels.Rebirths then
 		valueLabels.Rebirths.Text = tostring(s.rebirths or 0)
 	end

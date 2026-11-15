@@ -55,9 +55,9 @@ function render() {
   $('done').innerHTML = lastDone.map((d) => `<li>${esc(d)}</li>`).join('');
   const F = [];
   F.push({ i: '🗺️', t: `Carte ${spec.genre} · ${spec.theme}`, s: `${spec.voxel === false ? 'classique' : 'voxel (terrain en cubes, arbres, fleurs…)'} · plateformes du jeu près du spawn` });
-  if (spec.stats.length) F.push({ i: spec.stats[0].e, t: 'Stats', s: spec.stats.map((s) => s.e + ' ' + s.id).join(' · ') });
-  if (spec.money.length) F.push({ i: spec.money[0].e, t: 'Argent', s: spec.money.map((s) => s.e + ' ' + s.id).join(' · ') });
-  if (spec.train) F.push({ i: '🏋️', t: 'Entraînement', s: `+${spec.train.perClick} ${spec.train.stat} par clic (outil, bouton, touche E)`, rm: 'train' });
+  if (spec.stats.length) F.push({ i: spec.stats[0].e, t: 'Stats', s: spec.stats.map((s) => s.e + ' ' + s.id + (s.start ? ` (départ ${s.start})` : '')).join(' · ') });
+  if (spec.money.length) F.push({ i: spec.money[0].e, t: 'Argent', s: spec.money.map((s) => s.e + ' ' + s.id + (s.start ? ` (départ ${s.start})` : '')).join(' · ') });
+  if (spec.train) F.push({ i: '🏋️', t: 'Entraînement', s: `+${spec.train.perClick} ${spec.train.stat} par clic (outil « ${spec.train.toolName || 'Entraînement'} », bouton, touche E)`, rm: 'train' });
   if (spec.sell) F.push({ i: '💰', t: 'Vente', s: `${spec.sell.from} → ${spec.sell.to} · plateforme + bouton + touche Q`, rm: 'sell' });
   if (spec.shop) F.push({ i: '🛒', t: `Boutique (${spec.shop.items.length})`, s: spec.shop.items.map((x) => `${x.e} ${x.name} · ${x.price} ${x.money}`).join(' · '), rm: 'shop' });
   if (spec.rebirth) F.push({ i: '🔁', t: 'Rebirth', s: `dès ${spec.rebirth.cost} ${spec.rebirth.costStat} · +${Math.round(spec.rebirth.bonus * 100)} % de gains par rebirth`, rm: 'rebirth' });
@@ -67,6 +67,8 @@ function render() {
   if (spec.codes.length) F.push({ i: '🎟️', t: 'Codes', s: spec.codes.map((c) => `${c.code} (+${c.amount})`).join(' · '), rm: 'codes' });
   if (spec.pass) F.push({ i: '💎', t: `Gamepass ×${spec.pass.mult}`, s: 'mets l’id de ton gamepass dans Config.pass.id', rm: 'pass' });
   if (spec.autoTrain) F.push({ i: '🤖', t: 'Auto-entraînement', s: 'bouton Auto dans l’interface', rm: 'auto' });
+  if (spec.combat) F.push({ i: '⚔️', t: 'Combat PvP', s: `épée (${spec.combat.damage} dégâts${spec.combat.health ? ', armure et vie' : ''}) · Kills · +${spec.combat.reward} ${spec.combat.money} par kill`, rm: 'combat' });
+  if (spec.board) F.push({ i: '🏆', t: 'Classement', s: `top ${spec.board.top} des meilleurs (${spec.board.stat}), panneau près du spawn`, rm: 'board' });
   F.push({ i: '💾', t: 'Sauvegarde', s: 'DataStore, verrou de session (pas de duplication), sauvegarde auto' });
   $('fcount').textContent = F.length + ' éléments';
   $('feat').innerHTML = F.map((f) => `<div class="f"><span class="i">${f.i}</span><span class="t"><b>${esc(f.t)}</b><small>${esc(f.s)}</small></span>${f.rm ? `<button class="x" data-rm="${f.rm}" title="Enlever">✕</button>` : ''}</div>`).join('')
@@ -79,7 +81,7 @@ function removeFeature(k) {
   const drop = (a) => (spec.buttons = spec.buttons.filter((b) => b.action !== a));
   if (k === 'train') { spec.train = null; drop('train'); } else if (k === 'sell') { spec.sell = null; drop('sell'); } else if (k === 'shop') { spec.shop = null; drop('shop'); }
   else if (k === 'rebirth') { spec.rebirth = null; drop('rebirth'); } else if (k === 'eggs') { spec.eggs = null; drop('egg'); } else if (k === 'zones') spec.zones = 0;
-  else if (k === 'daily') spec.daily = null; else if (k === 'codes') spec.codes = []; else if (k === 'pass') spec.pass = null; else if (k === 'auto') spec.autoTrain = false;
+  else if (k === 'combat') { spec.combat = null; spec.stats = spec.stats.filter((x) => x.id !== 'Kills'); } else if (k === 'board') spec.board = null; else if (k === 'daily') spec.daily = null; else if (k === 'codes') spec.codes = []; else if (k === 'pass') spec.pass = null; else if (k === 'auto') spec.autoTrain = false;
   lastDone = ['− ' + k]; map = withPads(map); save(); render();
 }
 
@@ -98,7 +100,7 @@ function renderPreview() {
   // pad labels
   const pads = map && map.root.children.find((c) => c.name === 'GamePads'); $('gpads').innerHTML = '';
   if (pads) $('gpads').innerHTML = pads.children.map((m) => { const p = m.children[1], x = ((p.pos[0] - cx) * k + cv.width / 2) / cv.width * 100, y = ((p.pos[2] - cz) * k + H * 0.62) / H * 100; const s = m.children[3];
-    return `<span class="gpad" style="left:${x}%;top:${y}%">${esc(s && s.label || m.name)}</span>`; }).join('');
+    return `<span class="gpad" style="left:${x}%;top:${y}%">${esc(s && s.label || (m.name === 'Leaderboard' ? '🏆 CLASSEMENT' : m.name))}</span>`; }).join('');
   // GUI
   const COL = ['#ff5c5c', '#5aa9ff', '#3dd68c', '#b46bff', '#ffb02e'];
   $('gcount').innerHTML = [...spec.stats.map((s, i) => ({ e: s.e, v: '0', c: COL[i % COL.length] })), ...spec.money.map((m) => ({ e: m.e, v: '0', c: m.id === 'Gems' ? '#3ee6ff' : '#ffc02e' })), ...(spec.rebirth ? [{ e: '🔁', v: '0', c: '#b46bff' }] : [])]

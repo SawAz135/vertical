@@ -95,6 +95,9 @@ local function multiplier(player): number
 	if d.passOwned and cfg.pass then
 		m *= cfg.pass.mult or 2
 	end
+	if d.boostUntil and os.clock() < d.boostUntil then
+		m *= d.boostMult or 2
+	end
 	return m
 end
 
@@ -121,6 +124,9 @@ local function snapshot(player)
 		sellMult = d.sellMult,
 		pets = d.pets,
 		dailyIn = cfg.daily and math.max(0, (d.lastDaily or 0) + 20 * 3600 - os.time()) or nil,
+		boostLeft = d.boostUntil and math.max(0, d.boostUntil - os.clock()) or 0,
+		damage = d.damage,
+		health = d.health,
 	})
 end
 local function notify(player, text, kind)
@@ -158,13 +164,45 @@ function ACTIONS.train(player)
 	add(player, trainStat, gain)
 	return true, gain
 end
+local function pay(player, cost)
+	if not cost then
+		return true
+	end
+	if get(player, cost.money) < cost.amount then
+		notify(player, string.format("Il te manque %d %s", cost.amount - get(player, cost.money), cost.money), "warn")
+		return false
+	end
+	add(player, cost.money, -cost.amount)
+	return true
+end
 function ACTIONS.add(player, id)
 	local b = buttons[id]
 	if not b or b.action ~= "add" then
 		return false, "unknown button"
 	end
+	if not pay(player, b.cost) then
+		return false, "poor"
+	end
 	add(player, b.stat, b.amount or 1)
 	return true, b.amount or 1
+end
+function ACTIONS.boost(player, id)
+	local b = buttons[id]
+	local d = DATA[player]
+	if not b or b.action ~= "boost" then
+		return false, "unknown button"
+	end
+	if d.boostUntil and os.clock() < d.boostUntil then
+		notify(player, "Un boost est déjà actif", "warn")
+		return false, "active"
+	end
+	if not pay(player, b.cost) then
+		return false, "poor"
+	end
+	d.boostUntil = os.clock() + (b.duration or 30)
+	d.boostMult = b.mult or 2
+	notify(player, string.format("🚀 Boost ×%s pendant %d s !", tostring(b.mult or 2), b.duration or 30), "good")
+	return true, b.duration
 end
 function ACTIONS.sell(player)
 	if not sellCfg then
@@ -207,6 +245,15 @@ function ACTIONS.buy(player, id)
 		d.sellMult *= it.value
 	elseif it.effect == "capacity" then
 		d.capacity = (d.capacity or 0) + it.value * 100
+	elseif it.effect == "damage" then
+		d.damage = (d.damage or 0) + it.value
+	elseif it.effect == "health" then
+		d.health = (d.health or 0) + it.value
+		local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		if hum then
+			hum.MaxHealth = 100 + d.health
+			hum.Health = hum.MaxHealth
+		end
 	elseif it.effect == "speed" then
 		d.speed = (d.speed or 0) + it.value
 		local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -325,13 +372,13 @@ function ACTIONS.home(player)
 	return false, "no spawn"
 end
 
-local GAP = { train = (cfg.train and cfg.train.cooldown or 0.2) * 0.8, add = 0.15, sell = 0.5, buy = 0.3, rebirth = 1, egg = 0.6, daily = 2, code = 1, home = 2 }
+local GAP = { train = (cfg.train and cfg.train.cooldown or 0.2) * 0.8, add = 0.15, boost = 1, sell = 0.5, buy = 0.3, rebirth = 1, egg = 0.6, daily = 2, code = 1, home = 2 }
 action.OnServerInvoke = function(player, kind, arg)
 	if type(kind) ~= "string" or not ACTIONS[kind] or not DATA[player] then
 		return false, "bad request"
 	end
-	local b = kind == "add" and buttons[arg]
-	if not allowed(player, kind .. (kind == "add" and tostring(arg) or ""), b and math.max(0.1, (b.cooldown or 0.25) * 0.8) or GAP[kind] or 0.3) then
+	local b = (kind == "add" or kind == "boost") and buttons[arg]
+	if not allowed(player, kind .. (b and tostring(arg) or ""), b and math.max(0.1, (b.action == "boost" and 1 or b.cooldown or 0.25) * 0.8) or GAP[kind] or 0.3) then
 		return false, "too fast"
 	end
 	local ok, res = ACTIONS[kind](player, arg)
@@ -385,11 +432,12 @@ local function giveTool(player)
 		return
 	end
 	local backpack = player:FindFirstChildOfClass("Backpack")
-	if not backpack or backpack:FindFirstChild("ForgeTrain") then
+	if not backpack or backpack:FindFirstChild(cfg.train.toolName or "Entraînement") or (player.Character and player.Character:FindFirstChild(cfg.train.toolName or "Entraînement")) then
 		return
 	end
 	local tool = Instance.new("Tool")
-	tool.Name = "ForgeTrain"
+	tool.Name = cfg.train.toolName or "Entraînement"
+	tool:SetAttribute("ForgeTrain", true)
 	tool.ToolTip = "Entraîne-toi : " .. trainStat
 	tool.CanBeDropped = false
 	local handle = Instance.new("Part")
@@ -402,9 +450,124 @@ local function giveTool(player)
 	-- ForgeGame.client.lua sends the train request when the tool is used (server still rate-limits)
 end
 
+-- combat (PvP sword: damage, kills, reward) ---------------------------------------------
+local SWORD = "Épée"
+local function giveSword(player)
+	if not cfg.combat then
+		return
+	end
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	if not backpack or backpack:FindFirstChild(SWORD) or (player.Character and player.Character:FindFirstChild(SWORD)) then
+		return
+	end
+	local tool = Instance.new("Tool")
+	tool.Name = SWORD
+	tool:SetAttribute("ForgeSword", true)
+	tool.CanBeDropped = false
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(0.4, 4, 0.4)
+	handle.Color = Color3.fromRGB(200, 205, 220)
+	handle.CanCollide = false
+	handle.Parent = tool
+	local swing = -math.huge
+	tool.Activated:Connect(function() -- Tool.Activated replicates to the server: the server does the hit test
+		local d = DATA[player]
+		if not d or os.clock() - swing < (cfg.combat.cooldown or 0.6) then
+			return
+		end
+		swing = os.clock()
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if not root then
+			return
+		end
+		for _, other in Players:GetPlayers() do
+			local oc = other ~= player and other.Character
+			local r2 = oc and oc:FindFirstChild("HumanoidRootPart")
+			local hum = oc and oc:FindFirstChildOfClass("Humanoid")
+			if r2 and hum and hum.Health > 0 and (r2.Position - root.Position).Magnitude <= (cfg.combat.range or 7) then
+				hum:SetAttribute("ForgeLastHit", player.UserId)
+				hum:TakeDamage((cfg.combat.damage or 20) + (d.damage or 0))
+			end
+		end
+	end)
+	tool.Parent = backpack
+end
+local function watchCharacter(player, char)
+	local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 10)
+	if not hum then
+		return
+	end
+	local d = DATA[player]
+	if d and (d.health or 0) > 0 then
+		hum.MaxHealth = 100 + d.health
+		hum.Health = hum.MaxHealth
+	end
+	if not cfg.combat then
+		return
+	end
+	hum.Died:Connect(function()
+		local id = hum:GetAttribute("ForgeLastHit")
+		local killer = id and Players:GetPlayerByUserId(id)
+		if killer and killer ~= player and DATA[killer] then
+			add(killer, "Kills", 1)
+			add(killer, cfg.combat.money, math.floor((cfg.combat.reward or 25) * multiplier(killer)))
+			notify(killer, "⚔️ Tu as battu " .. player.Name .. " !", "good")
+			snapshot(killer)
+		end
+	end)
+end
+
+-- global leaderboard (OrderedDataStore + a board in the map) ------------------------------
+local board
+if cfg.board then
+	pcall(function()
+		board = DataStoreService:GetOrderedDataStore((cfg.datastore or "ForgeGame_v1") .. "_top_" .. cfg.board.stat)
+	end)
+end
+local function refreshBoard()
+	if not board then
+		return
+	end
+	local okP, pages = pcall(function()
+		return board:GetSortedAsync(false, cfg.board.top or 10)
+	end)
+	if not okP or not pages then
+		return
+	end
+	local lines = { "🏆 TOP " .. cfg.board.stat }
+	for i, e in pages:GetCurrentPage() do
+		local okN, name = pcall(function()
+			return Players:GetNameFromUserIdAsync(tonumber(e.key))
+		end)
+		table.insert(lines, string.format("%d. %s  %s", i, okN and name or ("#" .. tostring(e.key)), tostring(e.value)))
+	end
+	for _, part in workspace:GetDescendants() do
+		if part:IsA("BasePart") and part:GetAttribute("ForgeGameBoard") then
+			local gui = part:FindFirstChild("ForgeBoardGui") or Instance.new("SurfaceGui")
+			gui.Name = "ForgeBoardGui"
+			gui.Face = Enum.NormalId.Front
+			gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+			gui.PixelsPerStud = 40
+			gui.Parent = part
+			local label = gui:FindFirstChild("Text") or Instance.new("TextLabel")
+			label.Name = "Text"
+			label.Size = UDim2.fromScale(1, 1)
+			label.BackgroundColor3 = Color3.fromRGB(22, 18, 42)
+			label.TextColor3 = Color3.new(1, 1, 1)
+			label.Font = Enum.Font.FredokaOne
+			label.TextScaled = true
+			label.TextXAlignment = Enum.TextXAlignment.Left
+			label.Text = table.concat(lines, "\n")
+			label.Parent = gui
+		end
+	end
+	return lines
+end
+
 -- data -----------------------------------------------------------------------------
 local function blank()
-	return { perClick = (cfg.train and cfg.train.perClick) or 1, mult = 1, sellMult = 1, capacity = 0, speed = 0, owned = {}, rebirths = 0, pets = {}, codes = {}, values = {}, lastDaily = 0 }
+	return { perClick = (cfg.train and cfg.train.perClick) or 1, mult = 1, sellMult = 1, capacity = 0, speed = 0, damage = 0, health = 0, owned = {}, rebirths = 0, pets = {}, codes = {}, values = {}, lastDaily = 0 }
 end
 local function load(player)
 	if not store then
@@ -445,6 +608,11 @@ local function save(player, release)
 	end
 	for _, m in list(cfg.money) do
 		d.values[m.id] = get(player, m.id)
+	end
+	if board then
+		pcall(function()
+			board:SetAsync(tostring(player.UserId), math.floor(get(player, cfg.board.stat)))
+		end)
 	end
 	local copy = table.clone(d)
 	copy.rng = nil
@@ -511,8 +679,10 @@ local function setup(player)
 		data.passOwned = okPass and owns or false
 	end
 	player.CharacterAdded:Connect(function(char)
+		task.spawn(watchCharacter, player, char)
 		task.wait(0.5)
 		giveTool(player)
+		giveSword(player)
 		local hum = char:FindFirstChildOfClass("Humanoid")
 		if hum and data.speed > 0 then
 			hum.WalkSpeed = 16 + data.speed
@@ -520,6 +690,8 @@ local function setup(player)
 	end)
 	if player.Character then
 		giveTool(player)
+		giveSword(player)
+		task.spawn(watchCharacter, player, player.Character)
 	end
 	snapshot(player)
 	-- every leaderstat change (also from the map: coins, gates) refreshes the GUI
@@ -560,5 +732,8 @@ task.spawn(function()
 		for _, p in Players:GetPlayers() do
 			task.spawn(save, p, false)
 		end
+		task.spawn(refreshBoard)
 	end
 end)
+task.delay(5, refreshBoard)
+_G.ForgeGameRefreshBoard = refreshBoard -- handy for tests / admin commands
