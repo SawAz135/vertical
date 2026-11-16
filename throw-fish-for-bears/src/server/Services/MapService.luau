@@ -17,10 +17,10 @@ MapService.decor = nil -- folder with blocking decor (raycast checks)
 local CF = CFrame.new
 local V3 = Vector3.new
 local C = Color3.fromRGB
-local GRASS = C(96, 182, 66)
-local GRASS_DARK = C(84, 164, 58)
+local GRASS = C(70, 146, 46)
+local GRASS_DARK = C(62, 132, 40)
 local SAND = C(226, 190, 128)
-local WATER = C(48, 138, 236)
+local WATER = C(38, 120, 225)
 
 local function prompt(anchor: BasePart, kind: string, action: string, object: string, dist: number?)
 	local p = Instance.new("ProximityPrompt")
@@ -39,9 +39,18 @@ end
 
 local function buildGround(map)
 	-- the world plate (max part size 2048)
+	-- the grass stops where the lake starts (it used to cover the water = green lake)
 	local minZ = Layout.CORRIDOR_END_Z - 120
-	local maxZ = Layout.LAKE.maxZ + 40
+	local maxZ = Layout.LAKE.minZ
 	Studs.static(map, "Ground", V3(760, 4, maxZ - minZ), CF(0, -2, (minZ + maxZ) / 2), GRASS)
+	local l0 = Layout.LAKE
+	local sideW = 380 - l0.maxX
+	for _, sx in { -1, 1 } do
+		Studs.static(map, "GroundSide", V3(sideW, 4, l0.maxZ - l0.minZ + 40), CF(sx * (l0.maxX + sideW / 2), -2, (l0.minZ + l0.maxZ + 40) / 2), GRASS)
+	end
+	Studs.static(map, "GroundBack", V3(760, 4, 40), CF(0, -2, l0.maxZ + 20), GRASS)
+	-- lake shore wall (sand coloured bank under the edge of the grass)
+	Studs.static(map, "Shore", V3(l0.maxX - l0.minX, 9, 2), CF(0, -4.5, l0.minZ + 1), C(200, 168, 110))
 	-- subtle darker tiles in the compound so the floor reads like the reference baseplate
 	for i, c in Layout.BASE_CENTERS do
 		local floor = Studs.static(map, "BaseFloor" .. i, V3(Layout.BASE_SIZE - 2, 0.2, Layout.BASE_SIZE - 2), CF(c.X, 0.1, c.Z), GRASS_DARK)
@@ -50,14 +59,16 @@ local function buildGround(map)
 	-- sand "fishing zone" strip with its label
 	local s = Layout.SAND
 	Studs.static(map, "Sand", V3(s.maxX - s.minX, 0.4, s.maxZ - s.minZ + 4), CF((s.minX + s.maxX) / 2, 0.2, (s.minZ + s.maxZ) / 2 + 2), SAND)
-	Props.groundText(map, V3(0, 0.4, (s.minZ + s.maxZ) / 2), Vector2.new(60, 10), "Fishing Zone", math.pi)
+
+	Props.arch(map, V3(0, 0, (s.minZ + s.maxZ) / 2), 26, "FISHING ZONE", C(80, 170, 255))
 	-- lake: water surface + darker deep bed for depth
 	local l = Layout.LAKE
 	local water = Studs.static(map, "Lake", V3(l.maxX - l.minX, 1, l.maxZ - l.minZ), CF(0, Layout.WATER_Y - 0.5, (l.minZ + l.maxZ) / 2), WATER, { smooth = true })
 	water.Material = Enum.Material.Plastic
-	water.Transparency = 0.12
+	water.Transparency = 0.05
+	water.Reflectance = 0.08
 	water.CanCollide = false
-	Studs.static(map, "LakeBed", V3(l.maxX - l.minX, 2, l.maxZ - l.minZ), CF(0, Layout.WATER_Y - 8, (l.minZ + l.maxZ) / 2), C(30, 90, 170))
+	Studs.static(map, "LakeBed", V3(l.maxX - l.minX, 2, l.maxZ - l.minZ), CF(0, Layout.WATER_Y - 8, (l.minZ + l.maxZ) / 2), C(20, 70, 150))
 	-- lake shore walls under the water so nothing walks on the bed
 	Studs.static(map, "LakeKill", V3(l.maxX - l.minX, 1, l.maxZ - l.minZ - 6), CF(0, Layout.WATER_Y - 6.5, (l.minZ + l.maxZ) / 2 + 3), C(30, 90, 170), { transparency = 1, noQuery = true })
 	MapService.water = water
@@ -65,7 +76,7 @@ end
 
 local function buildCompound(map, rand)
 	local c = Layout.COMPOUND
-	local h = 12
+	local h = 26
 	-- side walls and front wall (rear is open on the lake)
 	Props.brickWall(map, V3(c.minX, 0, c.minZ), V3(c.minX, 0, c.maxZ - 6), h, 4)
 	Props.brickWall(map, V3(c.maxX, 0, c.minZ), V3(c.maxX, 0, c.maxZ - 6), h, 4)
@@ -78,10 +89,47 @@ local function buildCompound(map, rand)
 	line(Layout.THROW_AREA.maxZ, Layout.THROW_AREA.minX, Layout.THROW_AREA.maxX)
 	line(Layout.FRONT.maxZ + 1, c.minX + 3, c.maxX - 3)
 	line(Layout.SAND.minZ - 0.5, c.minX + 3, c.maxX - 3)
-	Props.groundText(map, V3(0, 0, Layout.THROW_AREA.maxZ - 6), Vector2.new(40, 7), "Throw Zone", math.pi)
+	Props.arch(map, V3(0, 0, Layout.THROW_AREA.maxZ - 2), 60, "THROW ZONE")
+	-- dirt paths: from every base gate to the throw zone, and to the shops
+	local PATH = C(176, 140, 92)
+	for _, bc in Layout.BASE_CENTERS do
+		local gateZ = bc.Z - Layout.BASE_HALF
+		local a = V3(bc.X, 0, gateZ - 1)
+		local b = V3(bc.X * 0.25, 0, Layout.THROW_AREA.maxZ + 2)
+		local d = b - a
+		local mid = (a + b) / 2
+		local p = Studs.static(map, "Path", V3(8, 0.24, d.Magnitude), CFrame.lookAt(mid, mid + d) + V3(0, 0.12, 0), PATH)
+		p.CanCollide = false
+	end
+	for _, sp in { Layout.SELL_POS, Layout.SHOP_POS } do
+		local a = V3(sp.X, 0, sp.Z - 6)
+		local b = V3(sp.X * 0.45, 0, Layout.THROW_AREA.maxZ - 4)
+		local d = b - a
+		local mid = (a + b) / 2
+		local p = Studs.static(map, "Path", V3(7, 0.24, d.Magnitude), CFrame.lookAt(mid, mid + d) + V3(0, 0.12, 0), PATH)
+		p.CanCollide = false
+	end
+	-- decor along the inside of the compound walls (keeps the front lively)
+	for z = c.minZ + 12, Layout.FRONT.maxZ - 6, 22 do
+		for _, sx in { -1, 1 } do
+			Props.tree(map, V3(sx * (c.maxX - 9), 0, z), 0.85 + rand:NextNumber() * 0.3, rand)
+		end
+	end
+	for x = -190, 190, 26 do
+		if math.abs(x) > 70 then
+			Props.bush(map, V3(x, 0, c.minZ + 6), 0.9, rand)
+			for _ = 1, 3 do
+				Props.flower(map, V3(x + rand:NextNumber() * 14 - 7, 0, c.minZ + 10 + rand:NextNumber() * 6), rand)
+			end
+		end
+	end
+	for _ = 1, 10 do
+		local sx = if rand:NextNumber() < 0.5 then -1 else 1
+		Props.rock(map, V3(sx * (75 + rand:NextNumber() * 110), 0, c.minZ + 14 + rand:NextNumber() * 40), 0.7, rand)
+	end
 	-- throw area tint
 	local ta = Layout.THROW_AREA
-	local tint = Studs.static(map, "ThrowArea", V3(ta.maxX - ta.minX, 0.1, ta.maxZ - ta.minZ), CF((ta.minX + ta.maxX) / 2, 0.05, (ta.minZ + ta.maxZ) / 2), C(110, 196, 78))
+	local tint = Studs.static(map, "ThrowArea", V3(ta.maxX - ta.minX, 0.1, ta.maxZ - ta.minZ), CF((ta.minX + ta.maxX) / 2, 0.05, (ta.minZ + ta.maxZ) / 2), C(80, 156, 54))
 	tint.CanCollide = false
 	-- outside scenery trees like the reference horizon
 	for i = 1, 26 do
@@ -245,14 +293,14 @@ local function buildSky(map, rand)
 	atmo.Parent = Lighting
 	local cc = Instance.new("ColorCorrectionEffect")
 	cc.Name = "TFBColor"
-	cc.Saturation = 0.18
-	cc.Contrast = 0.06
-	cc.Brightness = 0.02
+	cc.Saturation = -0.04
+	cc.Contrast = 0.1
+	cc.Brightness = -0.02
 	cc.Parent = Lighting
 	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.35
-	bloom.Size = 24
-	bloom.Threshold = 1.6
+	bloom.Intensity = 0.12
+	bloom.Size = 18
+	bloom.Threshold = 2.2
 	bloom.Parent = Lighting
 end
 

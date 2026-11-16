@@ -198,6 +198,24 @@ function Props.groundText(parent: Instance, pos: Vector3, size: Vector2, text: s
 	return Props.signText(p, text, Enum.NormalId.Top, Color3.fromRGB(255, 255, 255))
 end
 
+-- wooden arch with a big readable sign board (replaces text painted on the ground)
+function Props.arch(parent: Instance, center: Vector3, width: number, text: string, board: Color3?)
+	local m = model(parent, "Arch")
+	local h = 16
+	for _, sx in { -1, 1 } do
+		Studs.static(m, "Pillar", V3(3, h, 3), CF(center + V3(sx * width / 2, h / 2, 0)), Props.TRUNK)
+		Studs.static(m, "PillarCap", V3(3.6, 1, 3.6), CF(center + V3(sx * width / 2, h + 0.5, 0)), Props.TRUNK_DARK)
+		Studs.static(m, "PillarBase", V3(4, 1.2, 4), CF(center + V3(sx * width / 2, 0.6, 0)), Props.ROCK)
+	end
+	Studs.static(m, "Beam", V3(width + 4, 1.4, 2.4), CF(center + V3(0, h - 1, 0)), Props.TRUNK_DARK)
+	local b = Studs.static(m, "Board", V3(math.min(width - 4, 34), 5, 1), CF(center + V3(0, h - 4.6, 0)), board or Color3.fromRGB(250, 200, 40))
+	Studs.static(m, "BoardFrame", V3(math.min(width - 4, 34) + 1, 5.8, 0.8), CF(center + V3(0, h - 4.6, 0.3)), Props.WOOD_DARK)
+	Studs.static(m, "Leaves", V3(width + 6, 2, 3.4), CF(center + V3(0, h + 1.2, 0)), Props.LEAF)
+	Props.signText(b, text, Enum.NormalId.Front)
+	Props.signText(b, text, Enum.NormalId.Back)
+	return m
+end
+
 -- market stall with striped awning (SELL red, SHOP blue in the reference)
 function Props.stall(parent: Instance, cf: CFrame, stripe: Color3, label: string)
 	local m = model(parent, label .. "Stall")

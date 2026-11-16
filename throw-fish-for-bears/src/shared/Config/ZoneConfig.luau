@@ -11,7 +11,7 @@ ZoneConfig.Zones = {
 		id = "GreenForest", name = "Green Forest",
 		luck = 1, depthLuck = 1.6,
 		ambient = { "BrownBear", "BlackBear", "BrownBear" },
-		ground = C(88, 168, 62), groundAlt = C(76, 150, 54), path = C(160, 128, 84),
+		ground = C(66, 140, 44), groundAlt = C(58, 126, 38), path = C(150, 116, 74),
 		fog = C(196, 226, 255), tint = C(255, 255, 250), atmosphere = 0.28,
 		ambience = "Forest",
 		particles = "Leaves",

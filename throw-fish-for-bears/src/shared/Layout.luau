@@ -66,7 +66,7 @@ Layout.CORRIDOR_START_Z = -60
 Layout.ZONE_LENGTH = 300
 Layout.ZONE_COUNT = 1 -- playable slice: 1 zone (Green Forest). Add zones in ZoneConfig + raise this.
 Layout.CORRIDOR_END_Z = Layout.CORRIDOR_START_Z - Layout.ZONE_LENGTH * Layout.ZONE_COUNT
-Layout.WALL_HEIGHT = 18
+Layout.WALL_HEIGHT = 32
 Layout.LANDING_HALF = 50 -- landing x is clamped inside this half width
 
 function Layout.zoneRange(i: number): (number, number)
