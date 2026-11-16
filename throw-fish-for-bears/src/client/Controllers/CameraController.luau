@@ -55,6 +55,7 @@ function Camera.stop(instant: boolean?)
 	local fromFov = cam.FieldOfView
 	active = nil
 	if instant then
+		blendOut = nil
 		cam.CameraType = Enum.CameraType.Custom
 		cam.FieldOfView = baseFov
 		return
@@ -86,7 +87,13 @@ function Camera.init()
 		if active then
 			local a = active
 			a.t += dt
-			local cf, fov = a.fn(a.t, dt)
+			-- a broken shot must never leave the camera stuck: stop it and give control back
+			local ok, cf, fov = pcall(a.fn, a.t, dt)
+			if not ok then
+				warn("[TFB] camera shot error:", cf)
+				Camera.stop(true)
+				return
+			end
 			if cf then
 				if a.smooth > 0 then
 					local k = Easing.damp(a.smooth, dt)

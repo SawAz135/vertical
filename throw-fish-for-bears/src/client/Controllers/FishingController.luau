@@ -121,9 +121,13 @@ local function leap(player: Player, from: Vector3, fish, isLocal: boolean)
 	local conn
 	if isLocal and tier.index >= 3 then
 		-- quick cinematic focus on the leaping fish
+		local lastP = from
 		CameraController.run(function(t)
 			local u = math.clamp(t / dur, 0, 1)
-			local p = model.PrimaryPart.Position
+			-- the fish is removed at the end of the leap: keep looking at its last spot
+			local pp = model.Parent and model.PrimaryPart
+			if pp then lastP = pp.Position end
+			local p = lastP
 			local side = (root.CFrame.RightVector * 7 + Vector3.new(0, 2.5, 0))
 			return CFrame.lookAt(p + side + (root.Position - p).Unit * 4, p), 52 - u * 6
 		end, dur + 0.25, { smooth = 10, blendIn = 0.25 })
