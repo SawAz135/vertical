@@ -87,7 +87,7 @@ end
 -- each stud is a rounded-square ring whose outline goes light (top-left) -> dark
 -- (bottom-right), like the moulded studs of the reference menus.
 -- light = studs on coloured surfaces, dark = studs on the dark grey bodies.
-local MAX_STUDS = 170
+local MAX_STUDS = 300
 local function rootScale(obj: Instance): number
 	local p = obj
 	while p do
@@ -100,7 +100,7 @@ end
 
 function Sim.studs(parent: GuiObject, opts)
 	opts = opts or {}
-	local tile = opts.tile or 26
+	local tile = math.floor((opts.tile or 26) * 0.7) -- small square studs like the reference
 	local dark = opts.dark == true
 	local alpha = opts.strokeAlpha
 	local layer = new("Frame", {
@@ -118,18 +118,19 @@ function Sim.studs(parent: GuiObject, opts)
 		while math.ceil(w / t) * math.ceil(h / t) > MAX_STUDS do t *= 1.12 end
 		local cols, rows = math.ceil(w / t), math.ceil(h / t)
 		local need = cols * rows
-		grid.CellSize = UDim2.fromOffset(t * 0.66, t * 0.66)
-		grid.CellPadding = UDim2.fromOffset(t * 0.34, t * 0.34)
+		grid.CellSize = UDim2.fromOffset(t * 0.74, t * 0.74)
+		grid.CellPadding = UDim2.fromOffset(t * 0.26, t * 0.26)
 		if need == count then return end
 		for _, c in layer:GetChildren() do
 			if c:IsA("Frame") then c:Destroy() end
 		end
 		for _ = 1, need do
+			-- small filled rounded square with a thin bevelled outline
 			local stud = new("Frame", { BackgroundColor3 = if dark then BLACK else WHITE,
-				BackgroundTransparency = if dark then 0.82 else 0.9, BorderSizePixel = 0, ZIndex = layer.ZIndex }, layer)
-			new("UICorner", { CornerRadius = UDim.new(0.32, 0) }, stud)
-			local st = new("UIStroke", { Thickness = math.max(1.5, t * 0.07), Color = WHITE,
-				Transparency = alpha or (if dark then 0.35 else 0.45), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, stud)
+				BackgroundTransparency = if dark then 0.72 else 0.8, BorderSizePixel = 0, ZIndex = layer.ZIndex }, layer)
+			new("UICorner", { CornerRadius = UDim.new(0.2, 0) }, stud)
+			local st = new("UIStroke", { Thickness = 1.2, Color = WHITE,
+				Transparency = alpha or (if dark then 0.45 else 0.55), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, stud)
 			-- relief: light top-left, dark bottom-right
 			new("UIGradient", { Rotation = 45, Color = if dark
 				then ColorSequence.new(RGB(70, 70, 76), RGB(8, 8, 10))
