@@ -150,7 +150,7 @@ local function onFx(player: Player, phase: string, data)
 		if isLocal then
 			HumanPose.localPose = "Cast"
 			HumanPose.localPoseT = workspace:GetServerTimeNow()
-			task.delay(1.0, function()
+			task.delay(1.35, function()
 				if HumanPose.localPose == "Cast" then HumanPose.localPose = nil end
 			end)
 		end
@@ -293,8 +293,21 @@ local function step(dt: number)
 		-- rod bend (tension) on every client
 		local rod = rodOf(player)
 		if rod then
-			local target = if s.phase == "Reel" then 0.12 + s.tension * 0.45 elseif s.phase == "Bite" then 0.25 else 0.04
-			s.bend += (target - s.bend) * Easing.damp(10, dt)
+			-- springy rod: lags back on the wind-up, whips forward on release, wobbles, bends with tension
+			local target
+			if s.phase == "Windup" then
+				target = -0.35 * Easing.cubicOut(math.clamp(s.t / 0.42, 0, 1))
+			elseif s.phase == "Flying" and s.t < 0.18 then
+				target = 0.6
+			elseif s.phase == "Reel" then
+				target = 0.12 + s.tension * 0.5 + math.sin(now * 9) * 0.04 * s.tension
+			elseif s.phase == "Bite" then
+				target = 0.3 + math.abs(math.sin(s.t * 18)) * 0.2
+			else
+				target = 0.04 + math.sin(now * 2) * 0.015
+			end
+			s.bendV = (s.bendV or 0) + ((target - s.bend) * 260 - (s.bendV or 0) * 14) * dt
+			s.bend += s.bendV * dt
 			for i = 1, 3 do
 				local m = rod:FindFirstChild("Bend" .. i, true)
 				if m then (m :: Motor6D).Transform = CFrame.Angles(-s.bend * (0.4 + i * 0.3), 0, 0) end
@@ -324,6 +337,7 @@ function Fishing.stopReel()
 	Fishing.reel = nil
 	if ui then ui.hide() end
 	HumanPose.localPose = nil
+	HumanPose.tension = nil
 end
 
 local function finishReel(success: boolean)
@@ -364,6 +378,7 @@ local function reelStep(dt: number)
 		Sound.play("Reel", { volume = 0.6, pitch = 1 + r.tension * 0.4 })
 	end
 	if ui then ui.update(r) end
+	HumanPose.tension = r.tension
 	if r.tension >= 1 then
 		task.spawn(finishReel, false)
 	elseif r.progress >= 1 then

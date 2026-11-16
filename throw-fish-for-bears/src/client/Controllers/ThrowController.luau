@@ -186,7 +186,7 @@ function Throw.init()
 		Throw.ChargeChanged:Fire(nil)
 		HumanPose.localPose = "Throw"
 		HumanPose.localPoseT = workspace:GetServerTimeNow()
-		task.delay(0.9, function()
+		task.delay(1.25, function()
 			if HumanPose.localPose == "Throw" then HumanPose.localPose = nil end
 		end)
 		Net.event("Throw"):FireServer(aim)

@@ -86,6 +86,11 @@ local function arm(player: Player, token: number, delayS: number)
 		if not t2 then return end
 		s.biteAt = os.clock()
 		s.biteToken = t2
+		local char = player.Character
+		if char then
+			char:SetAttribute("Pose", "Bite")
+			char:SetAttribute("PoseT", workspace:GetServerTimeNow())
+		end
 		fx(player, "Bite", { bobber = s.bobber })
 		-- missed bite: fish escapes, line stays in the water
 		task.delay(G.biteWindow + 0.35, function()
@@ -165,6 +170,16 @@ function FishingService.finish(player: Player, success: boolean)
 		return
 	end
 	local fish = s.fish
+	if char then
+		-- victory heave, then back to the fishing stance
+		char:SetAttribute("Pose", "Catch")
+		char:SetAttribute("PoseT", workspace:GetServerTimeNow())
+		task.delay(1.8, function()
+			if char.Parent and char:GetAttribute("Pose") == "Catch" then
+				char:SetAttribute("Pose", if char:GetAttribute("Holding") == "Rod" then "RodIdle" else "")
+			end
+		end)
+	end
 	table.insert(data.fish, fish)
 	data.stats.fish += 1
 	local isNew = R.IndexService.discoverFish(player, fish)
