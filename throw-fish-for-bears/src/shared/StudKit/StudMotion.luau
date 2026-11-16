@@ -192,6 +192,10 @@ end
 	       sound "Fermeture" at 0.82 pitch. X button, Escape and gamepad B close. Only one menu open at a time.
 	opts: Keep = { ScreenGui names never hidden }, Group = shared table to enforce one-menu-at-a-time ]]
 local openMenu = nil
+-- TFB: one shared record of what menus hid, restored only once no menu is open
+-- (fixes the HUD staying hidden after a menu opened another menu, e.g. Bears -> Confirm)
+local sharedHidden: { [Instance]: boolean } = {}
+local sharedCoreHidden: { [any]: boolean } = {}
 function M.Window(gui: ScreenGui, fenetre: Frame, opts)
 	opts = opts or {}
 	local player = Players.LocalPlayer
@@ -210,24 +214,29 @@ function M.Window(gui: ScreenGui, fenetre: Frame, opts)
 	local menu = { Gui = gui, Fenetre = fenetre, IsOpen = false }
 	local HOME = fenetre.Position
 	local running, token, fov0 = {}, 0, nil
-	local hidden, coreHidden = {}, {}
 	local CORE = { Enum.CoreGuiType.PlayerList, Enum.CoreGuiType.Chat, Enum.CoreGuiType.Backpack, Enum.CoreGuiType.EmotesMenu, Enum.CoreGuiType.Health }
 
 	local function tween(o, info, goal) local t = TweenService:Create(o, info, goal); table.insert(running, t); t:Play() end
 	local function stop() for _, t in running do t:Cancel() end; table.clear(running) end
 	local function hideOthers()
 		for _, g in player:WaitForChild("PlayerGui"):GetChildren() do
-			if g:IsA("ScreenGui") and g ~= gui and not keep[g.Name] and g.Enabled then g.Enabled = false; table.insert(hidden, g) end
+			if g:IsA("ScreenGui") and g ~= gui and not keep[g.Name] and g.Enabled and not string.find(g.Name, "^Menu") then
+				g.Enabled = false
+				sharedHidden[g] = true
+			end
 		end
 		for _, c in CORE do
 			local ok, v = pcall(StarterGui.GetCoreGuiEnabled, StarterGui, c)
-			if ok and v then coreHidden[c] = true; pcall(StarterGui.SetCoreGuiEnabled, StarterGui, c, false) end
+			if ok and v then sharedCoreHidden[c] = true; pcall(StarterGui.SetCoreGuiEnabled, StarterGui, c, false) end
 		end
 	end
 	local function restore()
-		for _, g in hidden do if g.Parent then g.Enabled = true end end
-		for c in coreHidden do pcall(StarterGui.SetCoreGuiEnabled, StarterGui, c, true) end
-		table.clear(hidden); table.clear(coreHidden)
+		for g in sharedHidden do if g.Parent then g.Enabled = true end end
+		for c in sharedCoreHidden do
+			-- never re-enable the default backpack (the game has its own hotbar)
+			if c ~= Enum.CoreGuiType.Backpack then pcall(StarterGui.SetCoreGuiEnabled, StarterGui, c, true) end
+		end
+		table.clear(sharedHidden); table.clear(sharedCoreHidden)
 	end
 
 	function menu.Open()
