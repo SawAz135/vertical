@@ -684,6 +684,7 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
     <div class="opts glass">
       <div class="opt" id="gFloorRow"><div><b>Sol automatique</b><small>Ajoute un sol et un point d'apparition seulement si le jeu n'en a pas. Désactivé : le robot n'ajoute rien.</small></div><button class="sw" id="gFloor" aria-label="Sol automatique"></button></div>
       <div class="opt"><div><b>Packs installés</b><small id="gPacks">aucun</small></div><span>📦</span></div>
+      <button class="opt danger2" id="gReset"><div><b>🧹 Tout réinitialiser</b><small>Enlève tous les packs (pets, cartes, jeux « Créer tout »…) et le jeu gardé : ton prochain .zip repart de zéro</small></div><span>›</span></button>
       <button class="opt" id="gRename"><div><b>Renommer</b><small>Le nom affiché dans l'app</small></div><span>›</span></button>
       <button class="opt danger2" id="gRemove"><div><b>Retirer de la liste</b><small>Le jeu reste sur Roblox, seule la tuile disparaît</small></div><span>›</span></button>
     </div>
@@ -1207,6 +1208,27 @@ $('gFloor').addEventListener('click', () => {
 $('gRename').addEventListener('click', () => {
   const n = prompt('Nom du jeu dans l\'app', S.game.name || ''); if (n == null || !n.trim()) return;
   upsertGame({ place: S.game.place, name: n.trim().slice(0, 60), customName: 1 }); toast('Renommé ✓');
+});
+$('gReset').addEventListener('click', async () => {
+  const g = S.game; if (!g) return;
+  if (!confirm(`Tout réinitialiser « ${g.name || g.place} » ?\n\nLes packs installés et le jeu gardé par le robot sont effacés. Ton jeu sur Roblox ne change pas tant que tu ne publies pas : publie ensuite ton nouveau .zip, il remplacera tout.`)) return;
+  try {
+    let ref = null; try { ref = await gh('GET', `/repos/${S.repo}/git/ref/heads/roblox-push-store`); } catch (e) { if (e.status !== 404) throw e; }
+    let removed = 0;
+    if (ref) {
+      const commit = await gh('GET', `/repos/${S.repo}/git/commits/${ref.object.sha}`);
+      const tree = await gh('GET', `/repos/${S.repo}/git/trees/${commit.tree.sha}?recursive=1`);
+      const keep = tree.tree.filter((t) => t.type === 'blob' && !t.path.startsWith(String(g.place) + '/'));
+      removed = tree.tree.filter((t) => t.type === 'blob').length - keep.length;
+      if (removed) {
+        const nt = await gh('POST', `/repos/${S.repo}/git/trees`, { tree: keep.map((t) => ({ path: t.path, mode: t.mode, type: 'blob', sha: t.sha })) });
+        const nc = await gh('POST', `/repos/${S.repo}/git/commits`, { message: `roblox-push reset ${g.place}`, tree: nt.sha, parents: [ref.object.sha] });
+        await gh('PATCH', `/repos/${S.repo}/git/refs/heads/roblox-push-store`, { sha: nc.sha, force: true });
+      }
+    }
+    upsertGame({ place: g.place, packs: [] }); Store.set('pendingPack', null);
+    renderGame(); toast(removed ? `🧹 Réinitialisé (${removed} fichier${removed > 1 ? 's' : ''} effacé${removed > 1 ? 's' : ''}) : publie ton nouveau .zip` : '🧹 Rien à effacer : publie ton nouveau .zip', 4200);
+  } catch (e) { toast('Réinitialisation impossible : ' + (e.message || e), 4200); }
 });
 $('gRemove').addEventListener('click', () => {
   if (!confirm(`Retirer « ${S.game.name || S.game.place} » de la liste ? Le jeu reste sur Roblox.`)) return;
