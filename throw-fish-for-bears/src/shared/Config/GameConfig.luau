@@ -3,8 +3,9 @@ return {
 	UI = {
 		-- rbxassetid of assets/stud_tile.png once uploaded to Roblox (Creator Hub > Decals/Images).
 		-- Empty = studs are drawn with GUI frames instead (same look, heavier).
-		StudImage = "",
-		StudPitch = 15, -- px between studs (reference menus are very dense)
+		-- Creator Store "Studs" decal 6927295857, loaded through rbxthumb (works for decals in code)
+		StudImage = "rbxthumb://type=Asset&id=6927295857&w=420&h=420",
+		StudPitch = 24, -- size of one texture tile in px (1050 x 620 reference screen)
 	},
 	Fishing = {
 		waitMin = 4.5, waitMax = 10, -- seconds before a bite (divided by rod speed)

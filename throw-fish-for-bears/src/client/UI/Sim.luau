@@ -107,7 +107,7 @@ function Sim.studs(parent: GuiObject, opts)
 		local pitch = cfg.StudPitch * (if opts.big then 1.3 else 1)
 		return new("ImageLabel", {
 			Name = "Studs", BackgroundTransparency = 1, Image = cfg.StudImage, ScaleType = Enum.ScaleType.Tile,
-			TileSize = UDim2.fromOffset(pitch, pitch), ImageTransparency = if dark then 0.4 else 0.55, -- subtle
+			TileSize = UDim2.fromOffset(pitch, pitch), ImageTransparency = if dark then 0.6 else 0.72, -- subtle overlay
 			Size = UDim2.new(1, -4, 1, -4), Position = UDim2.fromOffset(2, 2), ZIndex = opts.z or parent.ZIndex,
 		}, parent)
 	end
