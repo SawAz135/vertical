@@ -95,6 +95,7 @@ Capture.Flash = Notify.flash
 Capture.init()
 Ambience.init()
 Data.init()
+Sound.startMusic()
 
 -- feedback remotes --------------------------------------------------------------------------
 Net.event("Notify").OnClientEvent:Connect(function(text, kind)

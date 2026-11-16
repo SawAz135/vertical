@@ -51,6 +51,22 @@ local LIB = {
 Sound.BearPitch = { BrownBear = 1.0, BlackBear = 1.08, GrizzlyBear = 0.85, PolarBear = 0.9, Panda = 1.15 }
 
 local rand = Random.new()
+
+-- background music (looping). "Happy Song" by APM Music on the Creator Store (1843404009).
+-- Alternative calmer track: "Light Breeze Ukulele" (1839620279). Empty = no music.
+Sound.MUSIC_ID = "rbxassetid://1843404009"
+Sound.MUSIC_VOLUME = 0.22
+
+function Sound.startMusic()
+	if Sound.MUSIC_ID == "" or SoundService:FindFirstChild("TFB_Music") then return end
+	local m = Instance.new("Sound")
+	m.Name = "TFB_Music"
+	m.SoundId = Sound.MUSIC_ID
+	m.Looped = true
+	m.Volume = Sound.MUSIC_VOLUME
+	m.Parent = SoundService
+	m:Play()
+end
 local group = Instance.new("SoundGroup")
 group.Name = "TFB_Sfx"
 group.Volume = 0.8
