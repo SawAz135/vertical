@@ -86,7 +86,12 @@ local function buildCompound(map, rand)
 	local function line(z, x0, x1)
 		Studs.static(map, "Line", V3(x1 - x0, 0.12, 0.8), CF((x0 + x1) / 2, 0.06, z), C(255, 255, 255), { smooth = true, noCollide = true })
 	end
-	line(Layout.THROW_AREA.maxZ, c.minX + 2, c.maxX - 2) -- throw line touches both side walls
+	-- throw zone: front line as wide as the corridor + 2 side lines back to the corridor corners
+	local ta = Layout.THROW_AREA
+	line(ta.maxZ, ta.minX, ta.maxX)
+	for _, x in { ta.minX, ta.maxX } do
+		Studs.static(map, "Line", V3(0.8, 0.12, ta.maxZ - c.minZ), CF(x, 0.06, (ta.maxZ + c.minZ) / 2), C(255, 255, 255), { smooth = true, noCollide = true })
+	end
 	line(Layout.FRONT.maxZ + 1, c.minX + 3, c.maxX - 3)
 	line(Layout.SAND.minZ - 0.5, c.minX + 3, c.maxX - 3)
 	Props.groundLabel(map, V3(0, 0, Layout.THROW_AREA.maxZ - 6), 44, 8, "THROW ZONE")

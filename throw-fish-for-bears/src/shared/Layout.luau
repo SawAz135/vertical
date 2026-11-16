@@ -43,7 +43,7 @@ Layout.FISH_SPOT_RADIUS = 9 -- distance from the dock end where casting is allow
 Layout.COMPOUND = { minX = -212, maxX = 212, minZ = -24, maxZ = 184 } -- front wall closer to the bases
 Layout.FRONT = { minX = -205, maxX = 205, minZ = -20, maxZ = 68 }
 -- throw zone: the whole width between the side walls, from the front wall to the throw line
-Layout.THROW_AREA = { minX = -208, maxX = 208, minZ = -22, maxZ = 0 }
+Layout.THROW_AREA = { minX = -62, maxX = 62, minZ = -22, maxZ = 0 } -- rectangle in front of the corridor entrance
 Layout.THROW_LINE_Z = -20
 -- SELL and SHOP stand in the corners of the corridor entrance, against the front wall (inner face z = -22), facing the bases
 Layout.SELL_POS = Vector3.new(-72, 0, -18.5)
