@@ -269,7 +269,28 @@ local function onFx(phase: string, d)
 		Sound.play("Arrive")
 		stopControlling()
 	elseif phase == "Captured" then
-		if Capture.Reveal then Capture.Reveal.bear(d.bear, d.income, d.isNew) end
+		-- poof where the bear was, then it pops into your arms
+		current = nil
+		if d.from then
+			Fx.puff(d.from + Vector3.new(0, 3, 0), Color3.new(1, 1, 1), 22, 5)
+			Fx.sparkle(d.from + Vector3.new(0, 3, 0), Color3.fromRGB(255, 230, 120), 18, 20)
+		end
+		CameraController.stop()
+		if Capture.Flash then Capture.Flash(0.35) end
+		task.delay(0.35, function()
+			local char = player.Character
+			local root = char and char:FindFirstChild("HumanoidRootPart")
+			if root then
+				Fx.burst(root.Position - Vector3.new(0, 2.8, 0), Color3.fromRGB(255, 220, 90), 0.7)
+				Fx.blocks(root.Position + Vector3.new(0, 6, 0), Color3.new(1, 1, 1), 30, 22, 0.4, {
+					colors = { Color3.fromRGB(255, 80, 80), Color3.fromRGB(255, 220, 60), Color3.fromRGB(80, 200, 255), Color3.fromRGB(120, 255, 120) },
+					life = 1.4, up = 2.5, gravity = 40,
+				})
+			end
+			Sound.play("Happy", { pitch = 1.1 })
+			Sound.play("Arrive")
+			if Capture.Reveal then Capture.Reveal.bear(d.bear, d.income, d.isNew) end
+		end)
 	elseif phase == "Failed" then
 		current = nil
 		stopControlling()

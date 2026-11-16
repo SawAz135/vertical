@@ -275,61 +275,26 @@ local function buildActionAndSpeed()
 		Position = UDim2.fromOffset(150, 214), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = -8, ZIndex = 3 }, root)
 	refs.speed = Sim.text(root, "20", { Size = UDim2.fromOffset(80, 38), Position = UDim2.fromOffset(174, 214), AnchorPoint = Vector2.new(0, 0.5),
 		AlignX = Enum.TextXAlignment.Left, Max = 36, Stroke = 3.5, Gradient = { RGB(160, 230, 255), RGB(40, 140, 255) }, ZIndex = 3 })
-	local b = Sim.button(root, { Name = "ActionButton", Grad = "blue", Size = Vector2.new(190, 120), Position = UDim2.fromOffset(150, 110), Text = "CAST", Max = 44,
-		Icon = K.Icons.Bait, IconSize = 0.62, Hover = 1.04 })
-	b.Visible = false
-	local sc = b.ButtonScale
-	local ring = new("Frame", { Name = "Ring", BackgroundTransparency = 1, Size = UDim2.new(1, 14, 1, 14), Position = UDim2.fromScale(0.5, 0.5),
-		AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 2 }, b)
-	Sim.corner(ring, 8)
-	local ringStroke = Sim.stroke(ring, 4, RGB(255, 240, 80), 1)
-	b.InputBegan:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then Actions.press() end
-	end)
-	b.InputEnded:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then Actions.release() end
-	end)
-	if UserInputService.KeyboardEnabled then
-		Sim.infoBar(b, "[E]", { Size = UDim2.fromOffset(54, 26), Position = UDim2.new(0.5, 0, 0, -8), Max = 18, ZIndex = 12 })
-	end
-	local GRAD = { blue = "blue", grey = "grey", red = "red", orange = "orange", green = "green", yellow = "yellow" }
-	local icons = { Cast = K.Icons.Bait, Stop = K.Icons.Check, Hook = K.Icons.Lightning, Reel = K.Icons.Bait, Throw = K.Icons.Upgrade, Place = K.Icons.House, Sprint = K.Icons.Shoe }
+	-- no action button: a small hint tells what to do (tap the lake, hold to reel / throw...)
+	local hintRoot = Sim.root(gui, "Hint", Vector2.new(520, 50), UDim2.new(0.5, 0, 1, -214), Vector2.new(0.5, 1))
+	local hint = Sim.infoBar(hintRoot, "", { Size = UDim2.fromOffset(500, 44), Position = UDim2.fromScale(0.5, 0.5), Max = 26, ZIndex = 3 })
+	hintRoot.Visible = false
+	local pop = new("UIScale", {}, hint)
 	Actions.ContextChanged:Connect(function(ctx)
 		local c = ctx and Actions.CONTEXTS[ctx]
-		if not c then
-			tween(sc, 0.14, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-			task.delay(0.15, function() if not Actions.context then b.Visible = false end end)
+		if not c or not c.hint then
+			hintRoot.Visible = false
 			return
 		end
-		b.Visible = true
-		Sim.setText(b, c.label)
-		Sim.recolor(b, GRAD[c.color] or "blue")
-		local ic = b:FindFirstChild("Icon")
-		if ic then ic.Image = icons[ctx] or K.Icons.Bait end
-		sc.Scale = 0.3
-		tween(sc, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
-		if ctx == "Hook" then
-			Sound.play("Bite")
-			Motion.Shake(b)
-		end
+		hint.Text.Text = c.hint
+		hintRoot.Visible = true
+		pop.Scale = 0.5
+		tween(pop, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+		if ctx == "Hook" then Sound.play("Bite") end
 	end)
 	RunService.RenderStepped:Connect(function()
-		if not b.Visible then return end
-		local t = os.clock()
-		local ctx = Actions.context
-		local ic = b:FindFirstChild("Icon")
-		if ic then ic.Rotation = -6 + math.sin(t * 3) * 6 end
-		if ctx == "Hook" then
-			b.Rotation = math.sin(t * 40) * 3
-			ringStroke.Transparency = 0
-			ringStroke.Thickness = 4 + math.abs(math.sin(t * 10)) * 4
-		elseif Actions.held and Actions.CONTEXTS[ctx or ""] and Actions.CONTEXTS[ctx].hold then
-			b.Rotation = 0
-			ringStroke.Transparency = 0.1
-			ringStroke.Thickness = 3 + math.abs(math.sin(t * 8)) * 3
-		else
-			b.Rotation = 0
-			ringStroke.Transparency = 1
+		if hintRoot.Visible then
+			hint.Rotation = math.sin(os.clock() * 3) * 1.2
 		end
 	end)
 end

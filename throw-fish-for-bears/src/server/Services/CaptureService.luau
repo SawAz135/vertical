@@ -189,9 +189,10 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 		if not wait(c, G.eat - G.swallowAt) then return end
 		agent:setAnim("Happy")
 		if not wait(c, G.happy) then return end
-		agent:setAnim("Transform")
+		-- poof: the bear leaves the zone and appears in the player's hands
+		agent:setAnim("Happy")
 		if not wait(c, G.transform) then return end
-		CaptureService.transform(player, c)
+		CaptureService.giveToPlayer(player, c)
 	end)
 end
 
@@ -241,6 +242,39 @@ function CaptureService.transform(player: Player, c)
 		bear = bear, outcome = o, base = base, timeout = G.returnTimeout,
 		income = Formulas.bearIncome(o),
 	})
+end
+
+-- the eaten-fish bear goes directly into the player's arms (no transformation)
+function CaptureService.giveToPlayer(player: Player, c)
+	c.alive = false
+	captures[player] = nil
+	local o = c.outcome
+	local from = c.agent and c.agent.root.Position or Vector3.zero
+	if c.agent then c.agent:destroy() c.agent = nil end
+	if c.fishModel then c.fishModel:Destroy() c.fishModel = nil end
+	if not player.Parent then return end
+	local data = R.PlayerData.get(player)
+	local id = R.PlayerData.newId(player)
+	local record = { id = id, s = o.s, r = o.r, v = o.v, w = o.w, placed = false, t = os.time() }
+	data.bears[id] = record
+	data.stats.bears += 1
+	local isNew = R.IndexService.discoverBear(player, record)
+	R.PlayerData.push(player, "bears")
+	R.State.set(player, "CarryingCapturedBear", true)
+	local char = player.Character
+	if char and not char:GetAttribute("IsBear") then
+		R.EquipService.equipBear(player, record)
+		-- the bear celebrates in your arms, then settles
+		local held = char:FindFirstChild("TFBHeld")
+		if held then
+			held:SetAttribute("Anim", "Happy")
+			held:SetAttribute("AnimT", workspace:GetServerTimeNow())
+			task.delay(2.2, function()
+				if held.Parent then held:SetAttribute("Anim", "Carried") end
+			end)
+		end
+	end
+	fx(player, "Captured", { bear = record, income = Formulas.bearIncome(record), isNew = isNew, from = from })
 end
 
 function CaptureService.complete(player: Player, c)

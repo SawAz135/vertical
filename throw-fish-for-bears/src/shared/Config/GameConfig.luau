@@ -29,7 +29,7 @@ return {
 	Capture = {
 		alert = 0.9, -- bear notices the fish
 		runSpeed = 26, -- studs/s at scale 1
-		arrive = 0.45, sniff = 1.0, eat = 1.6, happy = 0.85, transform = 1.1,
+		arrive = 0.45, sniff = 1.0, eat = 1.6, happy = 1.4, transform = 0.6, -- transform = the "poof" before the bear appears in your hands
 		pickupAt = 0.35, swallowAt = 1.15, -- seconds into the eat stage
 		returnTimeout = 300,
 		sprintMultiplier = 1.35,

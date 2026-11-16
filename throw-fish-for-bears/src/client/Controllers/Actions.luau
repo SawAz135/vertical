@@ -19,12 +19,12 @@ Actions.held = false
 Actions.override = nil -- controllers can force a context (e.g. reel game)
 
 local CONTEXTS = {
-	Cast = { label = "CAST", color = "blue", hold = false, icon = "🎣" },
-	Stop = { label = "REEL IN", color = "grey", hold = false, icon = "✋" },
-	Hook = { label = "HOOK!", color = "red", hold = false, icon = "❗" },
-	Reel = { label = "REEL", color = "orange", hold = true, icon = "🌀" },
-	Throw = { label = "THROW", color = "red", hold = true, icon = "💪" },
-	Place = { label = "PLACE", color = "green", hold = false, icon = "🐻" },
+	Cast = { label = "CAST", color = "blue", hold = false, icon = "🎣", hint = "Tap the lake to cast!" },
+	Stop = { label = "REEL IN", color = "grey", hold = false, icon = "✋", hint = "Waiting for a bite... (tap to pull the line out)" },
+	Hook = { label = "HOOK!", color = "red", hold = false, icon = "❗", hint = "A bite!" },
+	Reel = { label = "REEL", color = "orange", hold = true, icon = "🌀", hint = "HOLD the screen to reel! Release when red!" },
+	Throw = { label = "THROW", color = "red", hold = true, icon = "💪", hint = "HOLD the screen to charge, release to THROW!" },
+	Place = { label = "PLACE", color = "green", hold = false, icon = "🐻", hint = "Tap a spot in your base to place the bear!" },
 	Sprint = { label = "SPRINT", color = "yellow", hold = true, icon = "💨" },
 }
 Actions.CONTEXTS = CONTEXTS
@@ -97,6 +97,46 @@ function Actions.init()
 		end
 		return Enum.ContextActionResult.Pass
 	end, false, Enum.KeyCode.E, Enum.KeyCode.ButtonR2)
+	-- touch / click the WORLD (no button): cast at the lake, hold to reel, hold to throw
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Include
+	local function towardLake(screen: Vector2): boolean
+		local cam = workspace.CurrentCamera
+		local ray = cam:ViewportPointToRay(screen.X, screen.Y)
+		local map = workspace:FindFirstChild("Map")
+		if map then
+			rayParams.FilterDescendantsInstances = { map }
+			local hit = workspace:Raycast(ray.Origin, ray.Direction * 800, rayParams)
+			if hit then
+				local n = hit.Instance.Name
+				if n == "Lake" or n == "LakeBed" or n == "LakeKill" then return true end
+				return hit.Position.Z > Layout.DOCK_START_Z + 4
+			end
+		end
+		-- in the air: aiming above the lake side counts
+		return ray.Direction.Z > 0.15
+	end
+	local touching: InputObject? = nil
+	UserInputService.InputBegan:Connect(function(input, gp)
+		if gp then return end
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+		local ctx = Actions.context
+		if ctx == "Cast" then
+			local screen = if input.UserInputType == Enum.UserInputType.Touch
+				then Vector2.new(input.Position.X, input.Position.Y + game:GetService("GuiService"):GetGuiInset().Y)
+				else UserInputService:GetMouseLocation()
+			if towardLake(screen) then Actions.press() Actions.release() end
+		elseif ctx == "Reel" or ctx == "Throw" then
+			touching = input
+			Actions.press()
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if touching and (input == touching or input.UserInputType == Enum.UserInputType.MouseButton1) then
+			touching = nil
+			Actions.release()
+		end
+	end)
 	-- Shift = sprint as a bear on PC
 	UserInputService.InputBegan:Connect(function(input, gp)
 		if gp then return end

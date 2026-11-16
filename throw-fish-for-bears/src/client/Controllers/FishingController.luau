@@ -168,6 +168,10 @@ local function onFx(player: Player, phase: string, data)
 		if isLocal then
 			Sound.play("Bite")
 			CameraController.shake(0.6, 0.25)
+			-- the mini-game starts by itself (no HOOK button)
+			task.delay(0.35, function()
+				Net.event("Hook"):FireServer()
+			end)
 		end
 	elseif phase == "Miss" then
 		local s = sessions[player]
