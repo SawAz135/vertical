@@ -40,14 +40,14 @@ Layout.DOCK_TOP_Y = 0.8
 Layout.FISH_SPOT_RADIUS = 9 -- distance from the dock end where casting is allowed
 
 -- Front area --------------------------------------------------------------
-Layout.COMPOUND = { minX = -212, maxX = 212, minZ = -64, maxZ = 184 }
-Layout.FRONT = { minX = -205, maxX = 205, minZ = -60, maxZ = 68 }
+Layout.COMPOUND = { minX = -212, maxX = 212, minZ = -24, maxZ = 184 } -- front wall closer to the bases
+Layout.FRONT = { minX = -205, maxX = 205, minZ = -20, maxZ = 68 }
 -- throw zone: the whole width between the side walls, from the front wall to the throw line
-Layout.THROW_AREA = { minX = -208, maxX = 208, minZ = -62, maxZ = -40 }
-Layout.THROW_LINE_Z = -60
--- SELL and SHOP stalls stand against the front wall (inner face z = -62), facing the bases
-Layout.SELL_POS = Vector3.new(-172, 0, -58.5)
-Layout.SHOP_POS = Vector3.new(172, 0, -58.5)
+Layout.THROW_AREA = { minX = -208, maxX = 208, minZ = -22, maxZ = 0 }
+Layout.THROW_LINE_Z = -20
+-- SELL and SHOP stand in the corners of the corridor entrance, against the front wall (inner face z = -22), facing the bases
+Layout.SELL_POS = Vector3.new(-72, 0, -18.5)
+Layout.SHOP_POS = Vector3.new(72, 0, -18.5)
 Layout.TRAIN_RADIUS = 3.6
 -- one small white training circle per base, at the outer front corner (outside the fence)
 function Layout.trainPos(i: number): Vector3
@@ -64,7 +64,7 @@ Layout.SPAWN_POS = Vector3.new(0, 0, 40)
 
 -- Corridor and zones ------------------------------------------------------
 Layout.CORRIDOR_HALF = 60
-Layout.CORRIDOR_START_Z = -60
+Layout.CORRIDOR_START_Z = -20
 Layout.ZONE_LENGTH = 300
 Layout.ZONE_COUNT = 1 -- playable slice: 1 zone (Green Forest). Add zones in ZoneConfig + raise this.
 Layout.CORRIDOR_END_Z = Layout.CORRIDOR_START_Z - Layout.ZONE_LENGTH * Layout.ZONE_COUNT

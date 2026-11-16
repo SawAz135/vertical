@@ -97,7 +97,7 @@ local function buildCompound(map, rand)
 		end
 	end
 	for x = -190, 190, 26 do
-		if math.abs(x) > 70 and math.abs(math.abs(x) - 172) > 14 then
+		if math.abs(x) > 70 and math.abs(math.abs(x) - 72) > 14 then
 			Props.bush(map, V3(x, 0, c.minZ + 6), 0.9, rand)
 			for _ = 1, 3 do
 				Props.flower(map, V3(x + rand:NextNumber() * 14 - 7, 0, c.minZ + 10 + rand:NextNumber() * 6), rand)
@@ -142,17 +142,6 @@ local function buildBases(map)
 			local b2 = Studs.static(folder, "Border", V3(1.2, 0.16, Layout.BASE_SIZE - 4), CF(c.X + side * (h - 2), 0.15, c.Z), col)
 			b2.CanCollide = false
 		end
-		-- owner sign at the front gate
-		local signPos = V3(c.X - gate / 2 - 6, 0, c.Z - h - 1.5)
-		Studs.static(folder, "SignPost", V3(1, 7, 1), CF(signPos + V3(-3.6, 3.5, 0)), Props.WOOD_DARK)
-		Studs.static(folder, "SignPost", V3(1, 7, 1), CF(signPos + V3(3.6, 3.5, 0)), Props.WOOD_DARK)
-		local board = Studs.static(folder, "SignBoard", V3(9, 3.4, 0.6), CF(signPos + V3(0, 6.2, 0)), Props.WOOD)
-		Studs.static(folder, "SignStripe", V3(9.2, 0.6, 0.7), CF(signPos + V3(0, 8.1, 0)), col)
-		MapService.baseSigns[i] = Props.signText(board, "Empty Base", Enum.NormalId.Front)
-		-- flag with the base colour
-		Studs.static(folder, "FlagPole", V3(0.6, 14, 0.6), CF(c.X + h - 3, 7, c.Z - h + 3), C(220, 220, 225))
-		Studs.static(folder, "Flag", V3(0.2, 3, 5), CF(c.X + h - 3, 12.4, c.Z - h + 5.6), col)
-
 		-- small white training circle at the outer front corner of the base
 		local tp = Layout.trainPos(i)
 		local r = Layout.TRAIN_RADIUS
@@ -302,7 +291,7 @@ function MapService.build()
 end
 
 function MapService.setBaseOwner(i: number, player: Player?)
-	local label = MapService.baseSigns[i]
+	local label = MapService.baseSigns[i] -- base signs were removed (kept for API compatibility)
 	if label then
 		label.Text = if player then (player.DisplayName .. "'s Base") else "Empty Base"
 	end
