@@ -174,7 +174,7 @@ local function buildShop()
 			local maxed = gain >= E.Strength.maxGain
 			local cost = E.Strength.gainCost(gain)
 			statPage(animate, {
-				section = "Strength", rarity = "Mythic", big = "+" .. gain .. " / lift", small = "Strength gain", icon = K.Icons.Upgrade,
+				section = "Strength", rarity = "Mythic", big = "💪 " .. Format.short(power), small = ("+%d per lift"):format(gain), icon = K.Icons.Upgrade,
 				rows = {
 					{ "Each lift", ("+%d -> +%d strength"):format(gain, gain + 1) },
 					{ "Your strength", Format.short(power) },

@@ -165,7 +165,8 @@ end
 ------------------------------------------------------------------------------------------
 local function buildStats()
 	local root = Sim.root(gui, "Stats", Vector2.new(440, 130), UDim2.new(0, 10, 1, -6), Vector2.new(0, 1))
-	new("ImageLabel", { BackgroundTransparency = 1, Image = K.Icons.Upgrade, ScaleType = Enum.ScaleType.Fit, Size = UDim2.fromOffset(46, 46),
+	-- flexed arm emoji for strength
+	new("TextLabel", { BackgroundTransparency = 1, Text = "💪", TextScaled = true, Font = Enum.Font.FredokaOne, Size = UDim2.fromOffset(48, 48),
 		Position = UDim2.fromOffset(26, 26), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = -8, ZIndex = 3 }, root)
 	refs.strength = Sim.text(root, "", { Size = UDim2.fromOffset(380, 42), Position = UDim2.fromOffset(54, 24), AnchorPoint = Vector2.new(0, 0.5),
 		AlignX = Enum.TextXAlignment.Left, Max = 40, Stroke = 3.5, Gradient = { RGB(255, 140, 120), RGB(230, 30, 40) }, ZIndex = 3 })
