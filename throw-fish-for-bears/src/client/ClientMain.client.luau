@@ -61,6 +61,7 @@ local hudGui = screen("MainHUD", 1)
 local overlayGui = screen("Overlay", 10)
 local Kit = require(UI.Kit)
 Kit.init(playerGui)
+require(UI.Sim).init(playerGui)
 
 -- one scale for every screen: designed for a 900 x 420 phone in landscape
 local function rescale()
