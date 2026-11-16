@@ -164,8 +164,7 @@ function BearBase.place(player: Player, pos: Vector3)
 		R.Notify(player, ("Base full (%d/%d)! Upgrade capacity in the SHOP or store this bear."):format(cap, cap), "warn")
 		return
 	end
-	pos = Vector3.new(pos.X, 0, pos.Z)
-	if (pos - Vector3.new(root.Position.X, 0, root.Position.Z)).Magnitude > 22 then return end
+	pos = Vector3.new(pos.X, 0, pos.Z) -- any spot of the own base can be clicked / tapped
 	if not Layout.isInBase(base, pos, 6) then
 		R.Notify(player, "Place the bear inside YOUR base.", "warn")
 		return

@@ -9,6 +9,7 @@
      Arrived / Captured -> celebration, reveal card, carry the bear home and PLACE it
      Placement ghost: a ring under the spot where PLACE will put the bear. ]]
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
@@ -357,7 +358,25 @@ local function step(dt: number)
 	end
 end
 
+-- ground point under a screen position (map only)
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Include
+local function groundAt(screen: Vector2): Vector3?
+	local map = workspace:FindFirstChild("Map")
+	if not map then return nil end
+	rayParams.FilterDescendantsInstances = { map }
+	local ray = workspace.CurrentCamera:ViewportPointToRay(screen.X, screen.Y)
+	local hit = workspace:Raycast(ray.Origin, ray.Direction * 600, rayParams)
+	return hit and Vector3.new(hit.Position.X, 0, hit.Position.Z) or nil
+end
+
+-- where PLACE puts the bear: under the mouse on PC (ghost follows the cursor), else in front of you
 function Capture.placePosition(): Vector3
+	local base = player:GetAttribute("Base")
+	if base and UserInputService.MouseEnabled then
+		local p = groundAt(UserInputService:GetMouseLocation())
+		if p and Layout.isInBase(base, p, 6) then return p end
+	end
 	local char = player.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	if not root then return Vector3.zero end
@@ -378,6 +397,18 @@ function Capture.init()
 	end)
 	Actions.on("Place", function()
 		Net.event("PlaceBear"):FireServer(Capture.placePosition())
+	end)
+	-- click / tap anywhere in your base to place the carried bear there
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed or Data.state ~= "CarryingCapturedBear" then return end
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+		local base = player:GetAttribute("Base")
+		local screen = if input.UserInputType == Enum.UserInputType.Touch then Vector2.new(input.Position.X, input.Position.Y + game:GetService("GuiService"):GetGuiInset().Y) else UserInputService:GetMouseLocation()
+		local p = groundAt(screen)
+		if base and p and Layout.isInBase(base, p, 6) then
+			Fx.ring(p + Vector3.new(0, 0.2, 0), Color3.fromRGB(120, 255, 120), 0.5, 4, 0.4, { neon = true, transparency = 0.2 })
+			Net.event("PlaceBear"):FireServer(p)
+		end
 	end)
 	player.CharacterAdded:Connect(function(char)
 		if not char:GetAttribute("IsBear") then

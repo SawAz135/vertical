@@ -192,6 +192,13 @@ function Props.signText(part: BasePart, text: string, face: Enum.NormalId, color
 	return t
 end
 
+-- text painted flat on the ground, readable from the bases (looking toward -Z)
+function Props.groundLabel(parent: Instance, pos: Vector3, width: number, height: number, text: string, color: Color3?)
+	local p = Studs.static(parent, "GroundLabel", V3(width, height, 0.2), CF(pos + V3(0, 0.16, 0)) * ANG(0, math.pi, 0) * ANG(math.pi / 2, 0, 0),
+		Color3.new(1, 1, 1), { transparency = 1, noCollide = true, noQuery = true, smooth = true, noShadow = true })
+	return Props.signText(p, text, Enum.NormalId.Front, color)
+end
+
 -- text painted on the ground (top face)
 function Props.groundText(parent: Instance, pos: Vector3, size: Vector2, text: string, rotY: number?)
 	local p = Studs.static(parent, "GroundText", V3(size.X, 0.05, size.Y), CF(pos + V3(0, 0.03, 0)) * ANG(0, rotY or 0, 0), Color3.new(1, 1, 1), { transparency = 1, noCollide = true, noQuery = true, smooth = true })

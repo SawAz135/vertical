@@ -60,7 +60,7 @@ local function buildGround(map)
 	local s = Layout.SAND
 	Studs.static(map, "Sand", V3(s.maxX - s.minX, 0.4, s.maxZ - s.minZ + 4), CF((s.minX + s.maxX) / 2, 0.2, (s.minZ + s.maxZ) / 2 + 2), SAND)
 
-	Props.arch(map, V3(0, 0, (s.minZ + s.maxZ) / 2), 26, "FISHING ZONE", C(80, 170, 255))
+	Props.groundLabel(map, V3(0, 0.4, (s.minZ + s.maxZ) / 2), 40, 8, "FISHING ZONE")
 	-- lake: water surface + darker deep bed for depth
 	local l = Layout.LAKE
 	local water = Studs.static(map, "Lake", V3(l.maxX - l.minX, 1, l.maxZ - l.minZ), CF(0, Layout.WATER_Y - 0.5, (l.minZ + l.maxZ) / 2), WATER, { smooth = true })
@@ -89,26 +89,7 @@ local function buildCompound(map, rand)
 	line(Layout.THROW_AREA.maxZ, Layout.THROW_AREA.minX, Layout.THROW_AREA.maxX)
 	line(Layout.FRONT.maxZ + 1, c.minX + 3, c.maxX - 3)
 	line(Layout.SAND.minZ - 0.5, c.minX + 3, c.maxX - 3)
-	Props.arch(map, V3(0, 0, Layout.THROW_AREA.maxZ - 2), 60, "THROW ZONE")
-	-- dirt paths: from every base gate to the throw zone, and to the shops
-	local PATH = C(176, 140, 92)
-	for _, bc in Layout.BASE_CENTERS do
-		local gateZ = bc.Z - Layout.BASE_HALF
-		local a = V3(bc.X, 0, gateZ - 1)
-		local b = V3(bc.X * 0.25, 0, Layout.THROW_AREA.maxZ + 2)
-		local d = b - a
-		local mid = (a + b) / 2
-		local p = Studs.static(map, "Path", V3(8, 0.24, d.Magnitude), CFrame.lookAt(mid, mid + d) + V3(0, 0.12, 0), PATH)
-		p.CanCollide = false
-	end
-	for _, sp in { Layout.SELL_POS, Layout.SHOP_POS } do
-		local a = V3(sp.X, 0, sp.Z - 6)
-		local b = V3(sp.X * 0.45, 0, Layout.THROW_AREA.maxZ - 4)
-		local d = b - a
-		local mid = (a + b) / 2
-		local p = Studs.static(map, "Path", V3(7, 0.24, d.Magnitude), CFrame.lookAt(mid, mid + d) + V3(0, 0.12, 0), PATH)
-		p.CanCollide = false
-	end
+	Props.groundLabel(map, V3(0, 0, Layout.THROW_AREA.maxZ - 6), 44, 8, "THROW ZONE")
 	-- decor along the inside of the compound walls (keeps the front lively)
 	for z = c.minZ + 12, Layout.FRONT.maxZ - 6, 22 do
 		for _, sx in { -1, 1 } do
@@ -116,7 +97,7 @@ local function buildCompound(map, rand)
 		end
 	end
 	for x = -190, 190, 26 do
-		if math.abs(x) > 70 then
+		if math.abs(x) > 70 and math.abs(math.abs(x) - 110) > 14 then
 			Props.bush(map, V3(x, 0, c.minZ + 6), 0.9, rand)
 			for _ = 1, 3 do
 				Props.flower(map, V3(x + rand:NextNumber() * 14 - 7, 0, c.minZ + 10 + rand:NextNumber() * 6), rand)
@@ -125,7 +106,7 @@ local function buildCompound(map, rand)
 	end
 	for _ = 1, 10 do
 		local sx = if rand:NextNumber() < 0.5 then -1 else 1
-		Props.rock(map, V3(sx * (75 + rand:NextNumber() * 110), 0, c.minZ + 14 + rand:NextNumber() * 40), 0.7, rand)
+		Props.rock(map, V3(sx * (130 + rand:NextNumber() * 60), 0, c.minZ + 22 + rand:NextNumber() * 20), 0.7, rand)
 	end
 	-- throw area tint
 	local ta = Layout.THROW_AREA
@@ -193,9 +174,9 @@ local function buildBases(map)
 end
 
 local function buildShops(map)
-	local _, sellAnchor = Props.stall(map, CFrame.lookAt(Layout.SELL_POS, Layout.SELL_POS + V3(0, 0, -1)), C(220, 50, 50), "SELL")
+	local _, sellAnchor = Props.stall(map, CFrame.lookAt(Layout.SELL_POS, Layout.SELL_POS + V3(0, 0, 1)), C(220, 50, 50), "SELL")
 	prompt(sellAnchor, "Sell", "Sell Fish", "SELL", 14)
-	local _, shopAnchor = Props.stall(map, CFrame.lookAt(Layout.SHOP_POS, Layout.SHOP_POS + V3(0, 0, -1)), C(40, 110, 230), "SHOP")
+	local _, shopAnchor = Props.stall(map, CFrame.lookAt(Layout.SHOP_POS, Layout.SHOP_POS + V3(0, 0, 1)), C(40, 110, 230), "SHOP")
 	prompt(shopAnchor, "Shop", "Open Shop", "SHOP", 14)
 	-- spawn (players are moved to their base right after spawning)
 	local spawn = Instance.new("SpawnLocation")
@@ -239,10 +220,6 @@ local function buildCorridor(map, rand)
 		end
 		local path = Studs.static(map, "Path", V3(14, 0.24, a - b), CF(0, 0.12, (a + b) / 2), zone.path)
 		path.CanCollide = false
-		for zz = a - 6, b + 6, -9 do
-			local st = Studs.static(map, "PathStone", V3(3, 0.3, 2.4), CF((rand:NextNumber() - 0.5) * 8, 0.15, zz), C(150, 150, 150))
-			st.CanCollide = false
-		end
 		-- entrance arch sign
 		Studs.static(folder, "ArchL", V3(3, 20, 3), CF(-Layout.CORRIDOR_HALF + 4, 10, a - 4), Props.TRUNK)
 		Studs.static(folder, "ArchR", V3(3, 20, 3), CF(Layout.CORRIDOR_HALF - 4, 10, a - 4), Props.TRUNK)
