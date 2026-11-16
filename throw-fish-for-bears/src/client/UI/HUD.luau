@@ -129,8 +129,7 @@ local function buildRight()
 		local badge = UI.NotifBadge(b)
 		badge.Visible = false
 		Motion.PulseScale(badge.Pulse)
-		local ic = b:FindFirstChild("Icone")
-		if ic then Motion.Sway(ic, 4, 1.2 + y / 400) end
+
 		return b, badge
 	end
 	local _, giftBadge = tile("Gifts", "red", K.Icons.Gift, 52, "Rewards")
@@ -143,11 +142,11 @@ local function buildRight()
 	-- panel: dark glass + gold stud header (reference "7/9 Actifs" panel)
 	local panel = UI.new("Frame", { Name = "BearsPanel", BackgroundTransparency = 1, Size = UDim2.fromOffset(330, 320),
 		Position = UDim2.fromOffset(70, 5), Visible = false }, root)
-	local body = UI.new("Frame", { Name = "Corps", BackgroundColor3 = RGB(0, 0, 0), BackgroundTransparency = 0.45, BorderSizePixel = 0,
+	local body = UI.new("Frame", { Name = "Corps", BackgroundColor3 = RGB(50, 50, 56), BackgroundTransparency = 0.03, BorderSizePixel = 0,
 		Size = UDim2.fromOffset(330, 270), Position = UDim2.fromOffset(0, 0) }, panel)
 	UI.Corner(body, 4)
 	UI.Stroke(body, RGB(2, 4, 3), 3)
-	UI.StudsFlat(body, 1, 0.9)
+	UI.StudsDark(body, 1, 36)
 	local head = UI.StudPanel(panel, { Name = "Head", Size = UDim2.fromOffset(322, 46), Position = UDim2.fromOffset(4, 4), Gradient = "gold", ZIndex = 3 })
 	refs.panelTitle = UI.Text(head, "0/5 Active", { Size = UDim2.fromOffset(160, 36), Position = UDim2.fromOffset(12, 23), AnchorPoint = Vector2.new(0, 0.5),
 		AlignX = Enum.TextXAlignment.Left, TextSize = 26, Stroke = RGB(70, 40, 0), Thickness = 3, ZIndex = 6 })
@@ -546,7 +545,7 @@ function HUD.mount(g: ScreenGui)
 		local t = os.clock()
 		-- title words bob in a wave
 		for i, w in refs.titleWords do
-			w.Rotation = math.sin(t * 2 + i * 0.8) * 3
+			w.Rotation = math.sin(t * 1.5 + i * 0.8) * 1.2
 		end
 		-- money count-up with a bounce on gains
 		local target = Data.values.money or 0

@@ -290,16 +290,28 @@ end
 --- Tiled stud overlay that fades in toward the bottom-right (stud buttons / stud headers).
 function UI.StudsOverlay(parent, zIndex)
 	local s = new("ImageLabel", { Name = "Studs", BackgroundTransparency = 1, Image = UI.Assets.Studs,
-		ScaleType = Enum.ScaleType.Tile, TileSize = UDim2.fromOffset(56, 56), Size = UDim2.fromScale(1, 1), ZIndex = zIndex or 6 }, parent)
+		ScaleType = Enum.ScaleType.Tile, TileSize = UDim2.fromOffset(40, 40), Size = UDim2.fromScale(1, 1), ZIndex = zIndex or 6 }, parent)
+	-- TFB: studs clearly visible over the whole face (was a faint bottom-right fade)
 	new("UIGradient", { Rotation = 55, Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.55, 0.9), NumberSequenceKeypoint.new(1, 0.45) }) }, s)
+		NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0.3) }) }, s)
 	return s
+end
+
+--- TFB: dark studded surface (dark plastic studs on a dark body, like the reference shop windows)
+function UI.StudsDark(parent, zIndex, tile)
+	local t = tile or 38
+	new("ImageLabel", { Name = "StudsOmbre", BackgroundTransparency = 1, Image = UI.Assets.Studs, ScaleType = Enum.ScaleType.Tile,
+		TileSize = UDim2.fromOffset(t, t), ImageColor3 = RGB(0, 0, 0), ImageTransparency = 0.35, Size = UDim2.new(1, -4, 1, -4),
+		Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = zIndex or 1 }, parent)
+	return new("ImageLabel", { Name = "StudsLumiere", BackgroundTransparency = 1, Image = UI.Assets.Studs, ScaleType = Enum.ScaleType.Tile,
+		TileSize = UDim2.fromOffset(t, t), ImageTransparency = 0.82, Size = UDim2.new(1, -4, 1, -4),
+		Position = UDim2.new(0.5, -1, 0.5, -1), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = zIndex or 1 }, parent)
 end
 
 --- Flat stud texture for panels (constant 0.82 transparency, inset 2px).
 function UI.StudsFlat(parent, zIndex, transparency)
 	return new("ImageLabel", { Name = "Studs", BackgroundTransparency = 1, Image = UI.Assets.Studs, ScaleType = Enum.ScaleType.Tile,
-		TileSize = UDim2.fromOffset(56, 56), ImageTransparency = transparency or 0.82, Size = UDim2.new(1, -4, 1, -4),
+		TileSize = UDim2.fromOffset(40, 40), ImageTransparency = transparency or 0.55, Size = UDim2.new(1, -4, 1, -4),
 		Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = zIndex or 2 }, parent)
 end
 
@@ -665,6 +677,7 @@ function UI.InsetBox(parent, p)
 		AnchorPoint = p.AnchorPoint or Vector2.zero, ZIndex = z, LayoutOrder = p.LayoutOrder or 0 })
 	UI.Corner(f, p.Corner or 6)
 	UI.Stroke(f, UI.Colors.InsetStroke, 2.5)
+	if p.Studs ~= false then UI.StudsDark(f, z, 30) end
 	inner(f, "Lisere", 4, UI.Colors.InsetLine, 1.2, 0.45, math.max((p.Corner or 6) - 2, 0), z, Enum.ApplyStrokeMode.Contextual)
 	f.Parent = parent
 	return f
@@ -748,10 +761,12 @@ function UI.Window(gui, p)
 		Position = p.Position or UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Visible = p.Visible == true, ZIndex = 1 })
 	local scale = new("UIScale", { Name = "WindowScale" }, fen)
 
-	local corps = new("Frame", { Name = "Corps", BackgroundColor3 = UI.Colors.BodyGlass, BackgroundTransparency = 0.5, BorderSizePixel = 0,
-		Size = UDim2.fromOffset(W - 5, H - Hh - 2), Position = UDim2.fromOffset(2, Hh), ZIndex = 1 }, fen)
+	local corps = new("Frame", { Name = "Corps", BackgroundColor3 = RGB(50, 50, 56), BackgroundTransparency = 0.03, BorderSizePixel = 0,
+		Size = UDim2.fromOffset(W - 5, H - Hh - 2), Position = UDim2.fromOffset(2, Hh), ZIndex = 1, ClipsDescendants = false }, fen)
 	UI.Corner(corps, 2)
-	UI.Stroke(corps, RGB(2, 4, 3), 2)
+	UI.Stroke(corps, RGB(2, 4, 3), 3)
+	UI.Gradient(corps, seq(RGB(255, 255, 255), RGB(200, 200, 208)), 90, "Ombrage")
+	UI.StudsDark(corps, 1, 40)
 	local lisere = new("Frame", { Name = "LisereCorps", BackgroundTransparency = 1, Size = UDim2.fromOffset(W - 9, H - Hh + 17),
 		Position = UDim2.fromOffset(3, Hh - 21), ZIndex = 1 }, fen)
 	UI.Stroke(lisere, WHITE, 1.5, 0.62)
@@ -812,11 +827,12 @@ end
 function UI.ItemSlot(parent, p)
 	local size = v2(p.Size or Vector2.new(80, 80))
 	local z = p.ZIndex or 2
-	local b = new(p.Button == false and "Frame" or "ImageButton", { Name = p.Name or "Carte", BackgroundColor3 = UI.Colors.Slot,
-		BackgroundTransparency = 0.35, BorderSizePixel = 0, Size = UDim2.fromOffset(size.X, size.Y),
+	local b = new(p.Button == false and "Frame" or "ImageButton", { Name = p.Name or "Carte", BackgroundColor3 = RGB(36, 36, 42),
+		BackgroundTransparency = 0.05, BorderSizePixel = 0, Size = UDim2.fromOffset(size.X, size.Y),
 		Position = p.Position or UDim2.new(), AnchorPoint = p.AnchorPoint or Vector2.zero, ZIndex = z, LayoutOrder = p.LayoutOrder or 0 })
 	if b:IsA("ImageButton") then b.AutoButtonColor = false; b.Image = "" end
 	UI.Stroke(b, UI.Colors.SlotStroke, 3, 0, nil, "Bord")
+	UI.StudsDark(b, z, 26)
 	local lis = new("Frame", { Name = "Lisere", BackgroundTransparency = 1, Size = UDim2.new(1, -8, 1, -8), Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = z }, b)
 	UI.Stroke(lis, UI.Colors.SlotLine, 1.4, 0.15, nil, "Trait")
@@ -858,8 +874,9 @@ function UI.ProductCard(parent, p)
 	local W, H = p.Width or 617, p.Height or 168
 	local r = UI.Rarities[p.Rarity or "Common"] or UI.Rarities.Common
 	local c = new("Frame", { Name = p.Name or "Carte", BackgroundTransparency = 1, Size = UDim2.fromOffset(W, H), ZIndex = 2, LayoutOrder = p.LayoutOrder or 0 })
-	new("Frame", { Name = "Interieur", BackgroundColor3 = UI.Colors.CardInner, BackgroundTransparency = 0.72, BorderSizePixel = 0,
+	local inside = new("Frame", { Name = "Interieur", BackgroundColor3 = RGB(64, 64, 72), BackgroundTransparency = 0.05, BorderSizePixel = 0,
 		Size = UDim2.fromOffset(W - 9, H - 9), Position = UDim2.fromOffset(4, 4), ZIndex = 2 }, c)
+	UI.StudsDark(inside, 2, 34)
 	local bn = new("Frame", { Name = "BordNoir", BackgroundTransparency = 1, Size = UDim2.fromOffset(W, H), ZIndex = 3 }, c)
 	UI.Stroke(bn, RGB(4, 4, 4), 2.5)
 	local bc = new("Frame", { Name = "BordClair", BackgroundTransparency = 1, Size = UDim2.fromOffset(W - 5, H - 5), Position = UDim2.fromOffset(2, 2), ZIndex = 3 }, c)

@@ -50,8 +50,7 @@ local function makeWindow(name: string, opts)
 		if renderers[name] then renderers[name](true) end
 	end })
 	local content = UI.new("Frame", { Name = "Content", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 2 }, win.Corps)
-	if win.Icone and win.Icone.Name == "Icone" then Motion.Sway(win.Icone, 4, 1.4) end
-	if win.Icone and win.Icone.Name == "Panier" then Motion.Sway(win.Icone, 3, 1.6) end
+	if win.Icone and win.Icone.Name == "Panier" then Motion.Sway(win.Icone, 2, 1.2) end
 	local w = { gui = gui, win = win, menu = menu, content = content }
 	windows[name] = w
 	return w
@@ -114,8 +113,9 @@ local function buildShop()
 			local owned = d.rods and d.rods.owned[id]
 			local equipped = d.rods and d.rods.equipped == id
 			local card = UI.new("Frame", { Name = "Rod" .. i, BackgroundTransparency = 1, Size = UDim2.fromOffset(226, 384), LayoutOrder = i, ZIndex = 2 }, list)
-			UI.new("Frame", { Name = "Interieur", BackgroundColor3 = UI.Colors.CardInner, BackgroundTransparency = 0.72, BorderSizePixel = 0,
+			local inside = UI.new("Frame", { Name = "Interieur", BackgroundColor3 = RGB(64, 64, 72), BackgroundTransparency = 0.05, BorderSizePixel = 0,
 				Size = UDim2.fromOffset(217, 375), Position = UDim2.fromOffset(4, 4), ZIndex = 2 }, card)
+			UI.StudsDark(inside, 2, 34)
 			UI.Stroke(UI.new("Frame", { Name = "BordNoir", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 3 }, card), RGB(4, 4, 4), 2.5)
 			UI.Stroke(UI.new("Frame", { Name = "BordClair", BackgroundTransparency = 1, Size = UDim2.new(1, -5, 1, -5), Position = UDim2.fromOffset(2, 2), ZIndex = 3 }, card), Color3.new(1, 1, 1), 2.2, 0.25)
 			local panel = UI.StudPanel(card, { Name = "Panneau", Size = UDim2.fromOffset(206, 168), Position = UDim2.fromOffset(10, 10),
@@ -157,7 +157,7 @@ local function buildShop()
 		local sun = UI.Sunburst(panel, 420, { Position = UDim2.fromScale(0.5, 0.42), Transparency = 0.45, ZIndex = 4 })
 		local _ = sun
 		local ic = UI.Image(panel, cfg.icon, { Size = UDim2.fromOffset(170, 170), Position = UDim2.fromScale(0.5, 0.4), Rotation = -8, ZIndex = 6 })
-		Motion.Sway(ic, 5, 1.3)
+
 		shadow(panel, cfg.big, { Font = "Heavy", TextSize = 44, Stroke = RGB(12, 20, 26), Thickness = 4, Size = UDim2.fromOffset(260, 54),
 			Position = UDim2.new(0.5, 0, 1, -50), ZIndex = 8 })
 		local box = UI.InsetBox(body, { Size = UDim2.fromOffset(470, 250), Position = UDim2.fromOffset(318, 22), ZIndex = 3 })
