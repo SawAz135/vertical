@@ -92,46 +92,10 @@ function Theme.text(props: any)
 	return t
 end
 
--- real stud dots (UIGridLayout of round frames), refilled when the size changes
+-- studs: same stud texture as every menu (UI/Sim), so old popups match the stud style
 function Theme.studs(frame: GuiObject, px: number, color: Color3, transparency: number?)
-	local layer = new("Frame", {
-		Name = "Studs", BackgroundTransparency = 1, Size = UDim2.new(1, -6, 1, -6),
-		Position = UDim2.fromOffset(3, 3), ClipsDescendants = true, ZIndex = frame.ZIndex,
-	})
-	local grid = new("UIGridLayout", {
-		CellSize = UDim2.fromOffset(px * 0.62, px * 0.62), CellPadding = UDim2.fromOffset(px * 0.38, px * 0.38),
-		HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-	})
-	grid.Parent = layer
-	layer.Parent = frame
-	local count = 0
-	local function fill()
-		local scale = 1
-		local s = frame:FindFirstAncestorWhichIsA("ScreenGui")
-		local ui = s and s:FindFirstChild("RootScale")
-		if ui then scale = ui.Scale end
-		local abs = layer.AbsoluteSize / math.max(scale, 0.1)
-		local cols = math.ceil(abs.X / px) + 1
-		local rows = math.ceil(abs.Y / px) + 1
-		local need = math.min(cols * rows, 260)
-		if need == count then return end
-		for _, c in layer:GetChildren() do
-			if c:IsA("Frame") then c:Destroy() end
-		end
-		for _ = 1, need do
-			local dot = new("Frame", {
-				BackgroundColor3 = color, BackgroundTransparency = transparency or 0.55,
-				BorderSizePixel = 0, ZIndex = frame.ZIndex,
-			})
-			Theme.corner(px).Parent = dot
-			dot.Parent = layer
-		end
-		count = need
-	end
-	layer:GetPropertyChangedSignal("AbsoluteSize"):Connect(fill)
-	task.defer(fill)
-	return layer
+	local Sim = require(script.Parent.Sim)
+	return Sim.studs(frame, { tile = px, dark = color.R + color.G + color.B < 1, strong = true })
 end
 
 -- a coloured block with gradient + black outline (+ optional studs)
@@ -152,8 +116,8 @@ function Theme.block(props: any)
 	if props.StrokeWidth ~= 0 then
 		Theme.stroke(props.StrokeWidth or 3, props.StrokeColor).Parent = f
 	end
-	if props.Studs then
-		Theme.studs(f, props.Studs, props.StudColor or C(255, 255, 255), props.StudTransparency or 0.86)
+	if props.Studs ~= false then
+		Theme.studs(f, props.Studs or 18, props.StudColor or C(255, 255, 255), props.StudTransparency or 0.86)
 	end
 	if props.Parent then f.Parent = props.Parent end
 	return f
@@ -219,7 +183,7 @@ function Theme.button(props: any)
 	})
 	Theme.corner(6).Parent = gloss
 	gloss.Parent = b
-	if props.Studs then Theme.studs(b, props.Studs, C(255, 255, 255), 0.85) end
+	Theme.studs(b, props.Studs or 18, C(255, 255, 255), 0.85)
 	local label = Theme.text({
 		Text = props.Text or "", Size = props.TextSize or UDim2.new(1, -10, 0.78, 0),
 		Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Max = props.Max or 28,

@@ -107,7 +107,7 @@ function Sim.studs(parent: GuiObject, opts)
 		local pitch = cfg.StudPitch * (if opts.big then 1.3 else 1)
 		return new("ImageLabel", {
 			Name = "Studs", BackgroundTransparency = 1, Image = cfg.StudImage, ScaleType = Enum.ScaleType.Tile,
-			TileSize = UDim2.fromOffset(pitch, pitch), ImageTransparency = if dark then 0.6 else 0.72, -- subtle overlay
+			TileSize = UDim2.fromOffset(pitch, pitch), ImageTransparency = if opts.strong then 0.42 elseif dark then 0.6 else 0.72, -- buttons: clearly studded
 			Size = UDim2.new(1, -4, 1, -4), Position = UDim2.fromOffset(2, 2), ZIndex = opts.z or parent.ZIndex,
 		}, parent)
 	end
@@ -210,7 +210,7 @@ function Sim.button(parent, p, onClick)
 	-- inner clip holding studs + gloss + bands
 	local face = new("Frame", { Name = "Face", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ClipsDescendants = true, ZIndex = b.ZIndex }, b)
 	Sim.corner(face, p.Corner or 4)
-	Sim.studs(face, { tile = p.Tile or 26, z = b.ZIndex })
+	Sim.studs(face, { tile = p.Tile or 26, z = b.ZIndex, strong = true })
 	local gloss = new("Frame", { Name = "Gloss", BackgroundColor3 = WHITE, BackgroundTransparency = 0.72, BorderSizePixel = 0,
 		Size = UDim2.new(1, -6, 0.34, 0), Position = UDim2.fromOffset(3, 3), ZIndex = b.ZIndex }, face)
 	Sim.corner(gloss, 3)
