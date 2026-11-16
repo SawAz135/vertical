@@ -103,7 +103,7 @@ local shopTab = "Rods"
 local function buildShop()
 	local w = makeWindow("Shop", { title = "Rod Shop", grad = "orange", size = Vector2.new(860, 470), titleWidth = 300 })
 	local tabs = {}
-	for i, name in { "Rods", "Strength", "Base" } do
+	for i, name in { "Rods", "Strength" } do -- Base tab removed (capacity: "+1 Slot" in the bears panel)
 		tabs[name] = Sim.button(w.titleRoot, { Name = "Tab" .. name, Grad = "grey", Size = Vector2.new(130, 50), Position = UDim2.fromOffset(410 + (i - 1) * 140, w.HH / 2),
 			Text = name, Max = 28, ZIndex = 9 }, function()
 			shopTab = name
