@@ -121,8 +121,6 @@ local function buildRight()
 		CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6, ZIndex = 4 }, panel)
 	new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, list)
 	refs.panelList = list
-	Sim.button(panel, { Name = "PlaceBest", Grad = "green", Size = Vector2.new(330, 50), Position = UDim2.new(0.5, 0, 1, 34), Text = "Place Best", Max = 32 },
-		function() Net.event("PlaceBest"):FireServer() end)
 	tab.Activated:Connect(function()
 		local open = not panel.Visible
 		panel.Visible = open
@@ -211,13 +209,16 @@ local function buildHotbar()
 		SortOrder = Enum.SortOrder.LayoutOrder }, row)
 	for i = 1, 3 do slot(row, i) end
 	Motion.BindButton(slots[1].button, 1.06, Sim.sounds, function() Net.event("EquipSlot"):FireServer("Rod") end)
-	Motion.BindButton(slots[2].button, 1.06, Sim.sounds, function() Net.event("EquipSlot"):FireServer("Fish") end)
+	-- slot 2: tap = hold your fish; tap again while holding = open the fish bag to pick another
+	Motion.BindButton(slots[2].button, 1.06, Sim.sounds, function()
+		local char = player.Character
+		if char and char:GetAttribute("Holding") == "Fish" then
+			HUD.menus.open("Bag")
+		else
+			Net.event("EquipSlot"):FireServer("Fish")
+		end
+	end)
 	Motion.BindButton(slots[3].button, 1.06, Sim.sounds, function() HUD.menus.open("Bears") end)
-	refs.bag = Sim.button(root, { Name = "Bag", Grad = "purple", Size = Vector2.new(130, 46), Position = UDim2.fromOffset(165, 80), Text = "Bag", Max = 28,
-		Icon = K.Icons.Bag }, function() HUD.menus.open("Bag") end)
-	refs.store = Sim.button(root, { Name = "Store", Grad = "yellow", Size = Vector2.new(200, 50), Position = UDim2.fromOffset(165, 28), Text = "Store Bear", Max = 28,
-		Icon = K.Icons.House }, function() Net.event("StoreBear"):FireServer() end)
-	refs.store.Visible = false
 	refs.hotbarRoot = root
 end
 
@@ -242,7 +243,6 @@ function HUD.renderHotbar()
 	slots[1].label.Text = RodConfig.get(rodId).name
 	local fish = Data.fishById(d.selectedFish) or (d.fish and d.fish[1])
 	slots[2].button.Visible = fish ~= nil
-	refs.bag.Visible = d.fish ~= nil and #d.fish > 0 and not isBear
 	if fish then
 		setSlotModel(2, "fish:" .. fish.s .. (fish.v or ""), { kind = "Fish", id = fish.s, variant = fish.v, size = UDim2.fromScale(1, 1) })
 		slots[2].label.Text = FishConfig.get(fish.s).name
@@ -253,11 +253,6 @@ function HUD.renderHotbar()
 	if heldBear then
 		setSlotModel(3, "bear:" .. heldBear.s .. (heldBear.v or ""), { kind = "Bear", id = heldBear.s, variant = heldBear.v, size = UDim2.fromScale(1, 1) })
 		slots[3].label.Text = BearConfig.get(heldBear.s).name
-	end
-	local storeOn = Data.state == "CarryingCapturedBear"
-	if storeOn ~= refs.store.Visible then
-		refs.store.Visible = storeOn
-		if storeOn then Motion.PopIn(refs.store, 0.35) end
 	end
 	for i, s in slots do
 		local active = (i == 1 and holding == "Rod") or (i == 2 and holding == "Fish") or (i == 3 and holding == "Bear")
@@ -287,7 +282,7 @@ local function buildActionAndSpeed()
 			return
 		end
 		hint.Text.Text = c.hint
-		hintRoot.Visible = true
+		hintRoot.Visible = false -- no on-screen action hints (removed on request)
 		pop.Scale = 0.5
 		tween(pop, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 		if ctx == "Hook" then Sound.play("Bite") end
