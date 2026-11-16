@@ -87,7 +87,7 @@ end
 -- each stud is a rounded-square ring whose outline goes light (top-left) -> dark
 -- (bottom-right), like the moulded studs of the reference menus.
 -- light = studs on coloured surfaces, dark = studs on the dark grey bodies.
-local MAX_STUDS = 300
+local MAX_STUDS = 360
 local function rootScale(obj: Instance): number
 	local p = obj
 	while p do
@@ -100,9 +100,18 @@ end
 
 function Sim.studs(parent: GuiObject, opts)
 	opts = opts or {}
-	local tile = math.floor((opts.tile or 26) * 0.7) -- small square studs like the reference
+	local cfg = require(ReplicatedStorage.Shared.Config.GameConfig).UI
 	local dark = opts.dark == true
-	local alpha = opts.strokeAlpha
+	-- 1) real tiled texture (exact reference look, one instance)
+	if cfg.StudImage ~= "" then
+		local pitch = cfg.StudPitch * (if opts.big then 1.3 else 1)
+		return new("ImageLabel", {
+			Name = "Studs", BackgroundTransparency = 1, Image = cfg.StudImage, ScaleType = Enum.ScaleType.Tile,
+			TileSize = UDim2.fromOffset(pitch, pitch), ImageTransparency = if dark then 0.15 else 0.25,
+			Size = UDim2.new(1, -4, 1, -4), Position = UDim2.fromOffset(2, 2), ZIndex = opts.z or parent.ZIndex,
+		}, parent)
+	end
+	-- 2) fallback: carved rounded squares drawn with frames (shadow bottom-left, light top-right)
 	local layer = new("Frame", {
 		Name = "Studs", BackgroundTransparency = 1, Size = UDim2.new(1, -6, 1, -6), Position = UDim2.fromOffset(3, 3),
 		ClipsDescendants = true, ZIndex = opts.z or parent.ZIndex,
@@ -114,27 +123,23 @@ function Sim.studs(parent: GuiObject, opts)
 		local k = math.max(rootScale(layer), 0.05)
 		local w, h = layer.AbsoluteSize.X / k, layer.AbsoluteSize.Y / k
 		if w < 4 or h < 4 then return end
-		local t = tile
-		while math.ceil(w / t) * math.ceil(h / t) > MAX_STUDS do t *= 1.12 end
-		local cols, rows = math.ceil(w / t), math.ceil(h / t)
-		local need = cols * rows
-		grid.CellSize = UDim2.fromOffset(t * 0.74, t * 0.74)
-		grid.CellPadding = UDim2.fromOffset(t * 0.26, t * 0.26)
+		local t = cfg.StudPitch * (if opts.big then 1.3 else 1)
+		while math.ceil(w / t) * math.ceil(h / t) > MAX_STUDS do t *= 1.08 end
+		local need = math.ceil(w / t) * math.ceil(h / t)
+		grid.CellSize = UDim2.fromOffset(t * 0.62, t * 0.62)
+		grid.CellPadding = UDim2.fromOffset(t * 0.38, t * 0.38)
 		if need == count then return end
 		for _, c in layer:GetChildren() do
 			if c:IsA("Frame") then c:Destroy() end
 		end
 		for _ = 1, need do
-			-- small filled rounded square with a thin bevelled outline
-			local stud = new("Frame", { BackgroundColor3 = if dark then BLACK else WHITE,
-				BackgroundTransparency = if dark then 0.72 else 0.8, BorderSizePixel = 0, ZIndex = layer.ZIndex }, layer)
-			new("UICorner", { CornerRadius = UDim.new(0.2, 0) }, stud)
-			local st = new("UIStroke", { Thickness = 1.2, Color = WHITE,
-				Transparency = alpha or (if dark then 0.45 else 0.55), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, stud)
-			-- relief: light top-left, dark bottom-right
-			new("UIGradient", { Rotation = 45, Color = if dark
-				then ColorSequence.new(RGB(70, 70, 76), RGB(8, 8, 10))
-				else ColorSequence.new(RGB(255, 255, 255), RGB(110, 110, 110)) }, st)
+			local stud = new("Frame", { BackgroundColor3 = BLACK, BackgroundTransparency = 0.93, BorderSizePixel = 0, ZIndex = layer.ZIndex }, layer)
+			new("UICorner", { CornerRadius = UDim.new(0.22, 0) }, stud)
+			local st = new("UIStroke", { Thickness = 1.4, Color = WHITE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, stud)
+			new("UIGradient", { Rotation = -45,
+				Color = ColorSequence.new(RGB(255, 255, 255), RGB(0, 0, 0)),
+				Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, if dark then 0.75 else 0.6),
+					NumberSequenceKeypoint.new(0.45, 1), NumberSequenceKeypoint.new(1, if dark then 0.25 else 0.55) }) }, st)
 		end
 		count = need
 	end

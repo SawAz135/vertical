@@ -1,5 +1,11 @@
 --[[ GameConfig: timings and gameplay tuning that are not money related. ]]
 return {
+	UI = {
+		-- rbxassetid of assets/stud_tile.png once uploaded to Roblox (Creator Hub > Decals/Images).
+		-- Empty = studs are drawn with GUI frames instead (same look, heavier).
+		StudImage = "",
+		StudPitch = 15, -- px between studs (reference menus are very dense)
+	},
 	Fishing = {
 		waitMin = 4.5, waitMax = 10, -- seconds before a bite (divided by rod speed)
 		biteWindow = 1.9, -- seconds to tap HOOK after the bobber dips
