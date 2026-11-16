@@ -1220,7 +1220,8 @@ $('gReset').addEventListener('click', async () => {
       const tree = await gh('GET', `/repos/${S.repo}/git/trees/${commit.tree.sha}?recursive=1`);
       const keep = tree.tree.filter((t) => t.type === 'blob' && !t.path.startsWith(String(g.place) + '/'));
       removed = tree.tree.filter((t) => t.type === 'blob').length - keep.length;
-      if (removed) {
+      if (removed && !keep.length) await gh('DELETE', `/repos/${S.repo}/git/refs/heads/roblox-push-store`); // nothing left: GitHub refuses an empty tree, drop the store branch (the robot recreates it)
+      else if (removed) {
         const nt = await gh('POST', `/repos/${S.repo}/git/trees`, { tree: keep.map((t) => ({ path: t.path, mode: t.mode, type: 'blob', sha: t.sha })) });
         const nc = await gh('POST', `/repos/${S.repo}/git/commits`, { message: `roblox-push reset ${g.place}`, tree: nt.sha, parents: [ref.object.sha] });
         await gh('PATCH', `/repos/${S.repo}/git/refs/heads/roblox-push-store`, { sha: nc.sha, force: true });
