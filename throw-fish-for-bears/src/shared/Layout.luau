@@ -42,7 +42,8 @@ Layout.FISH_SPOT_RADIUS = 9 -- distance from the dock end where casting is allow
 -- Front area --------------------------------------------------------------
 Layout.COMPOUND = { minX = -212, maxX = 212, minZ = -64, maxZ = 184 }
 Layout.FRONT = { minX = -205, maxX = 205, minZ = -60, maxZ = 68 }
-Layout.THROW_AREA = { minX = -56, maxX = 56, minZ = -58, maxZ = 10 }
+-- throw zone: the whole width between the side walls, from the front wall to the throw line
+Layout.THROW_AREA = { minX = -208, maxX = 208, minZ = -62, maxZ = -40 }
 Layout.THROW_LINE_Z = -60
 -- SELL and SHOP stalls stand against the front wall (inner face z = -62), facing the bases
 Layout.SELL_POS = Vector3.new(-110, 0, -58.5)

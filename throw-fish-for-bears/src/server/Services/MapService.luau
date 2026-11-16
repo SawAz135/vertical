@@ -86,7 +86,7 @@ local function buildCompound(map, rand)
 	local function line(z, x0, x1)
 		Studs.static(map, "Line", V3(x1 - x0, 0.12, 0.8), CF((x0 + x1) / 2, 0.06, z), C(255, 255, 255), { smooth = true, noCollide = true })
 	end
-	line(Layout.THROW_AREA.maxZ, Layout.THROW_AREA.minX, Layout.THROW_AREA.maxX)
+	line(Layout.THROW_AREA.maxZ, c.minX + 2, c.maxX - 2) -- throw line touches both side walls
 	line(Layout.FRONT.maxZ + 1, c.minX + 3, c.maxX - 3)
 	line(Layout.SAND.minZ - 0.5, c.minX + 3, c.maxX - 3)
 	Props.groundLabel(map, V3(0, 0, Layout.THROW_AREA.maxZ - 6), 44, 8, "THROW ZONE")
@@ -108,10 +108,7 @@ local function buildCompound(map, rand)
 		local sx = if rand:NextNumber() < 0.5 then -1 else 1
 		Props.rock(map, V3(sx * (130 + rand:NextNumber() * 60), 0, c.minZ + 22 + rand:NextNumber() * 60), 0.7, rand)
 	end
-	-- throw area tint
-	local ta = Layout.THROW_AREA
-	local tint = Studs.static(map, "ThrowArea", V3(ta.maxX - ta.minX, 0.1, ta.maxZ - ta.minZ), CF((ta.minX + ta.maxX) / 2, 0.05, (ta.minZ + ta.maxZ) / 2), C(80, 156, 54))
-	tint.CanCollide = false
+
 	-- outside scenery trees like the reference horizon
 	for i = 1, 26 do
 		local side = if i % 2 == 0 then 1 else -1
