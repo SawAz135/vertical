@@ -107,7 +107,7 @@ function Sim.studs(parent: GuiObject, opts)
 		local pitch = cfg.StudPitch * (if opts.big then 1.3 else 1)
 		return new("ImageLabel", {
 			Name = "Studs", BackgroundTransparency = 1, Image = cfg.StudImage, ScaleType = Enum.ScaleType.Tile,
-			TileSize = UDim2.fromOffset(pitch, pitch), ImageTransparency = if dark then 0.15 else 0.25,
+			TileSize = UDim2.fromOffset(pitch, pitch), ImageTransparency = if dark then 0.4 else 0.55, -- subtle
 			Size = UDim2.new(1, -4, 1, -4), Position = UDim2.fromOffset(2, 2), ZIndex = opts.z or parent.ZIndex,
 		}, parent)
 	end
@@ -133,13 +133,13 @@ function Sim.studs(parent: GuiObject, opts)
 			if c:IsA("Frame") then c:Destroy() end
 		end
 		for _ = 1, need do
-			local stud = new("Frame", { BackgroundColor3 = BLACK, BackgroundTransparency = 0.93, BorderSizePixel = 0, ZIndex = layer.ZIndex }, layer)
+			local stud = new("Frame", { BackgroundColor3 = BLACK, BackgroundTransparency = 0.96, BorderSizePixel = 0, ZIndex = layer.ZIndex }, layer)
 			new("UICorner", { CornerRadius = UDim.new(0.22, 0) }, stud)
 			local st = new("UIStroke", { Thickness = 1.4, Color = WHITE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, stud)
 			new("UIGradient", { Rotation = -45,
 				Color = ColorSequence.new(RGB(255, 255, 255), RGB(0, 0, 0)),
-				Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, if dark then 0.75 else 0.6),
-					NumberSequenceKeypoint.new(0.45, 1), NumberSequenceKeypoint.new(1, if dark then 0.25 else 0.55) }) }, st)
+				Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, if dark then 0.88 else 0.8),
+					NumberSequenceKeypoint.new(0.45, 1), NumberSequenceKeypoint.new(1, if dark then 0.5 else 0.75) }) }, st)
 		end
 		count = need
 	end
