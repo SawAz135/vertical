@@ -314,25 +314,49 @@ local function buildMeter()
 	Sim.studs(fill, { tile = 18, z = 5 })
 	refs.meterText = Sim.text(root, "", { Size = UDim2.fromOffset(170, 30), Position = UDim2.new(0.5, 0, 0, 16), Max = 28, ZIndex = 6 })
 	Sim.text(root, "POWER", { Size = UDim2.fromOffset(120, 26), Position = UDim2.new(0.5, 0, 1, -16), Max = 24, ZIndex = 6 })
-	refs.meter = { root = root, fill = fill, pop = new("UIScale", {}, box) }
+	refs.meter = { root = root, fill = fill, pop = new("UIScale", {}, box), stroke = box:FindFirstChildOfClass("UIStroke") }
 end
 
+local wasMax = false
 function HUD.setCharge(power: number?)
 	local m = refs.meter
 	if not power then
-		m.root.Visible = false
+		if m.root.Visible then
+			-- release: the meter bursts away and "THROW!" pops
+			local box = m.pop
+			tween(box, 0.18, { Scale = 1.35 }, Enum.EasingStyle.Quad)
+			task.delay(0.18, function()
+				m.root.Visible = false
+			end)
+			HUD.popup("THROW!", RGB(255, 190, 40))
+		end
+		wasMax = false
 		return
 	end
+	local t = os.clock()
 	if not m.root.Visible then
 		m.root.Visible = true
-		m.pop.Scale = 0.4
+		m.pop.Scale = 0.3
 		tween(m.pop, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+		wasMax = false
 	end
 	m.fill.Size = UDim2.new(1, -8, power, -8 * power)
 	local d = Data.values
 	local fish = Data.fishById(player.Character and player.Character:GetAttribute("HeldId"))
 	refs.meterText.Text = math.floor(Formulas.throwDistance(power, d.strength or 1, fish and fish.w or 1)) .. " studs"
-	m.root.Rotation = if power >= 1 then math.sin(os.clock() * 50) * 2.5 else 0
+	-- the meter breathes faster and shakes harder as power grows
+	local pulse = 1 + math.sin(t * (6 + power * 18)) * 0.03 * (0.4 + power)
+	m.root.Rotation = math.sin(t * (20 + power * 40)) * power * power * 3
+	m.stroke.Color = RGB(0, 0, 0):Lerp(if power >= 1 then Color3.fromHSV((t * 2) % 1, 0.7, 1) else RGB(255, 210, 60), math.min(1, power * 1.2))
+	m.stroke.Thickness = 4 + power * 3
+	if power >= 1 then
+		pulse += 0.06
+		if not wasMax then
+			wasMax = true
+			HUD.popup("MAX!", RGB(255, 80, 60))
+		end
+	end
+	if m.pop.Scale > 0.95 and m.pop.Scale < 1.2 then m.pop.Scale = pulse end
 end
 
 ------------------------------------------------------------------------------------------

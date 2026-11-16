@@ -144,14 +144,36 @@ function Throw.init()
 		HumanPose.localPoseT = workspace:GetServerTimeNow()
 		Sound.play("Charge")
 		local maxed = false
+		local lastRing, lastTone = 0, 0
 		charging.conn = RunService.RenderStepped:Connect(function()
 			local power = math.clamp((os.clock() - charging.t0) / GameConfig.Throw.chargeTime, 0, 1)
 			HumanPose.charge = power
 			Throw.ChargeChanged:Fire(power)
+			local now = os.clock()
+			local char = localPlayer.Character
+			local root = char and char:FindFirstChild("HumanoidRootPart")
+			-- rising tone while charging
+			if now - lastTone > 0.16 - power * 0.08 then
+				lastTone = now
+				Sound.play("Reel", { pitch = 0.7 + power * 1.3, volume = 0.5 + power * 0.5 })
+			end
+			-- energy rings on the ground + sparks around the player, faster with power
+			if root and now - lastRing > 0.32 - power * 0.2 then
+				lastRing = now
+				local feet = root.Position - Vector3.new(0, 2.9, 0)
+				local col = Color3.fromRGB(255, 220, 60):Lerp(Color3.fromRGB(255, 70, 40), power)
+				Fx.ring(feet, col, 5.5 - power * 2, 1.2, 0.35, { neon = true, transparency = 0.35, thick = 0.15 })
+				Fx.sparkle(root.Position + Vector3.new(0, 1.5, 0), col, math.floor(2 + power * 6), 8 + power * 10)
+			end
+			-- camera tightens a little as the throw charges
+			CameraController.punch(-0.25 * power)
 			if power >= 1 and not maxed then
 				maxed = true
 				Sound.play("Charge", { pitch = 1.8 })
-				CameraController.punch(-3)
+				Sound.play("Bite", { pitch = 0.8 })
+				CameraController.punch(-4)
+				CameraController.shake(0.5, 0.25)
+				if root then Fx.burst(root.Position - Vector3.new(0, 2.8, 0), Color3.fromRGB(255, 120, 40), 0.45) end
 			end
 		end)
 		CameraController.punch(-4)
