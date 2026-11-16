@@ -46,8 +46,8 @@ Layout.FRONT = { minX = -205, maxX = 205, minZ = -60, maxZ = 68 }
 Layout.THROW_AREA = { minX = -208, maxX = 208, minZ = -62, maxZ = -40 }
 Layout.THROW_LINE_Z = -60
 -- SELL and SHOP stalls stand against the front wall (inner face z = -62), facing the bases
-Layout.SELL_POS = Vector3.new(-110, 0, -58.5)
-Layout.SHOP_POS = Vector3.new(110, 0, -58.5)
+Layout.SELL_POS = Vector3.new(-172, 0, -58.5)
+Layout.SHOP_POS = Vector3.new(172, 0, -58.5)
 Layout.TRAIN_RADIUS = 3.6
 -- one small white training circle per base, at the outer front corner (outside the fence)
 function Layout.trainPos(i: number): Vector3

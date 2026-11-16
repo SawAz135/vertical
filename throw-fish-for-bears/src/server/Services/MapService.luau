@@ -97,7 +97,7 @@ local function buildCompound(map, rand)
 		end
 	end
 	for x = -190, 190, 26 do
-		if math.abs(x) > 70 and math.abs(math.abs(x) - 110) > 14 then
+		if math.abs(x) > 70 and math.abs(math.abs(x) - 172) > 14 then
 			Props.bush(map, V3(x, 0, c.minZ + 6), 0.9, rand)
 			for _ = 1, 3 do
 				Props.flower(map, V3(x + rand:NextNumber() * 14 - 7, 0, c.minZ + 10 + rand:NextNumber() * 6), rand)
@@ -106,7 +106,7 @@ local function buildCompound(map, rand)
 	end
 	for _ = 1, 10 do
 		local sx = if rand:NextNumber() < 0.5 then -1 else 1
-		Props.rock(map, V3(sx * (130 + rand:NextNumber() * 60), 0, c.minZ + 22 + rand:NextNumber() * 60), 0.7, rand)
+		Props.rock(map, V3(sx * (90 + rand:NextNumber() * 60), 0, c.minZ + 22 + rand:NextNumber() * 60), 0.7, rand)
 	end
 
 	-- outside scenery trees like the reference horizon
