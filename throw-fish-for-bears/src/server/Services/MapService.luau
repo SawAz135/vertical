@@ -106,7 +106,7 @@ local function buildCompound(map, rand)
 	end
 	for _ = 1, 10 do
 		local sx = if rand:NextNumber() < 0.5 then -1 else 1
-		Props.rock(map, V3(sx * (130 + rand:NextNumber() * 60), 0, c.minZ + 22 + rand:NextNumber() * 20), 0.7, rand)
+		Props.rock(map, V3(sx * (130 + rand:NextNumber() * 60), 0, c.minZ + 22 + rand:NextNumber() * 60), 0.7, rand)
 	end
 	-- throw area tint
 	local ta = Layout.THROW_AREA
