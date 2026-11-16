@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Roblox Push">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com; img-src 'self' data: blob: https://avatars.githubusercontent.com; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
+<meta http-equiv="Cache-Control" content="no-cache">
 <title>Roblox Push</title>
 <link rel="icon" href="data:,">
 <style>
@@ -1220,16 +1221,17 @@ $('gReset').addEventListener('click', async () => {
       const tree = await gh('GET', `/repos/${S.repo}/git/trees/${commit.tree.sha}?recursive=1`);
       const keep = tree.tree.filter((t) => t.type === 'blob' && !t.path.startsWith(String(g.place) + '/'));
       removed = tree.tree.filter((t) => t.type === 'blob').length - keep.length;
-      if (removed && !keep.length) await gh('DELETE', `/repos/${S.repo}/git/refs/heads/roblox-push-store`); // nothing left: GitHub refuses an empty tree, drop the store branch (the robot recreates it)
-      else if (removed) {
-        const nt = await gh('POST', `/repos/${S.repo}/git/trees`, { tree: keep.map((t) => ({ path: t.path, mode: t.mode, type: 'blob', sha: t.sha })) });
+      if (removed && !keep.length) await gh('DELETE', `/repos/${S.repo}/git/refs/heads/roblox-push-store`); // nothing left: drop the store branch (the robot recreates it)
+      else if (removed) { // GitHub's own way to delete files: base_tree + sha null
+        const gone = tree.tree.filter((t) => t.type === 'blob' && t.path.startsWith(String(g.place) + '/'));
+        const nt = await gh('POST', `/repos/${S.repo}/git/trees`, { base_tree: commit.tree.sha, tree: gone.map((t) => ({ path: t.path, mode: '100644', type: 'blob', sha: null })) });
         const nc = await gh('POST', `/repos/${S.repo}/git/commits`, { message: `roblox-push reset ${g.place}`, tree: nt.sha, parents: [ref.object.sha] });
         await gh('PATCH', `/repos/${S.repo}/git/refs/heads/roblox-push-store`, { sha: nc.sha, force: true });
       }
     }
     upsertGame({ place: g.place, packs: [] }); Store.set('pendingPack', null);
     renderGame(); toast(removed ? `🧹 Réinitialisé (${removed} fichier${removed > 1 ? 's' : ''} effacé${removed > 1 ? 's' : ''}) : publie ton nouveau .zip` : '🧹 Rien à effacer : publie ton nouveau .zip', 4200);
-  } catch (e) { toast('Réinitialisation impossible : ' + (e.message || e), 4200); }
+  } catch (e) { toast(`Réinitialisation impossible (${e.status || '?'}) : ${e.message || e}`, 6000); console.warn('reset', e); }
 });
 $('gRemove').addEventListener('click', () => {
   if (!confirm(`Retirer « ${S.game.name || S.game.place} » de la liste ? Le jeu reste sur Roblox.`)) return;
