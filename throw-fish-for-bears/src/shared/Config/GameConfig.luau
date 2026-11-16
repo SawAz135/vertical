@@ -1,0 +1,36 @@
+--[[ GameConfig: timings and gameplay tuning that are not money related. ]]
+return {
+	Fishing = {
+		waitMin = 4.5, waitMax = 10, -- seconds before a bite (divided by rod speed)
+		biteWindow = 1.9, -- seconds to tap HOOK after the bobber dips
+		reelMinTime = 1.0, reelMaxTime = 25,
+		missRetryMin = 2.5, missRetryMax = 5,
+		castDistance = { 11, 17 }, -- studs from the dock end
+	},
+	Reel = {
+		-- client mini-game (server only checks timing): progress while holding,
+		-- tension rises while holding, fish pulls in bursts by rarity
+		fillRate = 0.42, tensionUp = 0.55, tensionDown = 0.9, pullBase = 0.22, pullPerTier = 0.06,
+	},
+	Throw = {
+		chargeTime = 1.4, -- seconds from 0 to full power
+		minPower = 0.08,
+		apexBase = 14, apexPerStud = 0.16,
+		flightBase = 1.0, flightPerSqrtStud = 0.12,
+		minLandingDepth = 8, -- studs past the throw line to count as "in the zone"
+	},
+	Capture = {
+		alert = 0.9, -- bear notices the fish
+		runSpeed = 26, -- studs/s at scale 1
+		arrive = 0.45, sniff = 1.0, eat = 1.6, happy = 0.85, transform = 1.1,
+		pickupAt = 0.35, swallowAt = 1.15, -- seconds into the eat stage
+		returnTimeout = 300,
+		sprintMultiplier = 1.35,
+		maxSpeedTolerance = 1.7, -- anti teleport (x max legal speed)
+		arrivalHappy = 0.7,
+	},
+	Base = {
+		minBearSpacing = 3.5,
+		wanderInterval = { 2.5, 6 },
+	},
+}

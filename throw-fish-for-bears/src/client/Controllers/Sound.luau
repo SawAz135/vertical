@@ -1,0 +1,98 @@
+--[[ Sound: one place for every sound effect. Uses sounds that ship inside the Roblox
+     client (rbxasset://sounds/...) layered and pitch shifted, so the game works with
+     no uploads. To use custom audio, put an rbxassetid in CUSTOM[name]. ]]
+local SoundService = game:GetService("SoundService")
+local Debris = game:GetService("Debris")
+
+local Sound = {}
+
+-- optional uploaded audio ids override the built-in layers (leave empty if none)
+local CUSTOM: { [string]: string } = {}
+
+local A = "rbxasset://sounds/"
+-- name = list of layers { id, volume, pitch, pitchRandom }
+local LIB = {
+	Click = { { A .. "button.wav", 0.5, 1.15, 0.05 } },
+	Open = { { A .. "swoosh.wav", 0.35, 1.5, 0.05 }, { A .. "button.wav", 0.3, 1.3, 0 } },
+	Close = { { A .. "swoosh.wav", 0.3, 1.1, 0.05 } },
+	Equip = { { A .. "unsheath.wav", 0.4, 1.3, 0.05 } },
+	Cast = { { A .. "swoosh.wav", 0.6, 0.85, 0.08 } },
+	Splash = { { A .. "impact_water.mp3", 0.7, 1.1, 0.1 } },
+	BigSplash = { { A .. "impact_water.mp3", 0.9, 0.8, 0.05 }, { A .. "impact_water.mp3", 0.5, 1.3, 0.05 } },
+	Bite = { { A .. "electronicpingshort.wav", 0.6, 1.6, 0 }, { A .. "impact_water.mp3", 0.5, 1.4, 0.1 } },
+	Reel = { { A .. "clickfast.wav", 0.35, 1.0, 0.1 } },
+	Snap = { { A .. "snap.wav", 0.8, 1.0, 0.05 } },
+	Catch = { { A .. "electronicpingshort.wav", 0.5, 1.0, 0 }, { A .. "impact_water.mp3", 0.6, 1.2, 0.05 } },
+	Reveal1 = { { A .. "electronicpingshort.wav", 0.5, 1.2, 0 } },
+	Reveal2 = { { A .. "electronicpingshort.wav", 0.6, 0.9, 0 }, { A .. "electronicpingshort.wav", 0.4, 1.35, 0 } },
+	Reveal3 = { { A .. "victory.wav", 0.6, 1.0, 0 }, { A .. "electronicpingshort.wav", 0.5, 0.7, 0 } },
+	Reveal4 = { { A .. "victory.wav", 0.7, 0.85, 0 }, { A .. "bass.wav", 0.6, 0.6, 0 }, { A .. "electronicpingshort.wav", 0.5, 0.5, 0 } },
+	Charge = { { A .. "swoosh.wav", 0.3, 0.6, 0 } },
+	Throw = { { A .. "swoosh.wav", 0.9, 0.7, 0.05 }, { A .. "swoosh.wav", 0.5, 1.2, 0.05 } },
+	Land = { { A .. "splat.wav", 0.7, 0.9, 0.1 } },
+	Growl = { { A .. "uuhhh.mp3", 0.6, 0.38, 0.04 } },
+	Sniff = { { A .. "swoosh.wav", 0.35, 2.2, 0.15 } },
+	Chomp = { { A .. "splat.wav", 0.8, 0.7, 0.1 }, { A .. "snap.wav", 0.4, 0.6, 0.1 } },
+	Happy = { { A .. "uuhhh.mp3", 0.5, 0.55, 0.05 } },
+	Transform = { { A .. "bass.wav", 0.8, 0.8, 0 }, { A .. "swoosh.wav", 0.7, 0.5, 0 }, { A .. "electronicpingshort.wav", 0.5, 0.6, 0 } },
+	Footstep = { { A .. "action_footsteps_plastic.mp3", 0.25, 0.7, 0.1 } },
+	Arrive = { { A .. "victory.wav", 0.7, 1.05, 0 } },
+	Place = { { A .. "action_jump_land.mp3", 0.7, 0.8, 0.05 }, { A .. "electronicpingshort.wav", 0.4, 1.4, 0 } },
+	Buy = { { A .. "electronicpingshort.wav", 0.6, 1.3, 0 }, { A .. "button.wav", 0.5, 1.0, 0 } },
+	Sell = { { A .. "electronicpingshort.wav", 0.5, 1.6, 0 }, { A .. "electronicpingshort.wav", 0.4, 2.0, 0 } },
+	Reward = { { A .. "victory.wav", 0.5, 1.2, 0 } },
+	Lift = { { A .. "action_jump.mp3", 0.6, 0.6, 0 }, { A .. "action_jump_land.mp3", 0.7, 0.5, 0 } },
+	Error = { { A .. "button.wav", 0.5, 0.6, 0 } },
+	Notify = { { A .. "button.wav", 0.35, 1.6, 0 } },
+	Flop = { { A .. "splat.wav", 0.35, 1.6, 0.2 } },
+}
+
+-- species voice pitch so each bear sounds different
+Sound.BearPitch = { BrownBear = 1.0, BlackBear = 1.08, GrizzlyBear = 0.85, PolarBear = 0.9, Panda = 1.15 }
+
+local rand = Random.new()
+local group = Instance.new("SoundGroup")
+group.Name = "TFB_Sfx"
+group.Volume = 0.8
+group.Parent = SoundService
+
+function Sound.play(name: string, opts: any?)
+	opts = opts or {}
+	local layers = LIB[name]
+	if CUSTOM[name] then
+		layers = { { CUSTOM[name], 0.7, 1, 0 } }
+	end
+	if not layers then return end
+	for _, l in layers do
+		local s = Instance.new("Sound")
+		s.SoundId = l[1]
+		s.Volume = l[2] * (opts.volume or 1)
+		s.PlaybackSpeed = l[3] * (opts.pitch or 1) * (1 + (rand:NextNumber() - 0.5) * 2 * l[4])
+		s.SoundGroup = group
+		if opts.at then
+			local part = Instance.new("Part")
+			part.Anchored = true
+			part.CanCollide = false
+			part.CanQuery = false
+			part.CanTouch = false
+			part.Transparency = 1
+			part.Size = Vector3.one * 0.2
+			part.Position = opts.at
+			part.Parent = workspace
+			s.RollOffMaxDistance = 220
+			s.RollOffMinDistance = 10
+			s.Parent = part
+			Debris:AddItem(part, 6)
+		elseif opts.parent then
+			s.RollOffMaxDistance = 160
+			s.Parent = opts.parent
+			Debris:AddItem(s, 6)
+		else
+			s.Parent = SoundService
+			Debris:AddItem(s, 6)
+		end
+		s:Play()
+	end
+end
+
+return Sound
