@@ -83,16 +83,63 @@ function Sim.gradient(parent, pair, rot)
 	return new("UIGradient", { Color = seq, Rotation = rot or 90 }, parent)
 end
 
--- tiled studs; light = faint white studs (coloured surfaces), dark = dark studs (body)
+-- Studs drawn with GUI objects (no image asset needed, always visible):
+-- each stud is a rounded-square ring whose outline goes light (top-left) -> dark
+-- (bottom-right), like the moulded studs of the reference menus.
+-- light = studs on coloured surfaces, dark = studs on the dark grey bodies.
+local MAX_STUDS = 170
+local function rootScale(obj: Instance): number
+	local p = obj
+	while p do
+		local sc = p:FindFirstChild("WindowScale")
+		if sc and sc:IsA("UIScale") then return sc.Scale end
+		p = p.Parent
+	end
+	return 1
+end
+
 function Sim.studs(parent: GuiObject, opts)
 	opts = opts or {}
 	local tile = opts.tile or 26
-	return new("ImageLabel", {
-		Name = "Studs", BackgroundTransparency = 1, Image = Sim.STUDS, ScaleType = Enum.ScaleType.Tile,
-		TileSize = UDim2.fromOffset(tile, tile), ImageColor3 = if opts.dark then BLACK else WHITE,
-		ImageTransparency = opts.transparency or (if opts.dark then 0.45 else 0.78),
-		Size = UDim2.new(1, -4, 1, -4), Position = UDim2.fromOffset(2, 2), ZIndex = opts.z or parent.ZIndex,
+	local dark = opts.dark == true
+	local alpha = opts.strokeAlpha
+	local layer = new("Frame", {
+		Name = "Studs", BackgroundTransparency = 1, Size = UDim2.new(1, -6, 1, -6), Position = UDim2.fromOffset(3, 3),
+		ClipsDescendants = true, ZIndex = opts.z or parent.ZIndex,
 	}, parent)
+	local grid = new("UIGridLayout", { SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center }, layer)
+	local count = 0
+	local function fill()
+		local k = math.max(rootScale(layer), 0.05)
+		local w, h = layer.AbsoluteSize.X / k, layer.AbsoluteSize.Y / k
+		if w < 4 or h < 4 then return end
+		local t = tile
+		while math.ceil(w / t) * math.ceil(h / t) > MAX_STUDS do t *= 1.12 end
+		local cols, rows = math.ceil(w / t), math.ceil(h / t)
+		local need = cols * rows
+		grid.CellSize = UDim2.fromOffset(t * 0.66, t * 0.66)
+		grid.CellPadding = UDim2.fromOffset(t * 0.34, t * 0.34)
+		if need == count then return end
+		for _, c in layer:GetChildren() do
+			if c:IsA("Frame") then c:Destroy() end
+		end
+		for _ = 1, need do
+			local stud = new("Frame", { BackgroundColor3 = if dark then BLACK else WHITE,
+				BackgroundTransparency = if dark then 0.82 else 0.9, BorderSizePixel = 0, ZIndex = layer.ZIndex }, layer)
+			new("UICorner", { CornerRadius = UDim.new(0.32, 0) }, stud)
+			local st = new("UIStroke", { Thickness = math.max(1.5, t * 0.07), Color = WHITE,
+				Transparency = alpha or (if dark then 0.35 else 0.45), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, stud)
+			-- relief: light top-left, dark bottom-right
+			new("UIGradient", { Rotation = 45, Color = if dark
+				then ColorSequence.new(RGB(70, 70, 76), RGB(8, 8, 10))
+				else ColorSequence.new(RGB(255, 255, 255), RGB(110, 110, 110)) }, st)
+		end
+		count = need
+	end
+	layer:GetPropertyChangedSignal("AbsoluteSize"):Connect(fill)
+	task.defer(fill)
+	return layer
 end
 
 -- outlined white text (FredokaOne, black outline)
@@ -157,7 +204,7 @@ function Sim.button(parent, p, onClick)
 	-- inner clip holding studs + gloss + bands
 	local face = new("Frame", { Name = "Face", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ClipsDescendants = true, ZIndex = b.ZIndex }, b)
 	Sim.corner(face, p.Corner or 4)
-	Sim.studs(face, { tile = p.Tile or 22, z = b.ZIndex, transparency = 0.72 })
+	Sim.studs(face, { tile = p.Tile or 26, z = b.ZIndex })
 	local gloss = new("Frame", { Name = "Gloss", BackgroundColor3 = WHITE, BackgroundTransparency = 0.72, BorderSizePixel = 0,
 		Size = UDim2.new(1, -6, 0.34, 0), Position = UDim2.fromOffset(3, 3), ZIndex = b.ZIndex }, face)
 	Sim.corner(gloss, 3)
@@ -290,7 +337,7 @@ end
 function Sim.card(parent, p)
 	local size = p.Size or Vector2.new(250, 320)
 	local card = Sim.panel(parent, { Name = p.Name or "Card", Size = UDim2.fromOffset(size.X, size.Y), Gradient = Sim.RARITY_CARD[p.Rarity or "Common"] or Sim.RARITY_CARD.Common,
-		LayoutOrder = p.LayoutOrder or 0, ZIndex = 3, Stroke = 3, Tile = 26, StudTransparency = 0.72 })
+		LayoutOrder = p.LayoutOrder or 0, ZIndex = 3, Stroke = 3, Tile = 34 })
 	card.ClipsDescendants = false
 	-- inner white rim like the reference cards
 	Sim.stroke(new("Frame", { Name = "Rim", BackgroundTransparency = 1, Size = UDim2.new(1, -8, 1, -8), Position = UDim2.fromOffset(4, 4), ZIndex = 3 }, card), 2, WHITE, 0.4)
