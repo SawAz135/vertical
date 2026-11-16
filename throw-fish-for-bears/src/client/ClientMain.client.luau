@@ -58,23 +58,24 @@ local function screen(name: string, order: number)
 end
 
 local hudGui = screen("MainHUD", 1)
-local menuGui = screen("Menus", 3)
 local overlayGui = screen("Overlay", 10)
+local Kit = require(UI.Kit)
+Kit.init(playerGui)
 
 -- one scale for every screen: designed for a 900 x 420 phone in landscape
 local function rescale()
 	local vp = workspace.CurrentCamera.ViewportSize
 	local k = math.clamp(math.min(vp.X / 900, vp.Y / 420), 0.75, 1.6)
-	for _, g in { hudGui, menuGui, overlayGui } do
-		g.RootScale.Scale = k
-	end
+	-- the HUD and menus scale themselves (Stud kit WindowScale); only the overlay uses this
+	hudGui.RootScale.Scale = 1
+	overlayGui.RootScale.Scale = k
 end
 workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale)
 rescale()
 
 -- UI ---------------------------------------------------------------------------------
 HUD.menus = Menus
-Menus.mount(menuGui)
+Menus.mount()
 HUD.mount(hudGui)
 Notify.mount(overlayGui)
 Reveal.mount(overlayGui)
@@ -139,9 +140,7 @@ workspace.DescendantAdded:Connect(filterPrompt)
 task.spawn(function()
 	while true do
 		task.wait(1)
-		local gui = hudGui:FindFirstChild("Rewards")
-		local badge = gui and gui:FindFirstChild("Badge")
-		if badge then badge.Visible = Menus.giftReady() end
+		HUD.setGiftBadge(Menus.giftReady())
 	end
 end)
 
