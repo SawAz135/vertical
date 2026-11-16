@@ -45,7 +45,7 @@ local function template()
 		earned = 0,
 		rods = { owned = { Starter = true }, equipped = "Starter" },
 		strength = 1,
-		strengthReps = 0,
+		strengthGain = 1, -- strength added per lift
 		capacity = 1,
 		fish = {}, -- array of { id, s, r, w, v }
 		selectedFish = nil,
@@ -76,7 +76,8 @@ local function sanitize(d)
 		end
 	end
 	d.money = math.max(0, tonumber(d.money) or 0)
-	d.strength = math.clamp(math.floor(tonumber(d.strength) or 1), 1, E.Strength.maxLevel)
+	d.strength = math.max(0, math.floor(tonumber(d.strength) or 0))
+	d.strengthGain = math.clamp(math.floor(tonumber(d.strengthGain) or 1), 1, E.Strength.maxGain)
 	d.capacity = math.clamp(math.floor(tonumber(d.capacity) or 1), 1, E.Capacity.maxLevel)
 	if type(d.rods.owned) ~= "table" then d.rods.owned = { Starter = true } end
 	d.rods.owned.Starter = true

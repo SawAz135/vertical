@@ -29,17 +29,9 @@ end
 
 local function rep(player: Player)
 	local data = R.PlayerData.get(player)
-	if not data or data.strength >= E.Strength.maxLevel then return end
-	data.strengthReps += 1
-	local need = E.Strength.repsNeeded(data.strength)
-	if data.strengthReps >= need then
-		data.strengthReps = 0
-		data.strength += 1
-		Net.event("WorkoutFx"):FireAllClients(player, data.strength)
-		R.Notify(player, ("STRENGTH LEVEL %d! Throw distance %d studs"):format(data.strength, math.floor(E.Strength.maxDistance(data.strength))), "good")
-		R.PlayerData.push(player, "strength")
-	end
-	R.PlayerData.push(player, "strengthReps")
+	if not data then return end
+	data.strength += data.strengthGain
+	R.PlayerData.push(player, "strength")
 end
 
 task.spawn(function()
@@ -75,22 +67,22 @@ end)
 
 Players.PlayerRemoving:Connect(function(p) training[p] = nil end)
 
+-- shop: the gain per lift goes +1 -> +2 -> +3 ...
 function Upgrade.buyStrength(player: Player)
 	local data = R.PlayerData.get(player)
 	if not data then return end
-	if data.strength >= E.Strength.maxLevel then
-		R.Notify(player, "Strength is maxed!", "info")
+	if data.strengthGain >= E.Strength.maxGain then
+		R.Notify(player, "Strength gain is maxed!", "info")
 		return
 	end
-	if not R.EconomyService.spend(player, E.Strength.cost(data.strength)) then
+	if not R.EconomyService.spend(player, E.Strength.gainCost(data.strengthGain)) then
 		R.Notify(player, "Not enough money!", "warn")
 		return
 	end
-	data.strength += 1
-	data.strengthReps = 0
-	R.PlayerData.push(player, "strength")
-	R.PlayerData.push(player, "strengthReps")
-	Net.event("WorkoutFx"):FireAllClients(player, data.strength)
+	data.strengthGain += 1
+	R.PlayerData.push(player, "strengthGain")
+	Net.event("WorkoutFx"):FireAllClients(player, data.strengthGain)
+	R.Notify(player, ("Each lift now gives +%d strength!"):format(data.strengthGain), "good")
 	R.Sfx(player, "Buy")
 end
 

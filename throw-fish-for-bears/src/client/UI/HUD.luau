@@ -313,6 +313,7 @@ local function buildMeter()
 end
 
 local wasMax = false
+local lastStrength = nil
 function HUD.setCharge(power: number?)
 	local m = refs.meter
 	if not power then
@@ -414,10 +415,12 @@ end
 
 function HUD.renderStats()
 	local d = Data.values
-	local lvl = d.strength or 1
-	refs.strength.Text = ("Lv %d (%d studs)"):format(lvl, math.floor(E.Strength.maxDistance(lvl)))
-	local need = E.Strength.repsNeeded(lvl)
-	tween(refs.repFill, 0.25, { Size = UDim2.fromScale(math.clamp((d.strengthReps or 0) / need, 0, 1), 1) })
+	local power = d.strength or 0
+	local gain = d.strengthGain or 1
+	refs.strength.Text = ("%s (x%d)"):format(Format.short(power), gain)
+	-- bar: how far you can throw (studs) out of the max
+	local dist = E.Strength.maxDistance(power)
+	tween(refs.repFill, 0.25, { Size = UDim2.fromScale(math.clamp((dist - 75) / 260, 0, 1), 1) })
 	local rate = player:GetAttribute("Income") or 0
 	refs.income.Text = if rate > 0 then "+" .. Format.short(rate) .. "/s" else ""
 	local placed = 0
@@ -432,7 +435,7 @@ function HUD.renderStats()
 	for _, id in RodConfig.Order do
 		if not (d.rods and d.rods.owned[id]) then nextRod = RodConfig.get(id) break end
 	end
-	refs.shopBadge.Visible = (nextRod ~= nil and (d.money or 0) >= nextRod.price) or (d.money or 0) >= E.Strength.cost(lvl)
+	refs.shopBadge.Visible = (nextRod ~= nil and (d.money or 0) >= nextRod.price) or (d.money or 0) >= E.Strength.gainCost(gain)
 end
 
 function HUD.setGiftBadge(on: boolean)
@@ -452,7 +455,13 @@ function HUD.mount(g: ScreenGui)
 
 	Data.Changed:Connect(function(key)
 		if key == "*" or key == "settings" then refs.renderLowFx() end
-		if key == "strengthReps" and Data.ready and (Data.values.strengthReps or 0) > 0 then HUD.popup("+1 STRENGTH") end
+		if key == "strength" and Data.ready then
+			local now = Data.values.strength or 0
+			if lastStrength and now > lastStrength then HUD.popup("+" .. Format.short(now - lastStrength) .. " STRENGTH") end
+			lastStrength = now
+		elseif key == "*" then
+			lastStrength = Data.values.strength or 0
+		end
 		HUD.renderStats()
 		HUD.renderHotbar()
 		if key == "bears" or key == "*" then HUD.renderPanel() end

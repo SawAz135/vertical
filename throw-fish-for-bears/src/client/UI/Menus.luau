@@ -169,21 +169,21 @@ local function buildShop()
 		if shopTab == "Rods" then
 			rodsTab(animate)
 		elseif shopTab == "Strength" then
-			local L = d.strength or 1
-			local maxed = L >= E.Strength.maxLevel
-			local nl = math.min(L + 1, E.Strength.maxLevel)
-			local cost = E.Strength.cost(L)
+			local power = d.strength or 0
+			local gain = d.strengthGain or 1
+			local maxed = gain >= E.Strength.maxGain
+			local cost = E.Strength.gainCost(gain)
 			statPage(animate, {
-				section = "Strength", rarity = "Mythic", big = "Lv " .. L, small = "Strength", icon = K.Icons.Upgrade,
+				section = "Strength", rarity = "Mythic", big = "+" .. gain .. " / lift", small = "Strength gain", icon = K.Icons.Upgrade,
 				rows = {
-					{ "Throw distance", ("%d -> %d studs"):format(E.Strength.maxDistance(L), E.Strength.maxDistance(nl)) },
-					{ "Max fish weight", ("%s -> %s"):format(Format.kg(E.Strength.maxFishWeight(L)), Format.kg(E.Strength.maxFishWeight(nl))) },
-					{ "Training", ("%d / %d reps"):format(d.strengthReps or 0, E.Strength.repsNeeded(L)) },
+					{ "Each lift", ("+%d -> +%d strength"):format(gain, gain + 1) },
+					{ "Your strength", Format.short(power) },
+					{ "Throw distance", ("%d studs"):format(E.Strength.maxDistance(power)) },
 				},
 				can = not maxed and (d.money or 0) >= cost,
-				button = if maxed then "MAX" else ("Buy Lv %d  %s"):format(nl, Format.money(cost)),
+				button = if maxed then "MAX" else ("Upgrade +%d  %s"):format(gain + 1, Format.money(cost)),
 				onClick = function() if not maxed then Net.event("BuyStrength"):FireServer() end end,
-				tip = 'Free: stand in the <font color="#FFD23F">white circle</font> by your base!',
+				tip = 'Lift in the <font color="#FFD23F">white circle</font> by your base to gain strength!',
 			})
 		else
 			local lvl = d.capacity or 1
@@ -552,7 +552,7 @@ function Menus.mount()
 	buildGifts()
 	buildConfirm()
 	local KEYS = {
-		Shop = { rods = true, strength = true, strengthReps = true, capacity = true, money = "throttle" },
+		Shop = { rods = true, strength = true, strengthGain = true, capacity = true, money = "throttle" },
 		Sell = { fish = true }, Bag = { fish = true, selectedFish = true },
 		Index = { index = true, indexPending = true }, Bears = { bears = true, capacity = true }, Daily = { daily = true },
 	}

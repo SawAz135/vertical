@@ -115,7 +115,7 @@ Net.event("WorkoutFx").OnClientEvent:Connect(function(who, level)
 	if who == player then
 		Sound.play("Lift")
 		Sound.play("Reward")
-		HUD.popup("STRENGTH Lv " .. level .. "!", Color3.fromRGB(255, 200, 60))
+		HUD.popup("+" .. level .. " PER LIFT!", Color3.fromRGB(255, 200, 60))
 		CameraController.punch(-6)
 	end
 end)

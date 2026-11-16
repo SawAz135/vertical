@@ -6,21 +6,19 @@ E.FishBagMax = 40
 E.BearStorageMax = 60
 
 E.Strength = {
-	maxLevel = 40,
-	-- strength is TRAINED (training circle): reps needed to go from `level` to level + 1
-	repsNeeded = function(level: number): number
-		return math.floor(6 * 1.16 ^ (level - 1) + 0.5)
-	end,
+	-- STRENGTH = a number that grows: every lift in the white circle adds `gain`
+	-- (starts at +1). The shop upgrade raises the gain: +1 -> +2 -> +3 ...
+	-- More strength = longer throws (studs) and heavier fish.
 	repTime = 1.25, -- seconds per lift
-	-- strength can also be BOUGHT in the shop (price from `level` to level + 1)
-	cost = function(level: number): number
-		return math.floor(80 * 1.34 ^ (level - 1) / 5 + 0.5) * 5
+	maxGain = 200,
+	gainCost = function(gain: number): number -- price to go from +gain to +(gain + 1) per lift
+		return math.floor(100 * 1.45 ^ (gain - 1) / 5 + 0.5) * 5
 	end,
-	maxDistance = function(level: number): number -- studs at full power
-		return 75 + 260 * (1 - math.exp(-(level - 1) / 9))
+	maxDistance = function(strength: number): number -- studs at full power
+		return math.min(335, 75 + 38 * math.log(1 + math.max(0, strength) / 8, 2))
 	end,
-	maxFishWeight = function(level: number): number
-		return 10 * 1.2 ^ (level - 1)
+	maxFishWeight = function(strength: number): number
+		return 10 + 6 * math.sqrt(math.max(0, strength))
 	end,
 }
 
