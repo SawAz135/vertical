@@ -1,8 +1,8 @@
 --[[ AnnounceService: tells the whole server when someone gets something rare.
-     Tiers (by rarity index, Rainbow variant counts as one tier higher):
-       5 Legendary -> "Rare" banner, 6 Mythic -> big banner + pillar of light,
-       7 Secret / 8 Ultra Secret -> full-screen cinematic banner for everyone.
-     The server decides; clients only render (UI/Announce + chat system line). ]]
+     Legendary and above (Diamond / Rainbow variants count one tier higher) -> a coloured
+     line in the Roblox chat for everyone. Only the IMPOSSIBLE tier (Cosmic Bear,
+     Cosmic Koi) also plays the full-screen announcement for the whole server.
+     The server decides; clients only render (UI/Announce). ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Net = require(Shared.Net)
@@ -19,6 +19,7 @@ local function level(rarity: string, variant: string?): number
 end
 
 local function send(player: Player, payload)
+	payload.banner = payload.rarity == "Impossible"
 	payload.player = player.DisplayName
 	payload.userId = player.UserId
 	Net.event("Announce"):FireAllClients(payload)
@@ -29,13 +30,13 @@ function Announce.fish(player: Player, fish)
 	if not spec then return end
 	local lv = level(spec.rarity, fish.v)
 	if lv < Announce.MIN_TIER then return end
-	send(player, { kind = "Fish", id = fish.s, rarity = spec.rarity, variant = fish.v, weight = fish.w, level = math.min(lv, 8) })
+	send(player, { kind = "Fish", id = fish.s, rarity = spec.rarity, variant = fish.v, weight = fish.w, level = math.min(lv, 9) })
 end
 
 function Announce.bear(player: Player, bear)
 	local lv = level(bear.r, bear.v)
 	if lv < Announce.MIN_TIER then return end
-	send(player, { kind = "Bear", id = bear.s, rarity = bear.r, variant = bear.v, weight = bear.w, level = math.min(lv, 8) })
+	send(player, { kind = "Bear", id = bear.s, rarity = bear.r, variant = bear.v, weight = bear.w, level = math.min(lv, 9) })
 end
 
 return Announce

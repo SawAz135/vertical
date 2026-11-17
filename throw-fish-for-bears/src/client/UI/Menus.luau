@@ -341,7 +341,7 @@ local function buildIndex()
 			local entry = found[id]
 			if entry then n += 1 end
 			local spec = if indexCat == "Fish" then FishConfig.get(id) else BearConfig.get(id)
-			local rar = if indexCat == "Fish" then spec.rarity else "Common"
+			local rar = if indexCat == "Fish" then spec.rarity else (spec.fixedRarity or "Common")
 			local tile = new("ImageButton", { Name = id, AutoButtonColor = false, Image = "", BackgroundColor3 = Color3.new(1, 1, 1), LayoutOrder = i, ZIndex = 5 }, grid)
 			Sim.gradient(tile, if entry then Sim.RARITY_CARD[rar] else { RGB(80, 80, 86), RGB(46, 46, 52) }, 90)
 			Sim.corner(tile, 4)
@@ -373,7 +373,7 @@ local function buildIndex()
 		local id = indexSel or order[1]
 		local entry = found[id]
 		local spec = if indexCat == "Fish" then FishConfig.get(id) else BearConfig.get(id)
-		local rar = if indexCat == "Fish" then spec.rarity else "Common"
+		local rar = if indexCat == "Fish" then spec.rarity else (spec.fixedRarity or "Common")
 		local card, centre = Sim.card(w.content, { Size = Vector2.new(250, 370), Rarity = if entry then rar else "Secret", Title = if entry then spec.name else "???",
 			RarityText = if indexCat == "Fish" then RarityConfig.get(rar).name else "Bear", CenterTop = 76, CenterCut = 180 })
 		card.Position = UDim2.fromOffset(548, 12)

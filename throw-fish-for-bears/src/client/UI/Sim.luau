@@ -59,10 +59,11 @@ Sim.RARITY_CARD = {
 	Mythic = { RGB(255, 170, 190), RGB(235, 50, 90) },
 	Secret = { RGB(110, 110, 120), RGB(30, 30, 36) },
 	UltraSecret = { RGB(255, 200, 255), RGB(120, 200, 255) },
+	Impossible = { RGB(120, 50, 200), RGB(16, 4, 36) },
 }
 Sim.RARITY_TEXT = {
 	Common = RGB(255, 255, 255), Uncommon = RGB(140, 255, 60), Rare = RGB(90, 190, 255), Epic = RGB(210, 120, 255),
-	Legendary = RGB(255, 205, 40), Mythic = RGB(255, 80, 110), Secret = RGB(40, 40, 46), UltraSecret = RGB(255, 255, 255),
+	Legendary = RGB(255, 205, 40), Mythic = RGB(255, 80, 110), Secret = RGB(40, 40, 46), UltraSecret = RGB(255, 255, 255), Impossible = RGB(200, 140, 255),
 }
 
 function Sim.new(class: string, props: any, parent: Instance?)

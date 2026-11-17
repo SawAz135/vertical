@@ -51,6 +51,7 @@ function CaptureService.speciesWeights(zone: number): { [string]: number }
 	local out = {}
 	for _, id in BearConfig.Order do
 		local s = BearConfig.get(id)
+		if s.fixedRarity then continue end -- one-of-a-kind species (Impossible) are never rolled here
 		local w = s.spawn
 		if table.find(s.zones, zone) then w *= BearConfig.ZoneAffinity end
 		out[id] = w
@@ -62,6 +63,9 @@ function CaptureService.roll(fish, landing: Vector3, zone: number)
 	local luck = CaptureService.luckFor(fish, landing, zone)
 	local species = Rng.pickMap(rand, CaptureService.speciesWeights(zone))
 	local rarity = Rng.pickMap(rand, RarityConfig.weights(luck, "bearOdds"))
+	if rarity == "Impossible" then
+		species = "CosmicBear" -- the one and only Impossible bear
+	end
 	local fv = RarityConfig.Variants[fish.v] or RarityConfig.Variants.Normal
 	local variant = Rng.pickMap(rand, RarityConfig.variantWeights(math.sqrt(luck) * fv.fishToBearLuck))
 	local spec = BearConfig.get(species)

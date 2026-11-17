@@ -1,6 +1,6 @@
 # THROW FISH FOR BEARS (Roblox, style Studs)
 
-Jeu complet : **10 zones** (Green Forest → Tropical Beach), **75 ours**, **43 poissons**, 12 cannes.
+Jeu complet : **10 zones** (Green Forest → Tropical Beach), **76 ours**, **44 poissons**, 12 cannes.
 Tout le monde 3D (map, ours, poissons, cannes, bouchon) est construit en **pièces Plastic + Studs** par le code :
 aucun asset à importer.
 
@@ -26,13 +26,13 @@ Tiens-toi dans l'anneau = entraînement auto. L'enseigne « FISH-UP » apparaît
 Chaque zone affiche sa force recommandée (💪) sur son arche ; plus de force = lancer plus loin (jusqu'à ~3000 studs, zone 10).
 
 ## Tutoriel et annonces
-- **Tutoriel** (style studs) : 10 étapes guidées (canne → ponton → lancer → moulinet → tenir le poisson → Throw Zone → lancer → ours → placer → FISH-UP).
-  Bulle avec bébé ours 3D, texte machine à écrire, barre de progression en studs ; flèche voxel 3D au-dessus de la cible, anneau et chemin de dalles à studs
-  (pathfinding) jusqu'à la cible, flèche au bord de l'écran avec la distance, flèche au-dessus du slot à toucher. Revient en arrière si besoin
-  (ligne cassée, lancer trop faible). Progression sauvegardée, récompense unique de $1 000, bouton X pour passer.
-- **Annonces serveur** : Legendary = bandeau ; Mythic = grand bandeau + confettis studs + colonne de lumière sur le joueur ;
-  Secret / Ultra Secret = cinématique (fond assombri, rayons, tampon « SECRET! », confettis, secousse). Variantes Diamond/Rainbow = un niveau de plus.
-  Ligne colorée dans le chat pour tout le serveur.
+- **Tutoriel** (style studs) : étapes guidées dans l'ordre, sans compteur ni barre de progression (canne → ponton → lancer → moulinet →
+  tenir le poisson → Throw Zone → lancer → ours → placer → FISH-UP). Bulle avec bébé ours 3D et texte machine à écrire ; flèche voxel 3D
+  au-dessus de la cible, anneau et chemin de dalles à studs jusqu'à la cible, flèche au bord de l'écran, flèche au-dessus du slot à toucher.
+  Revient en arrière si besoin. Progression sauvegardée, récompense unique de $1 000, bouton X pour passer.
+- **Annonces serveur** : Legendary et plus = ligne colorée dans le **chat Roblox** seulement.
+  Rareté **Impossible** (au-dessus d'Ultra Secret) : un seul ours (**Cosmic Bear**) et un seul poisson (**Cosmic Koi**) ;
+  eux seuls déclenchent la grande annonce à l'écran pour tout le serveur (bandeau studs, rayons, « IMPOSSIBLE!!! », confettis, colonne de lumière).
 
 ## Contenu
 - **10 zones** avec décor propre : forêt, pins, lac de montagne (étangs + roseaux), forêt enneigée, lac gelé (glace), bambous (lanternes, cerisiers),

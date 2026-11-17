@@ -69,7 +69,7 @@ end
 -- kit rarity ladder: Common..Mythic, Divine, Cosmic (our Secret -> Divine, Ultra Secret -> Cosmic)
 function K.rarityKey(r: string): string
 	if r == "Secret" then return "Divine" end
-	if r == "UltraSecret" then return "Cosmic" end
+	if r == "UltraSecret" or r == "Impossible" then return "Cosmic" end
 	return r
 end
 

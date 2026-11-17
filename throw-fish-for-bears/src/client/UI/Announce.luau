@@ -1,9 +1,8 @@
---[[ Announce: server-wide rare catch announcements, in the stud GUI style.
-     level 5 (Legendary)  : studded rarity banner drops in, spinning 3D model, shine
-     level 6 (Mythic)     : bigger banner + stud burst + pillar of light on the catcher
-     level 7-8 (Secret+)  : cinematic: dark vignette, rotating sun rays, "SECRET!" stamp
-                            slams in, falling stud confetti, flash, pillar of light
-     Also writes a coloured system line in the chat. Announcements are queued. ]]
+--[[ Announce: server-wide rare catch announcements.
+     Every rare catch (Legendary+) = a coloured system line in the Roblox chat.
+     IMPOSSIBLE only (Cosmic Bear / Cosmic Koi) = full-screen stud cinematic for
+     everyone: dark vignette, rotating rays, studded rarity banner with the spinning
+     3D model, "IMPOSSIBLE!!!" stamp, stud confetti, pillar of light on the catcher. ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -122,7 +121,7 @@ local function chatLine(d)
 	local name = if d.kind == "Fish" then FishConfig.get(d.id).name else BearConfig.get(d.id).name
 	local tier = RarityConfig.get(d.rarity)
 	local variant = if d.variant and d.variant ~= "Normal" then d.variant .. " " else ""
-	local col = if tier.rainbow then "FF8CF0" elseif d.rarity == "Secret" then "B4B4C8" else hex(tier.color)
+	local col = if tier.rainbow then "FF8CF0" elseif d.rarity == "Secret" then "B4B4C8" else hex(tier.textColor or tier.color)
 	local verb = if d.kind == "Fish" then "caught" else "captured"
 	pcall(function()
 		local ch = TextChatService:FindFirstChild("TextChannels")
@@ -134,13 +133,12 @@ local function chatLine(d)
 end
 
 local function play(d)
-	local level = d.level or 5
 	local tier = RarityConfig.get(d.rarity)
 	local name = if d.kind == "Fish" then FishConfig.get(d.id).name else BearConfig.get(d.id).name
 	local variant = if d.variant and d.variant ~= "Normal" then d.variant .. " " else ""
 	local col = rarityColor(d.rarity)
-	local big = level >= 6
-	local epic = level >= 7
+	local big = true
+	local epic = true
 	local W, H = if epic then 760 elseif big then 660 else 580, if epic then 156 elseif big then 132 else 116
 
 	local k = Sim.Motion.ScreenScale() -- same responsive factor as every stud window
@@ -198,7 +196,7 @@ local function play(d)
 	end)
 	if epic then
 		-- "SECRET!" stamp slams in over the banner
-		local stamp = Sim.text(layer, if d.rarity == "UltraSecret" or level >= 8 then "ULTRA SECRET!!" else "SECRET!", { Size = UDim2.fromOffset(820, 110),
+		local stamp = Sim.text(layer, "IMPOSSIBLE!!!", { Size = UDim2.fromOffset(820, 110),
 			Position = UDim2.new(0.5, 0, 0, (120 + H + 80) * k), Max = 96, Stroke = 6, Gradient = { RGB(255, 255, 255), col }, ZIndex = 62 })
 		local ss = new("UIScale", { Scale = 3 }, stamp)
 		stamp.TextTransparency = 1
@@ -226,7 +224,12 @@ local function play(d)
 	local conn = RunService.RenderStepped:Connect(function(dt)
 		if not alive then return end
 		local t = os.clock()
-		if tier.rainbow and grad then
+		if tier.impossible and grad then
+			-- cosmic: deep purple / night blue nebula that breathes, cyan-pink title
+			grad.Color = ColorSequence.new(Color3.fromHSV(0.74 + math.sin(t * 1.3) * 0.06, 0.8, 0.62), Color3.fromHSV(0.64 + math.sin(t * 0.9) * 0.05, 0.9, 0.16))
+			local g2 = rarityLabel:FindFirstChildOfClass("UIGradient")
+			if g2 then g2.Color = ColorSequence.new(Color3.fromRGB(150, 240, 255), Color3.fromHSV(0.85 + math.sin(t * 2) * 0.08, 0.7, 1)) end
+		elseif tier.rainbow and grad then
 			grad.Color = ColorSequence.new(Color3.fromHSV((t * 0.35) % 1, 0.45, 1), Color3.fromHSV((t * 0.35 + 0.3) % 1, 0.7, 1))
 			local g2 = rarityLabel:FindFirstChildOfClass("UIGradient")
 			if g2 then g2.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromHSV((t * 0.5) % 1, 0.8, 1)) end
@@ -266,6 +269,7 @@ end
 function Announce.show(d)
 	if not gui then return end
 	chatLine(d)
+	if not d.banner then return end -- everything below Impossible: chat only
 	if #queue >= 4 then table.remove(queue, 1) end
 	table.insert(queue, d)
 	pump()

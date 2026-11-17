@@ -59,6 +59,7 @@ local function bear(id: string, name: string, cols, o)
 			extra = cols.extra or shade(fur, 1.3), accent = cols.accent or C(240, 80, 90),
 		},
 		traits = traits,
+		fixedRarity = o.fixedRarity, -- set = this species only exists in that rarity
 	}
 	table.insert(BearConfig.Order, id)
 end
@@ -234,6 +235,11 @@ bear("KingGrizzly", "King Grizzly", { fur = C(110, 70, 40), fur2 = C(90, 56, 32)
 	{ preset = "huge", income = 70, spawn = 1, zones = { 2, 3 }, traits = { "crown", "hump", "grizzled", "longClaws" } })
 bear("TitanBear", "Titan Bear", { fur = C(70, 60, 56), fur2 = C(56, 48, 44), muzzle = C(150, 130, 120), accent = C(255, 200, 40), extra = C(160, 150, 140) },
 	{ preset = "huge", income = 100, spawn = 1, zones = { 8, 9 }, traits = { "armor", "crown", "brow", "longClaws" }, head = { s = 3.8 }, bodyK = { w = 1.1, h = 1.08, l = 1.08 } })
+
+-- Impossible (one of a kind): only rolled when the rarity roll lands on "Impossible"
+bear("CosmicBear", "Cosmic Bear", { fur = C(78, 44, 168), fur2 = C(54, 30, 128), belly = C(140, 100, 235), muzzle = C(190, 165, 255), nose = C(14, 6, 30),
+	accent = C(255, 220, 120), extra = C(140, 230, 255), mark = C(255, 160, 240) },
+	{ preset = "large", income = 300, spawn = 0, traits = { "stars", "aurora", "crown", "glowEyes", "aura", "crescent" }, fixedRarity = "Impossible", head = { s = 3.4 } })
 
 BearConfig.ZoneAffinity = 24 -- a zone's own species are ~24x more likely there
 

@@ -1,6 +1,6 @@
 --[[ TutorialController: the first-minutes guide, 100% stud style.
-     - Bubble (stud GUI): Baby Bear mascot in 3D, typewriter text, studded progress
-       segments, "TUTORIAL 3/10" tab, skip button.
+     - Bubble (stud GUI): Baby Bear mascot in 3D, typewriter text, "TUTORIAL" tab,
+       skip button. Steps follow each other in order, no step counter is shown.
      - World guide: a voxel stud arrow (black outline) bobbing over the target, a
        spinning ring of stud tiles on the ground and a path of stud tiles from the
        player to the target (PathfindingService, refreshed), wave travelling forward.
@@ -196,19 +196,8 @@ local function buildUI(gui: ScreenGui)
 	ui.mascot = box
 	ui.icon = Sim.text(panel, "", { Size = UDim2.fromOffset(34, 34), Position = UDim2.fromOffset(92, 84), Max = 28, Stroke = 0, ZIndex = 8 })
 	-- text
-	ui.text = Sim.text(panel, "", { Size = UDim2.fromOffset(440, 62), Position = UDim2.fromOffset(330, 42), Max = 26, Rich = true, Wrap = true, ZIndex = 7,
+	ui.text = Sim.text(panel, "", { Size = UDim2.fromOffset(440, 80), Position = UDim2.fromOffset(330, 54), Max = 28, Rich = true, Wrap = true, ZIndex = 7,
 		AlignX = Enum.TextXAlignment.Left })
-	-- studded progress segments
-	local bar = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(440, 18), Position = UDim2.fromOffset(110, 80), ZIndex = 6 }, panel)
-	Sim.new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, bar)
-	ui.segs = {}
-	for i = 1, #STEPS do
-		local s = Sim.new("Frame", { BackgroundColor3 = RGB(30, 40, 70), Size = UDim2.fromOffset(38, 16), LayoutOrder = i, ZIndex = 6, BorderSizePixel = 0 }, bar)
-		Sim.corner(s, 3)
-		Sim.stroke(s, 2.5)
-		Sim.studs(s, { tile = 16, z = 6, strong = true })
-		ui.segs[i] = s
-	end
 	-- skip
 	Sim.button(r, { Name = "Skip", Grad = "red", Size = Vector2.new(40, 40), Position = UDim2.fromOffset(584, 30), Text = "X", Max = 24, ZIndex = 9 }, function()
 		Menus.confirm("Skip the tutorial?", function()
@@ -353,21 +342,12 @@ local function setText(text: string, icon: string)
 	end)
 end
 
-local function paintSegments()
-	for i, s in ui.segs do
-		local col = if i < current then RGB(110, 230, 50) elseif i == current then YELLOW else RGB(30, 40, 70)
-		tween(s, 0.25, { BackgroundColor3 = col })
-	end
-end
-
 local function goTo(step: number, celebrate: boolean?)
 	current = step
 	local st = STEPS[step]
 	if not st then return end
 	if st.enter then st.enter() end
-	ui.tab.Text = ("TUTORIAL %d/%d"):format(step, #STEPS)
 	setText(st.text, st.icon)
-	paintSegments()
 	-- pop the bubble
 	ui.pop.Scale = 0.85
 	tween(ui.pop, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
@@ -401,8 +381,7 @@ function Tutorial.finish(skipped: boolean?)
 		return
 	end
 	-- final message, then the bubble leaves
-	ui.tab.Text = "TUTORIAL COMPLETE!"
-	for _, s in ui.segs do tween(s, 0.3, { BackgroundColor3 = RGB(110, 230, 50) }) end
+	ui.tab.Text = "GOOD JOB!"
 	setText('You\'re ready! Catch <font color="#FF6EC8">rarer fish</font>, throw <font color="#FFD23F">farther</font> and collect <font color="#7CFF46">every bear</font>!', "🏆")
 	Sound.play("Arrive")
 	if HUD and HUD.popup then HUD.popup("TUTORIAL DONE!", RGB(255, 210, 60)) end

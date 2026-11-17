@@ -50,6 +50,8 @@ FishConfig.Order = {
 	"GreatWhite", "Oarfish",
 	-- Ultra Secret
 	"GoldenArowana", "Seahorse",
+	-- Impossible (one of a kind)
+	"CosmicKoi",
 }
 
 local DARK = C(24, 22, 24)
@@ -502,6 +504,22 @@ FishConfig.Species = {
 		look = {
 			special = "seahorse", length = 1.4, height = 2.6, width = 0.7,
 			colors = { back = C(255, 150, 40), side = C(255, 180, 70), belly = C(255, 214, 130), fin = C(255, 230, 170), tail = C(240, 130, 30), spot = C(255, 240, 200) },
+		},
+	},
+	---------------------------------------------------------------- Impossible
+	CosmicKoi = {
+		name = "Cosmic Koi", rarity = "Impossible", weight = { min = 2, max = 20, avg = 6 }, value = 500000,
+		look = {
+			length = 3.2, height = 1.05, width = 0.76, profile = P.std,
+			colors = { back = C(30, 14, 70), side = C(60, 30, 130), belly = C(120, 80, 220), fin = C(150, 110, 255), tail = C(110, 70, 240), edge = C(120, 230, 255) },
+			pattern = {
+				{ kind = "patch", cells = { "1top", "3mid", "5top", "6mid" }, color = C(255, 120, 230) },
+				{ kind = "patch", cells = { "2top", "4mid", "7top" }, color = C(110, 230, 255) },
+				{ kind = "spots", band = "top", color = C(255, 250, 200), every = 2 },
+			},
+			dorsal = { from = 2, to = 6, height = 0.42, color = C(150, 110, 255), edge = C(120, 230, 255) },
+			barbels = { count = 2, length = 0.45, color = C(255, 220, 255) },
+			tail = "veil", tailSize = 1.5, tailEdge = C(120, 230, 255), pectoral = 0.5, pectoralEdge = C(120, 230, 255), pelvic = true, anal = true, shine = true,
 		},
 	},
 }

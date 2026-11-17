@@ -7,7 +7,7 @@
      smoothly instead of deleting commons.) ]]
 local RarityConfig = {}
 
-RarityConfig.Order = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret", "UltraSecret" }
+RarityConfig.Order = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret", "UltraSecret", "Impossible" }
 
 RarityConfig.Tiers = {
 	Common = {
@@ -67,7 +67,17 @@ RarityConfig.Tiers = {
 		bearOdds = 1_000_000, fishOdds = 25_000, luckExp = 0.9,
 		bearIncome = 20_000, fishValue = 6_000, fishToBearLuck = 7.0,
 		reveal = 4,
+	},	-- the top tier: exactly ONE bear (Cosmic Bear) and ONE fish (Cosmic Koi) exist in it.
+	-- Only this tier gets a full-screen announcement for the whole server.
+	Impossible = {
+		name = "Impossible", index = 9,
+		color = Color3.fromRGB(170, 90, 255), dark = Color3.fromRGB(20, 0, 40),
+		textColor = Color3.fromRGB(210, 160, 255), impossible = true,
+		bearOdds = 5_000_000, fishOdds = 200_000, luckExp = 0.85,
+		bearIncome = 120_000, fishValue = 30_000, fishToBearLuck = 12,
+		reveal = 4,
 	},
+
 }
 
 RarityConfig.VariantOrder = { "Normal", "Golden", "Diamond", "Rainbow" }
