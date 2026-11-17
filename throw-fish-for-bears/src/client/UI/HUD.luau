@@ -333,7 +333,9 @@ function HUD.setCharge(power: number?)
 			task.delay(0.18, function()
 				m.root.Visible = false
 			end)
-			HUD.popup("THROW!", RGB(255, 190, 40))
+			-- THROW! replaces MAX! (they used to stack on top of each other)
+			if refs.chargePopup and refs.chargePopup.Parent then refs.chargePopup:Destroy() end
+			refs.chargePopup = HUD.popup("THROW!", RGB(255, 190, 40))
 		end
 		wasMax = false
 		return
@@ -358,7 +360,8 @@ function HUD.setCharge(power: number?)
 		pulse += 0.06
 		if not wasMax then
 			wasMax = true
-			HUD.popup("MAX!", RGB(255, 80, 60))
+			if refs.chargePopup and refs.chargePopup.Parent then refs.chargePopup:Destroy() end
+			refs.chargePopup = HUD.popup("MAX!", RGB(255, 80, 60))
 		end
 	end
 	if m.pop.Scale > 0.95 and m.pop.Scale < 1.2 then m.pop.Scale = pulse end
@@ -420,6 +423,7 @@ function HUD.popup(text: string, color: Color3?)
 		task.wait(0.32)
 		holder:Destroy()
 	end)
+	return holder
 end
 
 function HUD.renderStats()
