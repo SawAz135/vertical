@@ -30,6 +30,7 @@ end
 local MapService = {}
 MapService.baseSigns = {} -- [i] = TextLabel
 MapService.baseFolders = {}
+MapService.fishUps = {} -- [base] = FISH-UP station model
 MapService.decor = nil -- folder with blocking decor (raycast checks)
 
 local CF = CFrame.new
@@ -175,7 +176,8 @@ local function buildBases(map)
 		-- FISH-UP training station at the outer front corner of the base
 		local tp = Layout.trainPos(i)
 		local side = if c.X < 0 then -1 else 1
-		local _, anchor = Props.fishUp(folder, tp, side, col, buildFish)
+		local station, anchor = Props.fishUp(folder, tp, side, col, buildFish)
+		MapService.fishUps[i] = station
 		anchor:SetAttribute("FishUpBase", i)
 
 		-- dock behind the base
@@ -390,6 +392,15 @@ function MapService.build()
 	MapService.bearsFolder = npcs
 	MapService.fxFolder = fx
 	return map
+end
+
+-- re-skin a base's FISH-UP for its owner's tier (FishUpConfig)
+function MapService.setFishUpTier(i: number, tier: number)
+	local m = MapService.fishUps[i]
+	if m then
+		local ok, err = pcall(Props.fishUpTier, m, tier)
+		if not ok then warn("[TFB] fish-up tier", err) end
+	end
 end
 
 function MapService.setBaseOwner(i: number, player: Player?)

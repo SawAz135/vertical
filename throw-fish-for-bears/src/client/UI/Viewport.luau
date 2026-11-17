@@ -7,6 +7,7 @@ local Shared = ReplicatedStorage.Shared
 local FishBuilder = require(Shared.Models.FishBuilder)
 local BearBuilder = require(Shared.Models.BearBuilder)
 local RodBuilder = require(Shared.Models.RodBuilder)
+local DumbbellBuilder = require(Shared.Models.DumbbellBuilder)
 
 local Viewport = {}
 local spinning = {}
@@ -49,6 +50,8 @@ function Viewport.create(parent: GuiObject, opts)
 			m = FishBuilder.build(opts.id, { scale = opts.scale or 1, variant = opts.variant })
 		elseif opts.kind == "Bear" then
 			m = BearBuilder.build(opts.id, { scale = opts.scale or 1, variant = opts.variant })
+		elseif opts.kind == "Dumbbell" then
+			m = DumbbellBuilder.build(opts.id or 1)
 		else
 			m = RodBuilder.build(opts.id)
 		end
@@ -72,7 +75,7 @@ function Viewport.create(parent: GuiObject, opts)
 		vp.LightColor = Color3.fromRGB(30, 30, 30)
 	end
 	model.Parent = vp
-	local yaw = opts.yaw or (if opts.kind == "Fish" then math.rad(-70) elseif opts.kind == "Rod" then math.rad(-80) else math.rad(-145))
+	local yaw = opts.yaw or (if opts.kind == "Fish" then math.rad(-70) elseif opts.kind == "Rod" then math.rad(-80) elseif opts.kind == "Dumbbell" then math.rad(-20) else math.rad(-145))
 	local pitch = opts.pitch or math.rad(if opts.kind == "Bear" then 12 else 18)
 	local zoom = opts.zoom or 1
 	fit(vp, model, yaw, pitch, zoom)

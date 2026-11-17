@@ -10,6 +10,7 @@ local Net = require(Shared.Net)
 local Layout = require(Shared.Layout)
 local E = require(Shared.Config.EconomyConfig)
 local Formulas = require(Shared.Formulas)
+local FishUpConfig = require(Shared.Config.FishUpConfig)
 local R = require(script.Parent.Parent.Registry)
 
 local Upgrade = {}
@@ -79,10 +80,18 @@ function Upgrade.buyStrength(player: Player)
 		R.Notify(player, "Not enough money!", "warn")
 		return
 	end
+	local oldTier = FishUpConfig.tierFor(data.strengthGain)
 	data.strengthGain += 1
 	R.PlayerData.push(player, "strengthGain")
 	Net.event("WorkoutFx"):FireAllClients(player, data.strengthGain)
 	R.Notify(player, ("Each lift now gives +%d strength!"):format(data.strengthGain), "good")
+	-- the FISH-UP station gets a new look at each tier
+	local newTier = FishUpConfig.tierFor(data.strengthGain)
+	local base = R.BaseService.get(player)
+	if base and newTier ~= oldTier then
+		R.MapService.setFishUpTier(base, newTier)
+		R.Notify(player, ("Your FISH-UP is now %s!"):format(FishUpConfig.get(newTier).name:upper()), "good")
+	end
 	R.Sfx(player, "Buy")
 end
 

@@ -99,6 +99,7 @@ local function onPlayer(player: Player)
 	local data = R.PlayerData.load(player)
 	if not data or not player.Parent then return end
 	R.RewardService.onJoin(player)
+	R.MapService.setFishUpTier(base, require(Shared.Config.FishUpConfig).tierFor(data.strengthGain))
 	R.BearBase.loadPlayer(player)
 	R.State.set(player, "Idle", true)
 	player:SetAttribute("DataReady", true)

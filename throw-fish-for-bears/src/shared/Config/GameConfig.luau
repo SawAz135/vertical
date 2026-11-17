@@ -10,14 +10,19 @@ return {
 	Fishing = {
 		waitMin = 4.5, waitMax = 10, -- seconds before a bite (divided by rod speed)
 		biteWindow = 1.9, -- seconds to tap HOOK after the bobber dips
-		reelMinTime = 1.0, reelMaxTime = 25,
+		reelMinTime = 1.0, reelMaxTime = 50,
 		missRetryMin = 2.5, missRetryMax = 5,
 		castDistance = { 11, 17 }, -- studs from the dock end
 	},
 	Reel = {
-		-- client mini-game (server only checks timing): progress while holding,
-		-- tension rises while holding, fish pulls in bursts by rarity
-		fillRate = 0.42, tensionUp = 0.55, tensionDown = 0.9, pullBase = 0.22, pullPerTier = 0.06,
+		-- client mini-game "keep the fish in the zone" (the server only checks timing).
+		-- difficulty = rarity tier 1 (Common) .. 9 (Impossible)
+		zoneSize = 0.34, zoneShrink = 0.02, zoneMin = 0.17, -- zone width (fraction of the track) per tier
+		push = 2.6, gravity = 2.1, damping = 2.4, bounce = 0.35, -- zone physics (hold = push right)
+		fishSpeed = 0.55, fishSpeedPerTier = 0.10, -- fish swim speed (track / s)
+		dartChance = 0.08, dartPerTier = 0.035, -- chance per decision of a sudden dart
+		fill = 0.30, drain = 0.17, drainPerTier = 0.012, start = 0.35, -- progress rates
+		comboTime = 1.4, comboBoost = 1.35, -- staying in the zone builds a combo (faster fill)
 	},
 	Throw = {
 		chargeTime = 1.4, -- seconds from 0 to full power

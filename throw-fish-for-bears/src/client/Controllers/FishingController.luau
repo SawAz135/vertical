@@ -3,7 +3,7 @@
              (Beam with slack) stretches, splash + ripples on landing
      Wait  : bobber bobs with the water, ripple rings, rod sways
      Bite  : bobber dips 3x, bubbles, splash, "!" bubble + HOOK! button
-     Reel  : hold REEL - progress vs tension (fish pulls in bursts by rarity),
+     Reel  : "keep the fish in the zone" (hold to push the zone, rarer = harder),
              rod bends with tension, line goes taut, bobber zig-zags toward the dock,
              a fish shadow fights under the surface
      Catch : the fish leaps out (camera focus on rare catches), arcs into the player's
@@ -329,12 +329,20 @@ function Fishing.bindUI(reelUI)
 	ui = reelUI
 end
 
+--[[ "Keep the fish in the zone": hold the screen to push the green zone right,
+     release and it slides back (gravity + inertia). The fish swims on its own:
+     smooth glides, sudden darts, pauses, frenzies for rare fish. Progress fills
+     while the fish is inside the zone (a combo speeds it up) and drains outside.
+     Rarer fish = smaller zone, faster fish, more darts, faster drain. ]]
 function Fishing.startReel(difficulty: number)
+	local d = math.clamp(difficulty or 1, 1, 9)
 	Fishing.reel = {
-		progress = 0.08, tension = 0.2, difficulty = difficulty, holding = false,
-		nextPull = os.clock() + 0.6, pull = 0, done = false, start = os.clock(),
+		difficulty = d, done = false, start = os.clock(), holding = false,
+		zone = 0.3, zoneV = 0, zoneSize = math.max(Rc.zoneMin, Rc.zoneSize - Rc.zoneShrink * (d - 1)),
+		fish = 0.5, fishTarget = 0.5, fishSpeed = 0, nextMove = os.clock() + 0.4, frenzy = 0,
+		progress = Rc.start, inside = true, inTime = 0, combo = 0, tension = 0.3,
 	}
-	if ui then ui.show(difficulty) end
+	if ui then ui.show(d) end
 end
 
 function Fishing.stopReel()
@@ -359,31 +367,76 @@ local function reelStep(dt: number)
 	if not r or r.done then return end
 	r.holding = Actions.held and Actions.context == "Reel"
 	local now = os.clock()
-	-- fish pull bursts
-	if now >= r.nextPull then
-		r.pull = Rc.pullBase + Rc.pullPerTier * r.difficulty
-		r.nextPull = now + 0.55 + rand:NextNumber() * 0.9
-		Sound.play("Reel", { pitch = 0.7 })
+	local d = r.difficulty
+	-- zone physics
+	local acc = if r.holding then Rc.push else -Rc.gravity
+	r.zoneV += acc * dt
+	r.zoneV -= r.zoneV * Rc.damping * dt
+	r.zone += r.zoneV * dt
+	local half = r.zoneSize / 2
+	if r.zone < half then
+		r.zone = half
+		r.zoneV = -r.zoneV * Rc.bounce
+	elseif r.zone > 1 - half then
+		r.zone = 1 - half
+		r.zoneV = -r.zoneV * Rc.bounce
 	end
-	r.pull = math.max(0, r.pull - dt * 0.9)
-	if r.holding then
-		r.progress += Rc.fillRate * dt * (1 - r.tension * 0.35)
-		r.tension += (Rc.tensionUp + r.pull * 2.2) * dt
+	-- fish brain
+	if now >= r.nextMove then
+		local roll = rand:NextNumber()
+		local de = math.min(d, 8) -- Impossible fish swim like Ultra Secret ones (only the zone is smaller)
+		local speed = Rc.fishSpeed + Rc.fishSpeedPerTier * (de - 1)
+		if d >= 5 and roll < 0.07 * (de - 4) and r.frenzy <= 0 then
+			r.frenzy = 1.2 + rand:NextNumber() -- rare fish: thrashing frenzy
+			Sound.play("Splash", { volume = 0.5 })
+		end
+		if roll < Rc.dartChance + Rc.dartPerTier * (de - 1) then
+			-- dart: far, fast
+			r.fishTarget = math.clamp(r.fish + (if rand:NextNumber() < 0.5 then -1 else 1) * (0.35 + rand:NextNumber() * 0.4), 0.05, 0.95)
+			r.fishSpeed = speed * 2.4
+			r.nextMove = now + 0.35 + rand:NextNumber() * 0.4
+			Sound.play("Reel", { pitch = 0.6 })
+		elseif roll > 0.85 then
+			-- pause (feint)
+			r.fishTarget = r.fish
+			r.fishSpeed = 0
+			r.nextMove = now + 0.3 + rand:NextNumber() * 0.5
+		else
+			r.fishTarget = math.clamp(0.08 + rand:NextNumber() * 0.84, 0.05, 0.95)
+			r.fishSpeed = speed * (0.7 + rand:NextNumber() * 0.6)
+			r.nextMove = now + 0.6 + rand:NextNumber() * (1.4 - math.min(0.9, d * 0.1))
+		end
+	end
+	local fs = r.fishSpeed
+	if r.frenzy > 0 then
+		r.frenzy -= dt
+		r.fishTarget = math.clamp(r.fish + math.sin(now * 23) * 0.12, 0.05, 0.95)
+		fs = math.max(fs, 1.1 + math.min(d, 8) * 0.08)
+	end
+	local diff = r.fishTarget - r.fish
+	r.fish += math.clamp(diff, -fs * dt, fs * dt)
+	-- progress
+	r.inside = math.abs(r.fish - r.zone) <= half
+	if r.inside then
+		r.inTime += dt
+		r.combo = math.min(5, r.inTime / Rc.comboTime)
+		local boost = if r.combo >= 1 then Rc.comboBoost else 1
+		r.progress += Rc.fill * boost * dt
+		r.tension = 0.25 + math.abs(r.fish - r.zone) / half * 0.3
 	else
-		r.progress -= 0.06 * dt
-		r.tension -= Rc.tensionDown * dt
-		r.tension += r.pull * 0.8 * dt
+		if r.inTime > 0 then r.inTime = 0 r.combo = 0 end
+		r.progress -= (Rc.drain + Rc.drainPerTier * (math.min(d, 8) - 1)) * dt
+		r.tension = math.min(1, 0.65 + math.abs(r.fish - r.zone) * 0.8)
 	end
-	r.tension = math.clamp(r.tension, 0, 1)
 	r.progress = math.clamp(r.progress, 0, 1)
 	r.reelSound = (r.reelSound or 0) + dt
 	if r.holding and r.reelSound > 0.12 then
 		r.reelSound = 0
-		Sound.play("Reel", { volume = 0.6, pitch = 1 + r.tension * 0.4 })
+		Sound.play("Reel", { volume = 0.5, pitch = 1 + (if r.inside then 0.2 else -0.1) })
 	end
 	if ui then ui.update(r) end
 	HumanPose.tension = r.tension
-	if r.tension >= 1 then
+	if r.progress <= 0 then
 		task.spawn(finishReel, false)
 	elseif r.progress >= 1 then
 		task.spawn(finishReel, true)

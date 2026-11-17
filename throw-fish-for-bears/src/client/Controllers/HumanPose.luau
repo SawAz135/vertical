@@ -243,7 +243,7 @@ function P.Lift(o, t, now)
 	o.LH = V3(0.55 * squat, 0, -0.08)
 	o.RK = V3(-1.0 * squat, 0, 0)
 	o.LK = V3(-1.0 * squat, 0, 0)
-	o.P = V3(-0.45 * squat, 0, 0)
+	o.P = V3(-0.28 * squat, 0, 0)
 	return o
 end
 

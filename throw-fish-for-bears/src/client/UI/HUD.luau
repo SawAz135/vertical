@@ -16,6 +16,7 @@ local E = require(Shared.Config.EconomyConfig)
 local FishConfig = require(Shared.Config.FishConfig)
 local BearConfig = require(Shared.Config.BearConfig)
 local RodConfig = require(Shared.Config.RodConfig)
+local RarityConfig = require(Shared.Config.RarityConfig)
 local Formulas = require(Shared.Formulas)
 local Format = require(Shared.Util.Format)
 local Sim = require(script.Parent.Sim)
@@ -368,42 +369,114 @@ function HUD.setCharge(power: number?)
 end
 
 ------------------------------------------------------------------------------------------
+--[[ Reel mini-game UI (stud style): a water track with the green catch zone you
+     push with the screen, the hooked fish swimming inside it, a studded catch bar,
+     combo counter. Rare fish glow in their rarity colour. ]]
 local function buildReel()
-	local root = Sim.root(gui, "Reel", Vector2.new(460, 160), UDim2.new(0.5, 0, 0.68, 0), Vector2.new(0.5, 0.5))
+	local root = Sim.root(gui, "Reel", Vector2.new(540, 196), UDim2.new(0.5, 0, 0.7, 0), Vector2.new(0.5, 0.5))
 	root.Visible = false
-	local panel = Sim.panel(root, { Size = UDim2.fromOffset(450, 150), Position = UDim2.fromOffset(5, 5), Gradient = Sim.G.blue, ZIndex = 3 })
-	local title = Sim.text(panel, "HOLD REEL!", { Size = UDim2.fromOffset(420, 32), Position = UDim2.new(0.5, 0, 0, 22), Max = 30, ZIndex = 6 })
-	local function bar(y, h, grad)
-		local b = new("Frame", { BackgroundColor3 = RGB(30, 30, 34), Size = UDim2.fromOffset(420, h), Position = UDim2.fromOffset(15, y), ClipsDescendants = true, ZIndex = 5 }, panel)
-		Sim.corner(b, 4)
-		Sim.stroke(b, 3)
-		local f = new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromScale(0, 1), ZIndex = 6 }, b)
-		Sim.gradient(f, grad, 90)
-		Sim.studs(f, { tile = 18, z = 6 })
-		return b, f
+	local inner = new("Frame", { Name = "Inner", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, root)
+	local pop = new("UIScale", {}, inner)
+	local panel = Sim.panel(inner, { Size = UDim2.fromOffset(530, 186), Position = UDim2.fromOffset(5, 5), Gradient = Sim.G.blue, Stroke = 4, ZIndex = 3, Clip = true })
+	Sim.bands(panel, 0.62, 4)
+	local title = Sim.text(panel, "", { Size = UDim2.fromOffset(500, 34), Position = UDim2.new(0.5, 0, 0, 24), Max = 30, ZIndex = 7, Rich = true })
+	-- water track
+	local track = new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.fromOffset(500, 62), Position = UDim2.fromOffset(15, 48), ClipsDescendants = true, ZIndex = 5 }, panel)
+	Sim.gradient(track, { RGB(40, 120, 220), RGB(14, 50, 120) }, 90)
+	Sim.corner(track, 5)
+	local trackStroke = Sim.stroke(track, 3.5)
+	Sim.studs(track, { dark = true, tile = 20, z = 5 })
+	-- little waves on the water
+	local waves = {}
+	for i = 0, 5 do
+		local wv = new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.75, BorderSizePixel = 0, Size = UDim2.fromOffset(34, 4),
+			Position = UDim2.fromOffset(i * 90, 10 + (i % 2) * 36), ZIndex = 5 }, track)
+		Sim.corner(wv, 2)
+		waves[i + 1] = wv
 	end
-	local tBar, tFill = bar(44, 32, Sim.G.green)
-	Sim.text(tBar, "TENSION", { Size = UDim2.fromScale(1, 0.8), Max = 20, ZIndex = 8 })
-	new("Frame", { BackgroundColor3 = RGB(255, 40, 40), BackgroundTransparency = 0.5, BorderSizePixel = 0, Size = UDim2.fromScale(0.18, 1), Position = UDim2.fromScale(0.82, 0), ZIndex = 7 }, tBar)
-	local pBar, pFill = bar(92, 38, Sim.G.blue)
-	local fishIcon = new("ImageLabel", { BackgroundTransparency = 1, Image = K.Icons.Bait, Size = UDim2.fromOffset(44, 44), Position = UDim2.fromScale(0, 0.5),
-		AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 9 }, pBar)
-	local pop = new("UIScale", {}, panel)
+	-- catch zone
+	local zone = new("Frame", { BackgroundColor3 = RGB(110, 255, 90), BackgroundTransparency = 0.25, Size = UDim2.new(0.3, 0, 1, -8), Position = UDim2.new(0, 0, 0.5, 0),
+		AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 6, BorderSizePixel = 0 }, track)
+	Sim.corner(zone, 4)
+	local zoneStroke = Sim.stroke(zone, 3.5, Color3.new(1, 1, 1))
+	Sim.studs(zone, { tile = 18, z = 6, strong = true })
+	-- fish
+	local fish = Sim.text(track, "🐟", { Size = UDim2.fromOffset(46, 46), Position = UDim2.fromScale(0.5, 0.5), Max = 40, Stroke = 0, ZIndex = 9 })
+	local fishGlow = new("Frame", { BackgroundColor3 = RGB(255, 220, 60), BackgroundTransparency = 1, Size = UDim2.fromOffset(52, 52), AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5), ZIndex = 8, BorderSizePixel = 0 }, track)
+	Sim.corner(fishGlow, 26)
+	-- catch bar
+	local bar = new("Frame", { BackgroundColor3 = RGB(30, 30, 34), Size = UDim2.fromOffset(400, 26), Position = UDim2.fromOffset(15, 124), ClipsDescendants = true, ZIndex = 5 }, panel)
+	Sim.corner(bar, 4)
+	Sim.stroke(bar, 3)
+	local fill = new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromScale(0.3, 1), ZIndex = 6 }, bar)
+	local fillGrad = Sim.gradient(fill, Sim.G.green, 90)
+	Sim.studs(fill, { tile = 18, z = 6, strong = true })
+	local pct = Sim.text(bar, "", { Size = UDim2.new(1, -10, 0.8, 0), Max = 18, ZIndex = 8 })
+	local combo = Sim.text(panel, "", { Size = UDim2.fromOffset(100, 30), Position = UDim2.fromOffset(470, 137), Max = 26, Stroke = 3, ZIndex = 8,
+		Gradient = { RGB(255, 255, 200), RGB(255, 190, 30) } })
+	local comboScale = new("UIScale", {}, combo)
+	Sim.text(panel, "HOLD = push right  ·  RELEASE = slide back", { Size = UDim2.fromOffset(500, 18), Position = UDim2.new(0.5, 0, 0, 170), Max = 15, Stroke = 2, Color = RGB(215, 235, 255), ZIndex = 6 })
+
 	local ui = {}
+	local rarityCol = Color3.new(1, 1, 1)
+	local lastCombo = 0
 	function ui.show(difficulty)
 		root.Visible = true
 		pop.Scale = 0.4
 		tween(pop, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
-		title.Text = if difficulty >= 4 then "HEAVY FISH! Hold REEL, release on red!" else "HOLD REEL! Release when red!"
+		local order = RarityConfig.Order
+		local tier = RarityConfig.get(order[math.clamp(difficulty, 1, #order)])
+		rarityCol = tier.textColor or tier.color
+		title.Text = if difficulty >= 5 then ('<font color="#%s">%s FISH!</font> Keep it in the zone!'):format(rarityCol:ToHex(), tier.name:upper())
+			elseif difficulty >= 3 then "Strong fish! Keep it in the zone!" else "Keep the fish in the zone!"
+		fishGlow.BackgroundColor3 = rarityCol
+		fishGlow.BackgroundTransparency = if difficulty >= 3 then 0.45 else 1
+		lastCombo = 0
+		combo.Text = ""
 	end
 	function ui.hide() root.Visible = false end
 	function ui.update(r)
-		tFill.Size = UDim2.new(r.tension, 0, 1, 0)
-		tFill.BackgroundColor3 = Color3.new(1, 1, 1):Lerp(RGB(255, 110, 110), math.clamp((r.tension - 0.5) * 2, 0, 1))
-		pFill.Size = UDim2.new(r.progress, 0, 1, 0)
-		fishIcon.Position = UDim2.fromScale(r.progress, 0.5)
-		fishIcon.Rotation = math.sin(os.clock() * 22) * 18 * (0.3 + r.tension)
-		panel.Rotation = if r.tension > 0.82 then math.sin(os.clock() * 60) * 1.6 else 0
+		local t = os.clock()
+		zone.Size = UDim2.new(r.zoneSize, 0, 1, -8)
+		zone.Position = UDim2.new(r.zone, 0, 0.5, 0)
+		local fx = r.fish
+		fish.Position = UDim2.fromScale(fx, 0.5 + math.sin(t * 7) * 0.08)
+		fishGlow.Position = fish.Position
+		-- faces where it swims, wiggles harder when darting
+		fish.Rotation = math.sin(t * (10 + r.fishSpeed * 20)) * (8 + r.fishSpeed * 30)
+		fishGlow.Size = UDim2.fromOffset(48 + math.sin(t * 6) * 6, 48 + math.sin(t * 6) * 6)
+		if r.inside then
+			zone.BackgroundColor3 = RGB(110, 255, 90)
+			zoneStroke.Color = Color3.new(1, 1, 1)
+			trackStroke.Color = Color3.new(0, 0, 0)
+		else
+			local blink = (math.sin(t * 18) + 1) / 2
+			zone.BackgroundColor3 = RGB(255, 120, 90):Lerp(RGB(255, 200, 80), blink)
+			zoneStroke.Color = RGB(255, 60, 60)
+			trackStroke.Color = RGB(160, 0, 0):Lerp(Color3.new(0, 0, 0), blink)
+		end
+		for i, wv in waves do
+			local x = ((i * 90 + t * 60) % 560) - 40
+			wv.Position = UDim2.fromOffset(x, 10 + ((i % 2) * 36))
+		end
+		fill.Size = UDim2.fromScale(r.progress, 1)
+		local danger = r.progress < 0.2
+		local col = if danger then Sim.G.red elseif r.progress > 0.75 then Sim.G.yellow else Sim.G.green
+		fillGrad.Color = ColorSequence.new(col[1], col[2])
+		pct.Text = ("%d%%"):format(math.floor(r.progress * 100))
+		-- combo
+		local c = math.floor(r.combo)
+		if c ~= lastCombo then
+			if c > lastCombo and c >= 1 then
+				comboScale.Scale = 1.5
+				tween(comboScale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+			end
+			lastCombo = c
+			combo.Text = if c >= 1 then ("x%d"):format(c + 1) else ""
+		end
+		-- low catch bar: panel trembles
+		panel.Rotation = if danger and not r.inside then math.sin(t * 50) * 1.2 else 0
 	end
 	return ui
 end
