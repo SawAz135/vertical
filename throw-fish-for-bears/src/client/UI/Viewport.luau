@@ -88,6 +88,12 @@ function Viewport.create(parent: GuiObject, opts)
 	return vp, model
 end
 
+-- current spin angle of a spinning thumbnail (to resume it after a rebuild)
+function Viewport.yawOf(vp: ViewportFrame): number?
+	local e = spinning[vp]
+	return e and e.yaw
+end
+
 RunService.RenderStepped:Connect(function(dt)
 	for vp, e in spinning do
 		if vp.Parent and vp.Visible and vp.AbsoluteSize.X > 1 then

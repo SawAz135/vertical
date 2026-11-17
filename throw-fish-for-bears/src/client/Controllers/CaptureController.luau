@@ -24,6 +24,7 @@ local Fx = require(script.Parent.Fx)
 local Sound = require(script.Parent.Sound)
 local Actions = require(script.Parent.Actions)
 local CameraController = require(script.Parent.CameraController)
+local Cine = require(script.Parent.CinematicFx)
 local Data = require(script.Parent.Data)
 local Theme = require(script.Parent.Parent.UI.Theme)
 
@@ -47,6 +48,10 @@ local function rootOf(m: Model?): BasePart?
 	return m and m.PrimaryPart
 end
 
+local function rarityOf(bear: Model?)
+	return RarityConfig.get(bear and bear:GetAttribute("Rarity") or "Common")
+end
+
 local function bearPitch(bear: Model): number
 	return Sound.BearPitch[bear:GetAttribute("Species") or ""] or 1
 end
@@ -54,14 +59,32 @@ end
 -- shots --------------------------------------------------------------------------
 local function establishing()
 	local c = current
+	-- the bushes of the den shake: something is coming...
+	local rustle = c.den + Vector3.new(0, 2.5, 0)
+	for i = 0, 4 do
+		task.delay(i * 0.12, function()
+			Fx.blocks(rustle, Color3.fromRGB(90, 180, 60), 5, 9, 0.35, { life = 0.9, up = 1.4, spread = 2.2, gravity = 25,
+				colors = { Color3.fromRGB(90, 180, 60), Color3.fromRGB(130, 210, 80), Color3.fromRGB(70, 140, 45) } })
+		end)
+	end
+	Sound.play("Sniff", { at = c.den, pitch = 0.7 })
+	local tier = rarityOf(c.bear)
+	if tier.index >= 4 then
+		-- rare bear: coloured glow pulses on the screen edges + sparkles in the den
+		Cine.rarityTint(tier.textColor or tier.color, 0.35 + tier.index * 0.04)
+		Fx.sparkle(rustle, tier.color, 10 + tier.index * 3, 14)
+	end
 	CameraController.run(function(t)
 		local land = c.landing
 		local mid = (land + c.den) / 2
 		local side = (c.den - land)
 		local perp = Vector3.new(-side.Z, 0, side.X).Unit
-		local orbit = CFrame.Angles(0, math.sin(t * 0.3) * 0.15, 0):VectorToWorldSpace(perp)
-		local p = mid + orbit * (side.Magnitude * 0.55 + 14) + Vector3.new(0, 9, 0)
-		return CFrame.lookAt(p, mid + Vector3.new(0, 1.5, 0)), 60
+		-- crane shot: starts high above the fish, sweeps down and around toward the den
+		local k = Easing.cubicInOut(math.clamp(t / 1.6, 0, 1))
+		local orbit = CFrame.Angles(0, -0.5 + k * 0.5 + math.sin(t * 0.3) * 0.08, 0):VectorToWorldSpace(perp)
+		local p = mid + orbit * (side.Magnitude * 0.55 + 14 + (1 - k) * 8) + Vector3.new(0, 9 + (1 - k) * 16, 0)
+		local look = land:Lerp(c.den, 0.25 + k * 0.45) + Vector3.new(0, 1.5, 0)
+		return CFrame.lookAt(p, look), 60 - 6 * k
 	end, 60, { smooth = 5, blendIn = 0.6 })
 end
 
@@ -73,31 +96,50 @@ local function alertShot()
 		if not r or not h then return nil, 55 end
 		local fwd = r.CFrame.LookVector
 		local right = r.CFrame.RightVector
-		local d = 10 - Easing.cubicOut(math.clamp(t / 0.9, 0, 1)) * 3
-		local p = h.Position + fwd * d + right * 3.5 + Vector3.new(0, 1.2, 0)
-		return CFrame.lookAt(p, h.Position), 50
-	end, 60, { smooth = 8, blendIn = 0.45 })
+		-- "vertigo" dolly zoom: the camera backs off while the lens zooms in
+		local k = Easing.cubicOut(math.clamp(t / 0.7, 0, 1))
+		local d = 7 + k * 6
+		local fov = 62 - k * 26
+		local p = h.Position + fwd * d + right * 3.2 + Vector3.new(0, 1.1, 0)
+		return CFrame.lookAt(p, h.Position), fov
+	end, 60, { smooth = 9, blendIn = 0.35 })
 	CameraController.punch(-5)
+	local tier = rarityOf(c.bear)
+	Cine.pop(headOf(c.bear), if tier.index >= 5 then "!!" else "!", if tier.index >= 5 then tier.color else Color3.fromRGB(255, 225, 50), 130, 1.1)
 end
 
 local function runShot()
 	local c = current
 	local stepT = 0
+	local whip = false
+	Cine.speedLines(true)
 	CameraController.run(function(t, dt)
 		local r = rootOf(c.bear)
 		if not r then return nil, 60 end
 		local fwd = r.CFrame.LookVector
 		local right = r.CFrame.RightVector
 		local sc = c.bear:GetAttribute("Scale") or 1
-		local p = r.Position + right * (11 * sc) + Vector3.new(0, 4 * sc, 0) - fwd * 3
 		stepT += dt
-		if stepT > 0.28 then
+		if stepT > 0.26 / math.max(0.8, (c.bear:GetAttribute("Gait") or 1)) then
 			stepT = 0
 			Sound.play("Footstep", { at = r.Position, pitch = 0.8 / sc })
-			Fx.dust(r.Position - Vector3.new(0, r.Position.Y - 0.2, 0), 0.4 * sc)
+			Fx.dust(r.Position - Vector3.new(0, r.Position.Y - 0.2, 0), 0.45 * sc)
+			CameraController.shake(0.25 * sc, 0.12) -- heavy paws hit the ground
 		end
-		return CFrame.lookAt(p, r.Position + fwd * 4), 62
-	end, 60, { smooth = 7, blendIn = 0.4 })
+		if t < 1.0 then
+			-- low ground shot in front: the bear charges straight at the lens
+			local p = r.Position + fwd * (9 + t * 6) * sc + Vector3.new(0, -r.Position.Y + 1.2, 0) + right * 1.5
+			return CFrame.lookAt(p, r.Position + Vector3.new(0, 0.6 * sc, 0)), 70
+		end
+		if not whip then
+			whip = true
+			CameraController.punch(6) -- whip pan to the tracking shot
+		end
+		-- side tracking shot with a little handheld sway
+		local sway = Vector3.new(math.sin(t * 9) * 0.25, math.abs(math.sin(t * 9)) * 0.35, 0)
+		local p = r.Position + right * (10 * sc) + Vector3.new(0, 3.5 * sc, 0) - fwd * 2.5 + sway
+		return CFrame.lookAt(p, r.Position + fwd * 5), 66
+	end, 60, { smooth = 7, blendIn = 0.3 })
 end
 
 local function eatSequence(d)
@@ -105,6 +147,10 @@ local function eatSequence(d)
 	local tl = d.tl
 	local start = d.start
 	local bitten, swallowed, happy, transformed = false, false, false, false
+	local nextChew = 0
+	local shocked = false
+	Cine.speedLines(false)
+	local tier = rarityOf(c.bear)
 	CameraController.run(function()
 		local now = workspace:GetServerTimeNow()
 		local t = now - start
@@ -128,8 +174,16 @@ local function eatSequence(d)
 			if not bitten and te > GameConfig.Capture.pickupAt - 0.1 then
 				bitten = true
 				Sound.play("Chomp", { at = mouth, pitch = bearPitch(c.bear) })
-				CameraController.shake(0.7, 0.2)
-				CameraController.punch(-4)
+				CameraController.shake(0.9, 0.25)
+				CameraController.punch(-7)
+				Cine.pop(h, "CHOMP!", Color3.fromRGB(255, 150, 40), 150, 0.9)
+				nextChew = te + 0.35
+			end
+			if bitten and te >= nextChew and te < GameConfig.Capture.swallowAt + 0.3 then
+				nextChew = te + 0.32
+				Cine.pop(h, if math.random() < 0.5 then "NOM!" else "nom", Color3.fromRGB(255, 255, 255), 90, 0.7)
+				Fx.blocks(mouth, Color3.fromRGB(255, 190, 170), 3, 6, 0.18, { life = 0.5, up = 1 })
+				CameraController.punch(-1.5)
 			end
 			if not swallowed and te > GameConfig.Capture.swallowAt then
 				swallowed = true
@@ -142,6 +196,8 @@ local function eatSequence(d)
 			if not happy then
 				happy = true
 				Sound.play("Happy", { at = mouth, pitch = bearPitch(c.bear) })
+				Cine.pop(h, "♥", Color3.fromRGB(255, 90, 130), 120, 1.2)
+				Cine.hearts(h.Position + up * 1.5, 8)
 			end
 			local k = Easing.cubicOut(math.clamp((t - tl.happy) / (tl.transform - tl.happy), 0, 1))
 			local p = r.Position + fwd * (9 + 6 * k) * sc + up * (3 + 4 * k) * sc + right * 2 * sc
@@ -157,6 +213,11 @@ local function eatSequence(d)
 			local radius = (13 - 4 * k) * sc
 			local dir = CFrame.Angles(0, ang, 0):VectorToWorldSpace(fwd)
 			local p = r.Position + dir * radius + up * (3 + 5 * k) * sc
+			if k > 0.8 and not shocked then
+				shocked = true
+				Cine.shockwave(r.Position - Vector3.new(0, r.Position.Y - 0.3, 0), tier.textColor or tier.color, sc)
+				if tier.index >= 4 then Cine.rarityTint(tier.textColor or tier.color, 0.6) end
+			end
 			if k > 0.85 and Capture.Flash then
 				Capture.Flash(0.25)
 			end
@@ -248,6 +309,7 @@ end
 local function onFx(phase: string, d)
 	if phase == "Spawned" then
 		current = { bear = d.bear, fish = d.fish, landing = d.landing, den = d.den }
+		Cine.letterbox(true)
 		establishing()
 	elseif phase == "Alert" and current then
 		alertShot()
@@ -271,6 +333,7 @@ local function onFx(phase: string, d)
 	elseif phase == "Captured" then
 		-- poof where the bear was, then it pops into your arms
 		current = nil
+		Cine.letterbox(false)
 		if d.from then
 			Fx.puff(d.from + Vector3.new(0, 3, 0), Color3.new(1, 1, 1), 22, 5)
 			Fx.sparkle(d.from + Vector3.new(0, 3, 0), Color3.fromRGB(255, 230, 120), 18, 20)
@@ -293,6 +356,7 @@ local function onFx(phase: string, d)
 		end)
 	elseif phase == "Failed" then
 		current = nil
+		Cine.letterbox(false)
 		stopControlling()
 		CameraController.stop()
 	end

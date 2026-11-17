@@ -205,17 +205,50 @@ STATES.Stretch = function(p, e, t, s)
 	e.eyesClosed = k > 0.7
 end
 
+-- joy in 3 beats: rears up roaring and pawing the air -> drops into two bouncy hops
+-- (squash on landing) -> a happy left-right wiggle, then keeps bouncing
 STATES.Happy = function(p, e, t, s)
-	local hop = abs(sin(t * 7.5))
-	local k = clamp(t / 0.15, 0, 1)
-	pos(p, "BodyJoint", 0, hop * 0.45 * s * k, 0)
-	rot(p, "BodyJoint", -0.08 + hop * 0.12, 0, sin(t * 7.5) * 0.08)
+	if t < 0.55 then
+		local k = Easing.backOut(clamp(t / 0.3, 0, 1))
+		local paw = sin(t * 22) * 0.3
+		rot(p, "BodyJoint", 0.85 * k)
+		pos(p, "BodyJoint", 0, 0.45 * s * k, 0.5 * s * k)
+		rot(p, "LegFL", -1.15 * k + paw) rot(p, "LegFR", -1.15 * k - paw)
+		rot(p, "LegBL", -0.85 * k) rot(p, "LegBR", -0.85 * k)
+		rot(p, "Neck", -0.45 * k, sin(t * 9) * 0.15)
+		rot(p, "Jaw", -0.6 * k) -- big roar
+		rot(p, "EarL", -0.4 * k) rot(p, "EarR", -0.4 * k)
+		rot(p, "Tail", 0.7 * k, sin(t * 25) * 0.5)
+		return
+	end
+	local u = t - 0.55
+	if u < 0.9 then
+		-- two hops; squash when the paws touch the ground
+		local ph = (u / 0.45) % 1
+		local air = sin(ph * math.pi)
+		local squash = if ph < 0.15 then (1 - ph / 0.15) else 0
+		pos(p, "BodyJoint", 0, (air * 0.7 - squash * 0.18) * s, 0)
+		rot(p, "BodyJoint", -0.12 + air * 0.18, 0, sin(u * 14) * 0.06)
+		rot(p, "LegFL", -0.55 * air) rot(p, "LegFR", -0.55 * air)
+		rot(p, "LegBL", 0.5 * air) rot(p, "LegBR", 0.5 * air)
+		rot(p, "Neck", 0.3 - squash * 0.2, sin(u * 6) * 0.15)
+		rot(p, "Jaw", -0.35)
+		rot(p, "Tail", 0.6, sin(u * 22) * 0.6)
+		rot(p, "EarL", sin(u * 16) * 0.3) rot(p, "EarR", -sin(u * 16) * 0.3)
+		return
+	end
+	local v = u - 0.9
+	-- happy wiggle (body swings left / right) then little bounces
+	local spin = sin(clamp(v / 0.7, 0, 1) * math.pi * 2) * 0.55
+	local hop = abs(sin(v * 7.5))
+	pos(p, "BodyJoint", 0, hop * 0.4 * s, 0)
+	rot(p, "BodyJoint", -0.08 + hop * 0.12, spin, sin(v * 7.5) * 0.08)
 	rot(p, "LegFL", -0.4 * hop) rot(p, "LegFR", -0.4 * hop)
 	rot(p, "LegBL", 0.35 * hop) rot(p, "LegBR", 0.35 * hop)
-	rot(p, "Neck", 0.28, sin(t * 4) * 0.2)
+	rot(p, "Neck", 0.28, sin(v * 4) * 0.2)
 	rot(p, "Jaw", -0.32)
-	rot(p, "Tail", 0.5, sin(t * 20) * 0.6)
-	rot(p, "EarL", sin(t * 15) * 0.25) rot(p, "EarR", -sin(t * 15) * 0.25)
+	rot(p, "Tail", 0.5, sin(v * 20) * 0.6)
+	rot(p, "EarL", sin(v * 15) * 0.25) rot(p, "EarR", -sin(v * 15) * 0.25)
 end
 
 STATES.Eat = function(p, e, t, s)

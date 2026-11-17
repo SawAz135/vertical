@@ -583,12 +583,24 @@ end
 
 -- "Bears + Fish" inventory button: sits in the Roblox top bar, right next to the chat icon,
 -- and replaces the default Roblox inventory/backpack button.
-local INV_BUTTON_X, INV_BUTTON_Y = 172, 12 -- placed right after the chat pill (measured on a phone). Raise X if it overlaps.
+-- placed with GuiService.TopbarInset = the free space right after Roblox's own top-bar
+-- buttons (menu, chat...), so it never sits under the chat icon on any device
+local GuiService = game:GetService("GuiService")
 local function buildInventoryButton()
 	local ig = new("ScreenGui", { Name = "InventoryButton", ResetOnSpawn = false, DisplayOrder = 2, IgnoreGuiInset = true,
-		ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets }, player:WaitForChild("PlayerGui"))
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ScreenInsets = Enum.ScreenInsets.None }, player:WaitForChild("PlayerGui"))
 	local b = new("TextButton", { Name = "Inventory", Text = "", AutoButtonColor = false, BackgroundColor3 = RGB(18, 18, 21), BackgroundTransparency = 0.3,
-		Size = UDim2.fromOffset(44, 44), Position = UDim2.fromOffset(INV_BUTTON_X, INV_BUTTON_Y), BorderSizePixel = 0 }, ig)
+		Size = UDim2.fromOffset(44, 44), Position = UDim2.fromOffset(180, 12), BorderSizePixel = 0 }, ig)
+	local function place()
+		local inset = GuiService.TopbarInset
+		local h = inset.Max.Y - inset.Min.Y
+		if inset.Max.X <= inset.Min.X or h <= 0 then return end
+		local size = math.clamp(h - 12, 32, 48)
+		b.Size = UDim2.fromOffset(size, size)
+		b.Position = UDim2.fromOffset(inset.Min.X + 8, inset.Min.Y + (h - size) / 2)
+	end
+	place()
+	GuiService:GetPropertyChangedSignal("TopbarInset"):Connect(place)
 	new("UICorner", { CornerRadius = UDim.new(1, 0) }, b)
 	new("ImageLabel", { Name = "Icon", BackgroundTransparency = 1, Image = K.Icons.Bag, ScaleType = Enum.ScaleType.Fit, Size = UDim2.fromOffset(28, 28),
 		Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) }, b)

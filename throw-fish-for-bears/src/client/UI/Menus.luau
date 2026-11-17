@@ -23,6 +23,7 @@ local Formulas = require(Shared.Formulas)
 local Format = require(Shared.Util.Format)
 local Sim = require(script.Parent.Sim)
 local K = require(script.Parent.Kit)
+local Viewport = require(script.Parent.Viewport)
 local Data = require(script.Parent.Parent.Controllers.Data)
 
 local Motion = Sim.Motion
@@ -103,6 +104,7 @@ end
 -- Shop
 ------------------------------------------------------------------------------------------
 local shopTab = "Rods"
+local strengthRefresh = nil -- live update of the Strength page (no rebuild)
 local function buildShop()
 	local w = makeWindow("Shop", { title = "Rod Shop", grad = "orange", size = Vector2.new(860, 470), titleWidth = 300 })
 	local tabs = {}
@@ -168,13 +170,13 @@ local function buildShop()
 	--[[ Strength page: hero card with the 3D fish dumbbell of your FISH-UP tier,
 	     "+4 -> +5 per lift" tiles, progress to the next zone, tier ladder, big upgrade. ]]
 	local lastGain = nil
+	local dumbbellYaw = math.rad(-20) -- kept between rebuilds so the 3D spin never restarts
+	local dumbbellVp = nil
+	strengthRefresh = nil
 	local function strengthPage(animate)
 		local d = Data.values
-		local power = d.strength or 0
 		local gain = d.strengthGain or 1
 		local maxed = gain >= E.Strength.maxGain
-		local cost = E.Strength.gainCost(gain)
-		local money = d.money or 0
 		local tierIdx = FishUpConfig.tierFor(gain)
 		local tier = FishUpConfig.get(tierIdx)
 		local gained = lastGain ~= nil and gain > lastGain
@@ -186,20 +188,19 @@ local function buildShop()
 		local badge = Sim.panel(hero, { Size = UDim2.fromOffset(240, 40), Position = UDim2.fromOffset(23, 12), Color = RGB(36, 36, 42), DarkStuds = true, ZIndex = 6 })
 		Sim.text(badge, tier.name:upper() .. " FISH-UP", { Size = UDim2.new(1, -16, 0.8, 0), Max = 24, ZIndex = 7, Gradient = { RGB(255, 255, 255), tier.color } })
 		local stage = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(270, 170), Position = UDim2.fromOffset(8, 56), ZIndex = 5 }, hero)
-		Sim.model(stage, { kind = "Dumbbell", id = tierIdx, spin = true, spinSpeed = 0.9, pitch = math.rad(22), zoom = 0.78, size = UDim2.fromScale(1, 1) })
-		Sim.text(hero, "💪 " .. Format.short(power), { Size = UDim2.fromOffset(260, 62), Position = UDim2.fromOffset(143, 262), Max = 58, Stroke = 4.5,
+		dumbbellVp = Sim.model(stage, { kind = "Dumbbell", id = tierIdx, spin = true, spinSpeed = 0.9, yaw = dumbbellYaw, pitch = math.rad(22), zoom = 0.78, size = UDim2.fromScale(1, 1) })
+		local powerLabel = Sim.text(hero, "", { Size = UDim2.fromOffset(260, 62), Position = UDim2.fromOffset(143, 262), Max = 58, Stroke = 4.5,
 			Gradient = { RGB(255, 250, 210), RGB(255, 196, 40) }, ZIndex = 7 })
-		Sim.infoBar(hero, ('Throw <font color="#7CFF46">%d</font> studs  ·  Fish <font color="#FFD23F">%s</font>'):format(E.Strength.maxDistance(power), Format.kg(E.Strength.maxFishWeight(power))),
-			{ Size = UDim2.fromOffset(262, 34), Position = UDim2.fromOffset(143, 318), Max = 19, ZIndex = 6 })
+		local info = Sim.infoBar(hero, "", { Size = UDim2.fromOffset(262, 34), Position = UDim2.fromOffset(143, 318), Max = 19, ZIndex = 6 })
 
 		-- per lift tiles ---------------------------------------------------------------
 		local X0 = 318
 		local function tile(x, label, value, grad, glow)
 			local t = Sim.panel(body, { Size = UDim2.fromOffset(200, 96), Position = UDim2.fromOffset(x, 14), Gradient = grad, Stroke = 4, ZIndex = 4 })
 			Sim.text(t, label, { Size = UDim2.fromOffset(180, 24), Position = UDim2.fromOffset(100, 18), Max = 20, ZIndex = 6 })
-			local v = Sim.text(t, value, { Size = UDim2.fromOffset(190, 56), Position = UDim2.fromOffset(100, 60), Max = 54, Stroke = 4, ZIndex = 6 })
+			Sim.text(t, value, { Size = UDim2.fromOffset(190, 56), Position = UDim2.fromOffset(100, 60), Max = 54, Stroke = 4, ZIndex = 6 })
 			if glow then K.shine(t, 2.2) end
-			return t, v
+			return t
 		end
 		tile(X0, "NOW", ("+%d"):format(gain), Sim.G.dark, false)
 		Sim.text(body, "➜", { Size = UDim2.fromOffset(60, 60), Position = UDim2.fromOffset(X0 + 260, 62), Max = 54, Stroke = 4, Gradient = { RGB(255, 255, 255), RGB(255, 200, 40) }, ZIndex = 6 })
@@ -207,33 +208,15 @@ local function buildShop()
 		Sim.text(body, "strength per lift", { Size = UDim2.fromOffset(300, 22), Position = UDim2.fromOffset(X0 + 259, 122), Max = 20, Stroke = 2.5, Color = RGB(220, 225, 235), ZIndex = 6 })
 
 		-- next zone progress -------------------------------------------------------------
-		local nextZ
-		for i = 1, #ZoneConfig.Zones do
-			if power < Formulas.zoneStrength(i) then nextZ = i break end
-		end
 		local barY = 148
+		local head = Sim.text(body, "", { Size = UDim2.fromOffset(518, 24), Position = UDim2.fromOffset(X0, barY + 10), AnchorPoint = Vector2.new(0, 0.5), AlignX = Enum.TextXAlignment.Left, Max = 22, Rich = true, ZIndex = 6 })
 		local bar = Sim.new("Frame", { BackgroundColor3 = RGB(30, 30, 34), Size = UDim2.fromOffset(518, 34), Position = UDim2.fromOffset(X0, barY + 24), ZIndex = 4, ClipsDescendants = true }, body)
 		Sim.corner(bar, 4)
 		Sim.stroke(bar, 3)
-		local frac, barText, head
-		if nextZ then
-			local need = Formulas.zoneStrength(nextZ)
-			local prev = if nextZ > 1 then Formulas.zoneStrength(nextZ - 1) else 0
-			frac = math.clamp((power - prev) / math.max(1, need - prev), 0, 1)
-			local lifts = math.ceil(math.max(0, need - power) / gain)
-			head = ('Next zone: <font color="#7CFF46">%s</font>'):format(ZoneConfig.get(nextZ).name)
-			barText = ("%s / %s  ·  ~%s lifts"):format(Format.short(power), Format.short(need), Format.short(lifts))
-		else
-			frac = 1
-			head = '<font color="#FFD23F">Every zone unlocked!</font>'
-			barText = "MAX DISTANCE"
-		end
-		Sim.text(body, head, { Size = UDim2.fromOffset(518, 24), Position = UDim2.fromOffset(X0, barY + 10), AnchorPoint = Vector2.new(0, 0.5), AlignX = Enum.TextXAlignment.Left, Max = 22, Rich = true, ZIndex = 6 })
 		local fill = Sim.new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromScale(0, 1), ZIndex = 5 }, bar)
 		Sim.gradient(fill, Sim.G.orange, 90)
 		Sim.studs(fill, { tile = 18, z = 5, strong = true })
-		game:GetService("TweenService"):Create(fill, TweenInfo.new(0.6, Enum.EasingStyle.Quint), { Size = UDim2.fromScale(math.max(frac, 0.02), 1) }):Play()
-		Sim.text(bar, barText, { Size = UDim2.new(1, -12, 0.78, 0), Max = 20, ZIndex = 7 })
+		local barText = Sim.text(bar, "", { Size = UDim2.new(1, -12, 0.78, 0), Max = 20, ZIndex = 7 })
 
 		-- tier ladder -----------------------------------------------------------------
 		local ladderY = 218
@@ -243,23 +226,59 @@ local function buildShop()
 			local sq = Sim.panel(body, { Size = UDim2.fromOffset(78, 40), Position = UDim2.fromOffset(X0 + (i - 1) * 86, ladderY), Color = if on then t.color else RGB(70, 70, 78),
 				Stroke = if cur then 4 else 3, StrokeColor = if cur then Color3.new(1, 1, 1) else nil, ZIndex = 4 })
 			Sim.text(sq, if on then t.name else ("+" .. t.minGain), { Size = UDim2.new(1, -8, 0.7, 0), Max = 18, ZIndex = 6 })
-			if cur then
-				local sc = Sim.new("UIScale", { Scale = 1.08 }, sq)
-				local _ = sc
-			end
 		end
 		local nextTier = FishUpConfig.Tiers[tierIdx + 1]
 		Sim.text(body, if nextTier then ('New FISH-UP look at <font color="#FFD23F">+%d</font> per lift'):format(nextTier.minGain) else "Your FISH-UP is fully upgraded!",
 			{ Size = UDim2.fromOffset(518, 22), Position = UDim2.fromOffset(X0 + 259, ladderY + 54), Max = 19, Rich = true, Stroke = 2.5, ZIndex = 6 })
 
 		-- upgrade button ----------------------------------------------------------------
-		local can = not maxed and money >= cost
-		local label = if maxed then "MAXED" elseif can then ("UPGRADE  %s"):format(Format.money(cost)) else ("Need %s more"):format(Format.money(cost - money))
-		local btn = Sim.button(body, { Grad = if can then "green" elseif maxed then "grey" else "light", Size = Vector2.new(518, 72), Position = UDim2.fromOffset(X0 + 259, 330),
-			Text = label, Max = 36, Icon = K.Icons.Cash, ZIndex = 6 }, function()
-			if not maxed then Net.event("BuyStrength"):FireServer() end
+		local btn = Sim.button(body, { Grad = "green", Size = Vector2.new(518, 72), Position = UDim2.fromOffset(X0 + 259, 330),
+			Text = "", Max = 36, Icon = K.Icons.Cash, ZIndex = 6 }, function()
+			local dd = Data.values
+			if (dd.strengthGain or 1) < E.Strength.maxGain then Net.event("BuyStrength"):FireServer() end
 		end)
-		if can then K.shine(btn, 1.8) end
+		local shined = false
+
+		-- live values: strength and money only update texts / bars (no rebuild, so the
+		-- 3D dumbbell keeps spinning smoothly in a loop)
+		local lastFrac = nil
+		local function refresh()
+			local dd = Data.values
+			local power = dd.strength or 0
+			local money = dd.money or 0
+			local cost = E.Strength.gainCost(gain)
+			powerLabel.Text = "💪 " .. Format.short(power)
+			info.Text.Text = ('Throw <font color="#7CFF46">%d</font> studs  ·  Fish <font color="#FFD23F">%s</font>'):format(E.Strength.maxDistance(power), Format.kg(E.Strength.maxFishWeight(power)))
+			local nextZ
+			for i = 1, #ZoneConfig.Zones do
+				if power < Formulas.zoneStrength(i) then nextZ = i break end
+			end
+			local frac
+			if nextZ then
+				local need = Formulas.zoneStrength(nextZ)
+				local prev = if nextZ > 1 then Formulas.zoneStrength(nextZ - 1) else 0
+				frac = math.clamp((power - prev) / math.max(1, need - prev), 0, 1)
+				head.Text = ('Next zone: <font color="#7CFF46">%s</font>'):format(ZoneConfig.get(nextZ).name)
+				barText.Text = ("%s / %s  ·  ~%s lifts"):format(Format.short(power), Format.short(need), Format.short(math.ceil(math.max(0, need - power) / gain)))
+			else
+				frac = 1
+				head.Text = '<font color="#FFD23F">Every zone unlocked!</font>'
+				barText.Text = "MAX DISTANCE"
+			end
+			if frac ~= lastFrac then
+				lastFrac = frac
+				game:GetService("TweenService"):Create(fill, TweenInfo.new(0.5, Enum.EasingStyle.Quint), { Size = UDim2.fromScale(math.max(frac, 0.02), 1) }):Play()
+			end
+			local can = not maxed and money >= cost
+			Sim.setText(btn, if maxed then "MAXED" elseif can then ("UPGRADE  %s"):format(Format.money(cost)) else ("Need %s more"):format(Format.money(cost - money)))
+			Sim.recolor(btn, if can then "green" elseif maxed then "grey" else "light")
+			if can and not shined then
+				shined = true
+				K.shine(btn, 1.8)
+			end
+		end
+		refresh()
+		strengthRefresh = refresh
 
 		if animate then
 			for _, o in { hero, btn } do Motion.PopIn(o, 0.4) end
@@ -271,6 +290,11 @@ local function buildShop()
 	end
 
 	renderers.Shop = function(animate)
+		if dumbbellVp then
+			dumbbellYaw = Viewport.yawOf(dumbbellVp) or dumbbellYaw
+			dumbbellVp = nil
+		end
+		strengthRefresh = nil
 		clear(body)
 		for name, b in tabs do Sim.recolor(b, if name == shopTab then "yellow" else "grey") end
 		local titleLabel = w.titleRoot:FindFirstChild("Title")
@@ -697,7 +721,9 @@ function Menus.mount()
 		for name, w in windows do
 			if w.menu.IsOpen and renderers[name] then
 				local rule = KEYS[name] and KEYS[name][key]
-				if key == "*" or rule == true then
+				if name == "Shop" and shopTab == "Strength" and strengthRefresh and (key == "strength" or key == "money") then
+					strengthRefresh() -- texts only: the 3D dumbbell keeps spinning
+				elseif key == "*" or rule == true then
 					renderers[name](false)
 				elseif rule == "throttle" and shopTab ~= "Rods" and os.clock() - lastMoney > 1.5 then
 					lastMoney = os.clock()
