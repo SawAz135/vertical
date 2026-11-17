@@ -6,6 +6,14 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Data = require(script.Parent.Data)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Layout = require(ReplicatedStorage.Shared.Layout)
+local FishUpConfig = require(ReplicatedStorage.Shared.Config.FishUpConfig)
+local Easing = require(ReplicatedStorage.Shared.Util.Easing)
+local CameraController = require(script.Parent.CameraController)
+local Cine = require(script.Parent.CinematicFx)
+local Fx = require(script.Parent.Fx)
+local Sound = require(script.Parent.Sound)
 
 local FishUp = {}
 local player = Players.LocalPlayer
@@ -69,6 +77,138 @@ local function infoText(s): string
 	return ('Stand here: <font color="#7CFF46">+%d 💪</font> / lift'):format(gain)
 end
 
+------------------------------------------------------------------------------------------
+-- TRAINING SHOW (local player): entry cinematic, a pop + ring wave + sweat on every rep,
+-- a power aura that grows with the streak, streak banners, summary when you leave.
+------------------------------------------------------------------------------------------
+local training: any = { on = false, streak = 0, gained = 0, lastIntro = 0, aura = nil }
+local MILESTONES = { [10] = true, [25] = true, [50] = true, [100] = true, [250] = true, [500] = true }
+
+local function tierColor(): Color3
+	return FishUpConfig.get(FishUpConfig.tierFor(Data.values.strengthGain or 1)).color
+end
+
+local function stationPos(): Vector3?
+	local b = player:GetAttribute("Base")
+	return b and Layout.trainPos(b)
+end
+
+local function makeAura(root: BasePart, col: Color3)
+	local att = Instance.new("Attachment")
+	att.Name = "TFBTrainAura"
+	att.Position = Vector3.new(0, -2.6, 0)
+	att.Parent = root
+	local pe = Instance.new("ParticleEmitter")
+	pe.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	pe.Color = ColorSequence.new(col, Color3.new(1, 1, 1))
+	pe.LightEmission = 1
+	pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.3, 0.55), NumberSequenceKeypoint.new(1, 0) })
+	pe.Lifetime = NumberRange.new(0.8, 1.4)
+	pe.Speed = NumberRange.new(3, 6)
+	pe.SpreadAngle = Vector2.new(12, 12)
+	pe.EmissionDirection = Enum.NormalId.Top
+	pe.Shape = Enum.ParticleEmitterShape.Disc
+	pe.ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface
+	pe.Rate = 4
+	pe.Parent = att
+	local light = Instance.new("PointLight")
+	light.Color = col
+	light.Range = 10
+	light.Brightness = 0.4
+	light.Shadows = false
+	light.Parent = att
+	return { att = att, pe = pe, light = light }
+end
+
+local function introCinematic(root: BasePart)
+	if CameraController.isBusy() or os.clock() - training.lastIntro < 25 then return end
+	training.lastIntro = os.clock()
+	local col = tierColor()
+	local pos = stationPos() or root.Position
+	Cine.letterbox(true)
+	Cine.flash(0.4, col)
+	Cine.shockwave(pos + Vector3.new(0, 0.5, 0), col, 0.7)
+	Cine.banner("FISH-UP!", col, ("+%d 💪 PER LIFT"):format(Data.values.strengthGain or 1))
+	Sound.play("Transform", { volume = 0.7 })
+	local look = root.CFrame.LookVector
+	CameraController.run(function(t)
+		local r = root.Parent and root or nil
+		if not r then return nil, 60 end
+		-- low hero angle in front, sweeping up and around to a proud 3/4 high shot
+		local k = Easing.cubicInOut(math.clamp(t / 1.7, 0, 1))
+		local dir = CFrame.Angles(0, -0.9 + k * 1.6, 0):VectorToWorldSpace(look)
+		local p = r.Position + dir * (6 + 4 * k) + Vector3.new(0, -1.5 + 6 * k, 0)
+		return CFrame.lookAt(p, r.Position + Vector3.new(0, 1 + k * 0.5, 0)), 48 + 16 * k
+	end, 1.8, { smooth = 9, blendIn = 0.3 })
+	task.delay(1.8, function()
+		CameraController.stop()
+		Cine.letterbox(false)
+	end)
+end
+
+local function startTraining()
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then return end
+	training.on = true
+	training.streak = 0
+	training.gained = 0
+	if training.aura then training.aura.att:Destroy() end
+	training.aura = makeAura(root, tierColor())
+	introCinematic(root)
+end
+
+local function stopTraining()
+	if not training.on then return end
+	training.on = false
+	if training.aura then
+		local a = training.aura
+		training.aura = nil
+		a.pe.Enabled = false
+		task.delay(1.5, function() a.att:Destroy() end)
+	end
+	if training.streak >= 5 then
+		Cine.banner(("%d REPS!"):format(training.streak), tierColor(), ("+%s 💪 STRENGTH"):format(tostring(training.gained)))
+		Sound.play("Reward")
+	end
+end
+
+local function onRep(amount: number)
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local head = char and char:FindFirstChild("Head") :: BasePart?
+	if not root then return end
+	training.streak += 1
+	training.gained += amount
+	local n = training.streak
+	local col = tierColor()
+	-- the number pops out of the lift, bigger and hotter as the streak grows
+	local hot = math.clamp(n / 40, 0, 1)
+	Cine.pop(head or root, ("+%d 💪"):format(amount), Color3.fromRGB(255, 230, 80):Lerp(Color3.fromRGB(255, 70, 50), hot), 100 + math.min(60, n), 1)
+	-- ring wave on the mat, sweat drops, punch
+	local feet = (stationPos() or root.Position) + Vector3.new(0, 0.5, 0)
+	Fx.ring(feet, col, 1.5, 5 + math.min(4, n * 0.1), 0.45)
+	if head then
+		Fx.blocks(head.Position + Vector3.new(0, 0.5, 0), Color3.fromRGB(150, 220, 255), 3, 6, 0.18, { life = 0.6, up = 1.2, spread = 2, gravity = 30 })
+	end
+	CameraController.punch(-1.5 - hot * 2)
+	if n % 3 == 0 then CameraController.shake(0.12 + hot * 0.2, 0.12) end
+	Sound.play("Lift", { volume = 0.45 })
+	-- the aura grows with the streak
+	if training.aura then
+		training.aura.pe.Rate = 4 + math.min(40, n * 0.8)
+		training.aura.light.Brightness = 0.4 + math.min(2.2, n * 0.05)
+		training.aura.light.Range = 10 + math.min(10, n * 0.2)
+	end
+	if MILESTONES[n] then
+		Cine.banner(("x%d STREAK!"):format(n), col, "KEEP LIFTING!")
+		Cine.flash(0.3, col)
+		Fx.burst(feet, col, 1)
+		Cine.shockwave(feet, col, 0.6)
+		Sound.play("Reward")
+	end
+end
+
 function FishUp.init(Sim)
 	local function scan(d: Instance)
 		if d:IsA("BasePart") and d:GetAttribute("FishUpBase") and not signs[d] then
@@ -82,6 +222,10 @@ function FishUp.init(Sim)
 		map.DescendantAdded:Connect(scan)
 	end)
 
+	player:GetAttributeChangedSignal("Training"):Connect(function()
+		if player:GetAttribute("Training") then startTraining() else stopTraining() end
+	end)
+
 	-- rep pulse: strength went up while training on my station
 	local last = nil
 	Data.Changed:Connect(function(key)
@@ -91,6 +235,7 @@ function FishUp.init(Sim)
 			for _, s in signs do
 				if s.base == player:GetAttribute("Base") then s.pulse = 1 end
 			end
+			if training.on then onRep(now - last) end
 		end
 		last = now
 	end)

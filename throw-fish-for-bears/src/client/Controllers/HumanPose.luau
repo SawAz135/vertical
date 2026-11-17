@@ -227,23 +227,32 @@ function P.CarryBear(o, t, now)
 	return o
 end
 
--- training reps: squat with the fish at the chest, drive up and press it overhead
+-- training reps, keyframed like a real lift (one rep = E.Strength.repTime):
+-- fish at the chest -> deep anticipation squat -> EXPLOSIVE drive + press overhead
+-- (overshoot, little hop) -> trembling lock-out hold -> controlled lower
 function P.Lift(o, t, now)
-	local rep = (t % E.Strength.repTime) / E.Strength.repTime
-	local press = Easing.sineInOut(if rep < 0.5 then rep * 2 else (1 - rep) * 2)
-	local a = 1.35 + press * 1.75
-	o.RS = V3(a, 0, -0.2 + press * 0.3)
-	o.LS = V3(a, 0, -0.2 + press * 0.3)
-	o.RE = V3(1.3 - press * 1.0, 0, 0)
-	o.LE = V3(1.3 - press * 1.0, 0, 0)
-	o.W = V3(-0.08 + press * 0.14, 0, 0)
-	o.N = V3(press * 0.25, 0, 0)
-	local squat = 1 - press
-	o.RH = V3(0.55 * squat, 0, 0.08)
-	o.LH = V3(0.55 * squat, 0, -0.08)
-	o.RK = V3(-1.0 * squat, 0, 0)
-	o.LK = V3(-1.0 * squat, 0, 0)
-	o.P = V3(-0.28 * squat, 0, 0)
+	local T = E.Strength.repTime
+	local r = (t % T) / T * 1.25 -- keyframes authored for a 1.25 s rep
+	local drive = Easing.expoOut
+	local arms = kf(r, { { 0, 1.35 }, { 0.3, 1.25 }, { 0.46, 3.25, drive }, { 0.56, 3.05 }, { 0.82, 3.1 }, { 1.08, 1.4, Easing.sineInOut }, { 1.25, 1.35 } })
+	local elbow = kf(r, { { 0, 1.4 }, { 0.3, 1.55 }, { 0.46, 0.05, drive }, { 0.82, 0.12 }, { 1.08, 1.35, Easing.sineInOut }, { 1.25, 1.4 } })
+	local squat = kf(r, { { 0, 0.05 }, { 0.3, 1, Easing.sineOut }, { 0.42, 0, drive }, { 1.25, 0.05 } })
+	local hold = if r > 0.5 and r < 0.84 then 1 else 0
+	local tremble = sin(now * 42) * 0.045 * hold
+	o.RS = V3(arms + tremble, 0, -0.18 + 0.26 * (arms - 1.25) / 2)
+	o.LS = V3(arms - tremble, 0, -0.18 + 0.26 * (arms - 1.25) / 2)
+	o.RE = V3(elbow, 0, 0)
+	o.LE = V3(elbow, 0, 0)
+	-- waist: lean in the squat, proud arch at the top
+	o.W = V3(kf(r, { { 0, 0 }, { 0.3, -0.16 }, { 0.46, 0.16, drive }, { 0.82, 0.12 }, { 1.08, 0 }, { 1.25, 0 } }), 0, sin(now * 3) * 0.03)
+	-- head: looks down at the fish, then up at it overhead
+	o.N = V3(kf(r, { { 0, -0.1 }, { 0.3, -0.2 }, { 0.46, 0.38, drive }, { 0.82, 0.3 }, { 1.08, -0.05 }, { 1.25, -0.1 } }), 0, 0)
+	o.RH = V3(0.62 * squat, 0, 0.1)
+	o.LH = V3(0.62 * squat, 0, -0.1)
+	o.RK = V3(-1.15 * squat, 0, 0)
+	o.LK = V3(-1.15 * squat, 0, 0)
+	-- pelvis: sink, then a tiny hop on the explosive drive
+	o.P = V3(-0.3 * squat + kf(r, { { 0, 0 }, { 0.4, 0 }, { 0.47, 0.08, drive }, { 0.62, 0 }, { 1.25, 0 } }), 0, 0)
 	return o
 end
 
