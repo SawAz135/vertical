@@ -347,6 +347,9 @@ function restoreTeeth(rv)
 	rv.teeth = nil
 end
 
+-- depth of field is far too heavy on phones for these long shots: disabled in the capture
+local function noDof(_a: any?, _b: any?) end
+
 local function eatSequence(d)
 	local c = current
 	if not c then return end
@@ -360,22 +363,20 @@ local function eatSequence(d)
 	-- the TOSS is played locally on a copy of the fish (smooth, frame-exact): the server fish
 	-- (welded in the mouth) is hidden for us
 	local toss = nil -- { model, start, apex, spin }
-	local function tossPos(now: number, mouth: Vector3): Vector3?
+	local function tossPos(now: number, mouth: Vector3, look: Vector3, sc: number): Vector3?
 		if not toss then return nil end
 		if now < tApex then
 			local k = Easing.quadOut(math.clamp((now - tPick) / (tApex - tPick), 0, 1))
 			return toss.start:Lerp(toss.apex, k)
 		end
-		-- the slow-motion fall: gentle at first, then it drops into the jaws
+		-- falls back down to a point IN FRONT of the open jaws (on the mouth's axis), then
+		-- straight into the mouth: so the camera (the fish's eyes) always faces the opening
 		local k = math.clamp((now - tApex) / (tChomp - tApex), 0, 1)
-		return toss.apex:Lerp(mouth + Vector3.new(0, 0.15, 0), k ^ 1.7)
-	end
-	local fired = {}
-	local function once(key, fn)
-		if not fired[key] then
-			fired[key] = true
-			fn()
+		local front = mouth + look * 3.4 * sc
+		if k < 0.6 then
+			return toss.apex:Lerp(front, Easing.sineInOut(k / 0.6))
 		end
+		return front:Lerp(mouth + look * 0.2 * sc, Easing.quadIn((k - 0.6) / 0.4))
 	end
 	local ground = fishPosOf(c) + Vector3.new(0, 0.7, 0)
 	local freezeUntil, lastCF, lastFov = 0, nil, 60
@@ -427,9 +428,9 @@ local function eatSequence(d)
 		if now < tl.eat then
 			-- S1: low 3/4 front, whole silhouette, slow menacing push-in
 			local k = Easing.sineInOut(math.clamp((now - tl.sniff) / math.max(0.1, tl.eat - tl.sniff), 0, 1))
-			local eye = ground + baseFwd * bl * (1.35 - 0.25 * k) + baseSide * bl * (0.95 - 0.2 * k) + UP * (0.2 + 0.3 * k) * sc
+			local eye = ground + baseFwd * (bl * 1.5 + 3 * sc) * (1 - 0.12 * k) + baseSide * (bl * 1.0 + 2 * sc) + UP * (0.4 + 0.4 * k) * sc
 			cf = CFrame.lookAt(eye + tremble, body:Lerp(h.Position, 0.45) + UP * 0.2 * sc)
-			fov = 64 - 6 * k
+			fov = 60
 		elseif now < tl.eat + G.pickupAt + 0.08 then
 			-- S2: the dive. closer and lower, more frontal: gaping jaws coming at us, body behind
 			local k = Easing.cubicOut(math.clamp((now - tl.eat) / (G.pickupAt + 0.08), 0, 1))
@@ -439,100 +440,97 @@ local function eatSequence(d)
 				Cine.motion(14)
 				Sound.play("Growl", { at = mouth, pitch = bearPitch(c.bear) * 0.7, volume = 1.4 })
 			end)
-			local eye = ground + baseFwd * bl * (1.0 - 0.15 * k) + baseSide * bl * 0.42 + UP * 0.15 * sc
+			local eye = ground + baseFwd * (bl * 1.2 + 2.5 * sc) + baseSide * (bl * 0.6 + 1.5 * sc) + UP * 0.4 * sc
 			cf = CFrame.lookAt(eye + tremble * 1.5, mouth:Lerp(body, 0.4))
-			fov = 70 - 4 * k
+			fov = 64
 		elseif now < tPov then
-			-- S3: THE TOSS. wide low angle: the bear whips its head up and flings the fish high
-			-- into the sky; the frame holds the rearing black bear AND the fish going up
+			-- S3: THE TOSS. WIDE low angle: the bear whips its head up and flings the fish high;
+			-- the frame holds the whole rearing bear AND the fish going up
 			once("toss", function()
-				CameraController.shake(1.2, 0.3)
-				CameraController.punch(8)
-				Cine.motion(14)
+				CameraController.shake(0.8, 0.25)
+				Cine.motion(8)
 				Sound.play("Throw", { pitch = 0.8, volume = 0.9 })
 				Sound.play("Growl", { at = mouth, pitch = bearPitch(c.bear) * 0.75, volume = 1.3 })
 				if c.fish and c.fish.Parent then
+					c.fish.Archivable = true
 					local copy = c.fish:Clone()
-					for _, dd in copy:GetDescendants() do
-						if dd:IsA("WeldConstraint") or dd:IsA("Weld") then
-							dd:Destroy()
-						elseif dd:IsA("BasePart") then
-							dd.Anchored = true
-							dd.CanCollide = false
-							dd.CanQuery = false
-							local tr = dd:GetAttribute("TFBTr")
-							if tr ~= nil then dd.Transparency = tr dd:SetAttribute("TFBTr", nil) end
-							dd.LocalTransparencyModifier = 0
+					if copy then
+						for _, dd in copy:GetDescendants() do
+							if dd:IsA("WeldConstraint") or dd:IsA("Weld") then
+								dd:Destroy()
+							elseif dd:IsA("BasePart") then
+								dd.Anchored = true
+								dd.CanCollide = false
+								dd.CanQuery = false
+								local tr = dd:GetAttribute("TFBTr")
+								if tr ~= nil then dd.Transparency = tr dd:SetAttribute("TFBTr", nil) end
+								dd.LocalTransparencyModifier = 0
+							end
 						end
+						copy:SetAttribute("Anim", "Thrown")
+						copy:SetAttribute("FlyPanic", 1)
+						copy.Parent = Fx.folder
+						setPartsHidden(bearParts(c.fish), true)
+						toss = { model = copy, start = mouth, apex = mouth + UP * (4 + 2.5 * sc) + baseFwd * 1.2 * sc, spin = math.random() * 6 }
+						c.tossCopy = copy
 					end
-					copy:SetAttribute("Anim", "Thrown")
-					copy:SetAttribute("FlyPanic", 1)
-					copy.Parent = Fx.folder
-					setPartsHidden(bearParts(c.fish), true)
-					toss = { model = copy, start = mouth, apex = mouth + UP * (5 + 3 * sc) + baseFwd * 0.4 * sc, spin = math.random() * 6 }
-					c.tossCopy = copy
+				end
+				if not toss then
+					-- no fish to copy: still fly the camera along the same path
+					toss = { start = mouth, apex = mouth + UP * (4 + 2.5 * sc) + baseFwd * 1.2 * sc, spin = 0 }
 				end
 			end)
-			local fp = tossPos(now, mouth) or mouth
-			if toss and toss.model.Parent then
+			local look = h.CFrame.LookVector
+			local fp = tossPos(now, mouth, look, sc) or mouth
+			if toss and toss.model and toss.model.Parent then
 				local w = now - tPick
 				toss.model:PivotTo(CFrame.new(fp) * CFrame.Angles(toss.spin + w * 7, w * 4, w * 9))
 			end
 			local k = Easing.sineInOut(math.clamp((now - tPick) / (tPov - tPick), 0, 1))
-			local eye = feet + baseFwd * bl * (1.35 - 0.1 * k) + baseSide * bl * (0.95 - 0.15 * k) + UP * (0.3 + 0.5 * k) * sc
-			cf = CFrame.lookAt(eye + tremble, mouth:Lerp(fp, 0.5):Lerp(body, 0.15))
-			fov = 70 + 4 * k
+			local eye = feet + baseFwd * (bl * 1.5 + 4 * sc) + baseSide * (bl * 1.1 + 3 * sc) + UP * (0.8 + 1.2 * k) * sc
+			cf = CFrame.lookAt(eye + tremble, mouth:Lerp(fp, 0.45):Lerp(body, 0.2))
+			fov = 62
 		else
-			-- S4: THE FISH'S EYES, SLOW MOTION. We fall from the sky straight into the open jaws:
-			-- the world turns slowly (the fish spins), the lens stretches (dolly-zoom vertigo),
-			-- the fangs grow huge, we pass BETWEEN the teeth, the tongue, the dark... CHOMP.
+			-- S4: THE FISH'S EYES, SLOW MOTION. We fall back down IN FRONT of the face and dive
+			-- straight into the wide open jaws: fangs top and bottom, tongue, red mouth... CHOMP.
 			once("pov", function()
-				Cine.motion(22)
-				CameraController.punch(-10)
-				CameraController.shake(0.6, 0.25)
+				Cine.motion(10)
+				CameraController.shake(0.4, 0.2)
 				Sound.play("Throw", { pitch = 0.32, volume = 1 }) -- stretched slow-motion whoosh
 				Sound.play("Heartbeat", { pitch = 0.55, volume = 1 })
-				Cine.grade({ tint = Color3.fromRGB(235, 225, 255), saturation = -0.45, contrast = 0.4, brightness = 0.02 }, 0.2)
-				if toss and toss.model.Parent then
+				Cine.grade({ tint = Color3.fromRGB(240, 232, 255), saturation = -0.2, contrast = 0.3, brightness = 0.05 }, 0.2)
+				if toss and toss.model and toss.model.Parent then
 					for _, dd in toss.model:GetDescendants() do
 						if dd:IsA("BasePart") then dd.LocalTransparencyModifier = 1 end -- we ARE the fish
 					end
 				end
 			end)
-			-- slow heartbeat thumps through the slow motion
 			c.slowBeat = c.slowBeat or 0
 			if os.clock() - c.slowBeat > 0.55 and now < tChomp then
 				c.slowBeat = os.clock()
 				Sound.play("Heartbeat", { pitch = 0.5, volume = 0.9 })
-				CameraController.shake(0.25, 0.15)
 			end
-			local fp = tossPos(now, mouth) or mouth
-			if toss and toss.model.Parent then toss.model:PivotTo(CFrame.new(fp)) end
+			local look = h.CFrame.LookVector
+			local fp = tossPos(now, mouth, look, sc) or (mouth + look * 3 * sc)
+			if toss and toss.model and toss.model.Parent then toss.model:PivotTo(CFrame.new(fp)) end
 			local k = math.clamp((now - tPov) / math.max(0.1, tChomp - tPov), 0, 1)
-			-- last stretch: through the fangs, INTO the mouth
-			local enter = Easing.cubicIn(math.clamp((k - 0.82) / 0.18, 0, 1))
-			local dirIn = mouth - fp
-			dirIn = if dirIn.Magnitude > 0.05 then dirIn.Unit else -UP
-			local camPos = fp:Lerp(mouth + dirIn * 0.6 * sc, enter)
-			-- the fish spins slowly as it falls: the whole world rolls
-			local roll = k * 2.4 + math.sin(k * 7) * 0.15
-			cf = CFrame.lookAt(camPos + tremble * 0.3, mouth + dirIn * 2 * sc) * CFrame.Angles(0, 0, roll)
-			-- dolly zoom: we get closer while the lens WIDENS: vertigo, the jaws swallow the screen
-			fov = 42 + 58 * k * k
-			Cine.dof((mouth - camPos).Magnitude, 0.55)
-			Cine.dark(0.42 + 0.5 * enter)
+			-- look slightly UNDER the mouth point: the jaw opens downward, so the whole opening
+			-- (upper fangs, tongue, lower fangs) sits in the middle of the frame
+			local aim = mouth - h.CFrame.UpVector * 0.25 * sc
+			local roll = math.sin(k * 3) * 0.2
+			cf = CFrame.lookAt(fp + tremble * 0.2, aim) * CFrame.Angles(0, 0, roll)
+			fov = 66 + 8 * k
+			Cine.dark(0.3 + 0.4 * math.clamp((k - 0.85) / 0.15, 0, 1))
 			Cine.setLids(1)
 			if now >= tChomp then
 				once("chomp", function()
 					Sound.play("Chomp", { at = mouth, pitch = bearPitch(c.bear) * 0.85, volume = 1.5 })
 					Sound.play("Growl", { pitch = bearPitch(c.bear) * 0.6, volume = 0.8 })
-					CameraController.shake(2.0, 0.5)
-					CameraController.punch(-14)
+					CameraController.shake(1.6, 0.45)
 					freezeUntil = os.clock() + 0.12 -- hit-stop on the bite
-					Cine.dof(nil, 0)
 					Cine.blackout(true, 0.04)
 					Cine.eyelids(false)
-					if toss and toss.model.Parent then toss.model:Destroy() end
+					if toss and toss.model and toss.model.Parent then toss.model:Destroy() end
 				end)
 			end
 		end
@@ -544,7 +542,7 @@ local function eatSequence(d)
 		if pp.Y < ground.Y - 0.5 then cf = CFrame.lookAt(Vector3.new(pp.X, ground.Y - 0.5, pp.Z), pp + cf.LookVector) end
 		lastCF, lastFov = cf, fov
 		return cf, fov
-	end, tl.total + 1, { smooth = 10, blendIn = 0.15 })
+	end, tl.total + 1, { smooth = 7, blendIn = 0.2 })
 end
 
 ------------------------------------------------------------------------------------------
@@ -643,6 +641,7 @@ local function revealPartNow(rv, part: BasePart)
 end
 
 local function revealSequence(d)
+	Cine.dof(nil, 0)
 	local c = current
 	if not c then return end
 	local G = GameConfig.Capture
@@ -730,18 +729,18 @@ local function revealSequence(d)
 			if st < 1.15 then
 				-- SLAM + ROAR: crash-zoom to a low hero angle under the face, looking UP as it rears
 				local k = Easing.expoOut(math.clamp(st / 0.3, 0, 1))
-				local p = face + fwd * (9.5 - 4 * k) * sc + side * 1.8 * sc + UP * (-1.6 * k) * sc
+				local p = face + fwd * (bl * 1.3 + (6 - 2.5 * k) * sc) + side * 2.2 * sc + UP * (-1.2 * k) * sc
 				p = Vector3.new(p.X, math.max(p.Y, groundY + 0.6), p.Z)
-				Cine.dof((p - face).Magnitude, 0.55)
-				return CFrame.lookAt(p, face + UP * 0.3 * sc), 72 - 30 * k
+				noDof((p - face).Magnitude, 0.55)
+				return CFrame.lookAt(p, face:Lerp(center, 0.3) + UP * 0.3 * sc), 70 - 12 * k
 			end
 			-- heroic orbit: slow, low, the bear proud in the middle, name on screen
 			local k = Easing.sineInOut(math.clamp((st - 1.15) / 2.2, 0, 1))
 			local ang = -0.35 + k * 1.1
 			local dirv = CFrame.Angles(0, ang, 0):VectorToWorldSpace(fwd)
-			local p = center + dirv * bl * (1.25 + 0.25 * k) + UP * (0.2 + 1.4 * k) * sc
+			local p = center + dirv * (bl * 1.5 + 3 * sc) + UP * (0.6 + 1.6 * k) * sc
 			p = Vector3.new(p.X, math.max(p.Y, groundY + 0.6), p.Z)
-			Cine.dof((p - center).Magnitude, 0.3)
+			noDof((p - center).Magnitude, 0.3)
 			return CFrame.lookAt(p, center:Lerp(face, 0.45)), 50 + 4 * k
 		end
 		local pT = math.clamp(t / T, 0, 1)
@@ -751,24 +750,24 @@ local function revealSequence(d)
 			local k = pT / 0.22
 			local paw = rr.Position + fwd * bl * 0.3
 			paw = Vector3.new(paw.X, minY + span * 0.12, paw.Z)
-			local p = Vector3.new(paw.X, groundY + 0.5 * sc, paw.Z) + fwd * bl * 0.55 + side * bl * (0.55 - 0.9 * k)
-			Cine.dof((p - paw).Magnitude, 0.75)
-			return CFrame.lookAt(p, paw), 40 + 4 * k
+			local p = Vector3.new(paw.X, groundY + 0.9 * sc, paw.Z) + fwd * (bl * 0.9 + 2 * sc) + side * (bl * 0.8 + 1.5 * sc) * (1 - 1.6 * k)
+			noDof((p - paw).Magnitude, 0.75)
+			return CFrame.lookAt(p, paw:Lerp(center, 0.25)), 58
 		elseif pT < 0.45 then
 			-- 2) FLANK tracking
 			cut(2)
 			local k = (pT - 0.22) / 0.23
 			local yb = minY + span * (0.25 + 0.3 * k)
-			local p = Vector3.new(center.X, yb, center.Z) + side * bl * 1.05 + fwd * bl * (-0.55 + 1.0 * k)
+			local p = Vector3.new(center.X, yb, center.Z) + side * (bl * 1.4 + 2 * sc) + fwd * bl * (-0.55 + 1.0 * k)
 			local look = Vector3.new(center.X, yb, center.Z) + fwd * bl * (-0.35 + 0.8 * k)
-			Cine.dof((p - look).Magnitude, 0.5)
-			return CFrame.lookAt(p, look), 50
+			noDof((p - look).Magnitude, 0.5)
+			return CFrame.lookAt(p, look), 58
 		elseif pT < 0.7 then
 			-- 3) OVER THE SHOULDER crane
 			cut(3)
 			local k = (pT - 0.45) / 0.25
-			local p = center - fwd * bl * (0.95 - 0.2 * k) - side * bl * 0.45 + UP * (span * 0.9 + (1.5 + 3 * k) * sc)
-			Cine.dof((p - face).Magnitude, 0.4)
+			local p = center - fwd * (bl * 1.2 + 2 * sc) - side * bl * 0.5 + UP * (span * 1.0 + (2.5 + 3 * k) * sc)
+			noDof((p - face).Magnitude, 0.4)
 			return CFrame.lookAt(p, face:Lerp(center, 0.3)), 56 - 4 * k
 		end
 		-- 4) SPIRAL around the head, accelerating, crash zoom
@@ -776,11 +775,10 @@ local function revealSequence(d)
 		local k = (pT - 0.7) / 0.3
 		spin += dt * (1.2 + k * k * 7)
 		local dirv = CFrame.Angles(0, spin, 0):VectorToWorldSpace(fwd)
-		local p = face + dirv * bl * (1.0 - 0.45 * k) + UP * (-span * 0.35 + span * 0.15 * k)
+		local p = face + dirv * (bl * 1.3 + 2.5 * sc) * (1 - 0.3 * k) + UP * (-span * 0.25 + span * 0.15 * k)
 		p = Vector3.new(p.X, math.max(p.Y, groundY + 0.6), p.Z)
-		Cine.dof((p - face).Magnitude, 0.45 + 0.3 * k)
-		Cine.motion(2 + k * 8)
-		return CFrame.lookAt(p, face), 62 - 26 * k * k
+		noDof((p - face).Magnitude, 0.45 + 0.3 * k)
+		return CFrame.lookAt(p, face:Lerp(center, 0.2)), 62 - 10 * k * k
 	end, d.duration + 0.8, { smooth = 8, blendIn = 0.2 })
 	task.spawn(function()
 		local rng = Random.new()
