@@ -63,6 +63,21 @@ function CaptureService.roll(fish, landing: Vector3, zone: number)
 	local luck = CaptureService.luckFor(fish, landing, zone)
 	local species = Rng.pickMap(rand, CaptureService.speciesWeights(zone))
 	local rarity = Rng.pickMap(rand, RarityConfig.weights(luck, "bearOdds"))
+	-- luck bonus: a second roll with boosted luck, the better rarity wins
+	local baseRarity, mult = rarity, nil
+	local roll = rand:NextNumber()
+	local acc = 0
+	for _, b in G.luckBonus do
+		acc += b.chance
+		if roll < acc then
+			local boosted = Rng.pickMap(rand, RarityConfig.weights(luck * b.mult, "bearOdds"))
+			if RarityConfig.index(boosted) > RarityConfig.index(rarity) then
+				rarity = boosted
+				mult = b.mult
+			end
+			break
+		end
+	end
 	if rarity == "Impossible" then
 		species = "CosmicBear" -- the one and only Impossible bear
 	end
@@ -71,7 +86,7 @@ function CaptureService.roll(fish, landing: Vector3, zone: number)
 	local spec = BearConfig.get(species)
 	local fishRatio = math.clamp(fish.w / FishConfig.get(fish.s).weight.avg, 0, 3)
 	local w = Rng.skewed(rand, spec.weight.min, spec.weight.max, 2.4 / (1 + fishRatio * 0.5))
-	return { s = species, r = rarity, v = variant, w = math.floor(w * 10 + 0.5) / 10 }, luck
+	return { s = species, r = rarity, v = variant, w = math.floor(w * 10 + 0.5) / 10, baseR = baseRarity, mult = mult }, luck
 end
 
 local function cleanup(c)
@@ -161,6 +176,13 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 			CaptureService.abort(player, "state")
 			return
 		end
+		-- 3a) RARITY REVEAL: the bear stands over the fish while the roulette spins
+		--     (base rarity first, then the luck bonus climbs it tier by tier)
+		local steps = if outcome.mult then RarityConfig.index(outcome.r) - RarityConfig.index(outcome.baseR) else 0
+		local revealDur = G.revealSpin + (if outcome.mult then G.revealLuck + steps * G.revealStep else 0) + G.revealHold
+		agent:setAnim("Look")
+		fx(player, "Reveal", { start = workspace:GetServerTimeNow(), duration = revealDur, base = outcome.baseR, final = outcome.r, mult = outcome.mult, bear = agent.model })
+		if not wait(c, revealDur) then return end
 		-- 3) eating cinematic (timeline shared with the client camera)
 		local tl = stagesTimeline()
 		local start = workspace:GetServerTimeNow()

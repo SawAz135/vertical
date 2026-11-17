@@ -25,6 +25,8 @@ local Sound = require(script.Parent.Sound)
 local Actions = require(script.Parent.Actions)
 local CameraController = require(script.Parent.CameraController)
 local Cine = require(script.Parent.CinematicFx)
+local TweenService = game:GetService("TweenService")
+local Sim = require(script.Parent.Parent.UI.Sim)
 local Data = require(script.Parent.Data)
 local Theme = require(script.Parent.Parent.UI.Theme)
 
@@ -57,38 +59,282 @@ local function bearPitch(bear: Model): number
 	return Sound.BearPitch[bear:GetAttribute("Species") or ""] or 1
 end
 
--- shots --------------------------------------------------------------------------
-local function establishing()
-	local c = current
-	-- the bushes of the den shake: something is coming...
-	local rustle = c.den + Vector3.new(0, 2.5, 0)
-	for i = 0, 4 do
-		task.delay(i * 0.12, function()
-			Fx.blocks(rustle, Color3.fromRGB(90, 180, 60), 5, 9, 0.35, { life = 0.9, up = 1.4, spread = 2.2, gravity = 25,
-				colors = { Color3.fromRGB(90, 180, 60), Color3.fromRGB(130, 210, 80), Color3.fromRGB(70, 140, 45) } })
-		end)
+-- FISH POV + bear reveal ---------------------------------------------------------------
+-- The bear arrives as a black silhouette; its body parts get their colours back one by
+-- one as it comes closer (legs, tail, body, head, jaw, ears). Rarity effects (aura,
+-- lights, rainbow) stay hidden until the rarity roulette lands.
+local REVEAL_ORDER = { "LegFLBone", "LegFRBone", "LegBLBone", "LegBRBone", "TailBone", "Torso", "Head", "JawBone", "EarBoneL", "EarBoneR" }
+local SHADOW = Color3.fromRGB(12, 10, 16)
+
+local function prepareReveal(bear: Model)
+	local rv = { groups = {}, saved = {}, fx = {}, idx = 0, bear = bear }
+	for _, d in bear:GetDescendants() do
+		if d:IsA("BasePart") and d.Transparency < 1 then
+			local w = d:FindFirstChildOfClass("WeldConstraint")
+			local bone = if w and w.Part0 then w.Part0.Name else "Torso"
+			if not table.find(REVEAL_ORDER, bone) then bone = "Torso" end
+			rv.groups[bone] = rv.groups[bone] or {}
+			table.insert(rv.groups[bone], d)
+			rv.saved[d] = { d.Color, d.Material }
+			d.Color = SHADOW
+			d.Material = Enum.Material.SmoothPlastic
+		elseif d:IsA("ParticleEmitter") or d:IsA("PointLight") or d:IsA("Sparkles") then
+			rv.fx[d] = d.Enabled
+			d.Enabled = false
+		end
 	end
-	Sound.play("Sniff", { at = c.den, pitch = 0.7 })
-	local tier = rarityOf(c.bear)
-	if tier.index >= 4 then
-		-- rare bear: coloured glow pulses on the screen edges + sparkles in the den
-		Cine.rarityTint(tier.textColor or tier.color, 0.35 + tier.index * 0.04)
-		Fx.sparkle(rustle, tier.color, 10 + tier.index * 3, 14)
-	end
-	CameraController.run(function(t)
-		local land = c.landing
-		local mid = (land + c.den) / 2
-		local side = (c.den - land)
-		local perp = Vector3.new(-side.Z, 0, side.X).Unit
-		-- crane shot: starts high above the fish, sweeps down and around toward the den
-		local k = Easing.cubicInOut(math.clamp(t / 1.6, 0, 1))
-		local orbit = CFrame.Angles(0, -0.5 + k * 0.5 + math.sin(t * 0.3) * 0.08, 0):VectorToWorldSpace(perp)
-		local p = mid + orbit * (side.Magnitude * 0.55 + 14 + (1 - k) * 8) + Vector3.new(0, 9 + (1 - k) * 16, 0)
-		local look = land:Lerp(c.den, 0.25 + k * 0.45) + Vector3.new(0, 1.5, 0)
-		return CFrame.lookAt(p, look), 60 - 6 * k
-	end, 60, { smooth = 5, blendIn = 0.6 })
+	bear:SetAttribute("Silhouette", true)
+	return rv
 end
 
+local function revealGroup(rv, bone: string, loud: boolean)
+	local parts = rv.groups[bone]
+	if not parts then return end
+	rv.groups[bone] = nil
+	local at
+	for _, part in parts do
+		local sv = rv.saved[part]
+		if sv and part.Parent then
+			part.Material = sv[2]
+			part.Color = Color3.new(1, 1, 1)
+			TweenService:Create(part, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { Color = sv[1] }):Play()
+			at = at or part.Position
+		end
+	end
+	if at and loud then
+		Fx.blocks(at, Color3.new(1, 1, 1), 5, 7, 0.22, { life = 0.5, up = 1, spread = 2 })
+		Sound.play("Tick", { pitch = 0.8 + rv.idx * 0.08, volume = 0.6 })
+	end
+end
+
+local function revealNext(rv)
+	rv.idx += 1
+	local bone = REVEAL_ORDER[rv.idx]
+	if bone then revealGroup(rv, bone, true) end
+end
+
+local function revealAll(rv)
+	for _, bone in REVEAL_ORDER do revealGroup(rv, bone, false) end
+	for bone in rv.groups do revealGroup(rv, bone, false) end
+end
+
+local function revealAura(rv)
+	for inst, en in rv.fx do
+		if inst.Parent then inst.Enabled = en end
+	end
+	rv.fx = {}
+	if rv.bear then rv.bear:SetAttribute("Silhouette", nil) end
+end
+
+-- the fish's eyes: lying on the ground, looking at what comes out of the forest
+local function fishPOV()
+	local c = current
+	c.pov = true
+	c.rv = prepareReveal(c.bear)
+	-- hide the fish itself (the camera is in its head)
+	if c.fish then
+		for _, d in c.fish:GetDescendants() do
+			if d:IsA("BasePart") then d.LocalTransparencyModifier = 1 end
+		end
+	end
+	Cine.letterbox(false)
+	Cine.eyelids(true)
+	Cine.setLids(0)
+	local startDist = math.max(8, (Vector3.new(c.den.X, 0, c.den.Z) - Vector3.new(c.landing.X, 0, c.landing.Z)).Magnitude)
+	local nextBlink, blinkT, beatT = 0.25, 0.3, 0.6
+	CameraController.run(function(t, dt)
+		local r = rootOf(c.bear)
+		local h = headOf(c.bear)
+		local eye = c.landing + Vector3.new(0, 0.85, 0)
+		local target = if h then h.Position else c.den + Vector3.new(0, 3, 0)
+		local dist = if r then (Vector3.new(r.Position.X, 0, r.Position.Z) - Vector3.new(c.landing.X, 0, c.landing.Z)).Magnitude else startDist
+		local p = 1 - math.clamp((dist - 4) / startDist, 0, 1) -- 0 far .. 1 right here
+		-- limbs reveal as it gets closer
+		local want = math.floor(p * (#REVEAL_ORDER + 1))
+		while c.rv.idx < want and c.rv.idx < #REVEAL_ORDER do revealNext(c.rv) end
+		-- panic: red edges, blur, heartbeat, shake
+		local stress = math.clamp(0.12 + p * 0.95, 0, 1)
+		Cine.stress(stress * 0.9)
+		Cine.setBlur(1.5 + stress * 5)
+		beatT -= dt
+		if beatT <= 0 then
+			beatT = 1.15 - stress * 0.8
+			Sound.play("Heartbeat", { pitch = 0.85 + stress * 0.35 })
+			task.delay(0.17, function() Sound.play("Heartbeat", { volume = 0.3, pitch = 0.95 + stress * 0.35 }) end)
+			CameraController.shake(0.04 + stress * 0.22, 0.12)
+		end
+		-- eyelids: opening at the start, squinting with fear, blinking faster and faster
+		local open = math.min(1, t / 0.6) * (1 - stress * 0.2)
+		nextBlink -= dt
+		if nextBlink <= 0 then
+			blinkT = 0.2
+			nextBlink = math.max(0.22, (2.7 - stress * 2.4)) * (0.7 + math.random() * 0.6)
+		end
+		if blinkT > 0 then
+			blinkT -= dt
+			open *= math.abs((blinkT / 0.2) * 2 - 1)
+		end
+		Cine.setLids(open)
+		-- fish eye: low, breathing sway, the view tunnels in as the bear gets close
+		local sway = Vector3.new(math.sin(t * 2.1) * 0.08, math.sin(t * 3.3) * 0.06, 0)
+		return CFrame.lookAt(eye + sway, target + Vector3.new(0, -0.2, 0)), 80 - p * 22
+	end, 60, { smooth = 8, blendIn = 0.25 })
+end
+
+-- RARITY ROULETTE (stud GUI): spins through the tiers, slows down and lands on the
+-- rolled rarity; a LUCK xN bonus then climbs it tier by tier. Timed on the server.
+local function buildRoulette()
+	local g = Sim.new("ScreenGui", { Name = "TFBRoulette", ResetOnSpawn = false, DisplayOrder = 6, IgnoreGuiInset = true,
+		ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
+	local root = Sim.root(g, "Roulette", Vector2.new(520, 190), UDim2.new(0.5, 0, 0.14, 0), Vector2.new(0.5, 0))
+	local inner = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, root)
+	local pop = Sim.new("UIScale", { Scale = 0 }, inner)
+	TweenService:Create(pop, TweenInfo.new(0.4, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	local tab = Sim.panel(inner, { Size = UDim2.fromOffset(200, 36), Position = UDim2.fromOffset(160, 0), Gradient = Sim.G.orange, ZIndex = 6 })
+	Sim.text(tab, "RARITY", { Size = UDim2.new(1, -12, 0.8, 0), Max = 24, ZIndex = 7 })
+	local window = Sim.panel(inner, { Size = UDim2.fromOffset(500, 110), Position = UDim2.fromOffset(10, 28), Gradient = Sim.RARITY_CARD.Common, Stroke = 5, ZIndex = 4, Clip = true })
+	local grad = window:FindFirstChildOfClass("UIGradient")
+	local stroke = window:FindFirstChildOfClass("UIStroke")
+	Sim.bands(window, 0.6, 5)
+	local label = Sim.text(window, "...", { Size = UDim2.new(1, -90, 0.8, 0), Max = 64, Stroke = 5, ZIndex = 8 })
+	local ls = Sim.new("UIScale", {}, label)
+	for _, side in { -1, 1 } do
+		Sim.text(window, if side < 0 then "▶" else "◀", { Size = UDim2.fromOffset(40, 50), Position = UDim2.new(0.5, side * 225, 0.5, 0), Max = 40, Stroke = 3, ZIndex = 8 })
+	end
+	local stamp = Sim.text(inner, "", { Size = UDim2.fromOffset(460, 60), Position = UDim2.fromOffset(260, 168), Max = 52, Stroke = 5, ZIndex = 9,
+		Gradient = { Color3.fromRGB(255, 255, 200), Color3.fromRGB(255, 190, 20) } })
+	local ss = Sim.new("UIScale", { Scale = 0 }, stamp)
+	local ui = {}
+	function ui.show(id: string, big: boolean?)
+		local tier = RarityConfig.get(id)
+		label.Text = tier.name:upper()
+		label.TextColor3 = if id == "Secret" then Color3.fromRGB(30, 30, 36) else Color3.new(1, 1, 1)
+		local pair = Sim.RARITY_CARD[id] or Sim.RARITY_CARD.Common
+		if grad then grad.Color = ColorSequence.new(pair[1], pair[2]) end
+		if stroke then stroke.Color = if big then (tier.textColor or tier.color) else Color3.new(0, 0, 0) end
+		ls.Scale = if big then 1.5 else 1.15
+		TweenService:Create(ls, TweenInfo.new(if big then 0.35 else 0.12, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	end
+	function ui.stamp(text: string)
+		stamp.Text = text
+		ss.Scale = 3
+		TweenService:Create(ss, TweenInfo.new(0.3, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	end
+	function ui.shake(t: number)
+		inner.Position = UDim2.fromOffset(math.sin(t * 60) * 4, math.cos(t * 47) * 3)
+	end
+	function ui.close()
+		TweenService:Create(pop, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 }):Play()
+		task.delay(0.3, function() g:Destroy() end)
+	end
+	return ui
+end
+
+local function revealSequence(d)
+	local c = current
+	if not c then return end
+	local order = RarityConfig.Order
+	local finalId = d.final
+	local baseId = d.base or finalId
+	local baseIdx, finalIdx = RarityConfig.index(baseId), RarityConfig.index(finalId)
+	-- out of the fish's eyes: everything is revealed, back to the movie camera
+	Cine.eyelids(false)
+	Cine.stress(0)
+	Cine.letterbox(true)
+	if c.fish then
+		for _, dd in c.fish:GetDescendants() do
+			if dd:IsA("BasePart") then dd.LocalTransparencyModifier = 0 end
+		end
+	end
+	if c.rv then revealAll(c.rv) end
+	Cine.flash(0.5)
+	local G = GameConfig.Capture
+	local spin = G.revealSpin - 0.15
+	local ui = buildRoulette()
+	-- slow orbit around the frozen bear while the roulette spins
+	CameraController.run(function(t)
+		local r = rootOf(c.bear)
+		local h = headOf(c.bear)
+		if not r then return nil, 55 end
+		local sc = c.bear:GetAttribute("Scale") or 1
+		local fwd = r.CFrame.LookVector
+		local ang = -0.7 + t * 0.35
+		local dir = CFrame.Angles(0, ang, 0):VectorToWorldSpace(fwd)
+		local tension = math.clamp(t / spin, 0, 1)
+		local p = r.Position + dir * (12 - tension * 3) * sc + Vector3.new(0, (1.2 + tension * 1.5) * sc, 0)
+		if t < spin then ui.shake(t * tension) end
+		return CFrame.lookAt(p, (if h then h.Position else r.Position)), 58 - tension * 14
+	end, d.duration + 0.5, { smooth = 7, blendIn = 0.4 })
+	task.spawn(function()
+		-- ticks: fast at first, slowing down, landing exactly on the base rarity
+		local seq = {}
+		local n = 18
+		for i = 1, n do
+			local id = order[((i * 3 + baseIdx) % math.min(#order, baseIdx + 3)) + 1]
+			table.insert(seq, id)
+		end
+		table.insert(seq, baseId)
+		local total = 0
+		local gaps = {}
+		for i = 1, #seq do
+			local g = 0.05 + (i / #seq) ^ 2.4 * 0.42
+			gaps[i] = g
+			total += g
+		end
+		local k = spin / total
+		for i, id in seq do
+			if not c.bear.Parent then break end
+			ui.show(id, i == #seq)
+			Sound.play("Tick", { pitch = 0.9 + (i / #seq) * 0.8, volume = 0.5 })
+			if i == #seq then break end
+			task.wait(gaps[i] * k)
+		end
+		-- landed
+		local tier = RarityConfig.get(baseId)
+		CameraController.punch(-6)
+		CameraController.shake(0.3 + baseIdx * 0.08, 0.3)
+		Sound.play("Reveal" .. math.max(1, tier.reveal))
+		if baseIdx >= 3 then Cine.flash(0.35, tier.textColor or tier.color) end
+		if d.mult then
+			-- LUCK BONUS kicks in and climbs the rarity tier by tier
+			task.wait(G.revealLuck * 0.35)
+			ui.stamp(("LUCK x%d!"):format(d.mult))
+			Cine.flash(0.6, Color3.fromRGB(255, 210, 50))
+			CameraController.shake(0.8, 0.4)
+			CameraController.punch(10)
+			Sound.play("Transform")
+			task.wait(G.revealLuck * 0.65)
+			for idx = baseIdx + 1, finalIdx do
+				local id = order[idx]
+				local t2 = RarityConfig.get(id)
+				ui.show(id, true)
+				local col = t2.textColor or t2.color
+				Cine.flash(0.45, col)
+				local r = rootOf(c.bear)
+				if r then Cine.shockwave(r.Position - Vector3.new(0, r.Position.Y - 0.3, 0), col, 0.6 + idx * 0.08) end
+				CameraController.shake(0.4 + idx * 0.1, 0.3)
+				CameraController.punch(-4)
+				Sound.play("Reveal" .. math.max(1, t2.reveal))
+				task.wait(G.revealStep)
+			end
+		end
+		-- final rarity: the aura comes alive
+		local ft = RarityConfig.get(finalId)
+		local fc = ft.textColor or ft.color
+		if c.rv then revealAura(c.rv) end
+		local r = rootOf(c.bear)
+		if r then
+			Cine.shockwave(r.Position - Vector3.new(0, r.Position.Y - 0.3, 0), fc, 1 + finalIdx * 0.1)
+			Fx.sparkle(r.Position, fc, 12 + finalIdx * 4, 18)
+		end
+		if finalIdx >= 4 then Cine.rarityTint(fc, 0.4 + finalIdx * 0.04) end
+		if finalIdx >= 5 then Cine.banner(ft.name:upper() .. "!", fc, BearConfig.get(c.bear:GetAttribute("Species") or "BrownBear").name) end
+		task.wait(G.revealHold)
+		ui.close()
+	end)
+end
+
+-- shots --------------------------------------------------------------------------
 local function alertShot()
 	local c = current
 	CameraController.run(function(t)
@@ -105,8 +351,7 @@ local function alertShot()
 		return CFrame.lookAt(p, h.Position), fov
 	end, 60, { smooth = 9, blendIn = 0.35 })
 	CameraController.punch(-5)
-	local tier = rarityOf(c.bear)
-	Cine.pop(headOf(c.bear), if tier.index >= 5 then "!!" else "!", if tier.index >= 5 then tier.color else Color3.fromRGB(255, 225, 50), 130, 1.1)
+	Cine.pop(headOf(c.bear), "!", Color3.fromRGB(255, 225, 50), 130, 1.1)
 end
 
 local function runShot()
@@ -310,13 +555,19 @@ end
 local function onFx(phase: string, d)
 	if phase == "Spawned" then
 		current = { bear = d.bear, fish = d.fish, landing = d.landing, den = d.den }
-		Cine.letterbox(true)
-		establishing()
+		fishPOV()
 	elseif phase == "Alert" and current then
-		alertShot()
+		if current.pov then
+			Cine.pop(headOf(current.bear), "!", Color3.fromRGB(255, 225, 50), 130, 1.1)
+			CameraController.punch(-6)
+		else
+			alertShot()
+		end
 		Sound.play("Growl", { at = rootOf(current.bear) and rootOf(current.bear).Position, pitch = bearPitch(current.bear) })
 	elseif phase == "Run" and current then
-		runShot()
+		if not current.pov then runShot() end
+	elseif phase == "Reveal" and current then
+		revealSequence(d)
 	elseif phase == "Eat" and current then
 		eatSequence(d)
 	elseif phase == "Controlling" then
@@ -361,7 +612,9 @@ local function onFx(phase: string, d)
 			end
 		end)
 	elseif phase == "Failed" then
+		if current and current.rv then revealAll(current.rv) revealAura(current.rv) end
 		current = nil
+		Cine.eyelids(false)
 		Cine.letterbox(false)
 		stopControlling()
 		CameraController.stop()

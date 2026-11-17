@@ -257,4 +257,63 @@ function Cine.banner(text: string, color: Color3?, sub: string?)
 	end)
 end
 
+------------------------------------------------------------------------------------------
+-- FISH POV: eyelids that blink (faster with stress), red stress edges, blur
+------------------------------------------------------------------------------------------
+local lids
+function Cine.eyelids(on: boolean)
+	ensure()
+	if on and not lids then
+		lids = {}
+		for _, top in { true, false } do
+			-- wide rounded black shapes = curved eyelid edges
+			local f = Instance.new("Frame")
+			f.BackgroundColor3 = Color3.fromRGB(8, 4, 6)
+			f.BorderSizePixel = 0
+			f.Size = UDim2.new(1.6, 0, 0.6, 0)
+			f.AnchorPoint = Vector2.new(0.5, if top then 1 else 0)
+			f.Position = UDim2.fromScale(0.5, if top then 0 else 1)
+			f.ZIndex = 12
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(0.5, 0)
+			c.Parent = f
+			f.Parent = gui
+			lids[if top then "top" else "bot"] = f
+		end
+		lids.blur = Instance.new("BlurEffect")
+		lids.blur.Size = 2
+		lids.blur.Parent = workspace.CurrentCamera
+	elseif not on and lids then
+		for _, k in { "top", "bot" } do
+			local f = lids[k]
+			tween(f, 0.3, { Position = UDim2.fromScale(0.5, if k == "top" then 0 else 1) })
+			task.delay(0.35, function() f:Destroy() end)
+		end
+		lids.blur:Destroy()
+		lids = nil
+		Cine.stress(0)
+	end
+end
+
+-- openness 0 (shut) .. 1 (wide open)
+function Cine.setLids(open: number)
+	if not lids then return end
+	local cover = (1 - math.clamp(open, 0, 1)) * 0.52 -- each lid covers up to half the screen (+ overlap)
+	lids.top.Position = UDim2.fromScale(0.5, cover + 0.02)
+	lids.bot.Position = UDim2.fromScale(0.5, 1 - cover - 0.02)
+end
+
+function Cine.setBlur(size: number)
+	if lids and lids.blur then lids.blur.Size = size end
+end
+
+-- red edges for panic (0..1), set every frame by the POV
+function Cine.stress(level: number)
+	ensure()
+	for _, f in vignette do
+		f.BackgroundColor3 = Color3.fromRGB(200, 0, 20)
+		f.BackgroundTransparency = 1 - math.clamp(level, 0, 1) * 0.55
+	end
+end
+
 return Cine

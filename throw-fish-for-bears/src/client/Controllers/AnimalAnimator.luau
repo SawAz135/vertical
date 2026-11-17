@@ -631,7 +631,7 @@ function Animator.init()
 			rainbowAcc = 0
 			local h = now * 0.12
 			for model in rainbow do
-				if model.Parent then
+				if model.Parent and not model:GetAttribute("Silhouette") then
 					for _, d in model:GetDescendants() do
 						local tt = d:GetAttribute("RainbowT")
 						if tt then

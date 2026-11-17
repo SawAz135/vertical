@@ -44,6 +44,8 @@ local LIB = {
 	Lift = { { A .. "action_jump.mp3", 0.6, 0.6, 0 }, { A .. "action_jump_land.mp3", 0.7, 0.5, 0 } },
 	Error = { { A .. "button.wav", 0.5, 0.6, 0 } },
 	Notify = { { A .. "button.wav", 0.35, 1.6, 0 } },
+	Heartbeat = { { A .. "bass.wav", 0.55, 0.5, 0 } },
+	Tick = { { A .. "clickfast.wav", 0.5, 1.4, 0 } },
 	Flop = { { A .. "splat.wav", 0.35, 1.6, 0.2 } },
 }
 
