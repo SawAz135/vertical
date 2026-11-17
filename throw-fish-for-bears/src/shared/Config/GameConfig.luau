@@ -35,8 +35,10 @@ return {
 	Capture = {
 		alert = 0.7, -- bear notices the fish
 		runSpeed = 26, -- studs/s at scale 1
-		arrive = 0.45, sniff = 0.8, eat = 2.0, happy = 1.2, transform = 0.5, -- transform = the "poof" before the bear appears in your hands
-		pickupAt = 0.35, swallowAt = 1.55, -- seconds into the eat stage
+		arrive = 0.45, sniff = 0.8, eat = 3.4, happy = 1.2, transform = 0.5, -- transform = the "poof" before the bear appears in your hands
+		-- seconds into the eat stage: snatch the fish, TOSS it up (apex), it falls back in slow
+		-- motion into the open jaws (fish POV), CHOMP, swallow
+		pickupAt = 0.35, tossApex = 0.85, chompAt = 2.3, swallowAt = 2.85,
 		returnTimeout = 300,
 		sprintMultiplier = 1.35,
 		maxSpeedTolerance = 1.7, -- anti teleport (x max legal speed)

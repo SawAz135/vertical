@@ -277,50 +277,56 @@ STATES.Happy = function(p, e, t, s)
 end
 
 STATES.Eat = function(p, e, t, s)
-	-- CARTOON BITE, keyed on the server timeline (pickup 0.35 s, CHOMP ~1.0 s, swallow 1.55 s):
+	-- CARTOON TOSS & CATCH, keyed on the server timeline (GameConfig.Capture):
 	--  0.00 head dives at the fish, jaws gaping
-	--  0.35 SNATCH: head whips UP with the fish, rearing a little, jaws WIDE (teeth + tongue)
-	--  0.95 CHOMP: head slams down/forward with overshoot, jaw shuts hard, body squashes
-	--  1.05 violent dog-shake, then heavy chewing (grinding jaw, rocking head, eyes squeezed)
-	--  1.55 GULP: neck stretches way up, body lifts, then a long satisfied lick
+	--  0.35 SNATCH + TOSS: the head whips UP and flings the fish high in the air
+	--  apex  the bear rears a little, head thrown back, jaws WIDE open toward the sky,
+	--        everything in slow motion (slow sway, slow breathing) while the fish falls back
+	--  chomp head snaps forward/down with overshoot, jaw shuts hard, body squashes,
+	--        violent dog-shake, heavy chewing, then GULP (everything stretches) and a lick
+	local G = GameConfig.Capture
+	local A, C, W = G.tossApex, G.chompAt, G.swallowAt
 	local dive = Easing.cubicOut(clamp(t / 0.28, 0, 1))
-	local snatch = Easing.backOut(clamp((t - 0.33) / 0.22, 0, 1))
-	local chomp = Easing.expoOut(clamp((t - 0.93) / 0.1, 0, 1))
-	local settle = Easing.cubicInOut(clamp((t - 1.05) / 0.35, 0, 1))
-	-- head: down -> way up -> slammed down -> back to level
-	local headUp = -0.85 * dive + 1.35 * snatch - 1.05 * chomp + 0.55 * settle
-	rot(p, "Neck", headUp)
-	pos(p, "Neck", 0, (-0.3 * dive + 0.35 * snatch - 0.3 * chomp + 0.25 * settle) * s,
-		(-0.4 * dive + 0.25 * snatch - 0.45 * chomp + 0.6 * settle) * s)
-	-- body: leans in, rears with the snatch, squashes on the chomp
-	rot(p, "BodyJoint", -0.12 * dive + 0.3 * snatch - 0.34 * chomp + 0.16 * settle)
-	pos(p, "BodyJoint", 0, (0.22 * snatch - 0.38 * chomp + 0.16 * settle) * s, 0)
-	rot(p, "LegFL", -0.3 * snatch + 0.3 * chomp) rot(p, "LegFR", -0.3 * snatch + 0.3 * chomp)
-	-- jaw: gaping, WIDE during the snatch, shut hard on the chomp
-	local open = (0.6 * dive + 0.65 * snatch) * (1 - chomp)
-	local chewing = t > 1.05 and t < 1.55
-	local ct = t - 1.05
+	local toss = Easing.backOut(clamp((t - 0.33) / 0.18, 0, 1))
+	local waitK = Easing.sineInOut(clamp((t - A) / math.max(0.1, C - 0.15 - A), 0, 1)) -- follows the falling fish down a bit
+	local chomp = Easing.expoOut(clamp((t - (C - 0.06)) / 0.1, 0, 1))
+	local settle = Easing.cubicInOut(clamp((t - (C + 0.08)) / 0.35, 0, 1))
+	local slow = if t > A and t < C then 1 else 0
+	local sway = sin(t * 2.2) * 0.05 * slow
+	-- head: down -> flung way up -> lowers slightly to catch -> slammed down -> level
+	rot(p, "Neck", -0.85 * dive + 1.55 * toss - 0.35 * waitK - 0.95 * chomp + 0.6 * settle + sway, sway * 0.6)
+	pos(p, "Neck", 0, (-0.3 * dive + 0.4 * toss - 0.1 * wait - 0.3 * chomp + 0.3 * settle) * s,
+		(-0.4 * dive + 0.25 * toss - 0.45 * chomp + 0.6 * settle) * s)
+	-- body: leans in, rears with the toss (stays up while waiting), squashes on the chomp
+	rot(p, "BodyJoint", -0.12 * dive + 0.42 * toss - 0.1 * waitK - 0.4 * chomp + 0.2 * settle + sway * 0.4)
+	pos(p, "BodyJoint", 0, (0.32 * toss - 0.08 * waitK - 0.4 * chomp + 0.16 * settle) * s, 0)
+	rot(p, "LegFL", -0.45 * toss + 0.1 * waitK + 0.35 * chomp) rot(p, "LegFR", -0.45 * toss + 0.1 * waitK + 0.35 * chomp)
+	-- jaw: gaping, WIDE open to the sky while the fish falls, shut hard on the chomp
+	local open = (0.6 * dive * (1 - toss) + 1.0 * toss) * (1 - chomp)
+	local chewing = t > C + 0.06 and t < W
+	local ct = t - (C + 0.06)
 	local shake = if ct > 0 and ct < 0.22 then sin(ct * 70) * (1 - ct / 0.22) else 0
 	local chew = if chewing then abs(sin(ct * 12)) else 0
 	local grind = if chewing then sin(ct * 6) else 0
-	rot(p, "Jaw", -open - chew * 0.42, grind * 0.22, grind * 0.1)
+	rot(p, "Jaw", -open - chew * 0.42 - abs(sin(t * 3)) * 0.06 * slow, grind * 0.22, grind * 0.1)
 	if chewing then
 		rot(p, "Neck", -chew * 0.12, grind * 0.16 + shake * 0.45, grind * 0.14 + shake * 0.3)
 		rot(p, "BodyJoint", 0, shake * 0.1, shake * 0.08)
 		rot(p, "EarL", -chew * 0.45) rot(p, "EarR", -chew * 0.45)
 	end
 	-- the swallow: everything stretches up, a big gulp
-	local gulp = Easing.bump(clamp((t - 1.55) / 0.45, 0, 1))
+	local gulp = Easing.bump(clamp((t - W) / 0.45, 0, 1))
 	rot(p, "Neck", 0.5 * gulp)
 	pos(p, "Neck", 0, 0.22 * s * gulp, 0)
 	pos(p, "BodyJoint", 0, 0.14 * s * gulp, 0)
 	rot(p, "Jaw", 0.06 * gulp)
 	-- satisfied lick (jaw drops twice)
-	local lick = Easing.bump(clamp((t - 1.9) / 0.4, 0, 1))
+	local lick = Easing.bump(clamp((t - (W + 0.35)) / 0.4, 0, 1))
 	rot(p, "Jaw", -0.3 * lick * (0.6 + 0.4 * abs(sin(t * 14))))
 	rot(p, "Neck", 0, sin(t * 7) * 0.12 * lick)
-	rot(p, "EarL", 0.35 * dive * (1 - snatch) - 0.5 * chomp * (1 - settle)) rot(p, "EarR", 0.35 * dive * (1 - snatch) - 0.5 * chomp * (1 - settle))
-	rot(p, "Tail", 0.4 * snatch * (1 - settle), sin(t * 9) * (0.3 + 0.5 * gulp))
+	local earsBack = (0.35 * dive * (1 - toss) - 0.5 * toss * (1 - chomp) - 0.5 * chomp * (1 - settle))
+	rot(p, "EarL", earsBack) rot(p, "EarR", earsBack)
+	rot(p, "Tail", 0.5 * toss * (1 - settle), sin(t * (if slow > 0 then 2.5 else 9)) * (0.3 + 0.5 * gulp))
 	e.eyesClosed = (chewing and (ct % 0.32) < 0.14) or gulp > 0.3 or (chomp > 0.5 and settle < 0.2)
 end
 

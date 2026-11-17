@@ -179,7 +179,7 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 		end
 		-- 3) EAT FIRST: the player only sees the fish getting eaten (bear is still a black
 		--    silhouette on the client). Timeline shared with the client camera.
-		local tl = { arrive = 0, sniff = G.arrive, eat = G.arrive + G.sniff, total = G.arrive + G.sniff + G.eat }
+		local tl = { arrive = 0, sniff = G.arrive, eat = G.arrive + G.sniff, total = G.arrive + G.sniff + G.eat, chomp = G.arrive + G.sniff + G.chompAt }
 		local start = workspace:GetServerTimeNow()
 		fx(player, "Eat", { start = start, tl = tl, bear = agent.model, fish = fm })
 		agent:setAnim("Arrive")
