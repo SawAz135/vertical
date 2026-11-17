@@ -17,6 +17,11 @@ local Sound = require(script.Parent.Sound)
 local Actions = require(script.Parent.Actions)
 local CameraController = require(script.Parent.CameraController)
 local HumanPose = require(script.Parent.HumanPose)
+local Cine = require(script.Parent.CinematicFx)
+local Layout = require(Shared.Layout)
+local ZoneConfig = require(Shared.Config.ZoneConfig)
+local FishConfig = require(Shared.Config.FishConfig)
+local RarityConfig = require(Shared.Config.RarityConfig)
 
 local Throw = {}
 Throw.ChargeChanged = Signal.new() -- (power 0..1 | nil when hidden)
@@ -52,7 +57,9 @@ local function onThrow(player: Player, d)
 	model:SetAttribute("Anim", "Thrown")
 	model:PivotTo(CFrame.new(d.from))
 	model.Parent = Fx.folder
-	addTrail(model.PrimaryPart, Color3.fromRGB(255, 255, 255))
+	local fishTier = RarityConfig.get(FishConfig.get(d.fish.s).rarity)
+	addTrail(model.PrimaryPart, if fishTier.index >= 3 then (fishTier.textColor or fishTier.color) else Color3.fromRGB(255, 255, 255))
+	local sparkAcc = 0
 	local dir = d.to - d.from
 	local yaw = math.atan2(-dir.X, -dir.Z)
 	local spinRate = 4 + d.power * 6
@@ -64,31 +71,87 @@ local function onThrow(player: Player, d)
 		Sound.play("Throw", { parent = model.PrimaryPart, volume = 0.6 })
 	end
 
-	-- the thrower's camera: shoulder -> chase -> impact
+	-- the thrower's camera: an over-the-top 7-shot sequence --------------------------
+	--  1 wind-up   : low dutch angle swinging around the thrower, FOV squeezes in
+	--  2 release   : impact frame (flash + shockwave + shake), cinema bars, speed lines
+	--  3 launch    : rocket chase right behind the fish, FOV blows wide
+	--  4 apex      : slow orbit around the spinning fish against the sky
+	--  5 descent   : camera dives ahead and waits at the landing spot
+	--  6 impact    : ground-level hero shot, shockwave, shake, dust
+	--  zone banners pop when the fish crosses into a new zone
 	if isLocal then
 		local char = localPlayer.Character
 		local root = char and char:FindFirstChild("HumanoidRootPart")
 		local startT = d.t0
+		local travel = Vector3.new(dir.X, 0, dir.Z).Unit
+		local side = Vector3.new(-travel.Z, 0, travel.X)
+		local released, landed = false, false
+		local lastZone = Layout.zoneAt(d.from) or 0
+		local tier = RarityConfig.get(FishConfig.get(d.fish.s).rarity)
+		local col = tier.textColor or tier.color
+		Cine.letterbox(true)
 		CameraController.run(function(t)
 			local now = workspace:GetServerTimeNow()
 			local fp = model.Parent and model.PrimaryPart.Position or d.to
-			if now < startT and root then
-				-- over the shoulder, looking down the corridor
-				local look = Vector3.new(0, -0.05, -1)
-				local p = root.Position + Vector3.new(3, 4.5, 9)
-				return CFrame.lookAt(p, p + look * 10), 62
+			if now < startT then
+				-- 1) wind-up: low angle swinging around the thrower
+				if not root then return nil, 60 end
+				local k = 1 - math.clamp((startT - now) / 0.32, 0, 1)
+				local orbit = CFrame.Angles(0, -0.9 + k * 0.6, 0):VectorToWorldSpace(side)
+				local p = root.Position + orbit * 7 - travel * 3 + Vector3.new(0, 1.2 + k * 1.2, 0)
+				return CFrame.lookAt(p, root.Position + Vector3.new(0, 1.5, 0) + travel * 4 * k), 58 - 14 * k
+			end
+			if not released then
+				-- 2) release: impact frame
+				released = true
+				Cine.flash(0.75)
+				Cine.speedLines(true)
+				CameraController.shake(1.1, 0.35)
+				CameraController.punch(16)
+				if root then Cine.shockwave(root.Position - Vector3.new(0, 2.8, 0), col, 0.8) end
+				Sound.play("Transform", { volume = 0.6 })
 			end
 			local u = math.clamp((now - startT) / d.flight, 0, 1)
-			local travel = dir.Unit
-			local back = -Vector3.new(travel.X, 0, travel.Z).Unit
-			local h = 4 + 6 * Easing.bump(u)
-			local dist = 14 + math.min(10, (d.to - d.from).Magnitude * 0.02)
-			local p = fp + back * dist + Vector3.new(0, h, 0) + Vector3.new(3, 0, 0)
-			local lead = fp + Vector3.new(travel.X, 0, travel.Z) * 6 * (1 - u)
-			return CFrame.lookAt(p, lead), 64 + 12 * Easing.bump(u)
-		end, 0.32 + d.flight + 0.6, { smooth = 9, blendIn = 0.25, onDone = function()
-			if not d.ok then return end
-		end })
+			-- zone banners
+			local z = Layout.zoneAt(fp)
+			if z and z ~= lastZone then
+				lastZone = z
+				local zc = ZoneConfig.get(z)
+				Cine.banner(("ZONE %d · %s"):format(z, zc.name:upper()), zc.sign, nil)
+				Sound.play("Notify")
+			end
+			local lead = travel * (8 + d.power * 6)
+			if u < 0.28 then
+				-- 3) rocket chase right behind the fish
+				local k = u / 0.28
+				local p = fp - travel * (6 + 6 * k) + Vector3.new(0, 2 + 2 * k, 0) + side * 1.5
+				return CFrame.lookAt(p, fp + lead), 72 + 22 * Easing.sineOut(k)
+			elseif u < 0.72 then
+				-- 4) apex: slow orbit around the spinning fish
+				local k = (u - 0.28) / 0.44
+				local ang = -0.9 + Easing.sineInOut(k) * 1.8
+				local around = CFrame.Angles(0, ang, 0):VectorToWorldSpace(side)
+				local p = fp + around * 11 + Vector3.new(0, 3 - 4 * k, 0) - travel * 4
+				return CFrame.lookAt(p, fp + travel * 2), 70
+			else
+				-- 5) descent: camera waits at the landing spot, looking back at the incoming fish
+				local k = Easing.cubicOut((u - 0.72) / 0.28)
+				local spot = d.to + side * 9 + travel * 10 + Vector3.new(0, 2.2, 0)
+				local from = fp + side * 6 + Vector3.new(0, 4, 0)
+				local p = from:Lerp(spot, k)
+				if u >= 1 and not landed then
+					-- 6) impact
+					landed = true
+					Cine.speedLines(false)
+					Cine.flash(0.45, col)
+					Cine.shockwave(d.to, col, 1 + d.power * 0.5)
+					CameraController.shake(1.3, 0.45)
+					CameraController.punch(-10)
+					if not d.ok then Cine.letterbox(false) end
+				end
+				return CFrame.lookAt(p, fp:Lerp(d.to, 0.5) + Vector3.new(0, 0.5, 0)), 66 - 10 * k
+			end
+		end, 0.32 + d.flight + 0.7, { smooth = 11, blendIn = 0.15 })
 	end
 
 	local conn
@@ -105,6 +168,11 @@ local function onThrow(player: Player, d)
 			return
 		end
 		local p = Formulas.arc(d.from, d.to, d.apex, u)
+		sparkAcc += 1
+		if sparkAcc % 4 == 0 and isLocal then
+			-- glitter stream behind the fish (rarity coloured for rare fish)
+			Fx.blocks(p, if fishTier.index >= 3 then fishTier.color else Color3.fromRGB(255, 255, 255), 1, 2, 0.25, { life = 0.6, up = 0.2, spread = 1 })
+		end
 		model:PivotTo(CFrame.new(p) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(-u * spinRate * math.pi, 0, math.sin(u * 20) * 0.2))
 		if u >= 1 then
 			conn:Disconnect()

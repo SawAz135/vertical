@@ -94,6 +94,7 @@ Throw.init()
 Throw.ChargeChanged:Connect(HUD.setCharge)
 Throw.Flight:Connect(HUD.throwDistance)
 Capture.Reveal = Reveal
+Capture.Unlock = require(UI.BearUnlock).show
 Capture.Flash = Notify.flash
 Capture.init()
 Ambience.init()

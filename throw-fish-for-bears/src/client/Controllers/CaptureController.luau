@@ -39,6 +39,7 @@ local ghost
 
 Capture.Reveal = nil -- set by ClientMain (UI.Reveal)
 Capture.Flash = nil -- set by ClientMain (screen flash function)
+Capture.Unlock = nil -- set by ClientMain (UI.BearUnlock.show)
 
 local function headOf(bear: Model): BasePart?
 	return bear and bear:FindFirstChild("Head") :: BasePart?
@@ -352,7 +353,12 @@ local function onFx(phase: string, d)
 			end
 			Sound.play("Happy", { pitch = 1.1 })
 			Sound.play("Arrive")
-			if Capture.Reveal then Capture.Reveal.bear(d.bear, d.income, d.isNew) end
+			-- full "BEAR UNLOCKED!" screen that waits for a tap
+			if Capture.Unlock then
+				Capture.Unlock(d.bear, d.income, d.isNew)
+			elseif Capture.Reveal then
+				Capture.Reveal.bear(d.bear, d.income, d.isNew)
+			end
 		end)
 	elseif phase == "Failed" then
 		current = nil

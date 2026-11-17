@@ -192,4 +192,69 @@ function Cine.shockwave(pos: Vector3, color: Color3, scale: number?)
 	Fx.blocks(pos + Vector3.new(0, 1, 0), color, 26, 24 * s, 0.45, { life = 1, up = 0.6, spread = 3, gravity = 30 })
 end
 
+-- full screen white (or coloured) impact frame
+function Cine.flash(strength: number?, color: Color3?)
+	ensure()
+	local f = Instance.new("Frame")
+	f.BackgroundColor3 = color or Color3.new(1, 1, 1)
+	f.BorderSizePixel = 0
+	f.Size = UDim2.fromScale(1, 1)
+	f.BackgroundTransparency = 1 - (strength or 0.8)
+	f.ZIndex = 20
+	f.Parent = gui
+	tween(f, 0.35, { BackgroundTransparency = 1 })
+	task.delay(0.4, function() f:Destroy() end)
+end
+
+-- big stud banner sliding across the screen ("ZONE 3 · MOUNTAIN LAKE")
+function Cine.banner(text: string, color: Color3?, sub: string?)
+	ensure()
+	local holder = Instance.new("Frame")
+	holder.BackgroundTransparency = 1
+	holder.Size = UDim2.new(1, 0, 0, 90)
+	holder.Position = UDim2.new(-1, 0, 0.2, 0)
+	holder.ZIndex = 15
+	holder.Parent = gui
+	local band = Instance.new("Frame")
+	band.BackgroundColor3 = color or RGB(255, 200, 40)
+	band.BorderSizePixel = 0
+	band.Size = UDim2.new(1, 0, 1, 0)
+	band.Rotation = -2
+	band.ZIndex = 15
+	band.Parent = holder
+	local st = Instance.new("UIStroke")
+	st.Thickness = 4
+	st.Parent = band
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(0.6, 0.6, 0.6))
+	g.Rotation = 90
+	g.Parent = band
+	local t = Instance.new("TextLabel")
+	t.BackgroundTransparency = 1
+	t.Size = UDim2.new(1, 0, if sub then 0.62 else 0.9, 0)
+	t.Position = UDim2.fromScale(0, 0.04)
+	t.Font = Enum.Font.FredokaOne
+	t.TextScaled = true
+	t.Text = text
+	t.TextColor3 = Color3.new(1, 1, 1)
+	t.ZIndex = 16
+	t.Parent = band
+	local ts = Instance.new("UIStroke")
+	ts.Thickness = 4
+	ts.Parent = t
+	if sub then
+		local s2 = t:Clone()
+		s2.Text = sub
+		s2.Size = UDim2.new(1, 0, 0.32, 0)
+		s2.Position = UDim2.fromScale(0, 0.64)
+		s2.Parent = band
+	end
+	tween(holder, 0.35, { Position = UDim2.new(0, 0, 0.2, 0) }, Enum.EasingStyle.Back)
+	task.delay(1.4, function()
+		tween(holder, 0.3, { Position = UDim2.new(1, 0, 0.2, 0) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		task.wait(0.32)
+		holder:Destroy()
+	end)
+end
+
 return Cine
