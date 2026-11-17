@@ -6,6 +6,7 @@
        Bag   : fish cards, HOLD button
        Index : Fish / Bears tabs on the right, "???" silhouettes, progress + claim
        Bears : collection cards (Pick Up / Place / Sell)
+       Inventory : "Bears + Fish" window (tabs Bears / Fish) opened by the inventory slot
        Daily, Gifts, Confirm ]]
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,6 +16,7 @@ local E = require(Shared.Config.EconomyConfig)
 local FishConfig = require(Shared.Config.FishConfig)
 local BearConfig = require(Shared.Config.BearConfig)
 local RodConfig = require(Shared.Config.RodConfig)
+local ZoneConfig = require(Shared.Config.ZoneConfig)
 local RarityConfig = require(Shared.Config.RarityConfig)
 local Formulas = require(Shared.Formulas)
 local Format = require(Shared.Util.Format)
@@ -177,13 +179,20 @@ local function buildShop()
 				section = "Strength", rarity = "Mythic", big = "💪 " .. Format.short(power), small = ("+%d per lift"):format(gain), icon = K.Icons.Upgrade,
 				rows = {
 					{ "Each lift", ("+%d -> +%d strength"):format(gain, gain + 1) },
-					{ "Your strength", Format.short(power) },
-					{ "Throw distance", ("%d studs"):format(E.Strength.maxDistance(power)) },
+					{ "Throw distance", ("%d studs  ·  max fish %s"):format(E.Strength.maxDistance(power), Format.kg(E.Strength.maxFishWeight(power))) },
+					(function()
+						local reach, nextZ = 1, nil
+						for i = 1, #ZoneConfig.Zones do
+							if power >= Formulas.zoneStrength(i) then reach = i elseif not nextZ then nextZ = i end
+						end
+						local nz = nextZ and ZoneConfig.get(nextZ)
+						return { ("Reach: %s"):format(ZoneConfig.get(reach).name), if nz then ("Next: %s at 💪%s"):format(nz.name, Format.short(Formulas.zoneStrength(nextZ :: number))) else "Every zone unlocked!" }
+					end)(),
 				},
 				can = not maxed and (d.money or 0) >= cost,
 				button = if maxed then "MAX" else ("Upgrade +%d  %s"):format(gain + 1, Format.money(cost)),
 				onClick = function() if not maxed then Net.event("BuyStrength"):FireServer() end end,
-				tip = 'Lift in the <font color="#FFD23F">white circle</font> by your base to gain strength!',
+				tip = 'Lift at the <font color="#FFD23F">FISH-UP</font> station by your base to gain strength!',
 			})
 		else
 			local lvl = d.capacity or 1
@@ -293,6 +302,7 @@ end
 ------------------------------------------------------------------------------------------
 local indexCat = "Fish"
 local indexSel = nil
+local indexScroll = {}
 local function buildIndex()
 	local w = makeWindow("Index", { title = "Index", grad = "pink", size = Vector2.new(820, 480) })
 	local tabs = {}
@@ -315,9 +325,17 @@ local function buildIndex()
 		local order = if indexCat == "Fish" then FishConfig.Order else BearConfig.Order
 		local found = if indexCat == "Fish" then (d.index and d.index.fish or {}) else (d.index and d.index.bears or {})
 		local left = Sim.panel(w.content, { Size = UDim2.fromOffset(520, 370), Position = UDim2.fromOffset(12, 12), Color = RGB(36, 36, 40), DarkStuds = true, ZIndex = 3 })
-		local grid = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(500, 270), Position = UDim2.fromOffset(10, 12), ZIndex = 4 }, left)
+		-- scrolling grid (43 fish / 75 bears)
+		local grid = new("ScrollingFrame", { BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromOffset(508, 282), Position = UDim2.fromOffset(6, 8), ZIndex = 4,
+			CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 8,
+			ScrollBarImageColor3 = RGB(230, 230, 230) }, left)
+		new("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 8), PaddingRight = UDim.new(0, 10) }, grid)
 		new("UIGridLayout", { CellSize = UDim2.fromOffset(112, 118), CellPadding = UDim2.fromOffset(10, 12), SortOrder = Enum.SortOrder.LayoutOrder,
 			HorizontalAlignment = Enum.HorizontalAlignment.Center }, grid)
+		if indexScroll[indexCat] then
+			task.defer(function() if grid.Parent then grid.CanvasPosition = indexScroll[indexCat] end end)
+		end
+		grid:GetPropertyChangedSignal("CanvasPosition"):Connect(function() indexScroll[indexCat] = grid.CanvasPosition end)
 		local n = 0
 		for i, id in order do
 			local entry = found[id]
@@ -371,9 +389,8 @@ end
 ------------------------------------------------------------------------------------------
 -- Bears
 ------------------------------------------------------------------------------------------
-local function buildBears()
-	local w = makeWindow("Bears", { title = "My Bears", grad = "purple", size = Vector2.new(860, 480) })
-	renderers.Bears = function(animate)
+local function bearCards(w)
+	return function(animate)
 		clear(w.content)
 		local d = Data.values
 		local list = {}
@@ -410,6 +427,38 @@ local function buildBears()
 			end)
 		end
 		if animate then K.cascade(grid, 0.04) end
+	end
+end
+
+local function buildBears()
+	local w = makeWindow("Bears", { title = "My Bears", grad = "purple", size = Vector2.new(860, 480) })
+	renderers.Bears = bearCards(w)
+end
+
+------------------------------------------------------------------------------------------
+-- Inventory : "Bears + Fish" (replaces the default Roblox inventory button)
+-- Bears tab = collection cards (Pick Up / Place / Sell), Fish tab = fish bag cards (Hold)
+------------------------------------------------------------------------------------------
+local invTab = "Bears"
+local function buildInventory()
+	local w = makeWindow("Inventory", { title = "Bears + Fish", grad = "purple", size = Vector2.new(860, 480), titleWidth = 380 })
+	local sub = { Bears = bearCards(w), Fish = fishCards(w, "Bag") }
+	local tabs = {}
+	for i, cat in { "Bears", "Fish" } do
+		tabs[cat] = Sim.button(w.frame, { Name = "Tab" .. cat, Grad = if cat == "Fish" then "blue" else "orange", Size = Vector2.new(170, 62),
+			Position = UDim2.fromOffset(w.W + 100, 120 + (i - 1) * 76), Text = cat, Max = 34, Icon = if cat == "Fish" then K.Icons.Bait else K.Icons.Paw }, function()
+			if invTab == cat then return end
+			invTab = cat
+			renderers.Inventory(true)
+		end)
+	end
+	renderers.Inventory = function(animate)
+		for cat, b in tabs do
+			b.Position = UDim2.fromOffset(if cat == invTab then w.W + 110 else w.W + 100, b.Position.Y.Offset)
+			local st = b:FindFirstChildOfClass("UIStroke")
+			if st then st.Color = if cat == invTab then Color3.new(1, 1, 1) else Color3.new(0, 0, 0) end
+		end
+		sub[invTab](animate)
 	end
 end
 
@@ -548,13 +597,14 @@ function Menus.mount()
 	buildBag()
 	buildIndex()
 	buildBears()
+	buildInventory()
 	buildDaily()
 	buildGifts()
 	buildConfirm()
 	local KEYS = {
 		Shop = { rods = true, strength = true, strengthGain = true, capacity = true, money = "throttle" },
 		Sell = { fish = true }, Bag = { fish = true, selectedFish = true },
-		Index = { index = true, indexPending = true }, Bears = { bears = true, capacity = true }, Daily = { daily = true },
+		Index = { index = true, indexPending = true }, Bears = { bears = true, capacity = true }, Inventory = { bears = true, capacity = true, fish = true, selectedFish = true }, Daily = { daily = true },
 	}
 	local lastMoney = 0
 	Data.Changed:Connect(function(key)

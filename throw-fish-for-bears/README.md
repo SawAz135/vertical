@@ -1,6 +1,6 @@
-# THROW FISH FOR BEARS — version jouable (Roblox, style Studs)
+# THROW FISH FOR BEARS (Roblox, style Studs)
 
-Version jouable complète : **1 zone (Green Forest)**, **5 ours**, **5 poissons**, 12 cannes.
+Jeu complet : **10 zones** (Green Forest → Tropical Beach), **75 ours**, **43 poissons**, 12 cannes.
 Tout le monde 3D (map, ours, poissons, cannes, bouchon) est construit en **pièces Plastic + Studs** par le code :
 aucun asset à importer.
 
@@ -21,7 +21,19 @@ Recompiler : `rojo build default.project.json -o build/ThrowFishForBears.rbxl`
 4. Cours jusqu'à **ta base** (flèche + distance + chrono, **SPRINT**) → redeviens humain avec l'ours au-dessus de la tête → **PLACE**.
 5. L'ours se promène dans ta base et rapporte **$/s** (espèce × rareté × poids × variante).
 
-Force : **rond blanc** au coin avant extérieur de ta base = entraînement auto (soulève un poisson) ; ou achat dans **Shop > Strength**.
+Force : station **FISH-UP** (modèle 3D : plateforme à studs, anneau, rack d'haltères-poissons, saumon trophée) au coin avant extérieur de ta base.
+Tiens-toi dans l'anneau = entraînement auto. L'enseigne « FISH-UP » apparaît quand tu t'approches. **Shop > Strength** augmente le gain par soulevé.
+Chaque zone affiche sa force recommandée (💪) sur son arche ; plus de force = lancer plus loin (jusqu'à ~3000 studs, zone 10).
+
+## Contenu
+- **10 zones** avec décor propre : forêt, pins, lac de montagne (étangs + roseaux), forêt enneigée, lac gelé (glace), bambous (lanternes, cerisiers),
+  vallée de rivière (ruisseaux + ponts), montagnes rocheuses (falaises), forêt profonde (champignons géants), plage tropicale (palmiers, parasols, mer).
+  Brume, teinte et particules par zone (feuilles, aiguilles, neige, pétales, lucioles, brume, poussière, sable).
+- **75 ours** (`BearConfig`) : 7 gabarits (bébé → énorme), couleurs propres et traits 3D (`Models/BearTraits.luau` : bosse, crinière, mousse,
+  roches, cristaux, glaçons, écharpe, chapeaux, couronne, lunettes, masque de panda roux, queue annelée, coquillages, corail, collier de fleurs…).
+- **43 poissons** (`FishConfig`) sur les 8 raretés : formes spéciales raie/manta (ailes qui battent), hippocampe, requins (marteau, grand blanc),
+  baudroie (leurre lumineux), espadon/marlin (rostre), moustaches, dents, nageoires voiles…
+- Bouton **Inventaire** (barre du haut, à côté du chat) = fenêtre **Bears + Fish** ; tuile **Bears** = petit panneau « X/Y Active » avec Pick Up.
 
 ## Interface (layout de la capture de référence)
 Gauche : Shop / Index / Low FX · Droite : Gifts, Daily, Bears + onglet `>` (ours actifs, Pick Up, +1 Slot, Place Best) ·

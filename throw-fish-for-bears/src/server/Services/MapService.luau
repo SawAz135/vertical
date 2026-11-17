@@ -1,13 +1,31 @@
 --[[ MapService: builds the whole world at server start from Layout + ZoneConfig.
-     Front: SELL / SHOP stalls, throw zone. Middle: 4 fenced bases + BIG CATCH
-     workout circle in front of each. Rear: sand strip, lake, 4 docks.
-     Corridor: brick walls + zone decor (Green Forest in the slice). ]]
+     Front: SELL / SHOP stalls, throw zone. Middle: 4 fenced bases + FISH-UP
+     training station at the outer front corner of each. Rear: sand strip, lake, 4 docks.
+     Corridor: brick walls + 10 themed zones (forest, pine, lake, snow, ice,
+     bamboo, river, rocky, deep forest, beach). ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
 local Studs = require(ReplicatedStorage.Shared.Models.Studs)
 local Layout = require(ReplicatedStorage.Shared.Layout)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local Props = require(script.Parent.Parent.World.Props)
+local FishBuilder = require(ReplicatedStorage.Shared.Models.FishBuilder)
+local Formulas = require(ReplicatedStorage.Shared.Formulas)
+
+-- anchored decorative fish (Fish-Up trophies / dumbbells)
+local function buildFish(id: string, scale: number): Model
+	local f = FishBuilder.build(id, { scale = scale })
+	for _, d in f:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false
+			d.CanQuery = false
+			d.CanTouch = false
+		end
+	end
+	f:SetAttribute("Kind", "Decor")
+	return f
+end
 
 local MapService = {}
 MapService.baseSigns = {} -- [i] = TextLabel
@@ -147,13 +165,11 @@ local function buildBases(map)
 			local b2 = Studs.static(folder, "Border", V3(1.2, 0.16, Layout.BASE_SIZE - 4), CF(c.X + side * (h - 2), 0.15, c.Z), col)
 			b2.CanCollide = false
 		end
-		-- small white training circle at the outer front corner of the base
+		-- FISH-UP training station at the outer front corner of the base
 		local tp = Layout.trainPos(i)
-		local r = Layout.TRAIN_RADIUS
-		local ring = Studs.static(folder, "TrainRing", V3(0.24, r * 2, r * 2), CF(tp + V3(0, 0.12, 0)) * CFrame.Angles(0, 0, math.pi / 2), C(250, 250, 250), { shape = Enum.PartType.Cylinder, noCollide = true })
-		ring.CanCollide = false
-		local inner = Studs.static(folder, "TrainInner", V3(0.26, r * 2 - 1, r * 2 - 1), CF(tp + V3(0, 0.13, 0)) * CFrame.Angles(0, 0, math.pi / 2), GRASS, { shape = Enum.PartType.Cylinder, noCollide = true })
-		inner.CanCollide = false
+		local side = if c.X < 0 then -1 else 1
+		local _, anchor = Props.fishUp(folder, tp, side, col, buildFish)
+		anchor:SetAttribute("FishUpBase", i)
 
 		-- dock behind the base
 		Props.dock(folder, c.X, Layout.DOCK_START_Z, Layout.DOCK_END_Z, Layout.DOCK_WIDTH, Layout.DOCK_TOP_Y)
@@ -200,8 +216,8 @@ local function buildCorridor(map, rand)
 		local folder = Instance.new("Folder")
 		folder.Name = "Zone" .. i .. "_" .. zone.id
 		folder.Parent = decor
-		-- zone ground: checker of two greens, dirt path down the middle
-		local tile = 20
+		-- zone ground: checker of two tones, path down the middle
+		local tile = 30
 		for zz = a, b + tile, -tile do
 			for xx = -Layout.CORRIDOR_HALF, Layout.CORRIDOR_HALF - tile, tile do
 				local col = if ((zz - a) / tile + (xx + Layout.CORRIDOR_HALF) / tile) % 2 == 0 then zone.ground else zone.groundAlt
@@ -211,38 +227,107 @@ local function buildCorridor(map, rand)
 		end
 		local path = Studs.static(map, "Path", V3(14, 0.24, a - b), CF(0, 0.12, (a + b) / 2), zone.path)
 		path.CanCollide = false
-		-- entrance arch sign
+		-- soft transition strip at the zone border (blends both grounds)
+		if i > 1 then
+			local prev = ZoneConfig.get(i - 1)
+			local strip = Studs.static(map, "ZoneBlend", V3(Layout.CORRIDOR_HALF * 2, 0.22, 6), CF(0, 0.11, a - 1), prev.ground:Lerp(zone.ground, 0.5))
+			strip.CanCollide = false
+		end
+		-- entrance arch: zone name + recommended strength
 		Studs.static(folder, "ArchL", V3(3, 20, 3), CF(-Layout.CORRIDOR_HALF + 4, 10, a - 4), Props.TRUNK)
 		Studs.static(folder, "ArchR", V3(3, 20, 3), CF(Layout.CORRIDOR_HALF - 4, 10, a - 4), Props.TRUNK)
-		local arch = Studs.static(folder, "ArchBoard", V3(40, 5, 1.2), CF(0, 19, a - 4), Props.WOOD)
-		Studs.static(folder, "ArchLeaves", V3(46, 2, 3), CF(0, 22, a - 4), Props.LEAF)
+		local arch = Studs.static(folder, "ArchBoard", V3(44, 6, 1.2), CF(0, 19, a - 4), zone.sign)
+		Studs.static(folder, "ArchFrame", V3(46, 7, 0.8), CF(0, 19, a - 3.4), Props.WOOD_DARK)
+		Studs.static(folder, "ArchTop", V3(50, 2, 3), CF(0, 22.6, a - 4), zone.groundAlt)
+		local rec = Formulas.zoneStrength(i)
 		Props.signText(arch, ("ZONE %d  ·  %s"):format(i, zone.name:upper()), Enum.NormalId.Back)
-		Props.signText(arch, "BASES  ↓", Enum.NormalId.Front)
+		Props.signText(arch, if rec > 0 then ("💪 %s+  ·  BASES ↓"):format(rec >= 1000 and (math.floor(rec / 100) / 10 .. "K") or tostring(rec)) else "BASES ↓", Enum.NormalId.Front)
+		arch:SetAttribute("Zone", i)
 
 		-- decor on both sides (centre lane |x| < 18 kept clear)
 		local function sidePos(minX, maxX)
 			local sx = if rand:NextNumber() < 0.5 then -1 else 1
 			return V3(sx * (minX + rand:NextNumber() * (maxX - minX)), 0, a - 10 - rand:NextNumber() * (a - b - 20))
 		end
-		for _ = 1, 16 do
-			Props.tree(folder, sidePos(40, 54), 0.8 + rand:NextNumber() * 0.5, rand)
+		local theme = zone.theme
+		if theme == "forest" then
+			for _ = 1, 16 do Props.tree(folder, sidePos(40, 54), 0.8 + rand:NextNumber() * 0.5, rand) end
+			for _ = 1, 12 do Props.bush(folder, sidePos(24, 56), 0.8 + rand:NextNumber() * 0.5, rand) end
+			for _ = 1, 8 do Props.rock(folder, sidePos(26, 56), 0.7 + rand:NextNumber() * 0.6, rand) end
+			for _ = 1, 30 do Props.flower(folder, sidePos(18, 58), rand) end
+		elseif theme == "pine" then
+			for _ = 1, 22 do Props.snowPine(folder, sidePos(34, 55), 0.9 + rand:NextNumber() * 0.6, rand, false) end
+			for _ = 1, 6 do Props.log(folder, sidePos(24, 50), 0.9, rand) end
+			for _ = 1, 8 do Props.rock(folder, sidePos(24, 56), 0.7 + rand:NextNumber() * 0.5, rand) end
+			for _ = 1, 10 do Props.fern(folder, sidePos(20, 56), 0.9, rand) end
+			for _ = 1, 8 do
+				local p = sidePos(20, 56)
+				Studs.static(folder, "Needles", V3(6, 0.08, 5), CF(p + V3(0, 0.26, 0)) * CFrame.Angles(0, rand:NextNumber() * 3, 0), C(130, 96, 56), { noCollide = true, smooth = true })
+			end
+		elseif theme == "lake" then
+			for _, sx in { -1, 1 } do
+				Props.pond(folder, V3(sx * 38, 0, a - 80), 26, 50, rand, true)
+				Props.pond(folder, V3(sx * 40, 0, a - 210), 22, 60, rand, true)
+			end
+			for _ = 1, 10 do Props.reeds(folder, sidePos(22, 30), rand) end
+			for _ = 1, 10 do Props.snowPine(folder, sidePos(50, 56), 0.9 + rand:NextNumber() * 0.4, rand, false) end
+			for _ = 1, 10 do Props.rock(folder, sidePos(22, 56), 0.6 + rand:NextNumber() * 0.5, rand) end
+			for _ = 1, 16 do Props.flower(folder, sidePos(18, 56), rand) end
+		elseif theme == "snow" then
+			for _ = 1, 20 do Props.snowPine(folder, sidePos(34, 55), 0.9 + rand:NextNumber() * 0.5, rand, true) end
+			for _ = 1, 12 do Props.snowPile(folder, sidePos(20, 56), 0.8 + rand:NextNumber() * 0.6, rand) end
+			for _ = 1, 6 do Props.rock(folder, sidePos(24, 56), 0.7, rand) end
+		elseif theme == "ice" then
+			for _, sx in { -1, 1 } do
+				Props.frozenPond(folder, V3(sx * 38, 0, a - 75), 28, 60)
+				Props.frozenPond(folder, V3(sx * 38, 0, a - 220), 28, 70)
+			end
+			for _ = 1, 12 do Props.iceBlock(folder, sidePos(22, 56), 0.8 + rand:NextNumber() * 0.6, rand) end
+			for _ = 1, 10 do Props.snowPile(folder, sidePos(20, 56), 0.9, rand) end
+			for _ = 1, 6 do Props.snowPine(folder, sidePos(50, 56), 0.9, rand, true) end
+		elseif theme == "bamboo" then
+			for _ = 1, 20 do Props.bamboo(folder, sidePos(30, 54), 0.9 + rand:NextNumber() * 0.4, rand) end
+			for _ = 1, 6 do Props.tree(folder, sidePos(40, 54), 0.9, rand, C(250, 170, 200)) end
+			for z = a - 40, b + 40, -70 do
+				Props.lantern(folder, V3(-12, 0, z))
+				Props.lantern(folder, V3(12, 0, z - 35))
+			end
+			for _ = 1, 14 do Props.flower(folder, sidePos(18, 56), rand) end
+		elseif theme == "river" then
+			-- streams on both sides with a footbridge, trees and reeds along the banks
+			for _, sx in { -1, 1 } do
+				local w = Studs.static(folder, "Stream", V3(14, 0.4, a - b - 20), CF(sx * 38, 0.2, (a + b) / 2), C(50, 140, 230), { smooth = true, noCollide = true })
+				w.Transparency = 0.1
+				Studs.static(folder, "StreamBank", V3(18, 0.3, a - b - 18), CF(sx * 38, 0.12, (a + b) / 2), C(150, 126, 90))
+				Props.bridge(folder, CF(sx * 38, 0, a - 150) * CFrame.Angles(0, math.pi / 2, 0), 20, 6)
+			end
+			for _ = 1, 12 do Props.tree(folder, sidePos(48, 56), 0.9 + rand:NextNumber() * 0.4, rand) end
+			for _ = 1, 10 do Props.reeds(folder, sidePos(28, 31), rand) end
+			for _ = 1, 10 do Props.rock(folder, sidePos(20, 30), 0.6 + rand:NextNumber() * 0.4, rand) end
+			for _ = 1, 20 do Props.flower(folder, sidePos(18, 28), rand) end
+		elseif theme == "rocky" then
+			for _ = 1, 14 do Props.cliff(folder, sidePos(40, 52), 1 + rand:NextNumber() * 0.6, rand) end
+			for _ = 1, 14 do Props.rock(folder, sidePos(20, 56), 0.8 + rand:NextNumber() * 0.8, rand) end
+			for _ = 1, 6 do Props.snowPine(folder, sidePos(30, 56), 0.8, rand, false) end
+		elseif theme == "deep" then
+			for _ = 1, 22 do Props.tree(folder, sidePos(34, 55), 1.1 + rand:NextNumber() * 0.5, rand, C(36, 100, 40)) end
+			for _ = 1, 10 do Props.giantMushroom(folder, sidePos(22, 50), 0.8 + rand:NextNumber() * 0.6, rand) end
+			for _ = 1, 8 do Props.log(folder, sidePos(22, 50), 1, rand) end
+			for _ = 1, 16 do Props.fern(folder, sidePos(18, 56), 1, rand) end
+		elseif theme == "beach" then
+			for _ = 1, 16 do Props.palm(folder, sidePos(30, 54), 0.9 + rand:NextNumber() * 0.4, rand) end
+			for _ = 1, 22 do Props.shell(folder, sidePos(18, 56), rand) end
+			for _ = 1, 6 do Props.rock(folder, sidePos(26, 56), 0.6, rand) end
+			for k = 1, 4 do
+				Props.umbrella(folder, sidePos(24, 40), ({ C(240, 60, 60), C(60, 160, 240), C(250, 200, 40), C(90, 200, 90) })[k])
+			end
 		end
-		for _ = 1, 14 do
-			Props.bush(folder, sidePos(24, 56), 0.8 + rand:NextNumber() * 0.5, rand)
-		end
-		for _ = 1, 9 do
-			Props.rock(folder, sidePos(26, 56), 0.7 + rand:NextNumber() * 0.6, rand)
-		end
-		for _ = 1, 45 do
-			Props.flower(folder, sidePos(18, 58), rand)
-		end
-		-- little pond at the far end (reference: water + sand at the end of the corridor)
-		local pz = b + 16
-		Studs.static(folder, "PondSand", V3(70, 0.4, 26), CF(0, 0.2, pz), C(226, 196, 132))
-		local pond = Studs.static(folder, "Pond", V3(52, 0.5, 14), CF(0, 0.25, pz - 3), WATER, { smooth = true })
-		pond.Transparency = 0.15
-		for _, sx in { -30, 30 } do
-			Props.tree(folder, V3(sx, 0, pz), 0.9, rand)
+		if i == Layout.ZONE_COUNT then
+			-- the corridor ends on the sea: water + sand bank against the end wall
+			local pz = b + 22
+			Studs.static(folder, "Shore", V3(Layout.CORRIDOR_HALF * 2, 0.4, 30), CF(0, 0.2, pz), C(246, 226, 170))
+			local sea = Studs.static(folder, "Sea", V3(Layout.CORRIDOR_HALF * 2 - 4, 0.5, 18), CF(0, 0.3, b + 10), C(40, 170, 230), { smooth = true })
+			sea.Transparency = 0.1
 		end
 	end
 end

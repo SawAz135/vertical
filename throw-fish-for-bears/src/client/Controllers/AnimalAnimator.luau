@@ -425,6 +425,28 @@ local function updateFish(e, dt, now)
 	end
 	e.phase += dt * speed
 	local a = sin(e.phase)
+	local style = e.style
+	if style == nil then
+		style = e.model:GetAttribute("SwimStyle") or ""
+		e.style = style
+	end
+	if style == "Flap" then
+		-- rays: wings beat up and down in a travelling wave, tail whips behind
+		local wing = sin(e.phase * 0.55) * (0.35 + amp)
+		if m.FinL then m.FinL.Transform = CFrame.Angles(0, 0, -wing) end
+		if m.FinR then m.FinR.Transform = CFrame.Angles(0, 0, wing) end
+		if m.Spine then m.Spine.Transform = CFrame.Angles(sin(e.phase * 0.55 - 0.8) * amp * 0.3, 0, 0) end
+		if m.Tail then m.Tail.Transform = CFrame.Angles(sin(e.phase * 0.55 - 1.6) * amp * 0.6, sin(e.phase * 0.3) * amp * 0.8, 0) end
+		return
+	elseif style == "Upright" then
+		-- seahorse: body bobs, tail curls and uncurls, tiny fins buzz
+		if m.Spine then m.Spine.Transform = CFrame.Angles(a * amp * 0.25, 0, 0) end
+		if m.Tail then m.Tail.Transform = CFrame.Angles(sin(e.phase - 0.9) * amp * 0.9, 0, 0) end
+		local buzz = sin(now * 30 + e.phase) * 0.5
+		if m.FinL then m.FinL.Transform = CFrame.Angles(0, -buzz, 0) end
+		if m.FinR then m.FinR.Transform = CFrame.Angles(0, buzz, 0) end
+		return
+	end
 	if m.Spine then m.Spine.Transform = CFrame.Angles(0, a * amp * 0.45, 0) end
 	if m.Tail then m.Tail.Transform = CFrame.Angles(0, sin(e.phase - 0.9) * amp * 1.1, 0) end
 	local fin = sin(now * 6 + e.phase) * 0.35

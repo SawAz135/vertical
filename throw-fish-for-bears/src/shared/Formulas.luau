@@ -48,8 +48,17 @@ function F.flightTime(dist: number): number
 end
 
 function F.apex(dist: number): number
+	-- grows fast for short throws, then flattens so 3000-stud throws stay on screen
 	local g = GameConfig.Throw
-	return g.apexBase + dist * g.apexPerStud
+	return g.apexBase + math.min(dist, 400) * g.apexPerStud + math.max(0, dist - 400) * 0.035
+end
+
+-- recommended strength to land in the middle-ish of zone i (full power, light fish)
+function F.zoneStrength(i: number): number
+	local Layout = require(script.Parent.Layout)
+	local a = Layout.zoneRange(i)
+	local dist = (Layout.THROW_AREA.maxZ - 10) - a + 60 -- from the throw zone to 60 studs into the zone
+	return math.floor(E.Strength.strengthFor(dist) / 10 + 0.5) * 10
 end
 
 -- position on the throw arc at normalised time u (0..1)

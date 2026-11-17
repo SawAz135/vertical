@@ -10,6 +10,7 @@ local RodBuilder = require(Shared.Models.RodBuilder)
 
 local Viewport = {}
 local spinning = {}
+local cache: { [string]: Model } = {}
 
 local function fit(vp: ViewportFrame, model: Model, yaw: number, pitch: number, zoom: number)
 	local cam = vp.CurrentCamera
@@ -39,30 +40,36 @@ function Viewport.create(parent: GuiObject, opts)
 	cam.FieldOfView = 30
 	cam.Parent = vp
 	vp.CurrentCamera = cam
-	local model
-	if opts.kind == "Fish" then
-		model = FishBuilder.build(opts.id, { scale = opts.scale or 1, variant = opts.variant })
-	elseif opts.kind == "Bear" then
-		model = BearBuilder.build(opts.id, { scale = opts.scale or 1, variant = opts.variant })
-	else
-		model = RodBuilder.build(opts.id)
-	end
-	model:PivotTo(CFrame.new())
-	if opts.silhouette then
-		for _, d in model:GetDescendants() do
-			if d:IsA("BasePart") then
+	-- built models are cached as templates and cloned (Index shows 75 bears + 43 fish)
+	local key = ("%s|%s|%s|%s|%s"):format(opts.kind, tostring(opts.id), tostring(opts.variant), tostring(opts.scale or 1), tostring(opts.silhouette == true))
+	local template = cache[key]
+	if not template then
+		local m
+		if opts.kind == "Fish" then
+			m = FishBuilder.build(opts.id, { scale = opts.scale or 1, variant = opts.variant })
+		elseif opts.kind == "Bear" then
+			m = BearBuilder.build(opts.id, { scale = opts.scale or 1, variant = opts.variant })
+		else
+			m = RodBuilder.build(opts.id)
+		end
+		m:PivotTo(CFrame.new())
+		for _, d in m:GetDescendants() do
+			if d:IsA("ParticleEmitter") or d:IsA("PointLight") or d:IsA("SpotLight") or d:IsA("Sparkles") then
+				d:Destroy()
+			elseif opts.silhouette and d:IsA("BasePart") then
 				d.Color = Color3.fromRGB(14, 14, 18)
 				d.Material = Enum.Material.SmoothPlastic
 				d.Reflectance = 0
-			elseif d:IsA("ParticleEmitter") then
-				d:Destroy()
+				d.Transparency = if d.Transparency >= 1 then 1 else 0
 			end
 		end
+		template = m
+		cache[key] = m
+	end
+	local model = template:Clone()
+	if opts.silhouette then
 		vp.Ambient = Color3.fromRGB(10, 10, 10)
 		vp.LightColor = Color3.fromRGB(30, 30, 30)
-	end
-	for _, d in model:GetDescendants() do
-		if d:IsA("ParticleEmitter") or d:IsA("PointLight") then d:Destroy() end
 	end
 	model.Parent = vp
 	local yaw = opts.yaw or (if opts.kind == "Fish" then math.rad(-70) elseif opts.kind == "Rod" then math.rad(-80) else math.rad(-145))

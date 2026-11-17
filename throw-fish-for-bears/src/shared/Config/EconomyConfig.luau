@@ -12,10 +12,15 @@ E.Strength = {
 	repTime = 1.25, -- seconds per lift
 	maxGain = 200,
 	gainCost = function(gain: number): number -- price to go from +gain to +(gain + 1) per lift
-		return math.floor(100 * 1.45 ^ (gain - 1) / 5 + 0.5) * 5
+		return math.floor(100 * 1.32 ^ (gain - 1) / 5 + 0.5) * 5
 	end,
-	maxDistance = function(strength: number): number -- studs at full power
-		return math.min(335, 75 + 38 * math.log(1 + math.max(0, strength) / 8, 2))
+	-- studs at full power: ~70 at 0, ~200 at 50, ~600 at 1.5K, ~1.2K at 12K, ~3K at 100K
+	maxDistance = function(strength: number): number
+		return math.min(3060, 70 + 24 * math.max(0, strength) ^ 0.42)
+	end,
+	-- inverse: strength needed so a full-power throw of a light fish reaches `dist` studs
+	strengthFor = function(dist: number): number
+		return math.max(0, (math.max(0, dist - 70) / 24) ^ (1 / 0.42))
 	end,
 	maxFishWeight = function(strength: number): number
 		return 10 + 6 * math.sqrt(math.max(0, strength))

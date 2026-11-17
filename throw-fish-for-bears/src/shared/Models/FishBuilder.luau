@@ -20,9 +20,9 @@ local ANG = CFrame.Angles
 local BLACK = Color3.fromRGB(20, 20, 24)
 local WHITE = Color3.fromRGB(250, 250, 250)
 
-local function addEye(model, bone, x, y, z, size, side)
+local function addEye(model, bone, x, y, z, size, side, ringColor)
 	-- white ring, black pupil, white highlight (the reference eye look)
-	local ring = Studs.piece(model, "EyeRing", V3(0.05, size, size), CF(x, y, z), WHITE, "eye", { smooth = true })
+	local ring = Studs.piece(model, "EyeRing", V3(0.05, size, size), CF(x, y, z), ringColor or WHITE, "eye", { smooth = true })
 	local px = x + side * 0.035
 	local pupil = Studs.piece(model, "Pupil", V3(0.05, size * 0.66, size * 0.66), CF(px, y - size * 0.04, z + size * 0.02), BLACK, "pupil", { smooth = true })
 	local hl = Studs.piece(model, "Highlight", V3(0.03, size * 0.2, size * 0.2), CF(px + side * 0.03, y + size * 0.12, z - size * 0.12), WHITE, "pupil", { smooth = true })
@@ -56,6 +56,32 @@ local function buildTail(model, tailBone: BasePart, kind: string, size: number, 
 			add(finPlate(model, "TailLobe", V3(th, wid, len), cf, colors.tail, edge))
 			-- darker tip voxel
 			add({ Studs.piece(model, "TailTip", V3(th + 0.01, wid * 0.8, len * 0.25), cf * CF(0, 0, len * 0.38), Studs.shade(colors.tail, 0.82), "tail") })
+		end
+	elseif kind == "shark" then
+		-- heterocercal: long upper lobe, short lower lobe
+		add(finPlate(model, "TailUpper", V3(th * 1.4, sz * 0.26, sz * 1.15), t * CF(0, 0, sz * 0.15) * ANG(math.rad(38), 0, 0) * CF(0, 0, sz * 0.55), colors.tail, edge))
+		add(finPlate(model, "TailLower", V3(th * 1.2, sz * 0.22, sz * 0.6), t * CF(0, 0, sz * 0.15) * ANG(-math.rad(40), 0, 0) * CF(0, 0, sz * 0.3), colors.tail, edge))
+		add({ Studs.piece(model, "TailTip", V3(th * 1.5, sz * 0.18, sz * 0.3), t * CF(0, 0, sz * 0.15) * ANG(math.rad(38), 0, 0) * CF(0, 0, sz * 1.05), Studs.shade(colors.tail, 0.85), "tail") })
+	elseif kind == "veil" then
+		-- long flowing double veil that droops (goldfish, betta, guppy, koi)
+		local l = sz * 1.1
+		for _, dir in { 1, -1 } do
+			local cf = t * CF(0, 0, sz * 0.15) * ANG(dir * math.rad(24), 0, 0) * CF(0, 0, l / 2)
+			add(finPlate(model, "Veil", V3(th * 0.8, sz * 0.62, l), cf, colors.tail, nil))
+			add({ Studs.piece(model, "VeilTip", V3(th * 0.85, sz * 0.5, l * 0.4), cf * CF(0, -dir * sz * 0.1, l * 0.42) * ANG(dir * 0.25, 0, 0), Studs.shade(colors.tail, 1.12), "tail") })
+			if edge then
+				add({ Studs.piece(model, "VeilEdge", V3(th + 0.02, sz * 0.5, 0.08), cf * CF(0, 0, l * 0.62), edge, "detail", { smooth = true }) })
+			end
+		end
+	elseif kind == "point" then
+		-- eel / oarfish: the body tapers into a small pointed fin
+		add(finPlate(model, "TailPoint", V3(th, sz * 0.5, sz * 0.7), t * CF(0, 0, sz * 0.4), colors.tail))
+		add({ Studs.piece(model, "TailPointTip", V3(th, sz * 0.24, sz * 0.36), t * CF(0, 0, sz * 0.9), Studs.shade(colors.tail, 0.85), "tail") })
+	elseif kind == "stub" then
+		-- sunfish clavus: short scalloped rudder as tall as the body
+		add(finPlate(model, "Clavus", V3(th * 1.6, sz * 1.5, sz * 0.32), t * CF(0, 0, sz * 0.08), colors.tail))
+		for k = -2, 2 do
+			add({ Studs.piece(model, "ClavusLobe", V3(th * 1.7, sz * 0.22, sz * 0.14), t * CF(0, k * sz * 0.3, sz * 0.28), Studs.shade(colors.tail, 0.9), "tail") })
 		end
 	elseif kind == "round" or kind == "fan" then
 		local h = if kind == "fan" then sz * 0.85 else sz * 0.95
@@ -110,6 +136,8 @@ local function buildBody(model: Model, look, s: number)
 					if pat.edge then table.insert(edges, { i = i, color = pat.edge }) end
 				end
 			end
+		elseif pat.kind == "patch" then
+			for _, cell in pat.cells do override[cell] = pat.color end
 		elseif pat.kind == "spots" then
 			for i = 2, n - 1 do
 				if (i + (pat.offset or 0)) % (pat.every or 2) == 0 then
@@ -147,10 +175,69 @@ local function buildBody(model: Model, look, s: number)
 
 	-- nose cap + mouth
 	local s1 = slices[1]
-	local nose = Studs.piece(model, "Nose", V3(s1.w * 0.7, s1.h * 0.62, sl * 0.4), CF(0, -s1.h * 0.04, zNose - sl * 0.18), colors.side, "side")
-	local mouth = Studs.piece(model, "Mouth", V3(s1.w * 0.42, s1.h * 0.1, 0.06), CF(0, -s1.h * 0.18, zNose - sl * 0.38), Color3.fromRGB(60, 30, 30), "mouth", { smooth = true })
+	local snout = (look.snout or 0) * L * 0.3
+	local nose = Studs.piece(model, "Nose", V3(s1.w * 0.7, s1.h * 0.62, sl * 0.4 + snout), CF(0, -s1.h * 0.04, zNose - sl * 0.18 - snout / 2), colors.side, "side")
+	local mouthW = if look.bigMouth then s1.w * 0.7 else s1.w * 0.42
+	local mouthH = if look.bigMouth then s1.h * 0.16 else s1.h * 0.1
+	local mouthZ = zNose - sl * 0.38 - snout
+	local mouth = Studs.piece(model, "Mouth", V3(mouthW, mouthH, 0.06), CF(0, -s1.h * 0.18, mouthZ), Color3.fromRGB(60, 30, 30), "mouth", { smooth = true })
 	table.insert(frontParts, nose)
 	table.insert(frontParts, mouth)
+	if look.underbite then
+		-- jutting lower jaw
+		table.insert(frontParts, Studs.piece(model, "LowerJaw", V3(mouthW * 1.05, s1.h * 0.16, sl * 0.5 + snout * 0.6), CF(0, -s1.h * 0.32, zNose - sl * 0.3 - snout * 0.6), Studs.shade(colors.belly, 0.92), "belly"))
+	end
+	if look.teeth then
+		local nt = if look.bigMouth then 5 else 3
+		for k = 1, nt do
+			local x = (k - (nt + 1) / 2) * mouthW / nt
+			table.insert(frontParts, Studs.piece(model, "Tooth", V3(mouthW / nt * 0.5, mouthH * 1.1, 0.07), CF(x, -s1.h * 0.18 + mouthH * 0.5, mouthZ - 0.04), look.teeth, "detail", { smooth = true }))
+			table.insert(frontParts, Studs.piece(model, "Tooth", V3(mouthW / nt * 0.5, mouthH * 1.1, 0.07), CF(x + mouthW / nt * 0.5, -s1.h * 0.18 - mouthH * 0.5, mouthZ - 0.05), look.teeth, "detail", { smooth = true }))
+		end
+	end
+	if look.barbels then
+		local b = look.barbels
+		for k = 1, b.count do
+			for _, side in { 1, -1 } do
+				if b.chin and side < 0 then continue end
+				local x = if b.chin then 0 else side * mouthW * (0.35 + k * 0.08)
+				local len = b.length * H * (1 - (k - 1) * 0.25)
+				local y = -s1.h * (0.2 + (k - 1) * 0.12)
+				table.insert(frontParts, Studs.piece(model, "Barbel", V3(0.06, 0.06, len), CF(x, y, mouthZ + 0.05) * ANG(-0.5, side * (0.5 + k * 0.25), 0) * CF(0, 0, -len / 2), b.color, "detail", { smooth = true }))
+			end
+		end
+	end
+	if look.lure then
+		-- anglerfish: rod from the forehead with a glowing bulb
+		local stalk = H * 0.9
+		local base = CF(0, s1.top, s1.z)
+		table.insert(frontParts, Studs.piece(model, "LureStalk", V3(0.07, stalk, 0.07), base * ANG(-0.55, 0, 0) * CF(0, stalk / 2, 0), Studs.shade(colors.back, 1.2), "detail", { smooth = true }))
+		local tip = (base * ANG(-0.55, 0, 0) * CF(0, stalk, 0)).Position
+		local bulb = Studs.piece(model, "LureBulb", V3(0.26, 0.26, 0.26), CF(tip + V3(0, -0.05, -0.08)), look.lure, "accent", { smooth = true, material = Enum.Material.Neon })
+		bulb.Shape = Enum.PartType.Ball
+		table.insert(frontParts, bulb)
+		local light = Instance.new("PointLight")
+		light.Color = look.lure
+		light.Range = 6
+		light.Brightness = 1.4
+		light.Shadows = false
+		light.Parent = bulb
+	end
+	if look.hammer then
+		-- hammerhead: wide flat cephalofoil with the eyes on the tips
+		local hw = W * 2.6
+		table.insert(frontParts, Studs.piece(model, "Hammer", V3(hw, s1.h * 0.42, sl * 0.9), CF(0, s1.top - s1.h * 0.4, zNose + sl * 0.1), colors.back, "back"))
+		table.insert(frontParts, Studs.piece(model, "HammerBelly", V3(hw * 0.94, s1.h * 0.14, sl * 0.8), CF(0, s1.top - s1.h * 0.68, zNose + sl * 0.1), colors.belly, "belly"))
+	end
+	if look.shark then
+		-- five gill slits on each flank
+		local s3 = slices[3]
+		for _, side in { 1, -1 } do
+			for k = 0, 4 do
+				table.insert(frontParts, Studs.piece(model, "GillSlit", V3(0.05, s3.h * 0.4, 0.07), CF(side * (s3.w / 2 + 0.02), -s3.h * 0.05, s3.z - sl * 0.4 + k * sl * 0.2), Studs.shade(colors.side, 0.6), "detail", { smooth = true }))
+			end
+		end
+	end
 
 	-- gill plates
 	local s2 = slices[2]
@@ -182,9 +269,14 @@ local function buildBody(model: Model, look, s: number)
 	end
 
 	-- eyes
-	local eyeSize = math.max(0.16, H * 0.24)
+	local eyeSize = math.max(0.16, H * 0.24) * (look.bigEyes or 1)
+	if look.shark then eyeSize *= 0.6 end
 	for _, side in { 1, -1 } do
-		addEye(model, root, side * (s1.w / 2 + 0.03), s1.top - s1.h * 0.36, s1.z + sl * 0.12, eyeSize, side)
+		if look.hammer then
+			addEye(model, root, side * (W * 1.3 + 0.03), s1.top - s1.h * 0.4, zNose + sl * 0.1, eyeSize, side)
+		else
+			addEye(model, root, side * (s1.w / 2 + 0.03), s1.top - s1.h * 0.36, s1.z + sl * 0.12 - snout * 0.2, eyeSize, side, look.eyeColor)
+		end
 	end
 
 	-- dorsal fin (stepped voxel fin along the back)
@@ -231,9 +323,68 @@ local function buildBody(model: Model, look, s: number)
 		end
 	end
 
-	-- swordfish bill
-	if look.special == "sword" then
-		local billL = L * 0.42
+	if look.finlets then
+		for i = n - 2, n do
+			local sd = slices[i]
+			if sd then
+				table.insert(rearParts, Studs.piece(model, "Finlet", V3(0.08, H * 0.08, sl * 0.3), CF(0, sd.top + H * 0.04, sd.z), look.finlets, "fin"))
+				table.insert(rearParts, Studs.piece(model, "Finlet", V3(0.08, H * 0.08, sl * 0.3), CF(0, sd.top - sd.h - H * 0.04, sd.z), look.finlets, "fin"))
+			end
+		end
+	end
+	if look.scutes then
+		-- sturgeon: armour plates along the back and the flanks
+		for i = 2, n - 1 do
+			local sd = slices[i]
+			local list = if i <= split then frontParts else rearParts
+			table.insert(list, Studs.piece(model, "Scute", V3(sd.w * 0.22, H * 0.1, sl * 0.5), CF(0, sd.top + H * 0.04, sd.z), look.scutes, "accent"))
+			for _, side in { 1, -1 } do
+				table.insert(list, Studs.piece(model, "Scute", V3(0.08, H * 0.1, sl * 0.4), CF(side * (sd.w / 2 + 0.03), sd.top - sd.h * 0.45, sd.z), look.scutes, "accent"))
+			end
+		end
+	end
+	if look.spines then
+		-- lionfish: venomous striped rays fanning out of the back
+		local sp = look.spines
+		for k = 1, sp.count do
+			local t = (k - 1) / math.max(1, sp.count - 1)
+			local i = math.clamp(math.floor(1 + t * (n - 2) + 0.5), 1, n)
+			local sd = slices[i]
+			local list = if i <= split then frontParts else rearParts
+			local len = sp.height * H * (1 - t * 0.45)
+			local cf = CF(0, sd.top, sd.z) * ANG(0.35 - t * 0.7, 0, 0)
+			table.insert(list, Studs.piece(model, "Spine", V3(0.06, len, 0.06), cf * CF(0, len / 2, 0), sp.color, "fin"))
+			table.insert(list, Studs.piece(model, "SpineBand", V3(0.08, len * 0.18, 0.08), cf * CF(0, len * 0.55, 0), sp.tip, "fin"))
+			table.insert(list, Studs.piece(model, "SpineWeb", V3(0.04, len * 0.6, sl * 0.6), cf * CF(0, len * 0.3, sl * 0.2), Studs.shade(sp.color, 1.25), "fin"))
+		end
+	end
+	if look.crest then
+		-- oarfish: tall red crest rays on the head
+		for k = 0, 4 do
+			local len = H * (1.1 - k * 0.12)
+			table.insert(frontParts, Studs.piece(model, "Crest", V3(0.07, len, 0.07), CF(0, s1.top, s1.z + k * sl * 0.18) * ANG(0.45 + k * 0.08, 0, 0) * CF(0, len / 2, 0), look.crest, "fin"))
+		end
+	end
+	if look.tallAnal and slices[n - 2] then
+		local sd = slices[n - 2]
+		local ah = look.tallAnal * H * 0.22
+		table.insert(rearParts, Studs.piece(model, "AnalTall", V3(0.08, ah, sl * 1.4), CF(0, sd.top - sd.h - ah / 2 + 0.05, sd.z) * ANG(-0.25, 0, 0), colors.fin, "fin"))
+	end
+	if look.longAnal then
+		for i = split, n - 1 do
+			local sd = slices[i]
+			table.insert(rearParts, Studs.piece(model, "AnalLong", V3(0.08, H * 0.22, sl), CF(0, sd.top - sd.h - H * 0.1, sd.z), colors.fin, "fin"))
+		end
+	end
+	if look.shine then
+		local sparkle = Instance.new("Sparkles")
+		sparkle.SparkleColor = colors.side
+		sparkle.Parent = root
+	end
+
+	-- bill (swordfish, marlin)
+	if look.bill then
+		local billL = L * look.bill
 		local b1 = Studs.piece(model, "Bill", V3(s1.w * 0.32, s1.h * 0.2, billL * 0.55), CF(0, s1.h * 0.04, zNose - billL * 0.27), look.colors.bill, "accent")
 		local b2 = Studs.piece(model, "BillTip", V3(s1.w * 0.2, s1.h * 0.13, billL * 0.5), CF(0, s1.h * 0.04, zNose - billL * 0.76), Studs.shade(look.colors.bill, 1.15), "accent")
 		table.insert(frontParts, b1)
@@ -252,12 +403,12 @@ local function buildBody(model: Model, look, s: number)
 		local pivot = CF(side * (s2.w / 2 + 0.03), -s2.h * 0.2, pz)
 		local finBone = Studs.bone(model, if side > 0 then "FinBoneR" else "FinBoneL", pivot)
 		local size = (look.pectoral or 0.35) * H
-		local parts = finPlate(model, "Pectoral", V3(0.07, size * 0.7, size), pivot * ANG(0, side * 0.5, 0) * CF(0, 0, size / 2), colors.fin, look.pectoralEdge)
+		local parts = finPlate(model, "Pectoral", V3(0.07, size * 0.7, size), pivot * ANG(0, side * 0.5, 0) * CF(0, 0, size / 2), look.pectoralColor or colors.fin, look.pectoralEdge)
 		Studs.weldAll(finBone, parts)
 		Studs.motor(if side > 0 then "FinR" else "FinL", root, finBone, pivot)
 	end
 
-	return root, { length = L + (look.special == "sword" and L * 0.42 or 0), height = H, width = W, noseZ = zNose, tailZ = zTail }
+	return root, { length = L + (look.bill and L * look.bill or 0) + snout, height = H, width = W, noseZ = zNose - snout, tailZ = zTail }
 end
 
 -- pufferfish: round spiky voxel ball
@@ -331,6 +482,126 @@ local function buildPuffer(model: Model, look, s: number)
 	return root, { length = L * 1.25, height = H, width = W, noseZ = -L * 0.5, tailZ = L * 0.42 }
 end
 
+-- rays (stingray, manta): flat diamond disc, flapping wings, long whip tail
+local function buildRay(model: Model, look, s: number)
+	local L = look.length * s
+	local H = look.height * s
+	local W = look.width * s
+	local c = look.colors
+	local root = Studs.bone(model, "Root", CF(0, 0, 0), V3(W * 0.3, H, L * 0.5))
+	local rear = Studs.bone(model, "Rear", CF(0, 0, L * 0.42))
+	local tailBone = Studs.bone(model, "TailBone", CF(0, 0, L * 0.5))
+	model.PrimaryPart = root
+	local parts = {}
+	local function add(p) table.insert(parts, p) return p end
+	-- central body: stacked plates thinner toward the edges
+	add(Studs.piece(model, "Body", V3(W * 0.3, H, L * 0.8), CF(0, 0, 0), c.back, "back"))
+	add(Studs.piece(model, "BodyBelly", V3(W * 0.28, H * 0.2, L * 0.76), CF(0, -H * 0.55, 0), c.belly, "belly"))
+	add(Studs.piece(model, "Head", V3(W * 0.22, H * 0.8, L * 0.16), CF(0, -H * 0.05, -L * 0.46), c.side, "side"))
+	-- eyes on top, spiracles behind
+	local eye = math.max(0.16, L * 0.08)
+	for _, side in { 1, -1 } do
+		local ring = Studs.piece(model, "EyeRing", V3(eye, 0.05, eye), CF(side * W * 0.09, H * 0.52, -L * 0.3), WHITE, "eye", { smooth = true })
+		local pupil = Studs.piece(model, "Pupil", V3(eye * 0.6, 0.05, eye * 0.6), CF(side * W * 0.09, H * 0.55, -L * 0.3), BLACK, "pupil", { smooth = true })
+		add(ring) add(pupil)
+		add(Studs.piece(model, "Spiracle", V3(eye * 0.6, 0.05, eye * 0.4), CF(side * W * 0.09, H * 0.52, -L * 0.18), Studs.shade(c.back, 0.7), "detail", { smooth = true }))
+	end
+	-- spots / pattern on the back
+	for k = 0, 7 do
+		local a = k * 2.39
+		local r = 0.3 + (k % 3) * 0.12
+		add(Studs.piece(model, "Spot", V3(W * 0.05, 0.05, W * 0.05), CF(math.cos(a) * W * 0.12 * r * 2, H * 0.52, math.sin(a) * L * 0.3 * r), c.spot, "accent", { smooth = true }))
+	end
+	if look.manta then
+		-- cephalic horns + wide mouth
+		for _, side in { 1, -1 } do
+			add(Studs.piece(model, "Horn", V3(W * 0.05, H * 0.6, L * 0.3), CF(side * W * 0.12, -H * 0.1, -L * 0.56), c.back, "back"))
+		end
+		add(Studs.piece(model, "Mouth", V3(W * 0.16, H * 0.2, 0.06), CF(0, -H * 0.15, -L * 0.55), Color3.fromRGB(240, 240, 240), "mouth", { smooth = true }))
+	end
+	Studs.weldAll(root, parts)
+	-- wings on their own joints (flap)
+	for _, side in { 1, -1 } do
+		local pivot = CF(side * W * 0.15, 0, 0)
+		local bone = Studs.bone(model, if side > 0 then "FinBoneR" else "FinBoneL", pivot)
+		local wp = {}
+		-- three stepped plates = diamond-ish wing
+		local steps = { { 0.16, 0.9, 0.8 }, { 0.14, 0.62, 0.55 }, { 0.12, 0.34, 0.3 } }
+		for k, st in steps do
+			local x = side * W * (0.06 + (k - 1) * 0.11)
+			table.insert(wp, Studs.piece(model, "Wing", V3(W * st[1], H * st[3], L * st[2]), pivot * CF(x, 0, if look.manta then L * 0.05 * (k - 1) else 0), Studs.shade(c.back, 1 - k * 0.04), "back"))
+			table.insert(wp, Studs.piece(model, "WingBelly", V3(W * st[1], 0.06, L * st[2] * 0.95), pivot * CF(x, -H * st[3] / 2 - 0.02, if look.manta then L * 0.05 * (k - 1) else 0), c.belly, "belly", { smooth = true }))
+		end
+		table.insert(wp, Studs.piece(model, "WingTip", V3(W * 0.06, H * 0.2, L * 0.12), pivot * CF(side * W * 0.37, 0, if look.manta then L * 0.16 else 0), Studs.shade(c.back, 0.85), "back"))
+		Studs.weldAll(bone, wp)
+		Studs.motor(if side > 0 then "FinR" else "FinL", root, bone, pivot)
+	end
+	-- rear + whip tail
+	local tl = look.tailLen * s
+	local rp = { Studs.piece(model, "TailBase", V3(W * 0.08, H * 0.4, L * 0.2), CF(0, 0, L * 0.5), c.tail, "tail") }
+	Studs.weldAll(rear, rp)
+	local tp = { Studs.piece(model, "Whip", V3(0.12 * s, 0.12 * s, tl), CF(0, 0, L * 0.5 + tl / 2), c.tail, "tail") }
+	if look.barb then
+		table.insert(tp, Studs.piece(model, "Barb", V3(0.08 * s, 0.22 * s, tl * 0.12), CF(0, 0.12 * s, L * 0.5 + tl * 0.3), Color3.fromRGB(230, 220, 200), "accent"))
+	end
+	Studs.weldAll(tailBone, tp)
+	Studs.motor("Spine", root, rear, CF(0, 0, L * 0.42))
+	Studs.motor("Tail", rear, tailBone, CF(0, 0, L * 0.5))
+	model:SetAttribute("SwimStyle", "Flap")
+	return root, { length = L + tl, height = H, width = W, noseZ = -L * 0.55, tailZ = L * 0.5 }
+end
+
+-- seahorse: upright head + horse snout, ridged belly, curled tail
+local function buildSeahorse(model: Model, look, s: number)
+	local H = look.height * s
+	local W = look.width * s
+	local c = look.colors
+	local root = Studs.bone(model, "Root", CF(0, H * 0.25, 0), V3(W, H * 0.4, W))
+	local rear = Studs.bone(model, "Rear", CF(0, -H * 0.05, 0.05))
+	local tailBone = Studs.bone(model, "TailBone", CF(0, -H * 0.25, 0.1))
+	model.PrimaryPart = root
+	local front, back, tail = {}, {}, {}
+	-- head + crown + tube snout (faces -Z)
+	table.insert(front, Studs.piece(model, "Head", V3(W * 0.7, H * 0.18, W * 0.8), CF(0, H * 0.4, 0), c.back, "back"))
+	table.insert(front, Studs.piece(model, "Crown", V3(W * 0.36, H * 0.1, W * 0.36), CF(0, H * 0.53, 0.05), c.fin, "fin"))
+	table.insert(front, Studs.piece(model, "CrownTip", V3(W * 0.2, H * 0.06, W * 0.2), CF(0, H * 0.6, 0.08), c.spot, "accent"))
+	table.insert(front, Studs.piece(model, "Snout", V3(W * 0.26, W * 0.24, W * 0.9), CF(0, H * 0.37, -W * 0.8), c.side, "side"))
+	table.insert(front, Studs.piece(model, "SnoutTip", V3(W * 0.32, W * 0.28, W * 0.12), CF(0, H * 0.37, -W * 1.26), Studs.shade(c.side, 0.85), "side"))
+	for _, side in { 1, -1 } do
+		addEye(model, root, side * W * 0.37, H * 0.42, -W * 0.12, math.max(0.16, W * 0.3), side)
+	end
+	-- neck + chest
+	table.insert(front, Studs.piece(model, "Neck", V3(W * 0.6, H * 0.14, W * 0.7), CF(0, H * 0.26, 0.08), c.side, "side"))
+	table.insert(front, Studs.piece(model, "Chest", V3(W * 0.8, H * 0.18, W * 0.9), CF(0, H * 0.11, -0.02), c.side, "side"))
+	-- belly ridges (rear bone)
+	for k = 0, 3 do
+		local y = H * (0.02 - k * 0.07)
+		local w = W * (0.85 - k * 0.1)
+		table.insert(back, Studs.piece(model, "Ring", V3(w, H * 0.065, w), CF(0, y, 0.05 + k * 0.04), if k % 2 == 0 then c.belly else c.side, "belly"))
+		table.insert(back, Studs.piece(model, "RingSpot", V3(w * 0.3, H * 0.03, 0.05), CF(0, y, 0.05 + k * 0.04 - w / 2 - 0.02), c.spot, "accent", { smooth = true }))
+	end
+	-- dorsal fin on the back
+	table.insert(back, Studs.piece(model, "Dorsal", V3(0.08, H * 0.14, W * 0.5), CF(0, -H * 0.06, W * 0.62), c.fin, "fin"))
+	-- curled tail (tail bone)
+	local curl = { { 0, -0.24, 0.1, 0.52 }, { 0, -0.31, 0.16, 0.44 }, { 0, -0.38, 0.14, 0.36 }, { 0, -0.43, 0.04, 0.3 }, { 0, -0.43, -0.08, 0.25 }, { 0, -0.39, -0.14, 0.21 }, { 0, -0.34, -0.1, 0.17 } }
+	for k, cpt in curl do
+		table.insert(tail, Studs.piece(model, "TailCurl", V3(W * cpt[4] * 1.4, H * 0.07, W * cpt[4] * 1.4), CF(0, H * cpt[2], W * cpt[3] * 2), Studs.shade(c.tail, 1 - k * 0.03), "tail"))
+	end
+	Studs.weldAll(root, front)
+	Studs.weldAll(rear, back)
+	Studs.weldAll(tailBone, tail)
+	Studs.motor("Spine", root, rear, CF(0, H * 0.04, 0.05))
+	Studs.motor("Tail", rear, tailBone, CF(0, -H * 0.25, 0.1))
+	for _, side in { 1, -1 } do
+		local pivot = CF(side * W * 0.38, H * 0.3, W * 0.15)
+		local bone = Studs.bone(model, if side > 0 then "FinBoneR" else "FinBoneL", pivot)
+		Studs.weldAll(bone, { Studs.piece(model, "Pectoral", V3(0.06, W * 0.3, W * 0.26), pivot * CF(side * 0.05, 0, W * 0.12), c.fin, "fin") })
+		Studs.motor(if side > 0 then "FinR" else "FinL", root, bone, pivot)
+	end
+	model:SetAttribute("SwimStyle", "Upright")
+	return root, { length = W * 2.2, height = H, width = W, noseZ = -W * 1.3, tailZ = W * 0.4 }
+end
+
 --[[ Build a fish model.
 	opts.weight  (kg) -> scale ; opts.scale overrides
 	opts.variant "Normal" | "Golden" | "Diamond" | "Rainbow" ]]
@@ -344,6 +615,10 @@ function FishBuilder.build(speciesId: string, opts: any?): Model
 	local root, dims
 	if look.special == "puffer" then
 		root, dims = buildPuffer(model, look, s)
+	elseif look.special == "ray" then
+		root, dims = buildRay(model, look, s)
+	elseif look.special == "seahorse" then
+		root, dims = buildSeahorse(model, look, s)
 	else
 		root, dims = buildBody(model, look, s)
 	end

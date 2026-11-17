@@ -60,10 +60,16 @@ end
 M.Play = play
 
 --- Screen factor: min(vx/1050, vy/620) clamped to [0.52, 1.18].
+-- Phones / tablets (touch only): every GUI is drawn smaller. Lower it for even smaller GUIs.
+M.TOUCH_FACTOR = 0.72
 function M.ScreenScale(): number
 	local v = workspace.CurrentCamera.ViewportSize
 	if v.X <= 0 or v.Y <= 0 then return 1 end
-	return math.clamp(math.min(v.X / M.REFERENCE.X, v.Y / M.REFERENCE.Y), M.MIN_SCALE, M.MAX_SCALE)
+	local k = math.min(v.X / M.REFERENCE.X, v.Y / M.REFERENCE.Y)
+	if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+		return math.clamp(k * M.TOUCH_FACTOR, 0.25, M.MAX_SCALE)
+	end
+	return math.clamp(k, M.MIN_SCALE, M.MAX_SCALE)
 end
 
 --- Keeps a UIScale ("WindowScale") at size * ScreenScale() (* optional animated factor NumberValue).

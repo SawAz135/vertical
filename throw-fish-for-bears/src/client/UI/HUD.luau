@@ -94,7 +94,13 @@ local function buildRight()
 	local tiles = new("Frame", { Name = "Tiles", BackgroundTransparency = 1, Size = UDim2.fromOffset(100, 330), Position = UDim2.fromOffset(318, 5) }, root)
 	local function tile(name, grad, icon, y, open)
 		local b = Sim.button(tiles, { Name = name, Grad = grad, Size = Vector2.new(84, 84), Position = UDim2.fromOffset(50, y), Hover = 1.07 },
-			function() HUD.menus.open(open) end)
+			function()
+				if open == "Bears" then
+					if refs.togglePanel then refs.togglePanel() end -- small "X/13 Active" panel with Pick Up
+				else
+					HUD.menus.open(open)
+				end
+			end)
 		new("ImageLabel", { Name = "Icon", BackgroundTransparency = 1, Image = icon, ScaleType = Enum.ScaleType.Fit, Size = UDim2.fromOffset(70, 70),
 			Position = UDim2.fromScale(0.5, 0.45), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 7 }, b)
 		Sim.text(b, name, { Size = UDim2.new(1, 4, 0, 24), Position = UDim2.new(0.5, 0, 1, -12), Max = 22, ZIndex = 9 })
@@ -106,7 +112,8 @@ local function buildRight()
 	refs.giftBadge = giftBadge
 	refs.dailyBadge = dailyBadge
 
-	local tab = Sim.button(root, { Name = "PanelTab", Grad = "red", Size = Vector2.new(46, 64), Position = UDim2.fromOffset(284, 164), Text = ">", Max = 40 })
+	local tab = Sim.button(root, { Name = "PanelTab", Grad = "red", Size = Vector2.new(46, 64), Position = UDim2.fromOffset(34, 164), Text = "<", Max = 40 })
+	tab.Visible = false -- the red arrow only exists while the Bears panel is open
 	local panel = new("Frame", { Name = "BearsPanel", BackgroundColor3 = RGB(52, 52, 56), Size = UDim2.fromOffset(350, 300),
 		Position = UDim2.fromOffset(66, 6), Visible = false, ZIndex = 3 }, root)
 	Sim.corner(panel, 4)
@@ -121,19 +128,20 @@ local function buildRight()
 		CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6, ZIndex = 4 }, panel)
 	new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, list)
 	refs.panelList = list
-	tab.Activated:Connect(function()
+	local function toggle()
 		local open = not panel.Visible
 		panel.Visible = open
 		tiles.Visible = not open
-		tab.Position = UDim2.fromOffset(if open then 34 else 284, 164)
-		Sim.setText(tab, if open then "<" else ">")
+		tab.Visible = open
 		if open then
 			local sc = panel:FindFirstChild("PopScale") or new("UIScale", { Name = "PopScale" }, panel)
 			sc.Scale = 0.75
 			tween(sc, 0.32, { Scale = 1 }, Enum.EasingStyle.Back)
 			HUD.renderPanel()
 		end
-	end)
+	end
+	tab.Activated:Connect(toggle)
+	refs.togglePanel = toggle
 	refs.panel = panel
 end
 
@@ -219,7 +227,7 @@ local function buildHotbar()
 			Net.event("EquipSlot"):FireServer("Fish")
 		end
 	end)
-	Motion.BindButton(slots[3].button, 1.06, Sim.sounds, function() HUD.menus.open("Bears") end)
+	Motion.BindButton(slots[3].button, 1.06, Sim.sounds, function() HUD.menus.open("Inventory") end)
 	refs.hotbarRoot = root
 end
 
@@ -421,7 +429,7 @@ function HUD.renderStats()
 	refs.strength.Text = ("%s (x%d)"):format(Format.short(power), gain)
 	-- bar: how far you can throw (studs) out of the max
 	local dist = E.Strength.maxDistance(power)
-	tween(refs.repFill, 0.25, { Size = UDim2.fromScale(math.clamp((dist - 75) / 260, 0, 1), 1) })
+	tween(refs.repFill, 0.25, { Size = UDim2.fromScale(math.clamp((dist - 70) / 2990, 0.02, 1), 1) })
 	local rate = player:GetAttribute("Income") or 0
 	refs.income.Text = if rate > 0 then "+" .. Format.short(rate) .. "/s" else ""
 	local placed = 0
@@ -443,8 +451,30 @@ function HUD.setGiftBadge(on: boolean)
 	if refs.giftBadge then refs.giftBadge.Visible = on end
 end
 
+-- "Bears + Fish" inventory button: sits in the Roblox top bar, right next to the chat icon,
+-- and replaces the default Roblox inventory/backpack button.
+local INV_BUTTON_X, INV_BUTTON_Y = 172, 12 -- placed right after the chat pill (measured on a phone). Raise X if it overlaps.
+local function buildInventoryButton()
+	local ig = new("ScreenGui", { Name = "InventoryButton", ResetOnSpawn = false, DisplayOrder = 2, IgnoreGuiInset = true,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling, ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets }, player:WaitForChild("PlayerGui"))
+	local b = new("TextButton", { Name = "Inventory", Text = "", AutoButtonColor = false, BackgroundColor3 = RGB(18, 18, 21), BackgroundTransparency = 0.3,
+		Size = UDim2.fromOffset(44, 44), Position = UDim2.fromOffset(INV_BUTTON_X, INV_BUTTON_Y), BorderSizePixel = 0 }, ig)
+	new("UICorner", { CornerRadius = UDim.new(1, 0) }, b)
+	new("ImageLabel", { Name = "Icon", BackgroundTransparency = 1, Image = K.Icons.Bag, ScaleType = Enum.ScaleType.Fit, Size = UDim2.fromOffset(28, 28),
+		Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5) }, b)
+	local sc = new("UIScale", {}, b)
+	b.MouseButton1Down:Connect(function() tween(sc, 0.06, { Scale = 0.9 }) end)
+	b.MouseButton1Up:Connect(function() tween(sc, 0.12, { Scale = 1 }, Enum.EasingStyle.Back) end)
+	b.Activated:Connect(function()
+		Sound.play("Click")
+		if HUD.menus then HUD.menus.open("Inventory") end
+	end)
+	refs.inventoryButton = b
+end
+
 function HUD.mount(g: ScreenGui)
 	gui = g
+	buildInventoryButton()
 	buildTitle()
 	buildLeft()
 	buildRight()
@@ -510,7 +540,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
 	elseif input.KeyCode == Enum.KeyCode.Two then
 		Net.event("EquipSlot"):FireServer("Fish")
 	elseif input.KeyCode == Enum.KeyCode.Three then
-		if HUD.menus then HUD.menus.open("Bears") end
+		if HUD.menus then HUD.menus.open("Inventory") end
 	end
 end)
 

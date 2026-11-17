@@ -13,6 +13,7 @@ local Shared = script.Parent.Parent
 local Studs = require(script.Parent.Studs)
 local BearConfig = require(Shared.Config.BearConfig)
 local RarityConfig = require(Shared.Config.RarityConfig)
+local BearTraits = require(script.Parent.BearTraits)
 
 local BearBuilder = {}
 
@@ -77,6 +78,9 @@ local function buildHead(model, head: BasePart, spec, s: number, d)
 	-- mouth interior (visible when the jaw opens)
 	add(Studs.piece(model, "MouthInside", V3(mW * 0.82, hs * 0.1, mL * 0.86), hc * CF(0, mY - mH / 2 - hs * 0.03, mZ + 0.02), MOUTH, "mouth", { smooth = true }))
 
+	-- species head geometry (hats, crowns, masks, glasses ...)
+	BearTraits.head({ model = model, traits = t, c = c, s = s, hc = hc, hs = hs, hw = hw, hh = hh, hd = hd, eyeX = eyeX, eyeY = eyeY, add = add })
+
 	Studs.weldAll(head, parts)
 
 	-- jaw bone
@@ -122,7 +126,8 @@ local function buildLeg(model, torso: BasePart, name: string, pivot: CFrame, spe
 	table.insert(parts, Studs.piece(model, "LegFur", V3(th * 1.06, upperH * 0.3, th * 1.06), pivot * CF(0, 0.35 * s - upperH * 0.18, 0), Studs.shade(legColor, 0.94), if t.panda then "patch" else "fur2"))
 	local pawH = len * 0.32
 	local pawCF = pivot * CF(0, -len + pawH / 2, -th * 0.08)
-	table.insert(parts, Studs.piece(model, "Paw", V3(th * 1.1, pawH, th * 1.24), pawCF, c.paw, "paw"))
+	local pk = if t.bigPaws then 1.3 else 1
+	table.insert(parts, Studs.piece(model, "Paw", V3(th * 1.1 * pk, pawH, th * 1.24 * pk), pawCF, c.paw, "paw"))
 	table.insert(parts, Studs.piece(model, "PawPad", V3(th * 0.9, 0.06, th * 0.9), pawCF * CF(0, -pawH / 2 + 0.02, 0), Studs.shade(c.paw, 0.7), "paw", { smooth = true }))
 	-- claws
 	local clawLen = if t.longClaws then 0.32 * s else 0.18 * s
@@ -219,6 +224,8 @@ function BearBuilder.build(speciesId: string, opts: any?): Model
 		add(Studs.piece(model, "Saddle", V3(w + 0.3 * s, h * 0.62, l * 0.3), bc * CF(0, h * 0.2, -l * 0.26), c.patch, "patch"))
 		add(Studs.piece(model, "SaddleBelly", V3(w * 0.72, h * 0.3, l * 0.3), bc * CF(0, -h * 0.3, -l * 0.26), c.patch, "patch"))
 	end
+	-- species body geometry (moss, rocks, crystals, scarf, stripes ...)
+	BearTraits.body({ model = model, traits = t, c = c, s = s, bc = bc, w = w, h = h, l = l, torso = torso, add = add })
 	Studs.weldAll(torso, bp)
 
 	-- head ------------------------------------------------------------------
@@ -248,7 +255,9 @@ function BearBuilder.build(speciesId: string, opts: any?): Model
 	local tailCol = if t.panda then c.fur else c.fur2
 	local tail = Studs.piece(model, "TailFur", V3(0.55 * s, 0.5 * s, 0.42 * s), tailPivot * CF(0, 0, 0.2 * s), tailCol, "fur2")
 	local tailTip = Studs.piece(model, "TailTip", V3(0.36 * s, 0.32 * s, 0.2 * s), tailPivot * CF(0, 0.04 * s, 0.48 * s), Studs.shade(tailCol, 1.08), "fur")
-	Studs.weldAll(tailBone, { tail, tailTip })
+	local tailParts = { tail, tailTip }
+	BearTraits.tail({ model = model, traits = t, c = c, s = s, pivot = tailPivot, add = function(p) table.insert(tailParts, p) return p end })
+	Studs.weldAll(tailBone, tailParts)
 	Studs.motor("Tail", torso, tailBone, tailPivot)
 
 	-- attachments used by gameplay -------------------------------------------

@@ -290,4 +290,315 @@ function Props.cloud(parent: Instance, pos: Vector3, k: number, rand: Random)
 	return m
 end
 
+------------------------------------------------------------------------------------------
+-- Biome props (zones 2-10)
+------------------------------------------------------------------------------------------
+local SNOW = C(244, 248, 255)
+
+-- pine with optional snow caps on every tier
+function Props.snowPine(parent: Instance, pos: Vector3, size: number, rand: Random, snowy: boolean?)
+	local m = model(parent, "Pine")
+	local k = size
+	Studs.static(m, "Trunk", V3(2 * k, 6 * k, 2 * k), CF(pos + V3(0, 3 * k, 0)), Props.TRUNK)
+	local y = 4 * k
+	local leafC = if snowy then C(46, 104, 74) else C(40, 116, 60)
+	for i, w in { 10, 8, 6, 4, 2.4 } do
+		local rot = ANG(0, rand:NextNumber() * 0.3, 0)
+		Studs.static(m, "Tier" .. i, V3(w * k, 2.8 * k, w * k), CF(pos + V3(0, y + 1.4 * k, 0)) * rot, Studs.shade(leafC, 0.88 + i * 0.05))
+		if snowy then
+			Studs.static(m, "Snow" .. i, V3(w * 0.8 * k, 0.5 * k, w * 0.8 * k), CF(pos + V3(0, y + 3 * k, 0)) * rot, SNOW)
+		end
+		y += 2.4 * k
+	end
+	return m
+end
+
+function Props.snowPile(parent: Instance, pos: Vector3, size: number, rand: Random)
+	local m = model(parent, "SnowPile")
+	local k = size
+	Studs.static(m, "S1", V3(5 * k, 1.6 * k, 4 * k), CF(pos + V3(0, 0.8 * k, 0)) * ANG(0, rand:NextNumber() * 3, 0), SNOW)
+	Studs.static(m, "S2", V3(3 * k, 1.2 * k, 2.6 * k), CF(pos + V3(0.6 * k, 2 * k, 0)) * ANG(0, rand:NextNumber() * 3, 0), C(232, 240, 252))
+	Studs.static(m, "S3", V3(2 * k, 0.8 * k, 2 * k), CF(pos + V3(-2 * k, 0.4 * k, 1.2 * k)), C(226, 236, 250))
+	return m
+end
+
+function Props.iceBlock(parent: Instance, pos: Vector3, size: number, rand: Random)
+	local m = model(parent, "Ice")
+	local k = size
+	local ice = C(170, 220, 250)
+	local opts = { material = Enum.Material.Glass, transparency = 0.2 }
+	Studs.static(m, "I1", V3(3 * k, 5 * k, 3 * k), CF(pos + V3(0, 2.5 * k, 0)) * ANG(0, rand:NextNumber() * 3, 0.12), ice, opts)
+	Studs.static(m, "I2", V3(2 * k, 3.4 * k, 2 * k), CF(pos + V3(2 * k, 1.7 * k, 0.6 * k)) * ANG(0, rand:NextNumber() * 3, -0.2), Studs.shade(ice, 1.08), opts)
+	Studs.static(m, "I3", V3(1.6 * k, 2.4 * k, 1.6 * k), CF(pos + V3(-1.6 * k, 1.2 * k, -1 * k)) * ANG(0.2, rand:NextNumber() * 3, 0), Studs.shade(ice, 0.92), opts)
+	Studs.static(m, "Base", V3(5 * k, 0.6 * k, 4 * k), CF(pos + V3(0, 0.3 * k, 0)), SNOW)
+	return m
+end
+
+function Props.frozenPond(parent: Instance, pos: Vector3, w: number, l: number)
+	local m = model(parent, "FrozenPond")
+	Studs.static(m, "Rim", V3(w + 3, 0.3, l + 3), CF(pos + V3(0, 0.15, 0)), SNOW)
+	Studs.static(m, "Ice", V3(w, 0.34, l), CF(pos + V3(0, 0.2, 0)), C(150, 210, 245), { material = Enum.Material.Glass, transparency = 0.1, smooth = true })
+	for i = 1, 3 do
+		Studs.static(m, "Crack", V3(w * 0.3, 0.36, 0.2), CF(pos + V3((i - 2) * w * 0.25, 0.21, (i - 2) * l * 0.2)) * ANG(0, i * 0.8, 0), C(230, 246, 255), { smooth = true, noCollide = true })
+	end
+	return m
+end
+
+function Props.bamboo(parent: Instance, pos: Vector3, size: number, rand: Random)
+	local m = model(parent, "Bamboo")
+	local k = size
+	for i = 1, 4 do
+		local off = V3((rand:NextNumber() - 0.5) * 4 * k, 0, (rand:NextNumber() - 0.5) * 4 * k)
+		local h = (12 + rand:NextNumber() * 9) * k
+		local col = if i % 2 == 0 then C(120, 180, 70) else C(100, 160, 56)
+		local seg = 3 * k
+		local n = math.floor(h / seg)
+		for j = 0, n - 1 do
+			Studs.static(m, "Stalk", V3(0.9 * k, seg - 0.2, 0.9 * k), CF(pos + off + V3(0, j * seg + seg / 2, 0)), col)
+			Studs.static(m, "Node", V3(1.1 * k, 0.3, 1.1 * k), CF(pos + off + V3(0, j * seg + seg, 0)), Studs.shade(col, 0.8))
+		end
+		for j = 1, 2 do
+			local y = h - j * 2.4 * k
+			local a = rand:NextNumber() * 6.28
+			Studs.static(m, "Leaves", V3(3 * k, 0.3, 1 * k), CF(pos + off + V3(math.cos(a) * 1.5 * k, y, math.sin(a) * 1.5 * k)) * ANG(0, -a, -0.3), C(90, 170, 60), { noCollide = true })
+		end
+	end
+	return m
+end
+
+-- stone lantern (bamboo forest)
+function Props.lantern(parent: Instance, pos: Vector3)
+	local m = model(parent, "Lantern")
+	Studs.static(m, "Base", V3(3, 1, 3), CF(pos + V3(0, 0.5, 0)), Props.ROCK)
+	Studs.static(m, "Post", V3(1.2, 3, 1.2), CF(pos + V3(0, 2.5, 0)), Props.ROCK)
+	Studs.static(m, "Box", V3(2.4, 1.8, 2.4), CF(pos + V3(0, 4.9, 0)), Props.ROCK_DARK)
+	local glow = Studs.static(m, "Glow", V3(1.6, 1.2, 2.5), CF(pos + V3(0, 4.9, 0)), C(255, 200, 110), { material = Enum.Material.Neon, noCollide = true })
+	local l = Instance.new("PointLight")
+	l.Color = C(255, 190, 100)
+	l.Range = 12
+	l.Brightness = 0.8
+	l.Parent = glow
+	Studs.static(m, "Roof", V3(3.6, 0.8, 3.6), CF(pos + V3(0, 6.2, 0)), Props.ROCK)
+	Studs.static(m, "RoofTop", V3(1.4, 0.8, 1.4), CF(pos + V3(0, 7, 0)), Props.ROCK_DARK)
+	return m
+end
+
+function Props.palm(parent: Instance, pos: Vector3, size: number, rand: Random)
+	local m = model(parent, "Palm")
+	local k = size
+	local lean = (rand:NextNumber() - 0.5) * 0.5
+	local top = pos
+	for i = 0, 6 do
+		local p = pos + V3(math.sin(lean) * i * 1.6 * k, i * 2.2 * k + 1.1 * k, 0)
+		Studs.static(m, "Trunk", V3(1.6 * k, 2.2 * k, 1.6 * k), CF(p) * ANG(0, 0, -lean * 0.6), if i % 2 == 0 then C(150, 110, 64) else C(130, 94, 54))
+		top = p
+	end
+	top += V3(0, 1.2 * k, 0)
+	for i = 0, 5 do
+		local a = i * math.pi / 3 + rand:NextNumber() * 0.3
+		local d = V3(math.cos(a), 0, math.sin(a))
+		Studs.static(m, "Frond", V3(1.8 * k, 0.4 * k, 6 * k), CFrame.lookAt(top + d * 3 * k + V3(0, -0.6 * k, 0), top + d * 6 * k + V3(0, -2.4 * k, 0)), if i % 2 == 0 then C(70, 170, 60) else C(56, 150, 50), { noCollide = true })
+		Studs.static(m, "FrondTip", V3(1.2 * k, 0.4 * k, 2 * k), CFrame.lookAt(top + d * 6.2 * k + V3(0, -2.2 * k, 0), top + d * 8 * k + V3(0, -4 * k, 0)), C(60, 150, 50), { noCollide = true })
+	end
+	for i = 1, 3 do
+		local a = i * 2.1
+		Studs.static(m, "Coconut", V3(0.9 * k, 0.9 * k, 0.9 * k), CF(top + V3(math.cos(a) * 0.8 * k, -0.9 * k, math.sin(a) * 0.8 * k)), C(110, 70, 36))
+	end
+	return m
+end
+
+function Props.shell(parent: Instance, pos: Vector3, rand: Random)
+	local m = model(parent, "Shell")
+	local col = ({ C(255, 170, 170), C(255, 220, 180), C(250, 240, 230), C(255, 190, 120) })[rand:NextInteger(1, 4)]
+	if rand:NextNumber() < 0.5 then
+		-- starfish
+		for i = 0, 4 do
+			local a = i * math.pi * 2 / 5
+			Studs.static(m, "Arm", V3(0.5, 0.3, 1.4), CF(pos + V3(math.cos(a) * 0.6, 0.15, math.sin(a) * 0.6)) * ANG(0, -a + math.pi / 2, 0), C(255, 120, 70), { noCollide = true })
+		end
+		Studs.static(m, "Core", V3(0.8, 0.4, 0.8), CF(pos + V3(0, 0.2, 0)), C(255, 140, 80), { noCollide = true })
+	else
+		for i = -1, 1 do
+			Studs.static(m, "Rib", V3(0.4, 0.4, 1.4), CF(pos + V3(0, 0.2, 0)) * ANG(0, i * 0.45, 0) * CF(0, 0, -0.3), col, { noCollide = true })
+		end
+	end
+	return m
+end
+
+function Props.umbrella(parent: Instance, pos: Vector3, col: Color3)
+	local m = model(parent, "Umbrella")
+	Studs.static(m, "Pole", V3(0.4, 7, 0.4), CF(pos + V3(0, 3.5, 0)), C(240, 240, 240))
+	for i = 0, 3 do
+		Studs.static(m, "Canopy", V3(7 - i * 1.6, 0.5, 7 - i * 1.6), CF(pos + V3(0, 7 + i * 0.4, 0)) * ANG(0, i * 0.4, 0), if i % 2 == 0 then col else C(255, 255, 255))
+	end
+	Studs.static(m, "Towel", V3(3, 0.12, 6), CF(pos + V3(3, 0.06, 1)), col, { noCollide = true })
+	return m
+end
+
+-- stacked boulder cliff (rocky mountains)
+function Props.cliff(parent: Instance, pos: Vector3, size: number, rand: Random)
+	local m = model(parent, "Cliff")
+	local k = size
+	local y = 0
+	for i = 1, 4 do
+		local w = (11 - i * 2) * k
+		local h = (3 + rand:NextNumber() * 2) * k
+		Studs.static(m, "Slab" .. i, V3(w, h, w * (0.8 + rand:NextNumber() * 0.3)), CF(pos + V3((rand:NextNumber() - 0.5) * 2 * k, y + h / 2, (rand:NextNumber() - 0.5) * 2 * k)) * ANG(0, rand:NextNumber() * 0.6, 0),
+			Studs.shade(Props.ROCK, 0.85 + i * 0.06))
+		y += h
+	end
+	if rand:NextNumber() < 0.5 then
+		Studs.static(m, "SnowCap", V3(3 * k, 0.6 * k, 3 * k), CF(pos + V3(0, y + 0.3 * k, 0)), SNOW)
+	end
+	return m
+end
+
+function Props.log(parent: Instance, pos: Vector3, size: number, rand: Random)
+	local m = model(parent, "Log")
+	local k = size
+	local rot = ANG(0, rand:NextNumber() * 3, 0)
+	Studs.static(m, "Log", V3(2 * k, 2 * k, 8 * k), CF(pos + V3(0, k, 0)) * rot, Props.TRUNK)
+	Studs.static(m, "Ring", V3(1.4 * k, 1.4 * k, 0.2), CF(pos + V3(0, k, 0)) * rot * CF(0, 0, 4 * k + 0.05), C(220, 180, 120))
+	Studs.static(m, "Moss", V3(1.6 * k, 0.4 * k, 4 * k), CF(pos + V3(0, 2.1 * k, 0)) * rot * CF(0, 0, -1 * k), C(90, 150, 60))
+	return m
+end
+
+function Props.giantMushroom(parent: Instance, pos: Vector3, size: number, rand: Random)
+	local m = model(parent, "Mushroom")
+	local k = size
+	local cap = if rand:NextNumber() < 0.6 then C(210, 50, 50) else C(200, 120, 60)
+	Studs.static(m, "Stem", V3(2 * k, 5 * k, 2 * k), CF(pos + V3(0, 2.5 * k, 0)), C(240, 232, 214))
+	Studs.static(m, "Cap", V3(7 * k, 1.6 * k, 7 * k), CF(pos + V3(0, 5.6 * k, 0)), cap)
+	Studs.static(m, "CapTop", V3(4.6 * k, 1.2 * k, 4.6 * k), CF(pos + V3(0, 6.8 * k, 0)), Studs.shade(cap, 1.08))
+	for i = 1, 4 do
+		local a = i * 1.6
+		Studs.static(m, "Dot", V3(0.9 * k, 0.3 * k, 0.9 * k), CF(pos + V3(math.cos(a) * 2.2 * k, 7.45 * k, math.sin(a) * 2.2 * k)), C(250, 250, 240))
+	end
+	return m
+end
+
+function Props.fern(parent: Instance, pos: Vector3, size: number, rand: Random)
+	local m = model(parent, "Fern")
+	local k = size
+	for i = 0, 4 do
+		local a = i * math.pi * 2 / 5 + rand:NextNumber() * 0.4
+		Studs.static(m, "Frond", V3(0.8 * k, 0.3 * k, 3.4 * k), CF(pos + V3(math.cos(a) * 1.4 * k, 1 * k, math.sin(a) * 1.4 * k)) * ANG(0, -a + math.pi / 2, 0) * ANG(0.5, 0, 0), C(60, 140, 56), { noCollide = true })
+	end
+	return m
+end
+
+function Props.reeds(parent: Instance, pos: Vector3, rand: Random)
+	local m = model(parent, "Reeds")
+	for i = 1, 5 do
+		local off = V3((rand:NextNumber() - 0.5) * 3, 0, (rand:NextNumber() - 0.5) * 3)
+		local h = 3 + rand:NextNumber() * 2.5
+		Studs.static(m, "Reed", V3(0.3, h, 0.3), CF(pos + off + V3(0, h / 2, 0)), C(90, 140, 60), { noCollide = true })
+		Studs.static(m, "Cattail", V3(0.5, 1.1, 0.5), CF(pos + off + V3(0, h + 0.4, 0)), C(120, 76, 40), { noCollide = true })
+	end
+	return m
+end
+
+function Props.pond(parent: Instance, pos: Vector3, w: number, l: number, rand: Random, lilies: boolean?)
+	local m = model(parent, "Pond")
+	Studs.static(m, "Bank", V3(w + 4, 0.3, l + 4), CF(pos + V3(0, 0.15, 0)), C(150, 130, 96))
+	local water = Studs.static(m, "Water", V3(w, 0.4, l), CF(pos + V3(0, 0.22, 0)), C(46, 130, 220), { smooth = true, noCollide = true })
+	water.Transparency = 0.12
+	if lilies then
+		for i = 1, 4 do
+			local p = pos + V3((rand:NextNumber() - 0.5) * w * 0.8, 0.45, (rand:NextNumber() - 0.5) * l * 0.8)
+			Studs.static(m, "Lily", V3(1.6, 0.1, 1.6), CF(p) * ANG(0, rand:NextNumber() * 3, 0), C(70, 160, 60), { noCollide = true })
+			if i % 2 == 0 then Studs.static(m, "LilyFlower", V3(0.5, 0.4, 0.5), CF(p + V3(0.2, 0.2, 0)), C(255, 170, 210), { noCollide = true }) end
+		end
+	end
+	return m
+end
+
+-- wooden footbridge: cf = centre (bridge runs along cf.LookVector)
+function Props.bridge(parent: Instance, cf: CFrame, len: number, width: number)
+	local m = model(parent, "Bridge")
+	for i = 0, math.floor(len / 1.6) do
+		local k = -len / 2 + i * 1.6
+		-- gentle arch
+		local y = 0.7 + math.sin((i * 1.6 / len) * math.pi) * 1.2
+		Studs.static(m, "Plank", V3(width, 0.4, 1.4), cf * CF(0, y, k), if i % 2 == 0 then Props.PLANK else Props.PLANK_DARK)
+	end
+	for _, sx in { -1, 1 } do
+		for i = 0, 2 do
+			local k = -len / 2 + i * len / 2
+			local y = 0.7 + math.sin((i / 2) * math.pi) * 1.2
+			Studs.static(m, "Post", V3(0.5, 2.4, 0.5), cf * CF(sx * width / 2, y + 1.2, k), Props.WOOD_DARK)
+		end
+		Studs.static(m, "Rail", V3(0.4, 0.4, len), cf * CF(sx * width / 2, 3.2, 0), Props.WOOD)
+	end
+	return m
+end
+
+------------------------------------------------------------------------------------------
+-- FISH-UP training station (one per base): stud platform, white training ring,
+-- fish-dumbbell rack, weight plates and a leaping trophy fish on a wooden post.
+-- Returns the model and the anchor part (top of the post) used by the client sign.
+------------------------------------------------------------------------------------------
+function Props.fishUp(parent: Instance, pos: Vector3, side: number, ownerColor: Color3, buildFish)
+	local m = model(parent, "FishUp")
+	local r = 3.6
+	-- octagon platform: two rotated squares + rubber mat
+	local stone = C(150, 150, 158)
+	Studs.static(m, "Plinth", V3(11, 0.5, 11), CF(pos + V3(0, 0.25, 0)), stone)
+	Studs.static(m, "Plinth2", V3(11, 0.5, 11), CF(pos + V3(0, 0.25, 0)) * ANG(0, math.pi / 4, 0), Studs.shade(stone, 0.95))
+	local mat = Studs.static(m, "Mat", V3(9.4, 0.2, 9.4), CF(pos + V3(0, 0.6, 0)), C(60, 62, 70))
+	mat.TopSurface = Enum.SurfaceType.Studs
+	Studs.static(m, "Mat2", V3(9.4, 0.2, 9.4), CF(pos + V3(0, 0.6, 0)) * ANG(0, math.pi / 4, 0), C(56, 58, 66))
+	-- owner coloured trim + white training ring
+	for i = 0, 7 do
+		local a = i * math.pi / 4 + math.pi / 8
+		Studs.static(m, "Trim", V3(4.4, 0.26, 0.5), CF(pos + V3(math.cos(a) * 5.05, 0.62, math.sin(a) * 5.05)) * ANG(0, -a + math.pi / 2, 0), ownerColor, { noCollide = true })
+	end
+	local ring = Studs.static(m, "TrainRing", V3(0.12, r * 2, r * 2), CF(pos + V3(0, 0.72, 0)) * ANG(0, 0, math.pi / 2), C(250, 250, 250), { shape = Enum.PartType.Cylinder, noCollide = true, smooth = true })
+	ring.CanQuery = false
+	local inner = Studs.static(m, "TrainInner", V3(0.13, r * 2 - 0.9, r * 2 - 0.9), CF(pos + V3(0, 0.725, 0)) * ANG(0, 0, math.pi / 2), C(70, 72, 82), { shape = Enum.PartType.Cylinder, noCollide = true, smooth = true })
+	inner.CanQuery = false
+	-- fish emblem painted in the middle
+	Studs.static(m, "EmblemBody", V3(2.2, 0.06, 1), CF(pos + V3(0, 0.8, 0)), ownerColor, { noCollide = true, smooth = true })
+	Studs.static(m, "EmblemTail", V3(0.8, 0.06, 1.4), CF(pos + V3(1.5, 0.8, 0)), ownerColor, { noCollide = true, smooth = true })
+
+	-- dumbbell rack on the outer side
+	local rack = pos + V3(side * 7.2, 0, 0)
+	for _, dz in { -2.4, 2.4 } do
+		Studs.static(m, "RackPost", V3(0.8, 4.2, 0.8), CF(rack + V3(0, 2.1, dz)), Props.WOOD_DARK)
+	end
+	Studs.static(m, "RackFoot", V3(2.4, 0.4, 6.4), CF(rack + V3(0, 0.2, 0)), Props.WOOD_DARK)
+	for k, y in { 1.6, 3.2 } do
+		Studs.static(m, "RackBar", V3(1.6, 0.3, 5.6), CF(rack + V3(0, y, 0)), Props.WOOD)
+		-- weight plates
+		for j, dz in { -1.6, 1.6 } do
+			local col = if (k + j) % 2 == 0 then C(220, 50, 50) else C(40, 40, 46)
+			Studs.static(m, "Plate", V3(0.5, 1.2 + k * 0.2, 1.2 + k * 0.2), CF(rack + V3(0, y + 0.75 + k * 0.1, dz)) * ANG(0, math.pi / 2, 0), col, { shape = Enum.PartType.Cylinder })
+		end
+	end
+	-- a fish "dumbbell" on top of the rack (bar + two fish weights)
+	Studs.static(m, "BellBar", V3(0.3, 0.3, 4.6), CF(rack + V3(0, 4.55, 0)), C(190, 190, 200), { smooth = true })
+	if buildFish then
+		for _, dz in { -1.9, 1.9 } do
+			local f = buildFish("Trout", 1.05)
+			f:PivotTo(CF(rack + V3(0, 4.55, dz)) * ANG(0, math.pi / 2 * (if dz > 0 then 1 else -1), math.pi / 2))
+			f.Parent = m
+		end
+	end
+
+	-- wooden post with the big leaping trophy fish (inner back corner)
+	local post = pos + V3(-side * 5.6, 0, 4)
+	Studs.static(m, "PostBase", V3(2, 0.8, 2), CF(post + V3(0, 0.4, 0)), stone)
+	Studs.static(m, "Post", V3(1.1, 9, 1.1), CF(post + V3(0, 4.9, 0)), Props.WOOD_DARK)
+	local board = Studs.static(m, "Board", V3(5.4, 2.2, 0.5), CF(post + V3(0, 7.6, -0.8)), Props.WOOD)
+	Studs.static(m, "BoardFrame", V3(5.9, 2.7, 0.3), CF(post + V3(0, 7.6, -0.5)), Props.WOOD_DARK)
+	Props.signText(board, "FISH-UP", Enum.NormalId.Front, C(255, 220, 60))
+	local anchor = Studs.static(m, "FishUpAnchor", V3(0.2, 0.2, 0.2), CF(pos + V3(0, 13, 0)), C(0, 0, 0), { transparency = 1, noCollide = true, noQuery = true, noShadow = true })
+	if buildFish then
+		local trophy = buildFish("Salmon", 2.2)
+		trophy:PivotTo(CF(post + V3(0, 11.2, 0)) * ANG(0, side * math.pi / 2, 0) * ANG(0.5, 0, 0))
+		trophy.Parent = m
+	end
+	return m, anchor
+end
+
 return Props

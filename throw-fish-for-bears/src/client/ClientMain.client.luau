@@ -29,6 +29,7 @@ local Menus = require(UI.Menus)
 local Reveal = require(UI.Reveal)
 local Notify = require(UI.Notify)
 
+local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -67,6 +68,7 @@ require(UI.Sim).init(playerGui)
 local function rescale()
 	local vp = workspace.CurrentCamera.ViewportSize
 	local k = math.clamp(math.min(vp.X / 900, vp.Y / 420), 0.75, 1.6)
+	if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then k = math.max(k * 0.72, 0.5) end -- smaller on phones
 	-- the HUD and menus scale themselves (Stud kit WindowScale); only the overlay uses this
 	hudGui.RootScale.Scale = 1
 	overlayGui.RootScale.Scale = k
@@ -94,6 +96,7 @@ Capture.Reveal = Reveal
 Capture.Flash = Notify.flash
 Capture.init()
 Ambience.init()
+require(Controllers.FishUpController).init(require(UI.Sim))
 Data.init()
 Sound.startMusic()
 

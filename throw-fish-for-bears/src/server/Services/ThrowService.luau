@@ -101,7 +101,7 @@ function ThrowService.throw(player: Player, aim: number)
 			table.insert(data.fish, fish)
 			R.PlayerData.push(player, "fish")
 			R.State.set(player, "Idle", true)
-			R.Notify(player, "Too weak! The fish didn't reach the zone. Hold longer or train at BIG CATCH.", "warn")
+			R.Notify(player, "Too weak! The fish didn't reach the zone. Hold longer or train at your FISH-UP.", "warn")
 			return
 		end
 		R.CaptureService.begin(player, fish, to, zone :: number, power)

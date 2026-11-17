@@ -3,8 +3,8 @@
 
      Rear  (+Z): fishing lake with 4 docks
      Middle    : 4 player bases (90 x 90 studs)
-     Front     : SELL / SHOP / BIG CATCH + throw area
-     Corridor (-Z): 10 zones x 200 studs = 2000 studs, walled, straight. ]]
+     Front     : SELL / SHOP + throw area (FISH-UP stations at the base corners)
+     Corridor (-Z): 10 zones x 300 studs = 3000 studs, walled, straight. ]]
 local Layout = {}
 
 Layout.GROUND_Y = 0
@@ -49,11 +49,11 @@ Layout.THROW_LINE_Z = -20
 Layout.SELL_POS = Vector3.new(-72, 0, -18.5)
 Layout.SHOP_POS = Vector3.new(72, 0, -18.5)
 Layout.TRAIN_RADIUS = 3.6
--- one small white training circle per base, at the outer front corner (outside the fence)
+-- one FISH-UP training station per base, at the outer front corner (outside the fence)
 function Layout.trainPos(i: number): Vector3
 	local c = Layout.BASE_CENTERS[i]
 	local side = if c.X < 0 then -1 else 1
-	return Vector3.new(c.X + side * (Layout.BASE_HALF - 6), 0, c.Z - Layout.BASE_HALF - 6)
+	return Vector3.new(c.X + side * (Layout.BASE_HALF - 7), 0, c.Z - Layout.BASE_HALF - 7.5)
 end
 
 function Layout.isInTraining(i: number, pos: Vector3): boolean
@@ -66,7 +66,7 @@ Layout.SPAWN_POS = Vector3.new(0, 0, 40)
 Layout.CORRIDOR_HALF = 60
 Layout.CORRIDOR_START_Z = -20
 Layout.ZONE_LENGTH = 300
-Layout.ZONE_COUNT = 1 -- playable slice: 1 zone (Green Forest). Add zones in ZoneConfig + raise this.
+Layout.ZONE_COUNT = 10 -- Green Forest -> Tropical Beach (ZoneConfig)
 Layout.CORRIDOR_END_Z = Layout.CORRIDOR_START_Z - Layout.ZONE_LENGTH * Layout.ZONE_COUNT
 Layout.WALL_HEIGHT = 32
 Layout.LANDING_HALF = 50 -- landing x is clamped inside this half width
@@ -151,8 +151,8 @@ end
 function Layout.zoneDens(i: number): { Vector3 }
 	local a = Layout.zoneRange(i)
 	local dens = {}
-	for k = 0, 3 do
-		local z = a - 25 - k * 50
+	for k = 0, 5 do
+		local z = a - 25 - k * 48
 		table.insert(dens, Vector3.new(-48, 0, z))
 		table.insert(dens, Vector3.new(48, 0, z - 25))
 	end

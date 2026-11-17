@@ -81,7 +81,8 @@ function K.cascade(container: Instance, step: number?)
 			local sc = c:FindFirstChild("ButtonScale") or c:FindFirstChildOfClass("UIScale") or UI.new("UIScale", { Name = "ButtonScale" }, c)
 			sc.Scale = 0
 			i += 1
-			task.delay(i * (step or 0.035), function()
+			-- long lists: the first ~16 cascade, the rest pop together (never > ~0.6 s)
+			task.delay(math.min(i, 16) * (step or 0.035), function()
 				if sc.Parent then Motion.PopIn(c, 0.38) end
 			end)
 		end
