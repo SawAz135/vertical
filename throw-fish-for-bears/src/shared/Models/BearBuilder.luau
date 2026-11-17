@@ -165,6 +165,9 @@ function BearBuilder.build(speciesId: string, opts: any?): Model
 	local c = spec.colors
 	local t = spec.traits or {}
 	local model = Instance.new("Model")
+	-- with StreamingEnabled the parts would arrive one by one on clients: the animator then
+	-- missed late joints (the JAW never opened). Atomic = the whole animal arrives at once.
+	pcall(function() model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic end)
 	model.Name = spec.name
 
 	local w, h, l = spec.body.w * s, spec.body.h * s, spec.body.l * s

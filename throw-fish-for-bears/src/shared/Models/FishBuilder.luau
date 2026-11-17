@@ -610,6 +610,9 @@ function FishBuilder.build(speciesId: string, opts: any?): Model
 	local spec = FishConfig.get(speciesId) or FishConfig.get(FishConfig.Order[1])
 	local s = opts.scale or (opts.weight and FishConfig.scaleFor(speciesId, opts.weight)) or 1
 	local model = Instance.new("Model")
+	-- with StreamingEnabled the parts would arrive one by one on clients: the animator then
+	-- missed late joints (the JAW never opened). Atomic = the whole animal arrives at once.
+	pcall(function() model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic end)
 	model.Name = spec.name
 	local look = spec.look
 	local root, dims

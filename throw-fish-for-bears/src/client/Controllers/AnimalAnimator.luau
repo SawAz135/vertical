@@ -37,14 +37,27 @@ end
 
 local function registerBear(model: Model, into: any?)
 	into = into or bears
-	if into[model] then return end
+	if into[model] then return into[model] end
 	local motors = {}
 	for _, d in model:GetDescendants() do
 		if d:IsA("Motor6D") and table.find(JOINTS, d.Name) then
 			motors[d.Name] = d
 		end
 	end
-	if not motors.BodyJoint or not motors.Neck then return end
+	if not motors.BodyJoint or not motors.Neck then
+		-- not all streamed in yet: try again when joints arrive
+		if not model:GetAttribute("TFBWaitJoints") then
+			model:SetAttribute("TFBWaitJoints", true)
+			local conn
+			conn = model.DescendantAdded:Connect(function(d)
+				if d:IsA("Motor6D") then
+					local e = registerBear(model, into)
+					if e then conn:Disconnect() end
+				end
+			end)
+		end
+		return
+	end
 	local lids = {}
 	for _, d in model:GetDescendants() do
 		if d.Name == "Eyelid" then table.insert(lids, d) end
@@ -66,6 +79,14 @@ local function registerBear(model: Model, into: any?)
 	e.playful = clamp((g - 1.0) / 0.25, 0, 1)
 	e.heavy = clamp((1.02 - g) / 0.22, 0, 1)
 	e.lazy = if spec and (spec.traits.panda or spec.body.w / spec.body.l > 0.8) then 1 else 0
+	-- joints / eyelids that stream in LATE (jaw, ears...) are picked up as they arrive
+	model.DescendantAdded:Connect(function(d)
+		if d:IsA("Motor6D") and table.find(JOINTS, d.Name) then
+			e.motors[d.Name] = d
+		elseif d.Name == "Eyelid" and d:IsA("BasePart") then
+			table.insert(e.lids, d)
+		end
+	end)
 	model.Destroying:Connect(function() into[model] = nil end)
 	return into[model]
 end
@@ -79,6 +100,9 @@ local function registerFish(model: Model, into: any?)
 	end
 	if not m.Tail then return end
 	into[model] = { model = model, motors = m, phase = math.random() * TAU, root = model.PrimaryPart }
+	model.DescendantAdded:Connect(function(d)
+		if d:IsA("Motor6D") then m[d.Name] = d end
+	end)
 	model.Destroying:Connect(function() into[model] = nil end)
 	return into[model]
 end
