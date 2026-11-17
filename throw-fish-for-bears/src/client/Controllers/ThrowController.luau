@@ -20,6 +20,7 @@ local HumanPose = require(script.Parent.HumanPose)
 
 local Throw = {}
 Throw.ChargeChanged = Signal.new() -- (power 0..1 | nil when hidden)
+Throw.Flight = Signal.new() -- (throw data) local player's fish is flying: distance counter
 local localPlayer = Players.LocalPlayer
 local charging = nil
 
@@ -58,6 +59,7 @@ local function onThrow(player: Player, d)
 	if isLocal then
 		Sound.play("Throw")
 		CameraController.punch(8)
+		Throw.Flight:Fire(d)
 	else
 		Sound.play("Throw", { parent = model.PrimaryPart, volume = 0.6 })
 	end

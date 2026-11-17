@@ -88,9 +88,17 @@ function ThrowService.throw(player: Player, aim: number)
 
 	local zone = Layout.zoneAt(to)
 	local ok = zone ~= nil and to.Z <= Layout.CORRIDOR_START_Z - G.minLandingDepth
+	-- distance travelled on the ground (studs) + personal record
+	local travelled = Vector3.new(to.X - root.Position.X, 0, to.Z - root.Position.Z).Magnitude
+	local best = tonumber(data.bestThrow) or 0
+	local record = ok and best > 0 and travelled > best
+	if ok and travelled > best then
+		data.bestThrow = math.floor(travelled * 10 + 0.5) / 10
+	end
 	Net.event("ThrowFx"):FireAllClients(player, {
 		from = from, to = to, flight = flight, apex = apex, fish = fish, power = power,
 		t0 = workspace:GetServerTimeNow() + 0.32, ok = ok, zone = zone,
+		dist = travelled, best = best, record = record,
 	})
 
 	task.delay(0.32 + flight, function()

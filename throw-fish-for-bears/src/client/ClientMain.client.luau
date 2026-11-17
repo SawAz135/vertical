@@ -92,6 +92,7 @@ Fishing.bindUI(HUD.reelUI)
 Fishing.init()
 Throw.init()
 Throw.ChargeChanged:Connect(HUD.setCharge)
+Throw.Flight:Connect(HUD.throwDistance)
 Capture.Reveal = Reveal
 Capture.Flash = Notify.flash
 Capture.init()
