@@ -127,7 +127,9 @@ local function revealAll(rv)
 	for bone in rv.groups do revealGroup(rv, bone, false) end
 end
 
+local restoreTeeth
 local function revealAura(rv)
+	if restoreTeeth then restoreTeeth(rv) end
 	for inst, en in rv.fx do
 		if inst.Parent then inst.Enabled = en end
 	end
@@ -294,22 +296,55 @@ end
 -- body, black, only the mouth in colour), the jaws open (teeth, tongue), the fish is lifted
 -- INTO the mouth, CHOMP, black. Muffled gulp from inside.
 ------------------------------------------------------------------------------------------
-local function showFront(c)
-	-- head + torso as a black mass; mouth parts (teeth, tongue, inside) in real colours
+-- the WHOLE bear appears as a black silhouette (it was hidden until now); only what makes
+-- it terrifying keeps its real colours: teeth, tongue, inside of the mouth, the shine in
+-- the eyes. The teeth are blown up (cartoon fangs) so they read from far away.
+local TOOTH_GROW = 1.9
+local function showWhole(c)
 	local rv = c.rv
-	if not rv then return end
-	local list = {}
-	for _, group in { "Head", "Torso" } do
-		for _, part in rv.groups[group] or {} do table.insert(list, part) end
+	if not rv or not c.bear then return end
+	setBearHidden(c.bear, false)
+	-- keep the rarity effects / name tags off during the meal
+	for _, d in c.bear:GetDescendants() do
+		if d:IsA("BillboardGui") or d:IsA("SurfaceGui") then d.Enabled = false end
 	end
-	setPartsHidden(list, false)
-	for _, part in list do
-		local sv = rv.saved[part]
-		if sv and isMouthPart(part) then
-			part.Color = sv[1]
-			part.Material = sv[2]
+	rv.teeth = rv.teeth or {}
+	for _, d in c.bear:GetDescendants() do
+		if d:IsA("BasePart") then
+			local sv = rv.saved[d]
+			if sv and (isMouthPart(d) or d.Name:sub(1, 8) == "EyeShine") then
+				d.Color = sv[1]
+				d.Material = sv[2]
+			end
+			if d.Name == "Eyelid" and not rv.lids then rv.lids = {} end
+			if d.Name == "Eyelid" and rv.lids[d] == nil then
+				rv.lids[d] = d.Color -- blinking / squeezed eyes stay black on the silhouette
+				d.Color = SHADOW
+			end
+			if d.Name:sub(1, 5) == "Tooth" and not rv.teeth[d] then
+				rv.teeth[d] = d.Size
+				-- longer + wider fangs, grown downward/upward from the gum so they show
+				d.Size = Vector3.new(d.Size.X * 1.5, d.Size.Y * TOOTH_GROW, d.Size.Z * 1.3)
+			end
 		end
 	end
+end
+
+-- teeth back to their real size (at the reveal slam / cleanup)
+function restoreTeeth(rv)
+	if rv and rv.lids then
+		for lid, col in rv.lids do
+			if lid.Parent then lid.Color = col end
+		end
+		rv.lids = nil
+	end
+	if not rv or not rv.teeth then return end
+	for part, size in rv.teeth do
+		if part.Parent then
+			TweenService:Create(part, TweenInfo.new(0.3, Enum.EasingStyle.Back), { Size = size }):Play()
+		end
+	end
+	rv.teeth = nil
 end
 
 local function eatSequence(d)
@@ -330,6 +365,18 @@ local function eatSequence(d)
 	local freezeUntil, lastCF, lastFov = 0, nil, 60
 	c.mode = "eat"
 	c.panic = 1
+	-- framing reference: the bear's facing when the meal starts (stable, the head moves a lot)
+	local r0 = rootOf(c.bear)
+	local baseFwd = if r0 then r0.CFrame.LookVector else -dirToDen(c)
+	baseFwd = Vector3.new(baseFwd.X, 0, baseFwd.Z)
+	baseFwd = if baseFwd.Magnitude > 0.05 then baseFwd.Unit else Vector3.new(0, 0, -1)
+	local baseSide = Vector3.new(-baseFwd.Z, 0, baseFwd.X)
+	local UP = Vector3.new(0, 1, 0)
+	-- SHOTS (all wide enough to see the WHOLE black bear):
+	--  S1 sniff   : low on the ground, 3/4 front, the black mass looming over the fish, slow push
+	--  S2 dive    : closer, the head dives at the lens, jaws gaping (big white fangs)
+	--  S3 snatch  : low hero angle looking UP, the bear rears with the fish in its jaws
+	--  S4 chomp   : the lens is SUCKED into the mouth -> hit-stop -> black
 	CameraController.run(function(t, dt)
 		if os.clock() < freezeUntil and lastCF then return lastCF, lastFov end
 		local now = workspace:GetServerTimeNow() - start
@@ -337,51 +384,69 @@ local function eatSequence(d)
 		local r = rootOf(c.bear)
 		if not h or not r then return lastCF, lastFov end
 		local sc = c.bear:GetAttribute("Scale") or 1
+		local bl = math.max(c.bear:GetAttribute("BodyLength") or 6 * sc, 4)
 		local mouthAtt = h:FindFirstChild("MouthAtt")
 		local mouth = if mouthAtt then (mouthAtt :: Attachment).WorldPosition else h.Position
 		local panicT = os.clock()
-		-- keep the panic alive (lids, heartbeat feel)
-		Cine.setLids(if now > tChomp then 0 else (0.85 + math.sin(panicT * 30) * 0.1))
-		Cine.dark(0.75)
-		local tremble = Vector3.new(math.noise(panicT * 30, 1), math.noise(panicT * 30, 2), math.noise(panicT * 30, 3)) * 0.1
-		if now >= tl.sniff then
+		-- the fish's eyes: wide open in terror, trembling (no more heavy tunnel: we SEE the bear)
+		Cine.setLids(if now > tChomp then 0 else (0.93 + math.sin(panicT * 30) * 0.05))
+		Cine.dark(0.42)
+		local tremble = Vector3.new(math.noise(panicT * 30, 1), math.noise(panicT * 30, 2), math.noise(panicT * 30, 3)) * 0.08 * sc
+		if now >= tl.sniff - 0.15 then
 			once("show", function()
-				showFront(c)
+				showWhole(c)
+				Sound.play("Growl", { at = mouth, pitch = bearPitch(c.bear) * 0.8, volume = 1.3 })
 				Sound.play("Sniff", { at = mouth, pitch = 0.6, volume = 1.2 })
-				CameraController.shake(0.6, 0.3)
-				Cine.motion(8)
+				CameraController.shake(0.8, 0.35)
+				CameraController.punch(-8)
+				Cine.motion(10)
+				-- backlit look: bright cold world, so the black silhouette reads hard
+				Cine.grade({ tint = Color3.fromRGB(225, 232, 255), saturation = -0.3, contrast = 0.35, brightness = 0.06 }, 0.15)
 			end)
 		end
 		if now >= tl.sniff + 0.45 then once("sniff2", function() Sound.play("Sniff", { at = mouth, pitch = 0.55, volume = 1.2 }) end) end
+		local body = r.Position
+		local feet = Vector3.new(body.X, ground.Y - 0.2, body.Z)
 		local cf, fov
-		-- direction from the muzzle back toward where the fish lay (flattened): the camera stays
-		-- on this side, far enough to see the whole muzzle, the head and a bit of the body
-		local hfwd = h.CFrame.LookVector
-		local flat = Vector3.new(hfwd.X, 0, hfwd.Z)
-		flat = if flat.Magnitude > 0.05 then flat.Unit else r.CFrame.LookVector
-		if now < tl.eat + G.pickupAt then
-			-- from the ground, looking UP at the dark head coming down, jaws opening
-			local k = Easing.sineInOut(math.clamp((now - tl.sniff) / (tl.eat + G.pickupAt - tl.sniff), 0, 1))
-			local eye = ground + flat * (1.8 + 1.2 * (1 - k)) * sc
-			local target = mouth:Lerp(h.Position, 0.45)
-			cf = CFrame.lookAt(eye + tremble, target)
-			fov = 80 - 8 * k
-		else
-			-- the fish is lifted toward the mouth: just in front of the jaws, the whole muzzle,
-			-- teeth and tongue in frame, the head and shoulders behind; at the CHOMP the view
-			-- is yanked in and goes black
+		if now < tl.eat then
+			-- S1: low 3/4 front, whole silhouette, slow menacing push-in
+			local k = Easing.sineInOut(math.clamp((now - tl.sniff) / math.max(0.1, tl.eat - tl.sniff), 0, 1))
+			local eye = ground + baseFwd * bl * (1.35 - 0.25 * k) + baseSide * bl * (0.95 - 0.2 * k) + UP * (0.2 + 0.3 * k) * sc
+			cf = CFrame.lookAt(eye + tremble, body:Lerp(h.Position, 0.45) + UP * 0.2 * sc)
+			fov = 64 - 6 * k
+		elseif now < tl.eat + G.pickupAt + 0.08 then
+			-- S2: the dive. closer and lower, more frontal: gaping jaws coming at us, body behind
+			local k = Easing.cubicOut(math.clamp((now - tl.eat) / (G.pickupAt + 0.08), 0, 1))
+			once("dive", function()
+				CameraController.shake(1.1, 0.3)
+				CameraController.punch(10)
+				Cine.motion(14)
+				Sound.play("Growl", { at = mouth, pitch = bearPitch(c.bear) * 0.7, volume = 1.4 })
+			end)
+			local eye = ground + baseFwd * bl * (1.0 - 0.15 * k) + baseSide * bl * 0.42 + UP * 0.15 * sc
+			cf = CFrame.lookAt(eye + tremble * 1.5, mouth:Lerp(body, 0.4))
+			fov = 70 - 4 * k
+		elseif now < tChomp - 0.22 then
+			-- S3: the snatch. low hero angle looking UP: the whole bear rears with the fish in its
+			-- raised jaws, fangs against the sky
 			once("lift", function()
 				CameraController.shake(1.0, 0.3)
 				Cine.motion(12)
 				Sound.play("Splash", { volume = 0.4, pitch = 1.5 })
 			end)
-			local te = now - (tl.eat + G.pickupAt)
-			local pull = Easing.cubicIn(math.clamp((now - (tChomp - 0.25)) / 0.25, 0, 1)) -- last instant: sucked in
-			local dist = (3.6 - 0.5 * math.clamp(te / 0.6, 0, 1) - 2.2 * pull) * sc
-			local eye = mouth + flat * dist + Vector3.new(0, -0.5 * sc, 0)
-			eye = Vector3.new(eye.X, math.max(eye.Y, 0.8), eye.Z)
-			cf = CFrame.lookAt(eye + tremble * 0.6, mouth:Lerp(h.Position, 0.3))
-			fov = 72 - 10 * pull
+			local k = Easing.sineInOut(math.clamp((now - (tl.eat + G.pickupAt + 0.08)) / math.max(0.1, tChomp - 0.22 - (tl.eat + G.pickupAt + 0.08)), 0, 1))
+			local eye = feet + baseFwd * bl * (1.05 - 0.15 * k) + baseSide * bl * (0.6 - 0.25 * k) + UP * 0.35 * sc
+			cf = CFrame.lookAt(eye + tremble, mouth:Lerp(body, 0.35))
+			fov = 66 - 6 * k
+		else
+			-- S4: sucked into the mouth -> CHOMP
+			local pull = Easing.cubicIn(math.clamp((now - (tChomp - 0.22)) / 0.22, 0, 1))
+			local fl = Vector3.new(h.CFrame.LookVector.X, 0, h.CFrame.LookVector.Z)
+			fl = if fl.Magnitude > 0.05 then fl.Unit else baseFwd
+			local eye = mouth + fl * (2.6 - 2.2 * pull) * sc + UP * (-0.3 * sc)
+			eye = Vector3.new(eye.X, math.max(eye.Y, ground.Y + 0.1), eye.Z)
+			cf = CFrame.lookAt(eye + tremble * 0.5, mouth)
+			fov = 70 - 14 * pull
 			if now >= tChomp then
 				once("chomp", function()
 					Sound.play("Chomp", { at = mouth, pitch = bearPitch(c.bear) * 0.85, volume = 1.4 })
@@ -392,13 +457,16 @@ local function eatSequence(d)
 					Cine.eyelids(false)
 				end)
 			end
-			if now >= tl.eat + G.swallowAt then
-				once("gulp", function() Sound.play("Chomp", { pitch = 0.5, volume = 0.6 }) end) -- muffled, from inside
-			end
 		end
+		if now >= tl.eat + G.swallowAt then
+			once("gulp", function() Sound.play("Chomp", { pitch = 0.5, volume = 0.6 }) end) -- muffled, from inside
+		end
+		-- never under the ground
+		local pp = cf.Position
+		if pp.Y < ground.Y - 0.5 then cf = CFrame.lookAt(Vector3.new(pp.X, ground.Y - 0.5, pp.Z), pp + cf.LookVector) end
 		lastCF, lastFov = cf, fov
 		return cf, fov
-	end, tl.total + 1, { smooth = 0, blendIn = 0.15 })
+	end, tl.total + 1, { smooth = 10, blendIn = 0.15 })
 end
 
 ------------------------------------------------------------------------------------------
