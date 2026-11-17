@@ -28,6 +28,7 @@ local Sound = require(script.Parent.Sound)
 local Actions = require(script.Parent.Actions)
 local CameraController = require(script.Parent.CameraController)
 local Cine = require(script.Parent.CinematicFx)
+local Animator = require(script.Parent.AnimalAnimator)
 local TweenService = game:GetService("TweenService")
 local Sim = require(script.Parent.Parent.UI.Sim)
 local K = require(script.Parent.Parent.UI.Kit)
@@ -347,6 +348,12 @@ function restoreTeeth(rv)
 	rv.teeth = nil
 end
 
+-- unit direction from a to b (safe)
+local function eye0dir(a: Vector3, b: Vector3): Vector3
+	local v = b - a
+	return if v.Magnitude > 1e-3 then v.Unit else Vector3.new(0, 0, -1)
+end
+
 -- depth of field is far too heavy on phones for these long shots: disabled in the capture
 local function noDof(_a: any?, _b: any?) end
 
@@ -416,7 +423,7 @@ local function eatSequence(d)
 		Cine.setLids(if now > tChomp then 0 else (0.93 + math.sin(panicT * 30) * 0.05))
 		Cine.dark(0.42)
 		local tremble = Vector3.new(math.noise(panicT * 30, 1), math.noise(panicT * 30, 2), math.noise(panicT * 30, 3)) * 0.08 * sc
-		if now >= tl.sniff - 0.15 then
+		if now >= 0 then
 			once("show", function()
 				showWhole(c)
 				Sound.play("Growl", { at = mouth, pitch = bearPitch(c.bear) * 0.8, volume = 1.3 })
@@ -428,16 +435,40 @@ local function eatSequence(d)
 				Cine.grade({ tint = Color3.fromRGB(225, 232, 255), saturation = -0.3, contrast = 0.35, brightness = 0.06 }, 0.15)
 			end)
 		end
-		if now >= tl.sniff + 0.45 then once("sniff2", function() Sound.play("Sniff", { at = mouth, pitch = 0.55, volume = 1.2 }) end) end
+		if now >= tl.sniff + 0.1 then once("sniff2", function() Sound.play("Sniff", { at = mouth, pitch = 0.55, volume = 1.2 }) end) end
+		-- the NOSE BOOPS: the snout jabs into the fish -> the view is knocked back and rolls
+		local boopKick = 0
+		for i, bt in Animator.BOOPS do
+			local at = tl.sniff + bt
+			if now >= at then
+				once("boop" .. i, function()
+					Sound.play("Flop", { pitch = 0.8, volume = 1.2 })
+					Sound.play("Sniff", { at = mouth, pitch = 0.5, volume = 1.4 })
+					CameraController.shake(1.3, 0.3)
+					CameraController.punch(6)
+					Cine.motion(8)
+				end)
+			end
+			local u = (now - at) / 0.45
+			if u > 0 and u < 1 then boopKick += math.sin(u * math.pi) * (1 - u) * 1.6 end
+		end
 		local body = r.Position
 		local feet = Vector3.new(body.X, ground.Y - 0.2, body.Z)
 		local cf, fov
-		if now < tl.eat then
-			-- S1: low 3/4 front, whole silhouette, slow menacing push-in
-			local k = Easing.sineInOut(math.clamp((now - tl.sniff) / math.max(0.1, tl.eat - tl.sniff), 0, 1))
-			local eye = ground + baseFwd * (bl * 1.5 + 3 * sc) * (1 - 0.12 * k) + baseSide * (bl * 1.0 + 2 * sc) + UP * (0.4 + 0.4 * k) * sc
-			cf = CFrame.lookAt(eye + tremble, body:Lerp(h.Position, 0.45) + UP * 0.2 * sc)
-			fov = 60
+		if now < tl.sniff then
+			-- S0: THE FISH'S EYES on the ground. The black bear WALKS UP TO US, step by step,
+			-- head low, growing in the frame (wide lens so we see the whole silhouette)
+			local eye = ground + Vector3.new(0, 0.1, 0)
+			local look = h.Position:Lerp(body, 0.35)
+			cf = CFrame.lookAt(eye + tremble, look)
+			fov = 78
+		elseif now < tl.eat then
+			-- S1: still the fish's eyes: the snout comes down sniffing at us... BOOP, BOOP:
+			-- each nose jab knocks the view back and rolls it
+			local away = Vector3.new(eye0dir(ground, mouth).X, 0, eye0dir(ground, mouth).Z)
+			local eye = ground + Vector3.new(0, 0.1, 0) - away * boopKick * 0.5 * sc
+			cf = CFrame.lookAt(eye + tremble, mouth:Lerp(h.Position, 0.35)) * CFrame.Angles(0, 0, boopKick * 0.25)
+			fov = 82
 		elseif now < tl.eat + G.pickupAt + 0.08 then
 			-- S2: the dive. closer and lower, more frontal: gaping jaws coming at us, body behind
 			local k = Easing.cubicOut(math.clamp((now - tl.eat) / (G.pickupAt + 0.08), 0, 1))

@@ -143,13 +143,27 @@ STATES.Alert = function(p, e, t, s)
 	rot(p, "Tail", 0.9 * jolt + 0.5 * ready, sin(t * 30) * 0.3 * ready)
 end
 
+-- nose BOOP times inside the Sniff state (shared with the capture camera)
+Animator.BOOPS = { 0.4, 0.85 }
 STATES.Sniff = function(p, e, t, s)
-	local k = Easing.sineInOut(clamp(t / 0.4, 0, 1))
-	rot(p, "Neck", -0.62 * k + sin(t * 17) * 0.05, sin(t * 2.1) * 0.25 * k)
-	pos(p, "Neck", 0, -0.15 * s * k, -0.2 * s * k)
-	rot(p, "BodyJoint", -0.05 * k)
-	rot(p, "Jaw", -0.04 - abs(sin(t * 17)) * 0.04)
-	rot(p, "EarL", 0.15 * k) rot(p, "EarR", 0.15 * k)
+	-- head down to the fish, sniffing fast, then two big NOSE BOOPS (the snout jabs forward
+	-- and down, the body follows), mouth twitching
+	local k = Easing.sineInOut(clamp(t / 0.35, 0, 1))
+	local boop = 0
+	for _, bt in Animator.BOOPS do
+		local u = (t - bt + 0.1) / 0.28
+		if u > 0 and u < 1 then
+			-- quick wind-back, sharp jab, slow return
+			boop += if u < 0.3 then -0.4 * Easing.sineInOut(u / 0.3) else (if u < 0.45 then -0.4 + 1.4 * Easing.cubicOut((u - 0.3) / 0.15) else 1 - Easing.sineInOut((u - 0.45) / 0.55))
+		end
+	end
+	rot(p, "Neck", -0.62 * k - 0.25 * boop + sin(t * 17) * 0.05 * (1 - abs(boop)), sin(t * 2.1) * 0.25 * k * (1 - abs(boop)))
+	pos(p, "Neck", 0, (-0.15 * k - 0.12 * boop) * s, (-0.2 * k - 0.55 * boop) * s)
+	rot(p, "BodyJoint", -0.05 * k - 0.06 * boop)
+	pos(p, "BodyJoint", 0, 0, -0.25 * boop * s)
+	rot(p, "Jaw", -0.04 - abs(sin(t * 17)) * 0.05 - 0.1 * math.max(0, boop))
+	rot(p, "EarL", 0.15 * k - 0.3 * math.max(0, boop)) rot(p, "EarR", 0.15 * k - 0.3 * math.max(0, boop))
+	rot(p, "Tail", 0, sin(t * 6) * 0.3)
 end
 
 STATES.Arrive = function(p, e, t, s)
@@ -486,6 +500,7 @@ local function airLayer(p, e, s, vy)
 	rot(p, "Neck", 0.1 * k)
 end
 
+local PLANTED = { Sniff = true, Eat = true, Reveal = true, Happy = true, Transform = true, Alert = true, Arrive = true, Look = true }
 -- states driven by a bouncy spring: { speed, damping }
 local SPRINGY = { Alert = { 22, 0.45 }, Eat = { 26, 0.5 }, Happy = { 20, 0.42 }, Reveal = { 18, 0.4 }, Transform = { 18, 0.45 } }
 local AXES = { "x", "y", "z", "px", "py", "pz" }
@@ -508,8 +523,14 @@ local function updateBear(e, dt, now)
 	e.lastPos = p0
 	local anim = model:GetAttribute("Anim") or "Idle"
 	local carried = anim == "Carried"
+	-- planted moments (eating, sniffing, the reveal...): the bear stands still, so replication
+	-- jitter must NOT be read as walking (that used to fade the jaw / head poses out)
+	local planted = PLANTED[anim] == true
 	local flat = Vector3.new(v.X, 0, v.Z).Magnitude
-	if carried then flat = 0 end
+	if carried or planted then
+		flat = 0
+		e.speed = 0
+	end
 	e.speed += (math.min(flat, 60) - e.speed) * Easing.damp(10, dt)
 	-- airborne / landing
 	local vy = if carried then 0 else v.Y

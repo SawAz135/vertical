@@ -161,6 +161,10 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 		local dir = Vector3.new(here.X - landing.X, 0, here.Z - landing.Z)
 		dir = if dir.Magnitude > 0.1 then dir.Unit else Vector3.new(1, 0, 0)
 		local stop = Vector3.new(landing.X, 0, landing.Z) + dir * (bodyLen * 0.5 + 0.6)
+		-- it stops a little way off, then creeps up to the fish during "arrive" (the fish SEES it come)
+		local approach = 2.5 + 2 * agent.scale
+		local finalStop = stop
+		stop = stop + dir * approach
 		local points = R.BearAI.route(here, stop, 2 + 1.5 * agent.scale)
 		local arrived = false
 		agent:moveTo(points, G.runSpeed, "Run", function()
@@ -182,8 +186,14 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 		local tl = { arrive = 0, sniff = G.arrive, eat = G.arrive + G.sniff, total = G.arrive + G.sniff + G.eat, chomp = G.arrive + G.sniff + G.chompAt }
 		local start = workspace:GetServerTimeNow()
 		fx(player, "Eat", { start = start, tl = tl, bear = agent.model, fish = fm })
-		agent:setAnim("Arrive")
+		agent:moveTo({ agent:ground(finalStop) }, approach / (G.arrive * 0.85) / math.max(0.75, agent.scale ^ 0.5), "Walk", function()
+			agent:hold()
+			agent:face(landing)
+			agent:setAnim("Arrive")
+		end)
 		if not wait(c, G.arrive) then return end
+		agent:hold()
+		agent:face(landing)
 		agent:setAnim("Sniff")
 		if not wait(c, G.sniff) then return end
 		agent:setAnim("Eat")
