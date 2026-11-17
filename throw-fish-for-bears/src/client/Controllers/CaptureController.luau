@@ -480,7 +480,6 @@ local function eatSequence(d)
 				CameraController.shake(0.35 + 0.6 * near * sc, 0.16)
 				Sound.play("Footstep", { at = body, pitch = 0.55 / math.max(0.8, sc ^ 0.5), volume = 1.2 })
 				Sound.play("Heartbeat", { pitch = 0.4, volume = 0.5 + 0.4 * near })
-				Fx.dust(Vector3.new(body.X, ground.Y - 0.6, body.Z) + baseSide * c.stepSide * bl * 0.25 + baseFwd * bl * 0.3, 0.5 * sc)
 			end
 			cf = CFrame.lookAt(eye + tremble, look)
 			fov = 78
@@ -620,43 +619,50 @@ end
 -- NON-STOP (never back down), faster and faster to their peak. The camera spirals down,
 -- the shaking and the heartbeat build... hit-stop... SLAM onto the bear's face.
 ------------------------------------------------------------------------------------------
+local function luckText(v: number): string
+	if v < 10 then return ("x%.2f"):format(v) end
+	if v < 1000 then return ("x%.1f"):format(v) end
+	return "x" .. Format.short(v)
+end
+
+-- LUCK / SIZE / RARITY counters, stud style. Clean layout just under the top letterbox bar:
+-- no rotation (rotated frames stop clipping in Roblox, the stripes spilled out), only a small
+-- position jitter that grows with the tension.
 local function buildCounters()
 	local g = Sim.new("ScreenGui", { Name = "TFBRevealCounters", ResetOnSpawn = false, DisplayOrder = 13, IgnoreGuiInset = true,
-		ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
-	local root = Sim.root(g, "Counters", Vector2.new(560, 196), UDim2.new(0.5, 0, 0, 12), Vector2.new(0.5, 0))
+		ScreenInsets = Enum.ScreenInsets.None, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
+	local root = Sim.root(g, "Counters", Vector2.new(540, 230), UDim2.new(0.5, 0, 0.11, 6), Vector2.new(0.5, 0))
 	local inner = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, root)
 	local pop = Sim.new("UIScale", { Scale = 0 }, inner)
 	TweenService:Create(pop, TweenInfo.new(0.4, Enum.EasingStyle.Back), { Scale = 1 }):Play()
 	local function box(x, title, grad)
-		local b = Sim.panel(inner, { Size = UDim2.fromOffset(260, 100), Position = UDim2.fromOffset(x, 4), Gradient = grad, Stroke = 4, ZIndex = 4, Clip = true })
-		Sim.bands(b, 0.6, 5)
-		Sim.text(b, title, { Size = UDim2.fromOffset(240, 26), Position = UDim2.fromOffset(130, 18), Max = 22, ZIndex = 7 })
-		local v = Sim.text(b, "", { Size = UDim2.fromOffset(240, 56), Position = UDim2.fromOffset(130, 62), Max = 52, Stroke = 4.5, ZIndex = 7 })
+		local b = Sim.panel(inner, { Size = UDim2.fromOffset(260, 92), Position = UDim2.fromOffset(x, 0), Gradient = grad, Stroke = 4, ZIndex = 4, Studs = false })
+		Sim.text(b, title, { Size = UDim2.fromOffset(240, 24), Position = UDim2.fromOffset(130, 16), Max = 22, ZIndex = 7 })
+		local v = Sim.text(b, "", { Size = UDim2.fromOffset(240, 52), Position = UDim2.fromOffset(130, 60), Max = 46, Stroke = 4.5, ZIndex = 7 })
 		return b, v, Sim.new("UIScale", {}, v)
 	end
-	local luckB, luckV, luckS = box(10, "🍀 LUCK", Sim.G.green)
-	local sizeB, sizeV, sizeS = box(290, "⚖️ SIZE", Sim.G.blue)
+	local _, luckV, luckS = box(0, "🍀 LUCK", Sim.G.green)
+	local _, sizeV, sizeS = box(280, "⚖️ SIZE", Sim.G.blue)
 	-- casino RARITY ticker: climbs tier by tier (never down) and lands on the final rarity
-	local rarB = Sim.panel(inner, { Size = UDim2.fromOffset(540, 70), Position = UDim2.fromOffset(10, 114), Gradient = Sim.G.purple or Sim.G.blue, Stroke = 4, ZIndex = 4, Clip = true })
-	Sim.bands(rarB, 0.6, 5)
-	local rarV = Sim.text(rarB, "", { Size = UDim2.fromOffset(520, 52), Position = UDim2.fromOffset(270, 35), Max = 46, Stroke = 4.5, ZIndex = 7 })
+	local rarB = Sim.panel(inner, { Size = UDim2.fromOffset(540, 64), Position = UDim2.fromOffset(0, 104), Color = Color3.fromRGB(60, 60, 70), Stroke = 4, ZIndex = 4, Studs = false })
+	local rarV = Sim.text(rarB, "", { Size = UDim2.fromOffset(520, 48), Position = UDim2.fromOffset(270, 32), Max = 42, Stroke = 4.5, ZIndex = 7 })
 	local rarS = Sim.new("UIScale", {}, rarV)
-	local stamp = Sim.text(g, "", { Size = UDim2.fromOffset(460, 70), Position = UDim2.new(0.5, 0, 0, 250), Max = 60, Stroke = 5, ZIndex = 9,
+	-- "LUCK x5!" stamp, inside the scaled root (under the ticker)
+	local stamp = Sim.text(inner, "", { Size = UDim2.fromOffset(460, 54), Position = UDim2.fromOffset(270, 200), Max = 48, Stroke = 5, ZIndex = 9,
 		Gradient = { Color3.fromRGB(255, 255, 200), Color3.fromRGB(255, 190, 20) } })
 	local ss = Sim.new("UIScale", { Scale = 0 }, stamp)
 	local ui = {}
 	-- heat 0..1: the numbers swell and turn gold as they climb
 	function ui.set(luck: number, kg: number, heat: number)
-		luckV.Text = ("x%.1f"):format(luck)
+		luckV.Text = luckText(luck)
 		sizeV.Text = Format.kg(kg)
 		local hot = Color3.new(1, 1, 1):Lerp(Color3.fromRGB(255, 214, 60), heat)
 		luckV.TextColor3 = hot
 		sizeV.TextColor3 = hot
-		local sc = 1 + heat * 0.18
+		local sc = 1 + heat * 0.12
 		luckS.Scale = sc
 		sizeS.Scale = sc
 	end
-	-- rarity ticker step (pop + colour); returns true when it changed
 	local lastRar = nil
 	function ui.rarity(id: string)
 		if id == lastRar then return false end
@@ -664,38 +670,36 @@ local function buildCounters()
 		local tier = RarityConfig.get(id)
 		rarV.Text = tier.name:upper()
 		rarV.TextColor3 = tier.textColor or tier.color
-		rarB.BackgroundColor3 = (tier.color):Lerp(Color3.new(0, 0, 0), 0.35)
-		local grad = rarB:FindFirstChildOfClass("UIGradient")
-		if grad then grad.Color = ColorSequence.new((tier.color):Lerp(Color3.new(1, 1, 1), 0.25), (tier.color):Lerp(Color3.new(0, 0, 0), 0.4)) end
-		rarS.Scale = 1.45
+		rarB.BackgroundColor3 = (tier.color):Lerp(Color3.new(0, 0, 0), 0.55)
+		rarS.Scale = 1.35
 		TweenService:Create(rarS, TweenInfo.new(0.22, Enum.EasingStyle.Back), { Scale = 1 }):Play()
 		return true
 	end
 	function ui.shake(amount: number)
+		-- amount 0..1: a few pixels at most
 		local t = os.clock()
-		inner.Position = UDim2.fromOffset(math.noise(t * 22, 1) * amount * 2, math.noise(t * 22, 2) * amount * 2)
-		luckB.Rotation = math.noise(t * 9, 3) * amount * 0.5
-		rarB.Rotation = math.noise(t * 9, 5) * amount * 0.35
-		sizeB.Rotation = math.noise(t * 9, 4) * amount * 0.5
+		local a = math.clamp(amount, 0, 1) * 3
+		inner.Position = UDim2.fromOffset(math.noise(t * 18, 1) * a, math.noise(t * 18, 2) * a)
 	end
 	function ui.lock()
 		for _, s2 in { luckS, sizeS } do
-			s2.Scale = 1.5
-			TweenService:Create(s2, TweenInfo.new(0.35, Enum.EasingStyle.Back), { Scale = 1.1 }):Play()
+			s2.Scale = 1.4
+			TweenService:Create(s2, TweenInfo.new(0.35, Enum.EasingStyle.Back), { Scale = 1.08 }):Play()
 		end
-		luckB.Rotation, sizeB.Rotation, rarB.Rotation = 0, 0, 0
-		rarS.Scale = 1.7
-		TweenService:Create(rarS, TweenInfo.new(0.4, Enum.EasingStyle.Back), { Scale = 1.15 }):Play()
 		inner.Position = UDim2.new()
+		rarS.Scale = 1.5
+		TweenService:Create(rarS, TweenInfo.new(0.4, Enum.EasingStyle.Back), { Scale = 1.1 }):Play()
 	end
 	function ui.stamp(text: string)
 		stamp.Text = text
-		ss.Scale = 3
+		ss.Scale = 2.5
 		TweenService:Create(ss, TweenInfo.new(0.3, Enum.EasingStyle.Back), { Scale = 1 }):Play()
 	end
+	local closed = false
 	function ui.close()
+		if closed then return end
+		closed = true
 		TweenService:Create(pop, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 }):Play()
-		TweenService:Create(ss, TweenInfo.new(0.25), { Scale = 0 }):Play()
 		task.delay(0.3, function() g:Destroy() end)
 	end
 	return ui
@@ -879,7 +883,7 @@ local function revealSequence(d)
 			shownL = math.min(shownL, luck)
 			shownK = math.min(shownK, kg)
 			ui.set(shownL, shownK, p)
-			ui.shake(1 + p * 8)
+			ui.shake(p * p)
 			-- RARITY ticker: climbs tier by tier, the last steps land late (casino slow-down)
 			local want = math.clamp(1 + math.floor((finalIdx - 1) * (p ^ 1.35) + 0.0001), 1, finalIdx)
 			if p < 0.97 then want = math.min(want, math.max(1, finalIdx - 1)) end -- the last tier waits for the peak
@@ -942,7 +946,14 @@ local function revealSequence(d)
 		Cine.grade({ tint = Color3.new(1, 1, 1):Lerp(col, 0.12), saturation = 0.15 + tier.index * 0.03, contrast = 0.2, brightness = 0.02 }, 0.25)
 		local spec = BearConfig.get(d.species or "BrownBear")
 		local variant = if d.variant and d.variant ~= "Normal" then d.variant .. " " else ""
-		Cine.banner((variant .. spec.name):upper(), col, tier.name:upper())
+		task.delay(0.9, function()
+			if current ~= c then return end
+			ui.close()
+		end)
+		task.delay(1.05, function()
+			if current ~= c then return end
+			Cine.banner((variant .. spec.name):upper(), col, tier.name:upper())
+		end)
 		-- the bear crashes back down from its roar: ground STOMP, earth and grass flying
 		task.delay(1.11, function()
 			if current ~= c or not c.bear.Parent then return end

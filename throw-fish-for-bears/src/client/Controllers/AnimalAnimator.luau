@@ -185,7 +185,7 @@ STATES.Sniff = function(p, e, t, s)
 	pos(p, "Neck", 0, (-0.15 * k - 0.12 * boop) * s, (-0.2 * k - 0.55 * boop) * s)
 	rot(p, "BodyJoint", -0.05 * k - 0.06 * boop)
 	pos(p, "BodyJoint", 0, 0, -0.25 * boop * s)
-	rot(p, "Jaw", -0.04 - abs(sin(t * 17)) * 0.05 - 0.1 * math.max(0, boop))
+	rot(p, "Jaw", -0.08 - abs(sin(t * 17)) * 0.08 - 0.35 * math.max(0, boop))
 	rot(p, "EarL", 0.15 * k - 0.3 * math.max(0, boop)) rot(p, "EarR", 0.15 * k - 0.3 * math.max(0, boop))
 	rot(p, "Tail", 0, sin(t * 6) * 0.3)
 end
@@ -279,7 +279,7 @@ STATES.Happy = function(p, e, t, s)
 		rot(p, "LegFL", -1.5 * k + paw, 0, 0.35 * k) rot(p, "LegFR", -1.5 * k - paw, 0, -0.35 * k)
 		rot(p, "LegBL", -1.05 * k) rot(p, "LegBR", -1.05 * k)
 		rot(p, "Neck", -0.7 * k + sin(t * 40) * 0.04 * k, sin(t * 9) * 0.2)
-		rot(p, "Jaw", -0.95 * k) -- the roar: jaws all the way open
+		rot(p, "Jaw", -1.4 * k) -- the roar: jaws all the way open
 		rot(p, "EarL", -0.6 * k) rot(p, "EarR", -0.6 * k)
 		rot(p, "Tail", 0.9 * k, sin(t * 25) * 0.6)
 		return
@@ -340,7 +340,7 @@ STATES.Eat = function(p, e, t, s)
 	pos(p, "BodyJoint", 0, (0.32 * toss - 0.08 * waitK - 0.4 * chomp + 0.16 * settle) * s, 0)
 	rot(p, "LegFL", -0.45 * toss + 0.1 * waitK + 0.35 * chomp) rot(p, "LegFR", -0.45 * toss + 0.1 * waitK + 0.35 * chomp)
 	-- jaw: gaping, WIDE open to the sky while the fish falls, shut hard on the chomp
-	local open = (0.6 * dive * (1 - toss) + 1.0 * toss) * (1 - chomp)
+	local open = (0.9 * dive * (1 - toss) + 1.5 * toss) * (1 - chomp)
 	local chewing = t > C + 0.06 and t < W
 	local ct = t - (C + 0.06)
 	local shake = if ct > 0 and ct < 0.22 then sin(ct * 70) * (1 - ct / 0.22) else 0
@@ -411,7 +411,7 @@ STATES.Reveal = function(p, e, t, s)
 	rot(p, "LegFL", -1.65 * roar + 0.4 * stomp, 0, 0.5 * roar) rot(p, "LegFR", -1.65 * roar + 0.4 * stomp, 0, -0.5 * roar)
 	rot(p, "LegBL", -1.15 * roar - 0.25 * stomp) rot(p, "LegBR", -1.15 * roar - 0.25 * stomp)
 	rot(p, "Neck", -0.85 * roar + shiver * 1.5 - 0.3 * stomp + 0.3 * proud, sin(u * 1.4) * 0.12 * proud)
-	rot(p, "Jaw", -1.05 * roar - 0.25 * stomp - 0.12 * proud)
+	rot(p, "Jaw", -1.45 * roar - 0.35 * stomp - 0.15 * proud)
 	rot(p, "EarL", -0.8 * roar + 0.1 * proud) rot(p, "EarR", -0.8 * roar + 0.1 * proud)
 	rot(p, "Tail", 1.0 * roar + 0.4 * proud, sin(u * 22) * 0.5 * roar)
 end
@@ -500,16 +500,6 @@ local function locomotion(p, e, t, s, speed, dt)
 	rot(p, "BodyJoint", sin(ph * 2) * 0.015 * walkK + sin(ph) * (0.09 + hv * 0.06) * runK + 0.06 * runK, sin(ph) * 0.04 * runK * weight, sin(ph) * 0.05 * (1 - runK) * walkK + cos(ph) * 0.07 * runK * weight)
 	-- head: stabilised but nodding into each stride, lowered for power
 	rot(p, "Neck", -sin(ph) * 0.07 * runK - 0.05 * walkK - 0.12 * runK * hv + footfall * 1.5, sin(ph) * 0.06 * (1 - runK) * walkK)
-	-- dust kicked up by heavy running paws
-	if runK > 0.6 and e.root then
-		local beat = math.floor(ph / math.pi)
-		if beat ~= e.lastBeat then
-			e.lastBeat = beat
-			if (e.root.Position - camera.CFrame.Position).Magnitude < 80 then
-				Fx.dust(e.root.Position - Vector3.new(0, e.legLen + 0.8 * s, 0) + e.root.CFrame.LookVector * 0.5 * s, 0.35 * s * weight)
-			end
-		end
-	end
 	rot(p, "Tail", 0.2 * runK, sin(ph) * 0.3 * walkK)
 	rot(p, "EarL", -0.25 * runK) rot(p, "EarR", -0.25 * runK)
 	rot(p, "Jaw", -0.12 * runK - abs(sin(ph)) * 0.05 * runK)

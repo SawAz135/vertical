@@ -98,19 +98,16 @@ end
 
 function Fx.dust(pos: Vector3, scale: number, color: Color3?)
 	Fx.blocks(pos, color or Color3.fromRGB(170, 140, 100), math.floor(8 * scale), 9, 0.4 * scale, { life = 0.6, up = 0.8, spread = 2.2, gravity = 30 })
-	Fx.ring(pos + Vector3.new(0, 0.1, 0), Color3.fromRGB(240, 230, 210), 0.5 * scale, 4 * scale, 0.5, { transparency = 0.5 })
 end
 
 function Fx.sparkle(pos: Vector3, color: Color3, n: number, speed: number?)
 	Fx.blocks(pos, color, n, speed or 18, 0.3, { life = 1.1, up = 0.4, spread = 2, gravity = 12, neon = true })
 end
 
--- big transformation / reveal burst: shockwave + vertical ring + neon blocks
+-- big transformation / reveal burst: a pop of plain stud blocks (no neon rings, no glow)
 function Fx.burst(pos: Vector3, color: Color3, scale: number)
-	Fx.ring(pos + Vector3.new(0, 0.2, 0), color, 1, 16 * scale, 0.7, { neon = true, transparency = 0.1, thick = 0.3 })
-	Fx.ring(pos + Vector3.new(0, 3 * scale, 0), Color3.new(1, 1, 1), 1, 10 * scale, 0.5, { neon = true, transparency = 0.2, thick = 0.2, vertical = true })
-	Fx.sparkle(pos + Vector3.new(0, 2 * scale, 0), color, 26, 24 * scale)
-	Fx.sparkle(pos + Vector3.new(0, 2 * scale, 0), Color3.new(1, 1, 1), 14, 30 * scale)
+	Fx.blocks(pos + Vector3.new(0, 1.5 * scale, 0), color, 16, 20 * scale, 0.35 * scale, { life = 0.9, up = 1.6, spread = 2.4, gravity = 50,
+		colors = { color, Color3.new(1, 1, 1), color:Lerp(Color3.new(0, 0, 0), 0.25) } })
 end
 
 -- temporary attachment particle emitter (cheap cloud puffs)
