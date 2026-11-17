@@ -35,10 +35,10 @@ MapService.decor = nil -- folder with blocking decor (raycast checks)
 local CF = CFrame.new
 local V3 = Vector3.new
 local C = Color3.fromRGB
-local GRASS = C(70, 146, 46)
-local GRASS_DARK = C(62, 132, 40)
+local GRASS = C(78, 172, 50)
+local GRASS_DARK = C(68, 156, 44)
 local SAND = C(226, 190, 128)
-local WATER = C(38, 120, 225)
+local WATER = C(30, 140, 245)
 
 local function prompt(anchor: BasePart, kind: string, action: string, object: string, dist: number?)
 	local p = Instance.new("ProximityPrompt")
@@ -344,18 +344,18 @@ local function buildSky(map, rand)
 		Props.cloud(map, V3((rand:NextNumber() - 0.5) * 700, 110 + rand:NextNumber() * 40, Layout.CORRIDOR_END_Z + rand:NextNumber() * 900), 1 + rand:NextNumber() * 0.6, rand)
 	end
 	local atmo = Instance.new("Atmosphere")
-	atmo.Density = 0.26
-	atmo.Offset = 0.12
+	atmo.Density = 0.16
+	atmo.Offset = 0.1
 	atmo.Color = C(196, 226, 255)
 	atmo.Decay = C(120, 170, 230)
-	atmo.Glare = 0.2
-	atmo.Haze = 1.2
+	atmo.Glare = 0.1
+	atmo.Haze = 0.55
 	atmo.Parent = Lighting
 	local cc = Instance.new("ColorCorrectionEffect")
 	cc.Name = "TFBColor"
-	cc.Saturation = -0.04
-	cc.Contrast = 0.1
-	cc.Brightness = -0.02
+	cc.Saturation = 0.22 -- vivid toy colours
+	cc.Contrast = 0.14 -- crisper studs / shadows
+	cc.Brightness = 0.02
 	cc.Parent = Lighting
 	local bloom = Instance.new("BloomEffect")
 	bloom.Intensity = 0.12

@@ -46,6 +46,20 @@ function Studs.piece(parent: Instance, name: string, size: Vector3, cf: CFrame, 
 	return p
 end
 
+-- toy-like vivid colours for the world: boosts saturation (and a little brightness)
+-- of coloured parts; whites, greys and blacks stay as they are
+Studs.VIVID_SAT = 1.28
+Studs.VIVID_VAL = 1.07
+function Studs.vivid(c: Color3): Color3
+	local r, g, b = c.R, c.G, c.B
+	local hi, lo = math.max(r, g, b), math.min(r, g, b)
+	if hi - lo < 0.06 then return c end -- greys / whites / blacks
+	-- push each channel away from the grey average (= more saturation), then brighten
+	local m = (r + g + b) / 3
+	local k, v = Studs.VIVID_SAT, Studs.VIVID_VAL
+	return Color3.new(math.clamp((m + (r - m) * k) * v, 0, 1), math.clamp((m + (g - m) * k) * v, 0, 1), math.clamp((m + (b - m) * k) * v, 0, 1))
+end
+
 -- an anchored, colliding map part
 function Studs.static(parent: Instance, name: string, size: Vector3, cf: CFrame, color: Color3, opts: any?)
 	if size.X > 2048 or size.Y > 2048 or size.Z > 2048 then
@@ -55,7 +69,7 @@ function Studs.static(parent: Instance, name: string, size: Vector3, cf: CFrame,
 	p.Name = name
 	p.Size = size
 	p.CFrame = cf
-	p.Color = color
+	p.Color = if opts and opts.raw then color else Studs.vivid(color)
 	p.Material = opts and opts.material or Enum.Material.Plastic
 	p.Anchored = true
 	p.CanCollide = not (opts and opts.noCollide)

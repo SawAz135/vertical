@@ -40,7 +40,7 @@ function Ambience.init()
 			local ti = TweenInfo.new(1.5)
 			if atmo then
 				TweenService:Create(atmo, ti, {
-					Density = if cfg then cfg.atmosphere else 0.26,
+					Density = if cfg then cfg.atmosphere * 0.6 else 0.16,
 					Color = if cfg then cfg.fog else Color3.fromRGB(196, 226, 255),
 				}):Play()
 			end
