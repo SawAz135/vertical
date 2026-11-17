@@ -48,6 +48,9 @@ end
 
 -- an anchored, colliding map part
 function Studs.static(parent: Instance, name: string, size: Vector3, cf: CFrame, color: Color3, opts: any?)
+	if size.X > 2048 or size.Y > 2048 or size.Z > 2048 then
+		warn("[TFB] part larger than 2048 studs gets clamped by Roblox:", name, size)
+	end
 	local p = Instance.new(if opts and opts.wedge then "WedgePart" else "Part")
 	p.Name = name
 	p.Size = size

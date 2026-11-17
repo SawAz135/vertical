@@ -178,11 +178,6 @@ local function buildStats()
 		Position = UDim2.fromOffset(26, 26), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = -8, ZIndex = 3 }, root)
 	refs.strength = Sim.text(root, "", { Size = UDim2.fromOffset(380, 42), Position = UDim2.fromOffset(54, 24), AnchorPoint = Vector2.new(0, 0.5),
 		AlignX = Enum.TextXAlignment.Left, Max = 40, Stroke = 3.5, Gradient = { RGB(255, 140, 120), RGB(230, 30, 40) }, ZIndex = 3 })
-	local bar = new("Frame", { BackgroundColor3 = RGB(30, 30, 34), Size = UDim2.fromOffset(220, 14), Position = UDim2.fromOffset(56, 48), ZIndex = 3, ClipsDescendants = true }, root)
-	Sim.corner(bar, 4)
-	Sim.stroke(bar, 2.5)
-	refs.repFill = new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromScale(0, 1), ZIndex = 4 }, bar)
-	Sim.gradient(refs.repFill, Sim.G.orange, 90)
 	new("ImageLabel", { BackgroundTransparency = 1, Image = K.Icons.Cash, ScaleType = Enum.ScaleType.Fit, Size = UDim2.fromOffset(54, 54),
 		Position = UDim2.fromOffset(28, 98), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = -8, ZIndex = 3 }, root)
 	local mh = new("Frame", { Name = "Money", BackgroundTransparency = 1, Size = UDim2.fromOffset(240, 54), Position = UDim2.fromOffset(58, 72) }, root)
@@ -432,9 +427,6 @@ function HUD.renderStats()
 	local power = d.strength or 0
 	local gain = d.strengthGain or 1
 	refs.strength.Text = ("%s (x%d)"):format(Format.short(power), gain)
-	-- bar: how far you can throw (studs) out of the max
-	local dist = E.Strength.maxDistance(power)
-	tween(refs.repFill, 0.25, { Size = UDim2.fromScale(math.clamp((dist - 70) / 2990, 0.02, 1), 1) })
 	local rate = player:GetAttribute("Income") or 0
 	refs.income.Text = if rate > 0 then "+" .. Format.short(rate) .. "/s" else ""
 	local placed = 0

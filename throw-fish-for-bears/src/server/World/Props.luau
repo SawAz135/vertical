@@ -157,8 +157,13 @@ function Props.brickWall(parent: Instance, a: Vector3, b: Vector3, height: numbe
 		end
 	end
 	-- green grass cap (reference walls have a grass top edge)
-	local mid = (a + b) / 2
-	Studs.static(m, "Cap", V3(thick + 0.4, 0.8, len), CFrame.lookAt(mid, mid + u) + V3(0, height + 0.4, 0), C(80, 170, 60))
+	-- (in segments: a part can't be longer than 2048 studs)
+	local segs = math.max(1, math.ceil(len / 500))
+	local sl = len / segs
+	for i = 0, segs - 1 do
+		local mid = a + u * (sl * (i + 0.5))
+		Studs.static(m, "Cap", V3(thick + 0.4, 0.8, sl + 0.02), CFrame.lookAt(mid, mid + u) + V3(0, height + 0.4, 0), C(80, 170, 60))
+	end
 	return m
 end
 

@@ -60,7 +60,14 @@ local function buildGround(map)
 	-- the grass stops where the lake starts (it used to cover the water = green lake)
 	local minZ = Layout.CORRIDOR_END_Z - 120
 	local maxZ = Layout.LAKE.minZ
-	Studs.static(map, "Ground", V3(760, 4, maxZ - minZ), CF(0, -2, (minZ + maxZ) / 2), GRASS)
+	-- Roblox parts are capped at 2048 studs: the 3000+ stud world plate is laid in chunks
+	local CHUNK = 1000
+	local z0 = minZ
+	while z0 < maxZ - 0.01 do
+		local z1 = math.min(maxZ, z0 + CHUNK)
+		Studs.static(map, "Ground", V3(760, 4, z1 - z0), CF(0, -2, (z0 + z1) / 2), GRASS)
+		z0 = z1
+	end
 	local l0 = Layout.LAKE
 	local sideW = 380 - l0.maxX
 	for _, sx in { -1, 1 } do
@@ -361,12 +368,17 @@ function MapService.build()
 	local map = Instance.new("Folder")
 	map.Name = "Map"
 	local rand = Random.new(1337)
-	buildGround(map)
-	buildCompound(map, rand)
-	buildBases(map)
-	buildShops(map)
-	buildCorridor(map, rand)
-	buildSky(map, rand)
+	-- each section is built on its own: an error in one decor never removes the ground
+	local function step(name: string, fn, ...)
+		local ok, err = pcall(fn, ...)
+		if not ok then warn("[TFB] map section failed:", name, err) end
+	end
+	step("ground", buildGround, map)
+	step("compound", buildCompound, map, rand)
+	step("bases", buildBases, map)
+	step("shops", buildShops, map)
+	step("corridor", buildCorridor, map, rand)
+	step("sky", buildSky, map, rand)
 	map.Parent = workspace
 	local npcs = Instance.new("Folder")
 	npcs.Name = "Bears"
