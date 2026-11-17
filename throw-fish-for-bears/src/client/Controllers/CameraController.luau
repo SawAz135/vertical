@@ -88,11 +88,20 @@ function Camera.init()
 			local a = active
 			a.t += dt
 			-- a broken shot must never leave the camera stuck: stop it and give control back
+			-- a buggy frame must not kill the whole cinematic: hold the last good frame and keep
+			-- going (the next moments of the shot usually work); give up only after ~1 s of errors
 			local ok, cf, fov = pcall(a.fn, a.t, dt)
 			if not ok then
-				warn("[TFB] camera shot error:", cf)
-				Camera.stop(true)
-				return
+				a.errors = (a.errors or 0) + 1
+				if a.errors == 1 then warn("[TFB] camera shot error:", cf) end
+				if a.errors > 60 then
+					Camera.stop(true)
+					return
+				end
+				cf, fov = a.lastCF, a.lastFov
+			else
+				a.errors = 0
+				if cf then a.lastCF, a.lastFov = cf, fov end
 			end
 			if cf then
 				if a.smooth > 0 then

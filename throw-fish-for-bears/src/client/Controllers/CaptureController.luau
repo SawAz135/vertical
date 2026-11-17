@@ -438,11 +438,22 @@ local function eatSequence(d)
 		if now >= tl.sniff + 0.1 then once("sniff2", function() Sound.play("Sniff", { at = mouth, pitch = 0.55, volume = 1.2 }) end) end
 		-- the NOSE BOOPS: the snout jabs into the fish -> the view is knocked back and rolls
 		local boopKick = 0
+		-- warm BREATH on the fish while it sniffs (white puffs, no glow)
+		if now >= tl.sniff and now < tl.eat then
+			c.breathAt = c.breathAt or 0
+			if os.clock() - c.breathAt > 0.45 then
+				c.breathAt = os.clock()
+				Fx.puff(mouth + h.CFrame.LookVector * 0.3 * sc - Vector3.new(0, 0.2 * sc, 0), Color3.fromRGB(235, 240, 248), 4, 0.55 * sc)
+			end
+		end
 		for i, bt in Animator.BOOPS do
 			local at = tl.sniff + bt
 			if now >= at then
 				once("boop" .. i, function()
 					Sound.play("Flop", { pitch = 0.8, volume = 1.2 })
+					freezeUntil = os.clock() + 0.06 -- tiny hit-stop on the jab
+					Fx.blocks(ground, Color3.fromRGB(120, 95, 70), 10, 9 * sc, 0.25 * sc, { life = 0.7, up = 1.4, spread = 2, gravity = 60,
+						colors = { Color3.fromRGB(120, 95, 70), Color3.fromRGB(80, 150, 55), Color3.fromRGB(95, 74, 52) } })
 					Sound.play("Sniff", { at = mouth, pitch = 0.5, volume = 1.4 })
 					CameraController.shake(1.3, 0.3)
 					CameraController.punch(6)
@@ -460,6 +471,17 @@ local function eatSequence(d)
 			-- head low, growing in the frame (wide lens so we see the whole silhouette)
 			local eye = ground + Vector3.new(0, 0.1, 0)
 			local look = h.Position:Lerp(body, 0.35)
+			-- every heavy step THUMPS through the ground into the fish's eyes, heavier as it nears
+			local near = math.clamp(now / math.max(0.1, tl.sniff), 0, 1)
+			c.stepAt = c.stepAt or 0
+			if os.clock() - c.stepAt > 0.4 - 0.08 * near then
+				c.stepAt = os.clock()
+				c.stepSide = -(c.stepSide or 1)
+				CameraController.shake(0.35 + 0.6 * near * sc, 0.16)
+				Sound.play("Footstep", { at = body, pitch = 0.55 / math.max(0.8, sc ^ 0.5), volume = 1.2 })
+				Sound.play("Heartbeat", { pitch = 0.4, volume = 0.5 + 0.4 * near })
+				Fx.dust(Vector3.new(body.X, ground.Y - 0.6, body.Z) + baseSide * c.stepSide * bl * 0.25 + baseFwd * bl * 0.3, 0.5 * sc)
+			end
 			cf = CFrame.lookAt(eye + tremble, look)
 			fov = 78
 		elseif now < tl.eat then
@@ -574,6 +596,15 @@ local function eatSequence(d)
 		end
 		if now >= tl.eat + G.swallowAt then
 			once("gulp", function() Sound.play("Chomp", { pitch = 0.5, volume = 0.6 }) end) -- muffled, from inside
+		end
+		-- DROOL dripping off the fangs while the jaws are open (little drops, natural colour)
+		if now > tl.eat + 0.2 and now < tChomp then
+			c.droolAt = c.droolAt or 0
+			if os.clock() - c.droolAt > 0.14 then
+				c.droolAt = os.clock()
+				Fx.blocks(mouth - h.CFrame.UpVector * 0.3 * sc + h.CFrame.LookVector * 0.15 * sc, Color3.fromRGB(205, 228, 245), 1, 1.5, 0.1 * sc,
+					{ life = 0.9, up = -0.5, spread = 0.4, gravity = 45 })
+			end
 		end
 		-- never under the ground
 		local pp = cf.Position
