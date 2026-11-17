@@ -11,6 +11,7 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Easing = require(ReplicatedStorage.Shared.Util.Easing)
+local FishConfig = require(ReplicatedStorage.Shared.Config.FishConfig)
 
 local Animator = {}
 local bears = {}
@@ -31,8 +32,9 @@ local function newPose()
 	return p
 end
 
-local function registerBear(model: Model)
-	if bears[model] then return end
+local function registerBear(model: Model, into: any?)
+	into = into or bears
+	if into[model] then return end
 	local motors = {}
 	for _, d in model:GetDescendants() do
 		if d:IsA("Motor6D") and table.find(JOINTS, d.Name) then
@@ -45,7 +47,7 @@ local function registerBear(model: Model)
 		if d.Name == "Eyelid" then table.insert(lids, d) end
 	end
 	local seed = math.random() * 1000
-	bears[model] = {
+	into[model] = {
 		model = model, root = model.PrimaryPart, motors = motors, lids = lids,
 		scale = model:GetAttribute("Scale") or 1, gait = model:GetAttribute("Gait") or 1,
 		legLen = model:GetAttribute("HipHeight") or 1.6,
@@ -53,18 +55,21 @@ local function registerBear(model: Model)
 		blinkAt = os.clock() + 1 + math.random() * 3, blinkUntil = 0, earTwitch = 0, earSide = 1,
 		vy = 0, squash = 0, lastPos = model.PrimaryPart and model.PrimaryPart.Position, t = 0,
 	}
-	model.Destroying:Connect(function() bears[model] = nil end)
+	model.Destroying:Connect(function() into[model] = nil end)
+	return into[model]
 end
 
-local function registerFish(model: Model)
-	if fishes[model] then return end
+local function registerFish(model: Model, into: any?)
+	into = into or fishes
+	if into[model] then return end
 	local m = {}
 	for _, d in model:GetDescendants() do
 		if d:IsA("Motor6D") then m[d.Name] = d end
 	end
 	if not m.Tail then return end
-	fishes[model] = { model = model, motors = m, phase = math.random() * TAU, root = model.PrimaryPart }
-	model.Destroying:Connect(function() fishes[model] = nil end)
+	into[model] = { model = model, motors = m, phase = math.random() * TAU, root = model.PrimaryPart }
+	model.Destroying:Connect(function() into[model] = nil end)
+	return into[model]
 end
 
 local function register(inst: Instance)
@@ -84,6 +89,7 @@ end
 function Animator.track(model: Model)
 	register(model)
 end
+
 
 -- set helpers ---------------------------------------------------------------------
 local function rot(p, j, x, y, z)
@@ -456,6 +462,12 @@ local function updateFish(e, dt, now)
 		local burst = math.max(0, sin(now * 0.8 + e.phase) - 0.85) * 6.6
 		speed, amp = 4 + burst * 10, 0.12 + burst * 0.35
 	end
+	if e.ui then
+		-- living thumbnail: species tempo / amplitude, small fish dart now and then
+		local burst = if e.ui.darty then math.max(0, sin(now * 0.9 + e.ui.seed) - 0.82) * 5.5 else 0
+		speed = e.ui.tempo * (1 + burst * 1.4)
+		amp = e.ui.amp * (1 + burst * 0.8)
+	end
 	e.phase += dt * speed
 	local a = sin(e.phase)
 	local style = e.style
@@ -487,6 +499,103 @@ local function updateFish(e, dt, now)
 	if m.FinR then m.FinR.Transform = CFrame.Angles(0, fin, 0) end
 end
 
+------------------------------------------------------------------------------------------
+-- living 3D thumbnails (ViewportFrames): fish swim in place with their species' own
+-- rhythm, bears go through their own idle life (look, sniff, sit, scratch, stretch...)
+------------------------------------------------------------------------------------------
+local uiBears, uiFish = {}, {}
+
+local function swimParams(id: string?)
+	local spec = id and FishConfig.get(id)
+	local look = spec and spec.look or {}
+	local L, H = look.length or 2.5, look.height or 0.9
+	local slender = L / math.max(0.3, H)
+	local p = {
+		tempo = math.clamp(9.2 - L * 1.15, 3.2, 8.8), -- small fish beat fast, sharks slowly
+		amp = 0.15 + math.clamp((slender - 2.2) * 0.03, 0, 0.14),
+		sway = 0.22, bob = 0.05 + H * 0.04, roll = 0.05, darty = L < 2.3, seed = math.random() * 50,
+	}
+	local n = look.profile and #look.profile or 8
+	if n >= 12 then p.amp = 0.34 p.tempo = 4.6 p.sway = 0.35 end -- eels / oarfish: big S-waves
+	if look.special == "puffer" then p.tempo = 11 p.amp = 0.07 p.bob = 0.12 p.sway = 0.12 p.darty = false end
+	if look.special == "ray" then p.tempo = 3.4 p.amp = 0.25 p.bob = 0.1 p.roll = 0.12 end
+	if look.special == "seahorse" then p.tempo = 3 p.amp = 0.3 p.bob = 0.16 p.sway = 0.08 p.roll = 0.02 end
+	if look.shark then p.tempo = 3.4 p.amp = 0.2 p.sway = 0.3 p.darty = false end
+	return p
+end
+
+local IDLE_UI = {
+	{ "Idle", 26 }, { "Look", 22 }, { "Sniff", 12 }, { "Scratch", 8 }, { "Stretch", 7 }, { "Sit", 11 }, { "Happy", 6 }, { "Lie", 5 },
+}
+
+function Animator.trackUI(model: Model, vp: ViewportFrame, kind: string, id: string?)
+	if kind == "Bear" then
+		local e = registerBear(model, uiBears)
+		if not e then return end
+		e.vp = vp
+		e.nextIdle = os.clock() + 0.5 + math.random() * 2
+		-- personality: light / young bears are livelier, heavy ones calmer
+		e.lively = math.clamp(e.gait, 0.75, 1.3)
+		model:SetAttribute("Anim", "Idle")
+	elseif kind == "Fish" then
+		local e = registerFish(model, uiFish)
+		if not e then return end
+		e.vp = vp
+		e.ui = swimParams(id)
+		e.base = model:GetPivot()
+		e.t = math.random() * 10
+		model:SetAttribute("Anim", "Swim")
+	end
+end
+
+-- a thumbnail is animated only while it is really on screen
+local function shown(vp: GuiObject?): boolean
+	if not vp or not vp.Parent or vp.AbsoluteSize.X < 2 then return false end
+	local o: Instance? = vp
+	while o do
+		if o:IsA("GuiObject") and not o.Visible then return false end
+		if o:IsA("LayerCollector") then return (o :: any).Enabled ~= false end
+		o = o.Parent
+	end
+	return false
+end
+
+local function updateUI(dt: number, now: number)
+	for model, e in uiBears do
+		if model.Parent and shown(e.vp) then
+			local c = os.clock()
+			if c >= e.nextIdle then
+				local total = 0
+				for _, w in IDLE_UI do total += w[2] * (if w[1] == "Happy" or w[1] == "Look" then e.lively else 1 / e.lively) end
+				local roll = math.random() * total
+				local pick = "Idle"
+				for _, w in IDLE_UI do
+					roll -= w[2] * (if w[1] == "Happy" or w[1] == "Look" then e.lively else 1 / e.lively)
+					if roll <= 0 then pick = w[1] break end
+				end
+				model:SetAttribute("Anim", pick)
+				model:SetAttribute("AnimT", now)
+				local hold = if pick == "Sit" or pick == "Lie" then 4 + math.random() * 3 else 2 + math.random() * 2.5
+				e.nextIdle = c + hold / e.lively
+			end
+			updateBear(e, dt, now)
+		end
+	end
+	for model, e in uiFish do
+		if model.Parent and shown(e.vp) then
+			local u = e.ui
+			e.t += dt
+			local t = e.t
+			-- the body glides in place: gentle bob, wandering heading, a little roll
+			local yaw = math.noise(u.seed, t * 0.35) * u.sway * 2
+			local off = CFrame.new(0, sin(t * 1.3 + u.seed) * u.bob, 0)
+				* CFrame.Angles(sin(t * 0.9) * 0.05, yaw, sin(t * 1.7 + u.seed) * u.roll)
+			model:PivotTo(e.base * off)
+			updateFish(e, dt, now)
+		end
+	end
+end
+
 function Animator.init()
 	for _, d in workspace:GetDescendants() do register(d) end
 	workspace.DescendantAdded:Connect(register)
@@ -516,6 +625,7 @@ function Animator.init()
 				updateFish(e, dt, now)
 			end
 		end
+		updateUI(dt, now)
 		rainbowAcc += dt
 		if rainbowAcc > 0.08 then
 			rainbowAcc = 0

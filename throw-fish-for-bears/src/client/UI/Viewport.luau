@@ -8,6 +8,7 @@ local FishBuilder = require(Shared.Models.FishBuilder)
 local BearBuilder = require(Shared.Models.BearBuilder)
 local RodBuilder = require(Shared.Models.RodBuilder)
 local DumbbellBuilder = require(Shared.Models.DumbbellBuilder)
+local Animator = require(script.Parent.Parent.Controllers.AnimalAnimator)
 
 local Viewport = {}
 local spinning = {}
@@ -74,13 +75,27 @@ function Viewport.create(parent: GuiObject, opts)
 		vp.Ambient = Color3.fromRGB(10, 10, 10)
 		vp.LightColor = Color3.fromRGB(30, 30, 30)
 	end
-	model.Parent = vp
+	-- animals live (swim / idle) instead of spinning: joints need a WorldModel
+	local alive = (opts.kind == "Fish" or opts.kind == "Bear") and not opts.silhouette and opts.alive ~= false
+	if alive then
+		local world = Instance.new("WorldModel")
+		world.Parent = vp
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then d.Anchored = false end
+		end
+		if model.PrimaryPart then model.PrimaryPart.Anchored = true end
+		model.Parent = world
+	else
+		model.Parent = vp
+	end
 	local yaw = opts.yaw or (if opts.kind == "Fish" then math.rad(-70) elseif opts.kind == "Rod" then math.rad(-80) elseif opts.kind == "Dumbbell" then math.rad(-20) else math.rad(-145))
 	local pitch = opts.pitch or math.rad(if opts.kind == "Bear" then 12 else 18)
 	local zoom = opts.zoom or 1
 	fit(vp, model, yaw, pitch, zoom)
 	vp.Parent = parent
-	if opts.spin then
+	if alive then
+		Animator.trackUI(model, vp, opts.kind, opts.id)
+	elseif opts.spin then
 		local entry = { vp = vp, model = model, yaw = yaw, pitch = pitch, zoom = zoom, speed = opts.spinSpeed or 0.8 }
 		spinning[vp] = entry
 		vp.Destroying:Connect(function() spinning[vp] = nil end)
