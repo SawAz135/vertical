@@ -27,6 +27,7 @@ return {
 	Throw = {
 		chargeTime = 1.4, -- seconds from 0 to full power
 		minPower = 0.08,
+		releaseDelay = 0.2, -- charge release -> fish leaves the hand (matches the whip at ~0.14s of the Throw pose)
 		apexBase = 14, apexPerStud = 0.16,
 		flightBase = 1.0, flightPerSqrtStud = 0.12,
 		minLandingDepth = 8, -- studs past the throw line to count as "in the zone"
@@ -34,8 +35,8 @@ return {
 	Capture = {
 		alert = 0.9, -- bear notices the fish
 		runSpeed = 26, -- studs/s at scale 1
-		arrive = 0.45, sniff = 1.0, eat = 1.6, happy = 1.4, transform = 0.6, -- transform = the "poof" before the bear appears in your hands
-		pickupAt = 0.35, swallowAt = 1.15, -- seconds into the eat stage
+		arrive = 0.45, sniff = 1.0, eat = 2.0, happy = 1.4, transform = 0.6, -- transform = the "poof" before the bear appears in your hands
+		pickupAt = 0.35, swallowAt = 1.55, -- seconds into the eat stage
 		returnTimeout = 300,
 		sprintMultiplier = 1.35,
 		maxSpeedTolerance = 1.7, -- anti teleport (x max legal speed)

@@ -89,6 +89,7 @@ end
 
 -- coloured edge glow for rare bears (pulses a few times)
 function Cine.rarityTint(color: Color3, strength: number?)
+	if true then return end -- light effects disabled
 	ensure()
 	local k = strength or 0.55
 	local function set(tr, t)
@@ -187,23 +188,12 @@ end
 -- ground shockwave: expanding rings + flash
 function Cine.shockwave(pos: Vector3, color: Color3, scale: number?)
 	local s = scale or 1
-	Fx.ring(pos, color, 1 * s, 16 * s, 0.6)
-	task.delay(0.1, function() Fx.ring(pos, Color3.new(1, 1, 1), 0.5 * s, 11 * s, 0.5) end)
 	Fx.blocks(pos + Vector3.new(0, 1, 0), color, 26, 24 * s, 0.45, { life = 1, up = 0.6, spread = 3, gravity = 30 })
 end
 
 -- full screen white (or coloured) impact frame
 function Cine.flash(strength: number?, color: Color3?)
-	ensure()
-	local f = Instance.new("Frame")
-	f.BackgroundColor3 = color or Color3.new(1, 1, 1)
-	f.BorderSizePixel = 0
-	f.Size = UDim2.fromScale(1, 1)
-	f.BackgroundTransparency = 1 - (strength or 0.8)
-	f.ZIndex = 20
-	f.Parent = gui
-	tween(f, 0.35, { BackgroundTransparency = 1 })
-	task.delay(0.4, function() f:Destroy() end)
+	-- disabled: no more full-screen light flashes
 end
 
 -- big stud banner sliding across the screen ("ZONE 3 · MOUNTAIN LAKE")
@@ -314,6 +304,234 @@ function Cine.stress(level: number)
 		f.BackgroundColor3 = Color3.fromRGB(200, 0, 20)
 		f.BackgroundTransparency = 1 - math.clamp(level, 0, 1) * 0.55
 	end
+end
+
+------------------------------------------------------------------------------------------
+-- BLOCKBUSTER TOOLBOX: colour grading, lightning, facing shockwaves, light pillars, slams
+------------------------------------------------------------------------------------------
+local Lighting = game:GetService("Lighting")
+local grade, bloom, blurFx
+
+local function ensureGrade()
+	if grade and grade.Parent then return end
+	grade = Instance.new("ColorCorrectionEffect")
+	grade.Name = "TFB_Grade"
+	grade.Parent = Lighting
+	bloom = Instance.new("BloomEffect")
+	bloom.Name = "TFB_Bloom"
+	bloom.Intensity = 0
+	bloom.Size = 24
+	bloom.Threshold = 1
+	bloom.Parent = Lighting
+	blurFx = Instance.new("BlurEffect")
+	blurFx.Name = "TFB_GradeBlur"
+	blurFx.Size = 0
+	blurFx.Parent = Lighting
+end
+
+-- tween the screen look: { tint, saturation, contrast, brightness, bloom, blur }
+function Cine.grade(o: any, t: number?)
+	ensureGrade()
+	t = t or 0.4
+	local g = {}
+	if o.tint then g.TintColor = o.tint end
+	if o.saturation then g.Saturation = o.saturation end
+	if o.contrast then g.Contrast = o.contrast end
+	if o.brightness then g.Brightness = o.brightness end
+	tween(grade, t, g)
+	if o.blur then tween(blurFx, t, { Size = o.blur }) end
+end
+
+-- immediate (per-frame safe): no tween objects created
+function Cine.gradeSet(o: any)
+	ensureGrade()
+	if o.tint then grade.TintColor = o.tint end
+	if o.saturation then grade.Saturation = o.saturation end
+	if o.contrast then grade.Contrast = o.contrast end
+	if o.brightness then grade.Brightness = o.brightness end
+	if o.blur then blurFx.Size = o.blur end
+end
+
+function Cine.gradeOff(t: number?)
+	if not grade or not grade.Parent then return end
+	t = t or 0.8
+	local g0, b0, bl0 = grade, bloom, blurFx
+	tween(g0, t, { TintColor = Color3.new(1, 1, 1), Saturation = 0, Contrast = 0, Brightness = 0 })
+	tween(b0, t, { Intensity = 0, Threshold = 1 })
+	tween(bl0, t, { Size = 0 })
+	task.delay(t + 0.1, function()
+		if grade == g0 then
+			g0:Destroy() b0:Destroy() bl0:Destroy()
+			grade, bloom, blurFx = nil, nil, nil
+		end
+	end)
+end
+
+local function fxPart(size: Vector3, cf: CFrame, color: Color3, shape: Enum.PartType?)
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Material = Enum.Material.Neon
+	p.Color = color
+	p.Shape = shape or Enum.PartType.Block
+	p.Size = size
+	p.CFrame = cf
+	p.Parent = Fx.folder
+	return p
+end
+
+-- jagged lightning bolt between two points
+function Cine.bolt(a: Vector3, b: Vector3, color: Color3, life: number?, width: number?, jag: number?)
+	if true then return end -- light effects disabled
+	life = life or 0.22
+	width = (width or 0.35) * 0.45 -- thinner, softer lightning
+	local segs = math.clamp(math.floor((b - a).Magnitude / 4), 3, 9)
+	local jagged = jag or ((b - a).Magnitude / segs) * 0.45
+	local pts = { a }
+	for i = 1, segs - 1 do
+		local p = a:Lerp(b, i / segs)
+		pts[#pts + 1] = p + Vector3.new((math.random() - 0.5) * 2, (math.random() - 0.5) * 2, (math.random() - 0.5) * 2) * jagged
+	end
+	pts[#pts + 1] = b
+	for i = 1, #pts - 1 do
+		local p0, p1 = pts[i], pts[i + 1]
+		local len = (p1 - p0).Magnitude
+		if len > 0.05 then
+			local part = fxPart(Vector3.new(width, width, len), CFrame.lookAt((p0 + p1) / 2, p1), color)
+			part.Transparency = 0.6
+			tween(part, life, { Transparency = 1, Size = Vector3.new(width * 0.2, width * 0.2, len) })
+			task.delay(life + 0.05, function() part:Destroy() end)
+		end
+	end
+end
+
+-- a ring standing UP, facing `dir` (sonic boom / portal look)
+function Cine.ringFacing(pos: Vector3, dir: Vector3, color: Color3, fromR: number, toR: number, life: number, thick: number?)
+	if true then return end -- light effects disabled
+	local th = thick or 0.4
+	local base = CFrame.lookAt(pos, pos + dir) * CFrame.Angles(0, math.rad(90), 0)
+	local p = fxPart(Vector3.new(th, fromR * 2, fromR * 2), base, color, Enum.PartType.Cylinder)
+	p.Transparency = 0.15
+	tween(p, life, { Size = Vector3.new(th * 0.3, toR * 2, toR * 2), Transparency = 1 })
+	task.delay(life + 0.05, function() p:Destroy() end)
+end
+
+-- giant beam of light shooting into the sky
+function Cine.pillar(pos: Vector3, color: Color3, height: number, radius: number, life: number)
+	if true then return end -- light effects disabled
+	local base = CFrame.new(pos + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	local p = fxPart(Vector3.new(height, radius * 0.4, radius * 0.4), base, color, Enum.PartType.Cylinder)
+	p.Transparency = 0.1
+	tween(p, life * 0.25, { Size = Vector3.new(height, radius * 2, radius * 2) }, Enum.EasingStyle.Back)
+	task.delay(life * 0.35, function()
+		tween(p, life * 0.65, { Size = Vector3.new(height, radius * 0.1, radius * 0.1), Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	end)
+	local l = Instance.new("PointLight")
+	l.Color = color
+	l.Range = 40
+	l.Brightness = 8
+	l.Parent = p
+	tween(l, life, { Brightness = 0 })
+	task.delay(life + 0.1, function() p:Destroy() end)
+end
+
+-- a crown of lightning bolts around a point
+function Cine.crown(pos: Vector3, color: Color3, n: number, radius: number, height: number)
+	if true then return end -- light effects disabled
+	n = math.max(2, math.floor(n * 0.4)) -- fewer lightning bolts
+	for i = 1, n do
+		local ang = (i / n) * math.pi * 2 + math.random() * 0.4
+		local a = pos + Vector3.new(math.cos(ang) * radius, 0.3, math.sin(ang) * radius)
+		local b = pos + Vector3.new(math.cos(ang) * radius * 0.35, height * (0.7 + math.random() * 0.6), math.sin(ang) * radius * 0.35)
+		task.delay(i * 0.015, function() Cine.bolt(a, b, color, 0.28, 0.45) end)
+	end
+end
+
+-- big plain text slammed on the screen ("MAX POWER!!!", "432 STUDS!", rarity name)
+function Cine.slam(text: string, color: Color3?, size: number?, dur: number?)
+	ensure()
+	local d = dur or 1.3
+	local l = Instance.new("TextLabel")
+	l.BackgroundTransparency = 1
+	l.AnchorPoint = Vector2.new(0.5, 0.5)
+	l.Position = UDim2.fromScale(0.5, 0.3)
+	l.Size = UDim2.fromOffset(900, size or 90)
+	l.Font = Enum.Font.GothamBlack
+	l.Text = text
+	l.TextSize = size or 90
+	l.TextColor3 = color or Color3.new(1, 1, 1)
+	l.TextStrokeTransparency = 0
+	l.ZIndex = 15
+	l.Rotation = (math.random() - 0.5) * 8
+	l.Parent = gui
+	local sc = Instance.new("UIScale")
+	sc.Scale = 3.2
+	sc.Parent = l
+	local st = Instance.new("UIStroke")
+	st.Thickness = 5
+	st.Color = Color3.fromRGB(10, 8, 20)
+	st.Parent = l
+	tween(sc, 0.22, { Scale = 1 }, Enum.EasingStyle.Back)
+	task.delay(d, function()
+		tween(sc, 0.3, { Scale = 1.4 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tween(l, 0.3, { TextTransparency = 1, TextStrokeTransparency = 1 })
+		tween(st, 0.3, { Transparency = 1 })
+		task.delay(0.35, function() l:Destroy() end)
+	end)
+end
+
+-- two glowing eyes (the unseen bear watching from the dark)
+function Cine.eyes(pos: Vector3, right: Vector3, scale: number, color: Color3?)
+	local col = color or Color3.fromRGB(255, 40, 30)
+	local list = {}
+	for _, sgn in { -1, 1 } do
+		local p = fxPart(Vector3.new(0.7, 0.45, 0.7) * scale, CFrame.new(pos + right * sgn * 0.7 * scale), col, Enum.PartType.Ball)
+		local l = Instance.new("PointLight")
+		l.Color = col
+		l.Range = 12 * scale
+		l.Brightness = 3
+		l.Parent = p
+		list[#list + 1] = p
+	end
+	local obj = { alive = true }
+	task.spawn(function()
+		while obj.alive do
+			task.wait(0.9 + math.random())
+			if not obj.alive then break end
+			for _, p in list do p.Transparency = 1 end
+			task.wait(0.12)
+			for _, p in list do p.Transparency = 0 end
+		end
+	end)
+	function obj.destroy()
+		obj.alive = false
+		for _, p in list do
+			tween(p, 0.3, { Transparency = 1 })
+			task.delay(0.35, function() p:Destroy() end)
+		end
+	end
+	return obj
+end
+
+-- a dark disc on the ground that follows something unseen (the shadow of the bear)
+function Cine.shadow()
+	local p = fxPart(Vector3.new(0.1, 1, 1), CFrame.new(0, -100, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.new(0, 0, 0), Enum.PartType.Cylinder)
+	p.Material = Enum.Material.SmoothPlastic
+	p.Transparency = 1
+	local obj = {}
+	function obj.set(pos: Vector3, radius: number, alpha: number)
+		p.Size = Vector3.new(0.1, radius * 2, radius * 2)
+		p.CFrame = CFrame.new(pos.X, 0.18, pos.Z) * CFrame.Angles(0, 0, math.rad(90))
+		p.Transparency = 1 - math.clamp(alpha, 0, 0.75)
+	end
+	function obj.destroy()
+		tween(p, 0.4, { Transparency = 1 })
+		task.delay(0.45, function() p:Destroy() end)
+	end
+	return obj
 end
 
 return Cine

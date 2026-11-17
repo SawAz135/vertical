@@ -176,17 +176,9 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 			CaptureService.abort(player, "state")
 			return
 		end
-		-- 3a) REVEAL: the bear stands over the fish; its 6 body parts are uncovered one by
-		--     one while LUCK and SIZE climb at the top of the screen, then name + rarity
-		local revealDur = G.revealLimb * 6 + G.revealFinal
-		agent:setAnim("Look")
-		fx(player, "Reveal", {
-			start = workspace:GetServerTimeNow(), duration = revealDur, final = outcome.r, mult = outcome.mult,
-			luck = c.luck * (outcome.mult or 1), weight = outcome.w, species = outcome.s, variant = outcome.v, bear = agent.model,
-		})
-		if not wait(c, revealDur) then return end
-		-- 3) eating cinematic (timeline shared with the client camera)
-		local tl = stagesTimeline()
+		-- 3) EAT FIRST: the player only sees the fish getting eaten (bear is still a black
+		--    silhouette on the client). Timeline shared with the client camera.
+		local tl = { arrive = 0, sniff = G.arrive, eat = G.arrive + G.sniff, total = G.arrive + G.sniff + G.eat }
 		local start = workspace:GetServerTimeNow()
 		fx(player, "Eat", { start = start, tl = tl, bear = agent.model, fish = fm })
 		agent:setAnim("Arrive")
@@ -195,7 +187,6 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 		if not wait(c, G.sniff) then return end
 		agent:setAnim("Eat")
 		if not wait(c, G.pickupAt) then return end
-		-- pick the fish up with the mouth
 		local head = agent.model:FindFirstChild("Head")
 		local mouth = head and head:FindFirstChild("MouthAtt")
 		if mouth and fm.Parent then
@@ -215,11 +206,19 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 			c.fishModel = nil
 		end
 		if not wait(c, G.eat - G.swallowAt) then return end
+		-- 4) REVEAL: seen from above, the 6 body parts are uncovered one by one while LUCK
+		--    and SIZE climb, then name + rarity
+		local revealDur = G.revealLimb * 6 + G.revealFinal
+		agent:setAnim("Look")
+		fx(player, "Reveal", {
+			start = workspace:GetServerTimeNow(), duration = revealDur, final = outcome.r, mult = outcome.mult,
+			luck = c.luck * (outcome.mult or 1), weight = outcome.w, species = outcome.s, variant = outcome.v, bear = agent.model,
+		})
+		if not wait(c, revealDur) then return end
+		-- 5) happy + orbit, then the bear goes into the player's arms
 		agent:setAnim("Happy")
-		if not wait(c, G.happy) then return end
-		-- poof: the bear leaves the zone and appears in the player's hands
-		agent:setAnim("Happy")
-		if not wait(c, G.transform) then return end
+		fx(player, "Happy", { start = workspace:GetServerTimeNow(), duration = G.happy + G.transform, bear = agent.model })
+		if not wait(c, G.happy + G.transform) then return end
 		CaptureService.giveToPlayer(player, c)
 	end)
 end

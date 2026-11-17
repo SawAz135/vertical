@@ -78,6 +78,15 @@ local function buildHead(model, head: BasePart, spec, s: number, d)
 	-- mouth interior (visible when the jaw opens)
 	add(Studs.piece(model, "MouthInside", V3(mW * 0.82, hs * 0.1, mL * 0.86), hc * CF(0, mY - mH / 2 - hs * 0.03, mZ + 0.02), MOUTH, "mouth", { smooth = true }))
 
+	-- upper teeth (hang under the muzzle, only visible when the jaw opens): 4 small + 2 fangs
+	local TOOTH = Color3.fromRGB(250, 248, 238)
+	for i, x in { -0.3, -0.1, 0.1, 0.3 } do
+		add(Studs.piece(model, "ToothU" .. i, V3(mW * 0.12, hs * 0.07, hs * 0.05), hc * CF(x * mW, mY - mH / 2 - hs * 0.005, tipZ + hs * 0.05), TOOTH, "teeth", { smooth = true }))
+	end
+	for _, side in { 1, -1 } do
+		add(Studs.piece(model, "ToothFangU", V3(mW * 0.1, hs * 0.13, hs * 0.06), hc * CF(side * mW * 0.4, mY - mH / 2 - hs * 0.03, tipZ + hs * 0.1), TOOTH, "teeth", { smooth = true }))
+	end
+
 	-- species head geometry (hats, crowns, masks, glasses ...)
 	BearTraits.head({ model = model, traits = t, c = c, s = s, hc = hc, hs = hs, hw = hw, hh = hh, hd = hd, eyeX = eyeX, eyeY = eyeY, add = add })
 
@@ -94,6 +103,13 @@ local function buildHead(model, head: BasePart, spec, s: number, d)
 	if t.tongue then
 		-- tiny tongue poking out of a smile
 		table.insert(jawParts, Studs.piece(model, "TongueTip", V3(mW * 0.28, hs * 0.05, hs * 0.08), jawPivot * CF(0, 0.0, -jL - hs * 0.04), TONGUE, "tongue", { smooth = true }))
+	end
+	-- lower teeth (on the jaw, point up)
+	for i, x in { -0.28, -0.09, 0.09, 0.28 } do
+		table.insert(jawParts, Studs.piece(model, "ToothL" .. i, V3(mW * 0.11, hs * 0.06, hs * 0.045), jawPivot * CF(x * mW, hs * 0.03, -jL * 0.93), Color3.fromRGB(250, 248, 238), "teeth", { smooth = true }))
+	end
+	for _, side in { 1, -1 } do
+		table.insert(jawParts, Studs.piece(model, "ToothFangL", V3(mW * 0.09, hs * 0.1, hs * 0.05), jawPivot * CF(side * mW * 0.38, hs * 0.05, -jL * 0.8), Color3.fromRGB(250, 248, 238), "teeth", { smooth = true }))
 	end
 	Studs.weldAll(jaw, jawParts)
 	Studs.motor("Jaw", head, jaw, jawPivot)

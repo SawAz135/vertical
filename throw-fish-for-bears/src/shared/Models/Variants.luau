@@ -7,7 +7,7 @@ local Studs = require(script.Parent.Studs)
 
 local Variants = {}
 
-local KEEP = { eye = true, pupil = true, nose = true, mouth = true, claw = true, tongue = true }
+local KEEP = { eye = true, pupil = true, nose = true, mouth = true, claw = true, tongue = true, teeth = true }
 
 local GOLD = {
 	fur = Color3.fromRGB(240, 186, 40), fur2 = Color3.fromRGB(214, 154, 28), belly = Color3.fromRGB(255, 220, 110),

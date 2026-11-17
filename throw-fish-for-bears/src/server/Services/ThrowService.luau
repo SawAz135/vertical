@@ -97,11 +97,11 @@ function ThrowService.throw(player: Player, aim: number)
 	end
 	Net.event("ThrowFx"):FireAllClients(player, {
 		from = from, to = to, flight = flight, apex = apex, fish = fish, power = power,
-		t0 = workspace:GetServerTimeNow() + 0.32, ok = ok, zone = zone,
+		t0 = workspace:GetServerTimeNow() + G.releaseDelay, ok = ok, zone = zone,
 		dist = travelled, best = best, record = record,
 	})
 
-	task.delay(0.32 + flight, function()
+	task.delay(G.releaseDelay + flight, function()
 		if not player.Parent then return end
 		if char.Parent then char:SetAttribute("Pose", "") end
 		if not ok then

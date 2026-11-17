@@ -58,11 +58,11 @@ local function play(bear, income: number, isNew: boolean?)
 	local rs = new("UIScale", { Scale = k * 0.3 }, root)
 	tween(rs, 0.45, { Scale = k }, Enum.EasingStyle.Back)
 
-	-- title banner
-	local banner = Sim.panel(root, { Size = UDim2.fromOffset(470, 74), Position = UDim2.fromOffset(85, 6), Gradient = Sim.G.orange, Stroke = 4, ZIndex = 5, Clip = true })
-	Sim.bands(banner, 0.55, 6)
-	K.shine(banner, 1.6)
-	Sim.text(banner, "BEAR UNLOCKED!", { Size = UDim2.new(1, -20, 0.82, 0), Max = 50, Stroke = 4.5, ZIndex = 8, Gradient = { RGB(255, 255, 255), RGB(255, 236, 140) } })
+	-- title: text only, no banner background
+	local title = Sim.text(root, "BEAR UNLOCKED!", { Size = UDim2.fromOffset(600, 72), Position = UDim2.fromOffset(320, 46), Max = 58, Stroke = 5, ZIndex = 8,
+		Gradient = { RGB(255, 255, 255), RGB(255, 236, 140) } })
+	local titleScale = new("UIScale", { Scale = 0 }, title)
+	task.delay(0.1, function() tween(titleScale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back) end)
 	if isNew then
 		local badge = Sim.panel(root, { Size = UDim2.fromOffset(96, 42), Position = UDim2.fromOffset(520, 0), Gradient = Sim.G.red, Stroke = 3.5, ZIndex = 9 })
 		badge.Rotation = 12
@@ -71,9 +71,9 @@ local function play(bear, income: number, isNew: boolean?)
 		task.delay(0.5, function() tween(bs, 0.35, { Scale = 1 }, Enum.EasingStyle.Back) end)
 	end
 
-	-- the living bear
-	local stage = Sim.panel(root, { Size = UDim2.fromOffset(380, 270), Position = UDim2.fromOffset(130, 92), Gradient = Sim.RARITY_CARD[bear.r] or Sim.G.light, Stroke = 4, ZIndex = 4 })
-	Sim.model(stage, { kind = "Bear", id = bear.s, variant = bear.v, size = UDim2.fromScale(1.05, 1.1), position = UDim2.fromScale(0.5, 0.52), yaw = math.rad(-150), pitch = math.rad(10) })
+	-- the living bear: NO card / white background any more, the bear floats on the screen and is turned the other way
+	local stage = new("Frame", { Name = "BearStage", BackgroundTransparency = 1, Size = UDim2.fromOffset(460, 310), Position = UDim2.fromOffset(90, 84), ZIndex = 4 }, root)
+	Sim.model(stage, { kind = "Bear", id = bear.s, variant = bear.v, size = UDim2.fromScale(1.05, 1.1), position = UDim2.fromScale(0.5, 0.52), yaw = math.rad(150), pitch = math.rad(10) })
 	local ss = new("UIScale", { Scale = 0.2 }, stage)
 	task.delay(0.15, function() tween(ss, 0.55, { Scale = 1 }, Enum.EasingStyle.Elastic) end)
 

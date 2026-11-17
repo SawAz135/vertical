@@ -264,10 +264,12 @@ STATES.Eat = function(p, e, t, s)
 	rot(p, "Neck", -0.8 * down + 0.6 * lift)
 	pos(p, "Neck", 0, -0.25 * s * down * (1 - lift), -0.35 * s * down * (1 - lift))
 	rot(p, "BodyJoint", -0.1 * down * (1 - lift))
-	local bite = Easing.bump(clamp((t - 0.12) / 0.3, 0, 1))
-	local chew = if t > 0.6 then abs(sin((t - 0.6) * 11)) * 0.28 else 0
-	rot(p, "Jaw", -0.55 * bite - chew)
-	rot(p, "Neck", 0, 0, if t > 0.6 then sin(t * 5.5) * 0.08 else 0)
+	-- jaw: half open while diving, WIDE open while the fish goes in (teeth + tongue visible),
+	-- snaps shut (CHOMP) at ~1.0s, then chews
+	local open = Easing.cubicOut(clamp((t - 0.25) / 0.4, 0, 1)) * (1 - Easing.cubicIn(clamp((t - 0.95) / 0.12, 0, 1)))
+	local chew = if t > 1.1 then abs(sin((t - 1.1) * 10)) * 0.32 else 0
+	rot(p, "Jaw", -0.85 * open - chew)
+	rot(p, "Neck", 0, 0, if t > 1.1 then sin(t * 5.5) * 0.08 else 0)
 	rot(p, "EarL", 0.3 * down) rot(p, "EarR", 0.3 * down)
 	rot(p, "Tail", 0, sin(t * 9) * 0.3)
 	e.eyesClosed = t > 0.7 and (t % 0.8) < 0.4
