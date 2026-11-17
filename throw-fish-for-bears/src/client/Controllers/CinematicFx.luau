@@ -534,4 +534,132 @@ function Cine.shadow()
 	return obj
 end
 
+------------------------------------------------------------------------------------------
+-- FILM TOOLS (no glowing effects): depth of field, motion blur, dark vignette, skip button
+------------------------------------------------------------------------------------------
+local dofFx, motion
+-- depth of field: focus distance (studs) + how much the rest is blurred (0 = off)
+function Cine.dof(focus: number?, intensity: number?)
+	if not intensity or intensity <= 0 then
+		if dofFx then
+			local d0 = dofFx
+			dofFx = nil
+			tween(d0, 0.4, { FarIntensity = 0, NearIntensity = 0 })
+			task.delay(0.45, function() d0:Destroy() end)
+		end
+		return
+	end
+	if not dofFx then
+		dofFx = Instance.new("DepthOfFieldEffect")
+		dofFx.Name = "TFB_DOF"
+		dofFx.InFocusRadius = 6
+		dofFx.Parent = workspace.CurrentCamera
+	end
+	dofFx.FocusDistance = focus or 10
+	dofFx.FarIntensity = intensity
+	dofFx.NearIntensity = intensity * 0.6
+end
+
+-- motion blur kick (decays by itself)
+local motionConn
+function Cine.motion(size: number)
+	if not motion then
+		motion = Instance.new("BlurEffect")
+		motion.Name = "TFB_Motion"
+		motion.Size = 0
+		motion.Parent = workspace.CurrentCamera
+	end
+	motion.Size = math.max(motion.Size, size)
+	if not motionConn then
+		motionConn = RunService.RenderStepped:Connect(function(dt)
+			motion.Size = math.max(0, motion.Size - dt * 30)
+			if motion.Size <= 0 then
+				motionConn:Disconnect()
+				motionConn = nil
+			end
+		end)
+	end
+end
+
+-- dark film vignette (0..1), set every frame
+function Cine.dark(level: number)
+	ensure()
+	for _, f in vignette do
+		f.BackgroundColor3 = Color3.new(0, 0, 0)
+		f.BackgroundTransparency = 1 - math.clamp(level, 0, 1) * 0.85
+	end
+end
+
+-- "SKIP" button (bottom right) while a cinematic plays
+local skipBtn
+function Cine.skipButton(onSkip)
+	ensure()
+	if skipBtn then skipBtn:Destroy() skipBtn = nil end
+	if not onSkip then return end
+	local b = Instance.new("TextButton")
+	b.Name = "Skip"
+	b.AnchorPoint = Vector2.new(1, 1)
+	b.Position = UDim2.new(1, -24, 0.89, -12)
+	b.Size = UDim2.fromOffset(150, 48)
+	b.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+	b.BackgroundTransparency = 0.25
+	b.Font = Enum.Font.FredokaOne
+	b.TextColor3 = Color3.new(1, 1, 1)
+	b.TextScaled = true
+	b.Text = "SKIP  ▶▶"
+	b.ZIndex = 30
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 10)
+	corner.Parent = b
+	local st = Instance.new("UIStroke")
+	st.Thickness = 2.5
+	st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	st.Color = Color3.new(1, 1, 1)
+	st.Transparency = 0.4
+	st.Parent = b
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0.18, 0)
+	pad.PaddingBottom = UDim.new(0.18, 0)
+	pad.Parent = b
+	b.Parent = gui
+	b.Activated:Connect(function()
+		b:Destroy()
+		if skipBtn == b then skipBtn = nil end
+		onSkip()
+	end)
+	skipBtn = b
+end
+
+-- full black (eaten / cut to black)
+local black
+function Cine.blackout(on: boolean, fade: number?)
+	ensure()
+	if not black then
+		black = Instance.new("Frame")
+		black.BackgroundColor3 = Color3.new(0, 0, 0)
+		black.BorderSizePixel = 0
+		black.Size = UDim2.fromScale(1, 1)
+		black.BackgroundTransparency = 1
+		black.ZIndex = 18
+		black.Parent = gui
+	end
+	tween(black, fade or 0.15, { BackgroundTransparency = if on then 0 else 1 })
+end
+
+function Cine.resetEaten()
+	if black then black.BackgroundTransparency = 1 end
+	Cine.dark(0)
+end
+
+-- clean every film effect (end of a cinematic / skip / failure)
+function Cine.resetAll()
+	Cine.dof(nil, 0)
+	Cine.skipButton(nil)
+	if motion then motion.Size = 0 end
+	Cine.speedLines(false)
+	Cine.eyelids(false)
+	Cine.stress(0)
+	Cine.gradeOff(0.6)
+end
+
 return Cine

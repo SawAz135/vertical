@@ -12,6 +12,8 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Easing = require(ReplicatedStorage.Shared.Util.Easing)
 local FishConfig = require(ReplicatedStorage.Shared.Config.FishConfig)
+local BearConfig = require(ReplicatedStorage.Shared.Config.BearConfig)
+local Fx = require(script.Parent.Fx)
 
 local Animator = {}
 local bears = {}
@@ -55,6 +57,14 @@ local function registerBear(model: Model, into: any?)
 		blinkAt = os.clock() + 1 + math.random() * 3, blinkUntil = 0, earTwitch = 0, earSide = 1,
 		vy = 0, squash = 0, lastPos = model.PrimaryPart and model.PrimaryPart.Position, t = 0,
 	}
+	-- PERSONALITY from the species: light bears are playful, big ones heavy and proud,
+	-- round ones (pandas...) lazy
+	local e = into[model]
+	local spec = BearConfig.get(model:GetAttribute("Species") or "")
+	local g = e.gait
+	e.playful = clamp((g - 1.0) / 0.25, 0, 1)
+	e.heavy = clamp((1.02 - g) / 0.22, 0, 1)
+	e.lazy = if spec and (spec.traits.panda or spec.body.w / spec.body.l > 0.8) then 1 else 0
 	model.Destroying:Connect(function() into[model] = nil end)
 	return into[model]
 end
@@ -258,21 +268,35 @@ STATES.Happy = function(p, e, t, s)
 end
 
 STATES.Eat = function(p, e, t, s)
-	-- head goes down, big bite, lifts the fish, chews
+	-- head goes down, jaws WIDE (teeth + tongue), CHOMP at ~1.0 s, then real chewing:
+	-- the jaw grinds side to side, the head rocks with each bite, ears pull back,
+	-- a big swallow (neck stretches up, eyes closed), then a satisfied lick of the chops
 	local down = Easing.cubicOut(clamp(t / 0.3, 0, 1))
 	local lift = Easing.cubicInOut(clamp((t - 0.45) / 0.35, 0, 1))
 	rot(p, "Neck", -0.8 * down + 0.6 * lift)
 	pos(p, "Neck", 0, -0.25 * s * down * (1 - lift), -0.35 * s * down * (1 - lift))
 	rot(p, "BodyJoint", -0.1 * down * (1 - lift))
-	-- jaw: half open while diving, WIDE open while the fish goes in (teeth + tongue visible),
-	-- snaps shut (CHOMP) at ~1.0s, then chews
 	local open = Easing.cubicOut(clamp((t - 0.25) / 0.4, 0, 1)) * (1 - Easing.cubicIn(clamp((t - 0.95) / 0.12, 0, 1)))
-	local chew = if t > 1.1 then abs(sin((t - 1.1) * 10)) * 0.32 else 0
-	rot(p, "Jaw", -0.85 * open - chew)
-	rot(p, "Neck", 0, 0, if t > 1.1 then sin(t * 5.5) * 0.08 else 0)
-	rot(p, "EarL", 0.3 * down) rot(p, "EarR", 0.3 * down)
+	local chewing = t > 1.1 and t < 1.55
+	local ct = t - 1.1
+	local chew = if chewing then abs(sin(ct * 11)) else 0
+	local grind = if chewing then sin(ct * 5.5) else 0
+	rot(p, "Jaw", -0.85 * open - chew * 0.34, grind * 0.18, grind * 0.08)
+	if chewing then
+		rot(p, "Neck", -chew * 0.08, grind * 0.12, grind * 0.12) -- the head rocks with each bite
+		rot(p, "EarL", -chew * 0.35) rot(p, "EarR", -chew * 0.35)
+	end
+	-- the swallow: neck stretches up, a gulp
+	local gulp = Easing.bump(clamp((t - 1.55) / 0.4, 0, 1))
+	rot(p, "Neck", 0.35 * gulp)
+	pos(p, "Neck", 0, 0.12 * s * gulp, 0)
+	rot(p, "Jaw", 0.05 * gulp)
+	-- satisfied lick
+	local lick = Easing.bump(clamp((t - 1.85) / 0.35, 0, 1))
+	rot(p, "Jaw", -0.22 * lick)
+	rot(p, "EarL", 0.3 * down * (1 - gulp)) rot(p, "EarR", 0.3 * down * (1 - gulp))
 	rot(p, "Tail", 0, sin(t * 9) * 0.3)
-	e.eyesClosed = t > 0.7 and (t % 0.8) < 0.4
+	e.eyesClosed = (chewing and (ct % 0.36) < 0.12) or gulp > 0.3
 end
 
 STATES.Transform = function(p, e, t, s)
@@ -299,15 +323,27 @@ end
 
 -- base layer: breathing, idle look-around, blink, ear twitch ---------------------
 local function idleLayer(p, e, t, s, still)
-	local breathe = sin(t * 1.7 + e.seed)
-	pos(p, "BodyJoint", 0, breathe * 0.035 * s, 0)
+	local pl, hv, lz = e.playful or 0, e.heavy or 0, e.lazy or 0
+	-- big bears breathe slow and deep, small ones quick
+	local breathe = sin(t * (1.7 + pl * 0.9 - hv * 0.5) + e.seed)
+	pos(p, "BodyJoint", 0, breathe * (0.035 + hv * 0.025) * s, 0)
 	rot(p, "BodyJoint", breathe * 0.012)
 	if still then
-		rot(p, "Neck", noise(e.seed, t * 0.18) * 0.18, noise(e.seed + 10, t * 0.22) * 0.55, noise(e.seed + 20, t * 0.2) * 0.08)
-		-- weight shift between paws
-		local shift = noise(e.seed + 40, t * 0.15) * 0.06
+		local look = 0.18 + pl * 0.12 - lz * 0.08
+		local hs = 1 + pl * 0.8 - hv * 0.35 - lz * 0.4 -- how fast the head moves
+		rot(p, "Neck", noise(e.seed, t * 0.18 * hs) * look - lz * 0.22 + hv * 0.08, noise(e.seed + 10, t * 0.22 * hs) * (0.55 + pl * 0.3), noise(e.seed + 20, t * 0.2) * (0.08 + pl * 0.1))
+		-- weight shift between paws (playful ones fidget and tap a paw)
+		local shift = noise(e.seed + 40, t * 0.15 * hs) * 0.06
 		rot(p, "LegFL", shift) rot(p, "LegFR", -shift)
-		rot(p, "Tail", 0, sin(t * 1.1 + e.seed) * 0.12)
+		if pl > 0 then
+			local tap = math.max(0, sin(t * 3.1 + e.seed) - 0.7) * 2.2 * pl
+			rot(p, "LegFR", -tap * 0.4)
+			pos(p, "LegFR", 0, tap * 0.12 * s, 0)
+		end
+		-- proud chest of the big ones, sleepy droop of the lazy ones
+		rot(p, "BodyJoint", -hv * 0.05 + lz * 0.04)
+		rot(p, "Tail", 0, sin(t * (1.1 + pl * 3) + e.seed) * (0.12 + pl * 0.3))
+		if lz > 0 and (t + e.seed) % 9 < 1.4 then e.eyesClosed = true end -- dozes off now and then
 	end
 	-- ear twitch impulses
 	if e.earTwitch > 0 then
@@ -337,12 +373,26 @@ local function locomotion(p, e, t, s, speed, dt)
 		rot(p, leg, swing * amp)
 		pos(p, leg, 0, liftAmt, 0)
 	end
-	-- body motion
-	local bob = abs(sin(ph)) * (0.05 + runK * 0.22) * s * walkK
-	pos(p, "BodyJoint", 0, bob - 0.04 * s * walkK, 0)
-	rot(p, "BodyJoint", sin(ph * 2) * 0.015 * walkK + sin(ph) * 0.09 * runK + 0.06 * runK, 0, sin(ph) * 0.05 * (1 - runK) * walkK)
-	-- head stabilisation (counter motion) and lean
-	rot(p, "Neck", -sin(ph) * 0.07 * runK - 0.05 * walkK, sin(ph) * 0.06 * (1 - runK) * walkK)
+	-- body motion: heavy bears pound the ground (deep bob, squash on each footfall,
+	-- rolling shoulders, spine flexing), light bears bounce
+	local hv = e.heavy or 0
+	local weight = 1 + hv * 0.8
+	local bob = abs(sin(ph)) * (0.05 + runK * 0.22 * weight) * s * walkK
+	local footfall = math.max(0, -cos(ph * 2)) ^ 4 * runK * (0.08 + hv * 0.12) * s
+	pos(p, "BodyJoint", 0, bob - 0.04 * s * walkK - footfall, runK * sin(ph) * 0.08 * s)
+	rot(p, "BodyJoint", sin(ph * 2) * 0.015 * walkK + sin(ph) * (0.09 + hv * 0.06) * runK + 0.06 * runK, sin(ph) * 0.04 * runK * weight, sin(ph) * 0.05 * (1 - runK) * walkK + cos(ph) * 0.07 * runK * weight)
+	-- head: stabilised but nodding into each stride, lowered for power
+	rot(p, "Neck", -sin(ph) * 0.07 * runK - 0.05 * walkK - 0.12 * runK * hv + footfall * 1.5, sin(ph) * 0.06 * (1 - runK) * walkK)
+	-- dust kicked up by heavy running paws
+	if runK > 0.6 and e.root then
+		local beat = math.floor(ph / math.pi)
+		if beat ~= e.lastBeat then
+			e.lastBeat = beat
+			if (e.root.Position - camera.CFrame.Position).Magnitude < 80 then
+				Fx.dust(e.root.Position - Vector3.new(0, e.legLen + 0.8 * s, 0) + e.root.CFrame.LookVector * 0.5 * s, 0.35 * s * weight)
+			end
+		end
+	end
 	rot(p, "Tail", 0.2 * runK, sin(ph) * 0.3 * walkK)
 	rot(p, "EarL", -0.25 * runK) rot(p, "EarR", -0.25 * runK)
 	rot(p, "Jaw", -0.12 * runK - abs(sin(ph)) * 0.05 * runK)
@@ -449,14 +499,20 @@ local function updateFish(e, dt, now)
 	local anim = e.model:GetAttribute("Anim") or "Held"
 	local speed, amp = 3, 0.18
 	if anim == "Flop" then
-		-- violent flops with pauses
-		local cyc = (now * 1.3 + e.phase) % 1
-		local active = if cyc < 0.45 then 1 else 0.15
-		speed, amp = 14, 0.55 * active
+		-- panicked flops with short pauses, and it never stops shivering
+		local cyc = (now * 1.6 + e.phase) % 1
+		local active = if cyc < 0.55 then 1 else 0.25
+		speed, amp = 16, 0.6 * active
+		e.shiver = 0.06
+	elseif anim == "Leap" then
+		speed, amp = 18, 0.6
+		e.shiver = 0
 	elseif anim == "Eaten" then
 		speed, amp = 22, 0.45
 	elseif anim == "Thrown" then
-		speed, amp = 9, 0.35
+		-- big S-bends in the air, fins flared
+		speed, amp = 11, 0.55
+		e.flare = 1.8
 	elseif anim == "Swim" then
 		speed, amp = 7, 0.32
 	elseif anim == "Held" then
@@ -467,7 +523,7 @@ local function updateFish(e, dt, now)
 	if e.ui then
 		-- living thumbnail: species tempo / amplitude, small fish dart now and then
 		local burst = if e.ui.darty then math.max(0, sin(now * 0.9 + e.ui.seed) - 0.82) * 5.5 else 0
-		speed = e.ui.tempo * (1 + burst * 1.4)
+		speed = (e.ui.tempoNow or e.ui.tempo) * (1 + burst * 1.4)
 		amp = e.ui.amp * (1 + burst * 0.8)
 	end
 	e.phase += dt * speed
@@ -494,9 +550,10 @@ local function updateFish(e, dt, now)
 		if m.FinR then m.FinR.Transform = CFrame.Angles(0, buzz, 0) end
 		return
 	end
-	if m.Spine then m.Spine.Transform = CFrame.Angles(0, a * amp * 0.45, 0) end
-	if m.Tail then m.Tail.Transform = CFrame.Angles(0, sin(e.phase - 0.9) * amp * 1.1, 0) end
-	local fin = sin(now * 6 + e.phase) * 0.35
+	local shiver = if anim == "Flop" then sin(now * 70 + e.phase) * 0.06 else 0
+	if m.Spine then m.Spine.Transform = CFrame.Angles(0, a * amp * 0.45 + shiver, 0) end
+	if m.Tail then m.Tail.Transform = CFrame.Angles(0, sin(e.phase - 0.9) * amp * 1.1 + shiver * 1.5, 0) end
+	local fin = sin(now * (if anim == "Thrown" then 14 else 6) + e.phase) * 0.35 * (if anim == "Thrown" then 1.8 else 1)
 	if m.FinL then m.FinL.Transform = CFrame.Angles(0, -fin, 0) end
 	if m.FinR then m.FinR.Transform = CFrame.Angles(0, fin, 0) end
 end
@@ -568,11 +625,18 @@ local function updateUI(dt: number, now: number)
 			local c = os.clock()
 			if c >= e.nextIdle then
 				local total = 0
-				for _, w in IDLE_UI do total += w[2] * (if w[1] == "Happy" or w[1] == "Look" then e.lively else 1 / e.lively) end
+				local function weight(name: string, base: number): number
+					local m = 1
+					if name == "Happy" or name == "Look" then m *= e.lively * (1 + (e.playful or 0)) end
+					if name == "Sit" or name == "Lie" then m *= (1 + (e.lazy or 0) * 2.5) / e.lively end
+					if name == "Stretch" or name == "Idle" then m *= 1 + (e.heavy or 0) end
+					return base * m
+				end
+				for _, w in IDLE_UI do total += weight(w[1], w[2]) end
 				local roll = math.random() * total
 				local pick = "Idle"
 				for _, w in IDLE_UI do
-					roll -= w[2] * (if w[1] == "Happy" or w[1] == "Look" then e.lively else 1 / e.lively)
+					roll -= weight(w[1], w[2])
 					if roll <= 0 then pick = w[1] break end
 				end
 				model:SetAttribute("Anim", pick)
@@ -588,11 +652,33 @@ local function updateUI(dt: number, now: number)
 			local u = e.ui
 			e.t += dt
 			local t = e.t
-			-- the body glides in place: gentle bob, wandering heading, a little roll
-			local yaw = math.noise(u.seed, t * 0.35) * u.sway * 2
-			local off = CFrame.new(0, sin(t * 1.3 + u.seed) * u.bob, 0)
-				* CFrame.Angles(sin(t * 0.9) * 0.05, yaw, sin(t * 1.7 + u.seed) * u.roll)
+			-- little life events: a turn, a startled dart, a rise or dive, a hover
+			u.nextEvent = u.nextEvent or (t + 1 + math.random() * 2)
+			if t >= u.nextEvent then
+				u.nextEvent = t + 1.2 + math.random() * 2.8
+				local roll = math.random()
+				if roll < 0.3 then
+					u.turnTo = (math.random() - 0.5) * 1.1
+				elseif roll < 0.55 and u.darty ~= false then
+					u.dart = 1
+				elseif roll < 0.8 then
+					u.pitchTo = (math.random() - 0.5) * 0.4
+				else
+					u.hover = 1.2
+				end
+			end
+			u.turn = (u.turn or 0) + ((u.turnTo or 0) - (u.turn or 0)) * math.min(1, dt * 2)
+			u.pitch = (u.pitch or 0) + ((u.pitchTo or 0) - (u.pitch or 0)) * math.min(1, dt * 1.5)
+			u.dart = math.max(0, (u.dart or 0) - dt * 2.2)
+			u.hover = math.max(0, (u.hover or 0) - dt)
+			if u.dart > 0.95 then u.pitchTo = 0 end
+			local dartKick = math.sin(u.dart * math.pi) * 0.25
+			local yaw = math.noise(u.seed, t * 0.35) * u.sway * 2 + u.turn + math.sin(t * 40) * u.dart * 0.12
+			local off = CFrame.new(0, sin(t * 1.3 + u.seed) * u.bob + u.pitch * 0.3, -dartKick)
+				* CFrame.Angles(sin(t * 0.9) * 0.05 + u.pitch, yaw, sin(t * 1.7 + u.seed) * u.roll)
 			model:PivotTo(e.base * off)
+			-- tail beats faster when darting, slower while hovering
+			u.tempoNow = u.tempo * (1 + u.dart * 2.5) * (if u.hover > 0 then 0.45 else 1)
 			updateFish(e, dt, now)
 		end
 	end

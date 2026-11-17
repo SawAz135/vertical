@@ -127,8 +127,8 @@ local function introCinematic(root: BasePart)
 	local col = tierColor()
 	local pos = stationPos() or root.Position
 	Cine.letterbox(true)
-	Cine.flash(0.4, col)
-	Cine.shockwave(pos + Vector3.new(0, 0.5, 0), col, 0.7)
+	Fx.dust(pos + Vector3.new(0, 0.5, 0), 1.2)
+	CameraController.shake(0.5, 0.3)
 	Cine.banner("FISH-UP!", col, ("+%d 💪 PER LIFT"):format(Data.values.strengthGain or 1))
 	Sound.play("Transform", { volume = 0.7 })
 	local look = root.CFrame.LookVector
@@ -203,9 +203,9 @@ local function onRep(amount: number)
 	end
 	if MILESTONES[n] then
 		Cine.banner(("x%d STREAK!"):format(n), col, "KEEP LIFTING!")
-		Cine.flash(0.3, col)
-		Fx.burst(feet, col, 1)
-		Cine.shockwave(feet, col, 0.6)
+		Fx.dust(feet, 1)
+		CameraController.shake(0.6, 0.3)
+		CameraController.punch(-6)
 		Sound.play("Reward")
 	end
 end

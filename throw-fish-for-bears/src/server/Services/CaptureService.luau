@@ -145,7 +145,8 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 	})
 	c.agent = agent
 	agent:setAnim("Idle")
-	fx(player, "Spawned", { bear = agent.model, fish = fm, landing = landing, den = den })
+	local pdata = R.PlayerData.get(player)
+	fx(player, "Spawned", { bear = agent.model, fish = fm, landing = landing, den = den, canSkip = pdata ~= nil and pdata.stats.bears >= 1 })
 
 	task.spawn(function()
 		-- 1) notice the fish
@@ -378,6 +379,16 @@ function CaptureService.fail(player: Player, reason: string)
 end
 
 -- cancel before the transformation (player died / left / state broke)
+-- skip the cinematic (only after the player's first capture): the bear goes straight
+-- into the player's arms; the running timeline stops by itself (captures[player] changes)
+function CaptureService.skip(player: Player)
+	local c = captures[player]
+	local data = R.PlayerData.get(player)
+	if not c or not c.alive or not c.agent or not data or data.stats.bears < 1 then return end
+	if not R.State.is(player, "WaitingForBear", "WatchingEatingCinematic") then return end
+	CaptureService.giveToPlayer(player, c)
+end
+
 function CaptureService.abort(player: Player, why: string?)
 	local c = captures[player]
 	if not c then return end

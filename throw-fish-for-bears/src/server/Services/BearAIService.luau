@@ -183,13 +183,27 @@ function Agent:pickWanderTarget(): Vector3?
 	return best
 end
 
+-- personality: light bears are playful (trot, look), heavy ones calm, round ones lazy
+local function idleWeight(self, c): number
+	local spec = self.spec
+	local g = spec and spec.gait or 1
+	local playful = math.clamp((g - 1) / 0.25, 0, 1)
+	local heavy = math.clamp((1.02 - g) / 0.22, 0, 1)
+	local lazy = if spec and (spec.traits.panda or spec.body.w / spec.body.l > 0.8) then 1 else 0
+	local w = c.w
+	if c.anim == "Trot" or c.anim == "Look" then w *= 1 + playful * 1.5 - heavy * 0.4 end
+	if c.anim == "Sit" or c.anim == "Lie" or c.anim == "Sleep" then w *= 1 + lazy * 2.5 + heavy * 0.5 - playful * 0.5 end
+	if c.anim == "Wander" then w *= 1 + playful * 0.5 - lazy * 0.5 end
+	return math.max(0.1, w)
+end
+
 function Agent:chooseIdle()
 	local total = 0
-	for _, c in IDLE_CHOICES do total += c.w end
+	for _, c in IDLE_CHOICES do total += idleWeight(self, c) end
 	local r = rand:NextNumber() * total
 	local pick = "Idle"
 	for _, c in IDLE_CHOICES do
-		r -= c.w
+		r -= idleWeight(self, c)
 		if r <= 0 then pick = c.anim break end
 	end
 	if pick == "Wander" or pick == "Trot" then

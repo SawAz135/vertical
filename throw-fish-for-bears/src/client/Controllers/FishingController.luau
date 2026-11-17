@@ -110,39 +110,51 @@ local function leap(player: Player, from: Vector3, fish, isLocal: boolean)
 		if d:IsA("BasePart") then d.Anchored = false d.CanCollide = false d.CanQuery = false d.Massless = true end
 	end
 	model.PrimaryPart.Anchored = true
-	model:SetAttribute("Anim", "Swim")
+	model:SetAttribute("Anim", "Leap")
 	model.Parent = Fx.folder
-	Fx.splash(from, 1.4)
+	Fx.splash(from, 1.6)
 	Sound.play("BigSplash", { at = from })
 	local tier = RarityConfig.get(FishConfig.get(fish.s).rarity)
-	local dur = 0.95
-	local apex = 9
+	-- rarer fish leap higher and hang longer in the air
+	local dur = 1.0 + tier.index * 0.05
+	local apex = 8 + tier.index * 0.8
 	local t0 = os.clock()
 	local conn
 	if isLocal and tier.index >= 3 then
-		-- quick cinematic focus on the leaping fish
+		-- quick cinematic focus on the leaping fish (slow push-in, a beat of hang time)
 		local lastP = from
 		CameraController.run(function(t)
 			local u = math.clamp(t / dur, 0, 1)
-			-- the fish is removed at the end of the leap: keep looking at its last spot
 			local pp = model.Parent and model.PrimaryPart
 			if pp then lastP = pp.Position end
 			local p = lastP
-			local side = (root.CFrame.RightVector * 7 + Vector3.new(0, 2.5, 0))
-			return CFrame.lookAt(p + side + (root.Position - p).Unit * 4, p), 52 - u * 6
+			local side = (root.CFrame.RightVector * (7 - 2 * u) + Vector3.new(0, 1.5 + u, 0))
+			return CFrame.lookAt(p + side + (root.Position - p).Unit * 4, p), 52 - u * 10
 		end, dur + 0.25, { smooth = 10, blendIn = 0.25 })
 		CameraController.punch(-6)
 	end
-	conn = RunService.RenderStepped:Connect(function()
-		local u = math.clamp((os.clock() - t0) / dur, 0, 1)
+	local dropAcc = 0
+	local lastP = from
+	conn = RunService.RenderStepped:Connect(function(dt)
+		-- eased: bursts out, hangs at the top, then drops into the hands
+		local raw = math.clamp((os.clock() - t0) / dur, 0, 1)
+		local u = Easing.sineInOut(raw)
 		local to = root.Position + root.CFrame.LookVector * 1.6 + Vector3.new(0, 0.6, 0)
-		local p = from:Lerp(to, Easing.sineInOut(u)) + Vector3.new(0, 4 * apex * u * (1 - u), 0)
-		local dir = (to - from)
-		local yaw = math.atan2(-dir.X, -dir.Z)
-		model:PivotTo(CFrame.new(p) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(math.sin(u * math.pi * 2.5) * 0.9, 0, u * math.pi * 2))
-		if u >= 1 then
+		local p = from:Lerp(to, u) + Vector3.new(0, 4 * apex * u * (1 - u), 0)
+		local vel = p - lastP
+		lastP = p
+		-- nose follows the flight, a full somersault twist, wild wriggle
+		local base = if vel.Magnitude > 1e-3 then CFrame.lookAt(p, p + vel) else CFrame.new(p)
+		model:PivotTo(base * CFrame.Angles(0, 0, raw * math.pi * 2.2) * CFrame.Angles(0, math.sin(raw * 30) * 0.3, 0))
+		-- water streaming off it while it climbs
+		dropAcc += dt
+		if raw < 0.6 and dropAcc > 0.04 then
+			dropAcc = 0
+			Fx.blocks(p, Color3.fromRGB(150, 205, 255), 2, 3, 0.16, { life = 0.7, up = -0.4, spread = 1.2, gravity = 45 })
+		end
+		if raw >= 1 then
 			conn:Disconnect()
-			Fx.sparkle(p, tier.color, 8 + tier.index * 3, 12)
+			Fx.blocks(p, Color3.fromRGB(150, 205, 255), 8, 6, 0.16, { life = 0.6, up = 0.8, spread = 2, gravity = 45 })
 			model:Destroy()
 		end
 	end)

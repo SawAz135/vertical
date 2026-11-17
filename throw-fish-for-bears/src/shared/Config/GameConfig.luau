@@ -33,9 +33,9 @@ return {
 		minLandingDepth = 8, -- studs past the throw line to count as "in the zone"
 	},
 	Capture = {
-		alert = 0.9, -- bear notices the fish
+		alert = 0.7, -- bear notices the fish
 		runSpeed = 26, -- studs/s at scale 1
-		arrive = 0.45, sniff = 1.0, eat = 2.0, happy = 1.4, transform = 0.6, -- transform = the "poof" before the bear appears in your hands
+		arrive = 0.45, sniff = 0.8, eat = 2.0, happy = 1.2, transform = 0.5, -- transform = the "poof" before the bear appears in your hands
 		pickupAt = 0.35, swallowAt = 1.55, -- seconds into the eat stage
 		returnTimeout = 300,
 		sprintMultiplier = 1.35,
@@ -43,7 +43,7 @@ return {
 		arrivalHappy = 0.7,
 		-- the rarity reveal (bear frozen in front of the fish): roulette spin, then optional luck climb
 		-- reveal: 6 body parts uncovered one by one (luck + size counters climb), then name / rarity
-		revealLimb = 0.8, revealFinal = 2.2,
+		revealLimb = 0.75, revealFinal = 1.6, -- ~12 s for the whole capture cinematic
 		-- LUCK BONUS rolled by the server during the reveal: rerolls the rarity with luck x mult
 		-- and keeps the better result (only shown when it really upgrades the bear)
 		luckBonus = { { mult = 25, chance = 0.003 }, { mult = 10, chance = 0.012 }, { mult = 5, chance = 0.05 }, { mult = 2, chance = 0.14 } },

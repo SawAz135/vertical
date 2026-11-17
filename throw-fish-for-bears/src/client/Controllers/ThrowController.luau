@@ -39,12 +39,20 @@ local function addTrail(part: BasePart, color: Color3)
 	local tr = Instance.new("Trail")
 	tr.Attachment0 = a0
 	tr.Attachment1 = a1
-	tr.Lifetime = 0.35
+	tr.Lifetime = 0.3
 	tr.Color = ColorSequence.new(color)
-	tr.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
-	tr.LightEmission = 0.5
+	tr.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(1, 1) })
+	tr.LightEmission = 0
 	tr.FaceCamera = true
 	tr.Parent = part
+end
+
+-- SPEED RAMP: the visible flight runs in slow motion at the release and at the landing,
+-- and blasts through the middle. It is a pure re-timing of the arc: the fish still lands
+-- exactly when the server says so (warp(0) = 0, warp(1) = 1, always increasing).
+local RAMP = 0.78
+local function warp(u: number): number
+	return u - RAMP * math.sin(2 * math.pi * u) / (2 * math.pi)
 end
 
 local function onThrow(player: Player, d)
@@ -58,36 +66,28 @@ local function onThrow(player: Player, d)
 	model:SetAttribute("Anim", "Thrown")
 	model:PivotTo(CFrame.new(d.from))
 	model.Parent = Fx.folder
-	local fishTier = RarityConfig.get(FishConfig.get(d.fish.s).rarity)
-	local col = fishTier.textColor or fishTier.color
-	local fancy = fishTier.index >= 3
-	addTrail(model.PrimaryPart, if fancy then col else Color3.fromRGB(255, 255, 255))
-	local glow = Instance.new("PointLight")
-	glow.Color = if fancy then col else Color3.fromRGB(255, 240, 200)
-	glow.Range = 14 + d.power * 16
-	glow.Brightness = 0 -- no light effect
-	glow.Parent = model.PrimaryPart
+	-- a soft white motion trail (no glow)
+	addTrail(model.PrimaryPart, Color3.fromRGB(255, 255, 255))
 	local dir = d.to - d.from
 	local yaw = math.atan2(-dir.X, -dir.Z)
-	local spinRate = 4 + d.power * 6
-	local handStart: Vector3? = nil -- where the hand really was when the fish let go (no teleport)
+	local handStart: Vector3? = nil
 	if isLocal then
 		Sound.play("Throw")
-		CameraController.punch(8)
 		Throw.Flight:Fire(d)
 		task.delay(RELEASE + d.flight + 1.6, function() Cine.gradeOff(1.0) end)
 	else
 		Sound.play("Throw", { parent = model.PrimaryPart, volume = 0.6 })
 	end
 
-	-- THE THROWER'S CAMERA: 8-shot sequence -------------------------------------------
-	--  1 wind-up   : low hero angle, fast push-in on the throwing arm (during RELEASE)
-	--  2 hit-stop  : camera freezes 0.09 s on the release frame (flash + shockwave + bars)
-	--  3 launch    : rocket chase right behind the fish, dutch roll, FOV blows wide
-	--  4 apex      : slow orbit around the spinning fish against the sky, FOV breathes
-	--  5 descent   : the camera dives ahead of the fish and whips round to face it
-	--  6 impact    : ground-level hero shot, triple shockwave, dust, shake
-	--  zone banners pop when the fish crosses into a new zone
+	-- THE THROWER'S CAMERA: a film sequence, no light gimmicks --------------------------
+	--  A wind-up  : tight low angle on the thrower, lens squeezing in
+	--  B release  : HIT-STOP (frozen frame), heavy shake, whip blur, deep boom
+	--  C slow-mo  : side tracking right next to the fish, shallow depth of field, the fish
+	--               twisting in slow motion with water drops coming off it
+	--  D blast    : whip-pan behind it, the ramp kicks in, wide lens, motion blur, wind
+	--  E aerial   : drone shot high above the corridor, the fish a tiny dot, the zones below
+	--  F incoming : camera on the ground at the landing spot, the fish falls at the lens in
+	--               slow motion... IMPACT: hit-stop, earth and grass flying, shake
 	if isLocal then
 		local char = localPlayer.Character
 		local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -98,51 +98,33 @@ local function onThrow(player: Player, d)
 		local freezeUntil, frozenCF, frozenFov = 0, nil, 62
 		local lastZone = Layout.zoneAt(d.from) or 0
 		local lastCF, lastFov = nil, 62
-		local apexDone = false
+		local whipped, droned, incoming = false, false, false
 		Cine.letterbox(true)
+		Cine.grade({ tint = Color3.fromRGB(255, 248, 238), saturation = 0.1, contrast = 0.18 }, 0.2)
 		local function shot(t, dt)
 			local now = workspace:GetServerTimeNow()
 			local fp = model.Parent and model.PrimaryPart.Position or d.to
 			if now < startT then
-				-- 1) wind-up
+				-- A) wind-up
 				if not root then return nil, 60 end
 				local k = 1 - math.clamp((startT - now) / RELEASE, 0, 1)
-				local orbit = CFrame.Angles(0, -0.9 + k * 0.7, 0):VectorToWorldSpace(side)
-				local p = root.Position + orbit * (7 - 2.5 * k) - travel * 3 + Vector3.new(0, 1.0 + k * 1.4, 0)
-				local cf = CFrame.lookAt(p, root.Position + Vector3.new(0, 1.7, 0) + travel * 4 * k) * CFrame.Angles(0, 0, 0.12 * (1 - k))
-				lastCF, lastFov = cf, 58 - 18 * k
+				local orbit = CFrame.Angles(0, -1.0 + k * 0.5, 0):VectorToWorldSpace(side)
+				local p = root.Position + orbit * (5.5 - 1.5 * k) - travel * 2 + Vector3.new(0, 0.2 + k * 0.9, 0)
+				local cf = CFrame.lookAt(p, root.Position + Vector3.new(0, 1.8, 0) + travel * 3 * k)
+				lastCF, lastFov = cf, 52 - 14 * k
 				return cf, lastFov
 			end
 			if not released then
-				-- 2) release frame: impact + hit-stop
+				-- B) release: hit-stop + boom
 				released = true
-				freezeUntil = os.clock() + 0.09
+				freezeUntil = os.clock() + 0.14
 				frozenCF, frozenFov = lastCF, lastFov
-				Cine.flash(0.85, if fancy then col else nil)
-				Cine.speedLines(true)
-				CameraController.shake(1.4, 0.4)
-				CameraController.punch(18)
-				if root then
-					local feet = root.Position - Vector3.new(0, 2.8, 0)
-					Cine.shockwave(feet, col, 0.9)
-					task.delay(0.08, function() Cine.shockwave(feet, Color3.new(1, 1, 1), 0.6) end)
-					Fx.sparkle(root.Position + Vector3.new(0, 2, 0) + travel * 2, col, 14, 26)
-				end
-				Sound.play("Transform", { volume = 0.7 })
-				Sound.play("Throw", { pitch = 0.6, volume = 0.8 })
-				-- BLOCKBUSTER RELEASE: screen grade slam, lightning burst, 3 sonic booms, slam text
-				Cine.grade({ tint = Color3.fromRGB(255, 244, 225), saturation = 0.35, contrast = 0.22, bloom = 0.9 + d.power * 0.6 }, 0.12)
-				local o = d.from
-				for i = 1, 5 + math.floor(d.power * 7) do
-					local rv = Vector3.new(math.random() - 0.5, math.random() - 0.1, math.random() - 0.5).Unit
-					task.delay(i * 0.012, function() Cine.bolt(o, o + rv * (7 + math.random() * 8), if fancy then col else Color3.fromRGB(255, 240, 160), 0.3, 0.4) end)
-				end
-				for i = 0, 2 do
-					task.delay(i * 0.06, function() Cine.ringFacing(o + travel * (1 + i * 2), travel, if i == 1 then Color3.new(1, 1, 1) else col, 1.5, 10 + i * 5 + d.power * 8, 0.5 + i * 0.1, 0.5) end)
-				end
-				if d.power >= 0.97 then
-					Cine.slam("MAX POWER!!!", Color3.fromRGB(255, 120, 40), 100, 1.0)
-				end
+				CameraController.shake(1.6, 0.45)
+				CameraController.punch(14)
+				Cine.motion(20)
+				Sound.play("Throw", { pitch = 0.55, volume = 1 })
+				Sound.play("Land", { pitch = 0.5, volume = 0.8 })
+				if root then Fx.dust(root.Position - Vector3.new(0, 2.8, 0), 1.2) end
 			end
 			if os.clock() < freezeUntil and frozenCF then
 				return frozenCF, frozenFov
@@ -154,74 +136,75 @@ local function onThrow(player: Player, d)
 				local zc = ZoneConfig.get(z)
 				Cine.banner(("ZONE %d · %s"):format(z, zc.name:upper()), zc.sign, nil)
 				Sound.play("Notify")
-				CameraController.punch(6)
 			end
-			local lead = travel * (8 + d.power * 6)
-			if u > 0.5 and not apexDone then
-				-- APEX: hang-time pulse (bloom spike, ring around the fish, sparkle burst, snap zoom)
-				apexDone = true
-				Cine.grade({ saturation = 0.5, contrast = 0.3, bloom = 1.6 }, 0.1)
-				task.delay(0.15, function() Cine.grade({ saturation = 0.2, contrast = 0.15, bloom = 0.6 }, 0.6) end)
-				Cine.ringFacing(fp, travel, Color3.new(1, 1, 1), 1, 14, 0.7, 0.5)
-				Cine.ringFacing(fp, travel, col, 1, 22, 0.9, 0.7)
-				Fx.sparkle(fp, col, 30, 40)
-				CameraController.punch(-9)
-				CameraController.shake(0.7, 0.3)
-				Sound.play("Transform", { pitch = 1.4, volume = 0.5 })
-			end
-			if u < 0.26 then
-				-- 3) rocket chase, dutch roll swinging out, FOV blowing wide
-				local k = u / 0.26
-				local p = fp - travel * (5 + 8 * Easing.sineOut(k)) + Vector3.new(0, 1.8 + 2.4 * k, 0) + side * (2.2 - 1.2 * k)
-				local roll = math.sin(k * math.pi) * 0.22
-				return CFrame.lookAt(p, fp + lead) * CFrame.Angles(0, 0, roll), 66 + 34 * Easing.sineOut(k)
-			elseif u < 0.7 then
-				-- 4) apex orbit
-				local k = (u - 0.26) / 0.44
-				local ang = -1.1 + Easing.sineInOut(k) * 2.2
-				local around = CFrame.Angles(0, ang, 0):VectorToWorldSpace(side)
-				local radius = 12 + math.sin(k * math.pi) * 5
-				local p = fp + around * radius + Vector3.new(0, 4 - 6 * k, 0) - travel * 3
-				return CFrame.lookAt(p, fp + travel * 2), 78 - 10 * math.sin(k * math.pi)
+			if u < 0.16 then
+				-- C) slow-motion side tracking, shallow focus on the fish
+				local k = u / 0.16
+				local p = fp + side * (3.2 + 1.5 * k) + travel * (1.2 - 1.6 * k) + Vector3.new(0, 0.5, 0)
+				Cine.dof(3.5 + 1.5 * k, 0.75)
+				return CFrame.lookAt(p, fp + travel * 0.6), 46 + 6 * k
+			elseif u < 0.55 then
+				-- D) whip behind it as it rockets away
+				if not whipped then
+					whipped = true
+					Cine.dof(nil, 0)
+					Cine.motion(16)
+					CameraController.punch(18)
+					CameraController.shake(0.8, 0.3)
+					Sound.play("Throw", { pitch = 1.3, volume = 0.7 })
+				end
+				local k = (u - 0.16) / 0.39
+				local p = fp - travel * (6 + 7 * Easing.sineOut(k)) + Vector3.new(0, 1.6 + 2.2 * k, 0) + side * (1.6 - 1.2 * k)
+				Cine.motion(3 + 4 * math.sin(k * math.pi))
+				CameraController.shake(0.12 + 0.2 * math.sin(k * math.pi), 0.06)
+				return CFrame.lookAt(p, fp + travel * (10 + d.power * 6)), 78 + 18 * math.sin(k * math.pi)
+			elseif u < 0.8 then
+				-- E) drone: high above, the fish crossing the corridor, the zones under it
+				if not droned then
+					droned = true
+					Cine.motion(10)
+					CameraController.punch(-6)
+				end
+				local k = (u - 0.55) / 0.25
+				local mid = fp:Lerp(d.to, 0.35)
+				local p = mid + side * (26 - 6 * k) - travel * (14 - 10 * k) + Vector3.new(0, 30 - 8 * k, 0)
+				return CFrame.lookAt(p, fp), 48 - 6 * k
 			else
-				-- 5/6) descent then impact
-				local k = Easing.cubicOut((u - 0.7) / 0.3)
-				local spot = d.to + side * 9 + travel * 10 + Vector3.new(0, 2.2, 0)
-				local from = fp + side * 7 + Vector3.new(0, 5, 0)
-				local p = from:Lerp(spot, k)
+				-- F) incoming: low at the landing spot, the fish falling at the lens in slow-mo
+				if not incoming then
+					incoming = true
+					Cine.motion(12)
+					CameraController.punch(-8)
+					Sound.play("Charge", { pitch = 0.6, volume = 0.6 }) -- the whistle of the fall
+				end
+				local k = Easing.sineOut((u - 0.8) / 0.2)
+				local spot = d.to + side * 7 + travel * 8 + Vector3.new(0, 0.9, 0)
+				Cine.dof((spot - fp).Magnitude, 0.5)
 				if u >= 1 and not landed then
+					-- IMPACT
 					landed = true
-					Cine.speedLines(false)
-					Cine.flash(0.55, col)
-					Cine.shockwave(d.to, col, 1 + d.power * 0.6)
-					task.delay(0.12, function() Cine.shockwave(d.to, Color3.new(1, 1, 1), 0.8 + d.power * 0.4) end)
-					task.delay(0.26, function() Cine.shockwave(d.to, col, 0.6) end)
-					CameraController.shake(1.6, 0.5)
-					CameraController.punch(-12)
-					-- MEGA IMPACT: sky pillar, 4 rings, bolt crown, debris, bloom + tint flash, distance slam
+					freezeUntil = os.clock() + 0.12
+					frozenCF, frozenFov = lastCF, lastFov
+					Cine.dof(nil, 0)
+					CameraController.shake(2.0, 0.55)
+					CameraController.punch(-14)
+					Cine.motion(18)
+					Sound.play("Land", { pitch = 0.6, volume = 1.2 })
 					local big = 1 + d.power
-					Cine.pillar(d.to, col, 160, 5 + d.power * 5, 1.4)
-					for i = 1, 4 do
-						task.delay(i * 0.09, function() Cine.shockwave(d.to, if i % 2 == 0 then Color3.new(1, 1, 1) else col, big * (0.6 + i * 0.35)) end)
-					end
-					Cine.crown(d.to, col, 8 + math.floor(d.power * 8), 4 + d.power * 6, 18 + d.power * 20)
-					Fx.blocks(d.to + Vector3.new(0, 1, 0), col, 60, 40 * big, 0.5, { life = 1.4, up = 2.2, spread = 4, gravity = 60 })
-					Fx.blocks(d.to + Vector3.new(0, 1, 0), Color3.fromRGB(120, 95, 70), 40, 28 * big, 0.6, { life = 1.2, up = 1.6, spread = 3, gravity = 70 })
-					Cine.grade({ tint = Color3.new(1, 1, 1):Lerp(col, 0.35), saturation = 0.45, contrast = 0.3, bloom = 2.2 }, 0.08)
-					task.delay(0.2, function() Cine.grade({ saturation = 0.15, contrast = 0.1, bloom = 0.5 }, 0.9) end)
-					Cine.slam((d.record and "NEW RECORD! " or "") .. ("%d STUDS!"):format(math.floor(d.dist or 0)), if d.record then Color3.fromRGB(255, 220, 60) else Color3.new(1, 1, 1), 96, 1.5)
-					Sound.play("Reveal2", { volume = 0.7 })
+					Fx.dust(d.to, 1.8 * big)
+					-- earth and grass flying (natural colours, no glow)
+					Fx.blocks(d.to + Vector3.new(0, 0.6, 0), Color3.fromRGB(120, 95, 70), 26, 22 * big, 0.45, { life = 1.2, up = 2, spread = 3, gravity = 70,
+						colors = { Color3.fromRGB(120, 95, 70), Color3.fromRGB(95, 74, 52), Color3.fromRGB(80, 150, 55), Color3.fromRGB(65, 125, 45) } })
 					if not d.ok then Cine.letterbox(false) end
 				end
-				return CFrame.lookAt(p, fp:Lerp(d.to, 0.6) + Vector3.new(0, 0.5, 0)), 66 - 12 * k
+				local cf = CFrame.lookAt(spot, fp:Lerp(d.to, 0.35) + Vector3.new(0, 0.6, 0))
+				lastCF, lastFov = cf, 62 - 16 * k
+				return cf, lastFov
 			end
 		end
 
-		-- FISH NEVER LEAVES THE FRAME: the fish flies at 150-400 studs/s on long throws, and a
-		-- camera spring on ABSOLUTE position lags 10-30 studs behind it (this is why the fish
-		-- slipped off screen). So the camera is exact, and only its OFFSET from the fish is smoothed.
-		local offs, lookv, upv
-		-- the camera must never dip under the ground (you would see the underside of the map)
+		-- the camera follows the fish exactly (only the OFFSET is smoothed), never under the ground
+		local offs, lookv
 		local camParams = RaycastParams.new()
 		camParams.FilterType = Enum.RaycastFilterType.Exclude
 		local function guard(cf: CFrame?, fov: number)
@@ -229,41 +212,44 @@ local function onThrow(player: Player, d)
 			local pos = cf.Position
 			camParams.FilterDescendantsInstances = { Fx.folder, model, localPlayer.Character }
 			local hit = workspace:Raycast(pos + Vector3.new(0, 40, 0), Vector3.new(0, -41.5, 0), camParams)
-			if hit and pos.Y < hit.Position.Y + 1.5 then
-				local np = Vector3.new(pos.X, hit.Position.Y + 1.5, pos.Z)
-				return CFrame.lookAt(np, np + cf.LookVector, cf.UpVector), fov
+			if hit and pos.Y < hit.Position.Y + 0.8 then
+				local np = Vector3.new(pos.X, hit.Position.Y + 0.8, pos.Z)
+				return CFrame.lookAt(np, np + cf.LookVector), fov
 			end
 			return cf, fov
 		end
 		CameraController.run(function(t, dt)
 			local cf, fov = shot(t, dt)
 			if not cf then return cf, fov end
-			local following = released and os.clock() >= freezeUntil
+			local following = released and os.clock() >= freezeUntil and not landed
 			if not following then
 				lastCF = cf
+				offs = nil
 				return guard(cf, fov)
 			end
 			local fpNow = if model.Parent then model.PrimaryPart.Position else d.to
 			if not offs then
 				offs = lastCF.Position - fpNow
 				lookv = lastCF.LookVector
-				upv = lastCF.UpVector
 			end
-			offs = offs:Lerp(cf.Position - fpNow, Easing.damp(10, dt))
-			lookv = lookv:Lerp(cf.LookVector, Easing.damp(12, dt)).Unit
-			upv = upv:Lerp(cf.UpVector, Easing.damp(12, dt)).Unit
+			-- cuts (whip / drone / incoming) are fast, otherwise silky
+			offs = offs:Lerp(cf.Position - fpNow, Easing.damp(9, dt))
+			lookv = lookv:Lerp(cf.LookVector, Easing.damp(11, dt)).Unit
 			local pos = fpNow + offs
-			return guard(CFrame.lookAt(pos, pos + lookv, upv), fov)
-		end, RELEASE + d.flight + 0.5, { smooth = 0, blendIn = 0.12 })
+			local out = CFrame.lookAt(pos, pos + lookv)
+			lastCF, lastFov = out, fov
+			return guard(out, fov)
+		end, RELEASE + d.flight + 0.6, { smooth = 0, blendIn = 0.12 })
 	end
 
+	-- the flying fish: re-timed by the speed ramp, twisting like a live fish (body bends,
+	-- tumbles, tail lashes), a few water drops at the start
 	local conn
-	local sparkAcc = 0
-	conn = RunService.RenderStepped:Connect(function()
+	local dropAcc = 0
+	conn = RunService.RenderStepped:Connect(function(dt)
 		if not model.Parent then conn:Disconnect() return end
 		local now = workspace:GetServerTimeNow()
 		if now < d.t0 then
-			-- fish stays glued to the real hand until the release frame
 			local char = player.Character
 			local hand = char and (char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm"))
 			if hand then
@@ -273,37 +259,30 @@ local function onThrow(player: Player, d)
 			return
 		end
 		local u = math.clamp((now - d.t0) / d.flight, 0, 1)
-		local p = Formulas.arc(d.from, d.to, d.apex, u)
-		-- start the arc FROM THE HAND and blend into the real arc (this was the visible snap)
+		local w = warp(u)
+		local p = Formulas.arc(d.from, d.to, d.apex, w)
 		if handStart then
-			local k = 1 - math.clamp(u / 0.1, 0, 1)
+			local k = 1 - math.clamp(w / 0.1, 0, 1)
 			p += (handStart - d.from) * (k * k)
 		end
-		sparkAcc += 1
-		if u > 0.03 and u < 0.97 then
-			local trailDir = Vector3.new(dir.X, 0, dir.Z).Unit
-			if sparkAcc % 7 == 0 and d.power > 0.35 then
-				Cine.ringFacing(p, trailDir, if fancy then col else Color3.new(1, 1, 1), 1.2, 6 + d.power * 6, 0.4, 0.35)
+		-- orientation: nose follows the arc, slow tumble + wriggle (the body animation comes
+		-- from the "Thrown" fish anim: tail lashes, spine bends)
+		local p2 = Formulas.arc(d.from, d.to, d.apex, math.min(1, w + 0.01))
+		local vel = p2 - p
+		local base = if vel.Magnitude > 1e-3 then CFrame.lookAt(p, p + vel) else CFrame.new(p) * CFrame.Angles(0, yaw, 0)
+		local tumble = w * (2.5 + d.power * 3) * math.pi
+		model:PivotTo(base * CFrame.Angles(0, 0, tumble) * CFrame.Angles(math.sin(w * 40) * 0.15, math.sin(w * 26) * 0.25, 0))
+		if isLocal and u < 0.2 then
+			dropAcc += dt
+			if dropAcc > 0.06 then
+				dropAcc = 0
+				Fx.blocks(p, Color3.fromRGB(140, 200, 255), 2, 3, 0.16, { life = 0.6, up = -0.2, spread = 1.5, gravity = 40 })
 			end
-			if sparkAcc % 5 == 0 and isLocal then
-				local rv = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5).Unit
-				Cine.bolt(p, p + rv * (3 + math.random() * 3), if fancy then col else Color3.fromRGB(255, 240, 170), 0.18, 0.2)
-			end
-			if isLocal then CameraController.shake(0.25 + d.power * 0.3, 0.06) end
 		end
-		if sparkAcc % 3 == 0 and isLocal then
-			Fx.blocks(p, if fancy then fishTier.color else Color3.fromRGB(255, 255, 255), 1, 2, 0.25, { life = 0.7, up = 0.2, spread = 1 })
-			if u > 0.05 and sparkAcc % 9 == 0 then Fx.ring(p, if fancy then col else Color3.new(1, 1, 1), 0.6, 3.5, 0.3, { neon = true, transparency = 0.5, thick = 0.1 }) end
-		end
-		model:PivotTo(CFrame.new(p) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(-u * spinRate * math.pi, 0, math.sin(u * 20) * 0.2))
 		if u >= 1 then
 			conn:Disconnect()
 			Fx.dust(d.to, 1.4)
 			Sound.play("Land", { at = d.to })
-			if isLocal then
-				CameraController.shake(0.9, 0.3)
-				CameraController.punch(-5)
-			end
 			if d.ok then
 				task.delay(0.12, function() if model.Parent then model:Destroy() end end)
 			else
@@ -347,21 +326,14 @@ function Throw.init()
 				lastTone = now
 				Sound.play("Reel", { pitch = 0.7 + power * 1.3, volume = 0.5 + power * 0.5 })
 			end
-			-- energy rings on the ground + sparks around the player, faster with power
-			if root and now - lastRing > 0.32 - power * 0.2 then
+			-- dust kicked up at the feet, the world tightening around you (no glowing effects)
+			if root and now - lastRing > 0.45 - power * 0.25 then
 				lastRing = now
-				local feet = root.Position - Vector3.new(0, 2.9, 0)
-				local col = Color3.fromRGB(255, 220, 60):Lerp(Color3.fromRGB(255, 70, 40), power)
-				Fx.ring(feet, col, 5.5 - power * 2, 1.2, 0.35, { neon = true, transparency = 0.35, thick = 0.15 })
-				Fx.sparkle(root.Position + Vector3.new(0, 1.5, 0), col, math.floor(2 + power * 6), 8 + power * 10)
+				Fx.dust(root.Position - Vector3.new(0, 2.8, 0), 0.4 + power * 0.6)
+				CameraController.shake(0.04 + power * 0.18, 0.12)
 			end
-			-- the whole screen charges up with you: contrast, bloom and lightning crackling around you
-			Cine.gradeSet({ contrast = 0.12 * power, saturation = 0.15 * power, bloom = 0.15 + 0.7 * power, tint = Color3.new(1, 1, 1):Lerp(Color3.fromRGB(255, 190, 120), power * 0.35) })
-			if root and math.random() < 0.15 + power * 0.5 then
-				local a = root.Position + Vector3.new(math.random() - 0.5, -2.8, math.random() - 0.5) * 2
-				local b = root.Position + Vector3.new((math.random() - 0.5) * 6, 1 + math.random() * 5, (math.random() - 0.5) * 6)
-				Cine.bolt(a, b, Color3.fromRGB(255, 220, 90):Lerp(Color3.fromRGB(255, 80, 40), power), 0.16, 0.18 + power * 0.2)
-			end
+			Cine.gradeSet({ contrast = 0.18 * power, saturation = 0.1 * power })
+			Cine.dark(power * 0.4)
 			-- camera tightens a little as the throw charges
 			CameraController.punch(-0.25 * power)
 			if power >= 1 and not maxed then
@@ -381,7 +353,8 @@ function Throw.init()
 		local aim = math.clamp(camLook.X * 2.5, -1, 1)
 		charging = nil
 		Throw.ChargeChanged:Fire(nil)
-		Cine.grade({ tint = Color3.new(1, 1, 1), saturation = 0, contrast = 0, bloom = 0.2 }, 0.2)
+		Cine.grade({ tint = Color3.new(1, 1, 1), saturation = 0, contrast = 0 }, 0.2)
+		Cine.dark(0)
 		HumanPose.localPose = "Throw"
 		HumanPose.localPoseT = workspace:GetServerTimeNow()
 		task.delay(1.25, function()

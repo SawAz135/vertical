@@ -135,86 +135,311 @@ local function revealAura(rv)
 	if rv.bear then rv.bear:SetAttribute("Silhouette", nil) end
 end
 
--- the bear exists for the server, but the local player must not see it until the reveal
-local function setBearHidden(bear: Model, hidden: boolean)
-	for _, d in bear:GetDescendants() do
-		if d:IsA("BasePart") then
-			d.LocalTransparencyModifier = if hidden then 1 else 0
-		elseif d:IsA("BillboardGui") or d:IsA("SurfaceGui") then
-			d.Enabled = not hidden
+-- the bear exists for the server, but the local player must not see it (only hear it)
+-- until the reveal. Transparency is overridden locally AND the local modifier is set, so
+-- nothing the animator does (blinking eyelids...) can make a piece show up.
+local function setPartsHidden(parts: { BasePart }, hidden: boolean)
+	for _, d in parts do
+		if d.Parent then
+			if hidden then
+				if d:GetAttribute("TFBTr") == nil then d:SetAttribute("TFBTr", d.Transparency) end
+				d.Transparency = 1
+				d.LocalTransparencyModifier = 1
+			else
+				local tr = d:GetAttribute("TFBTr")
+				if tr ~= nil then
+					d.Transparency = tr
+					d:SetAttribute("TFBTr", nil)
+				end
+				d.LocalTransparencyModifier = 0
+			end
 		end
 	end
 end
 
--- opening shot: wide and low on the FISH lying on the ground. The bear is invisible.
-local function establishShot()
-	local c = current
-	c.rv = prepareReveal(c.bear) -- silhouette colours + rarity effects off, ready for the reveal
-	setBearHidden(c.bear, true)
-	Cine.letterbox(true)
-	Cine.grade({ tint = Color3.fromRGB(215, 200, 225), saturation = -0.15, contrast = 0.12, brightness = -0.03 }, 1.5)
-	c.shadow = Cine.shadow()
-	local toDen = Vector3.new(c.den.X - c.landing.X, 0, c.den.Z - c.landing.Z)
-	toDen = if toDen.Magnitude > 0.1 then toDen.Unit else Vector3.new(0, 0, -1)
-	local side = Vector3.new(-toDen.Z, 0, toDen.X)
-	CameraController.run(function(t)
-		local k = Easing.sineInOut(math.clamp(t / 1.6, 0, 1))
-		local fp = if c.fish and c.fish.PrimaryPart and c.fish.Parent then c.fish.PrimaryPart.Position else c.landing
-		local p = fp - toDen * (10 - 3 * k) + side * (7 - 3 * k) + Vector3.new(0, 4 - 2.4 * k, 0)
-		return CFrame.lookAt(p, fp + toDen * 3 + Vector3.new(0, 0.6, 0)), 60 - 8 * k
-	end, 30, { smooth = 8, blendIn = 0.3 })
+local function bearParts(bear: Model): { BasePart }
+	local list = {}
+	for _, d in bear:GetDescendants() do
+		if d:IsA("BasePart") then table.insert(list, d) end
+	end
+	return list
 end
 
--- REVEAL COUNTERS (stud GUI, top of the screen): LUCK and SIZE climb a little with every
--- uncovered body part; after the 6th the name + rarity card slams in.
+local function setBearHidden(bear: Model, hidden: boolean)
+	setPartsHidden(bearParts(bear), hidden)
+	for _, d in bear:GetDescendants() do
+		if d:IsA("BillboardGui") or d:IsA("SurfaceGui") then d.Enabled = not hidden end
+	end
+end
+
+local function fishPosOf(c)
+	return if c.fish and c.fish.PrimaryPart and c.fish.Parent then c.fish.PrimaryPart.Position else c.landing
+end
+
+local function dirToDen(c)
+	local v = Vector3.new(c.den.X - c.landing.X, 0, c.den.Z - c.landing.Z)
+	return if v.Magnitude > 0.1 then v.Unit else Vector3.new(0, 0, -1)
+end
+
+local MOUTH_PARTS = { MouthInside = true, Tongue = true, TongueTip = true }
+local function isMouthPart(p: BasePart): boolean
+	return MOUTH_PARTS[p.Name] == true or p.Name:sub(1, 5) == "Tooth"
+end
+
+------------------------------------------------------------------------------------------
+-- 1) THE FISH'S EYES. The fish lies on the ground; the camera IS its eye. The bear is
+-- never shown: you only HEAR it (growl, heavy steps getting louder, breathing), you feel
+-- the ground shake, the fish panics: trembling view, glances everywhere, blinking faster,
+-- heartbeat, the world darkening at the edges, tunnel vision.
+------------------------------------------------------------------------------------------
+local function povStart()
+	local c = current
+	c.mode = "pov"
+	c.panic = 0.15
+	c.rv = prepareReveal(c.bear) -- black silhouette colours + rarity effects off, for later
+	setBearHidden(c.bear, true)
+	if c.fish then setPartsHidden(bearParts(c.fish), true) end -- the camera is inside the fish
+	Cine.speedLines(false)
+	Cine.letterbox(false)
+	Cine.eyelids(true)
+	Cine.setLids(0)
+	Cine.grade({ tint = Color3.fromRGB(225, 232, 240), saturation = -0.25, contrast = 0.15, brightness = -0.04 }, 0.8)
+	local toDen = dirToDen(c)
+	local side = Vector3.new(-toDen.Z, 0, toDen.X)
+	local nextBlink, blinkT, beatT, stepT = 0.4, 0.3, 0.7, 0
+	local lastBear = nil
+	local glance = Vector2.zero
+	local snapTo = nil -- a sound makes the fish look that way
+	c.snapLook = function(world: Vector3)
+		snapTo = world
+		task.delay(0.9, function() if snapTo == world then snapTo = nil end end)
+	end
+	CameraController.run(function(t, dt)
+		if c.mode ~= "pov" then return nil, 70 end
+		local fp = fishPosOf(c)
+		local eye = c.eyePos or (fp + Vector3.new(0, 0.7, 0))
+		c.eyePos = eye
+		-- how close is the (invisible) bear?
+		local r = rootOf(c.bear)
+		local near = 0
+		if r then
+			local dist = (Vector3.new(r.Position.X, 0, r.Position.Z) - Vector3.new(fp.X, 0, fp.Z)).Magnitude
+			c.startDist = c.startDist or math.max(dist, 10)
+			near = 1 - math.clamp((dist - 3) / c.startDist, 0, 1)
+			-- heavy steps you only hear (and feel)
+			local moved = if lastBear then (r.Position - lastBear).Magnitude / math.max(dt, 1e-3) else 0
+			lastBear = r.Position
+			if moved > 2 then
+				stepT -= dt
+				if stepT <= 0 then
+					local sc = c.bear:GetAttribute("Scale") or 1
+					stepT = 0.3 / math.max(0.75, c.bear:GetAttribute("Gait") or 1)
+					Sound.play("Footstep", { at = r.Position, pitch = 0.75 / sc, volume = 0.6 + near * 1.2 })
+					CameraController.shake((0.05 + near * 0.45) * sc, 0.12)
+				end
+			end
+		end
+		c.panic = math.max(c.panic, 0.15 + near * 0.85)
+		local panic = c.panic
+		-- heartbeat (double thump), quicker and louder with panic
+		beatT -= dt
+		if beatT <= 0 then
+			beatT = 1.1 - panic * 0.78
+			Sound.play("Heartbeat", { pitch = 0.85 + panic * 0.35, volume = 0.45 + panic * 0.5 })
+			task.delay(0.16, function() Sound.play("Heartbeat", { pitch = 0.95 + panic * 0.35, volume = 0.3 + panic * 0.3 }) end)
+		end
+		-- eyelids: wide open with fear, blinking faster and faster
+		local open = math.min(1, t / 0.5)
+		nextBlink -= dt
+		if nextBlink <= 0 then
+			blinkT = 0.16
+			nextBlink = math.max(0.2, 2.8 - panic * 2.55) * (0.7 + math.random() * 0.6)
+		end
+		if blinkT > 0 then
+			blinkT -= dt
+			open *= math.abs((blinkT / 0.16) * 2 - 1)
+		end
+		Cine.setLids(open)
+		Cine.setBlur(0.5 + panic * 3)
+		Cine.dark(0.15 + panic * 0.65)
+		Cine.gradeSet({ saturation = -0.25 - panic * 0.35, contrast = 0.15 + panic * 0.2, brightness = -0.04 - panic * 0.06 })
+		-- where the fish looks: the sky and the treetops, panicked glances that get wilder
+		local speed = 0.7 + panic * 3
+		local target = Vector2.new(math.noise(t * speed, 1.3), math.noise(t * speed, 7.7)) * (0.35 + panic * 1.1)
+		glance = glance:Lerp(target, math.min(1, dt * (3 + panic * 8)))
+		local look = toDen * 6 + side * glance.X * 5 + Vector3.new(0, 4.5 + glance.Y * 2.5, 0)
+		if snapTo then look = (snapTo - eye).Unit * 6 + Vector3.new(0, 1.5, 0) end
+		-- trembling (the fish shivers) + breathing gills
+		local tremble = Vector3.new(math.noise(t * 25, 0, 2), math.noise(t * 25, 3, 0), math.noise(0, t * 25, 5)) * (0.02 + panic * 0.09)
+		local breathe = Vector3.new(0, math.sin(t * (3 + panic * 6)) * 0.04, 0)
+		return CFrame.lookAt(eye + tremble + breathe, eye + look), 74 - panic * 20 + math.sin(t * 2) * 1.5
+	end, 120, { smooth = 0, blendIn = 0.25 })
+end
+
+local function povAlert()
+	local c = current
+	local r = rootOf(c.bear)
+	c.panic = math.max(c.panic or 0, 0.5)
+	if r then
+		Sound.play("Growl", { at = r.Position, pitch = bearPitch(c.bear), volume = 1.2 })
+		if c.snapLook then c.snapLook(r.Position + Vector3.new(0, 2, 0)) end -- the fish looks toward the noise... nothing there
+	end
+	CameraController.shake(0.5, 0.35)
+	CameraController.punch(-8)
+	Cine.motion(10)
+end
+
+------------------------------------------------------------------------------------------
+-- 2) EATEN. Still from the fish: a dark muzzle comes down sniffing (head + front of the
+-- body, black, only the mouth in colour), the jaws open (teeth, tongue), the fish is lifted
+-- INTO the mouth, CHOMP, black. Muffled gulp from inside.
+------------------------------------------------------------------------------------------
+local function showFront(c)
+	-- head + torso as a black mass; mouth parts (teeth, tongue, inside) in real colours
+	local rv = c.rv
+	if not rv then return end
+	local list = {}
+	for _, group in { "Head", "Torso" } do
+		for _, part in rv.groups[group] or {} do table.insert(list, part) end
+	end
+	setPartsHidden(list, false)
+	for _, part in list do
+		local sv = rv.saved[part]
+		if sv and isMouthPart(part) then
+			part.Color = sv[1]
+			part.Material = sv[2]
+		end
+	end
+end
+
+local function eatSequence(d)
+	local c = current
+	if not c then return end
+	local tl = d.tl
+	local start = d.start
+	local G = GameConfig.Capture
+	local tChomp = tl.eat + 1.0
+	local fired = {}
+	local function once(key, fn)
+		if not fired[key] then
+			fired[key] = true
+			fn()
+		end
+	end
+	local ground = fishPosOf(c) + Vector3.new(0, 0.7, 0)
+	local freezeUntil, lastCF, lastFov = 0, nil, 60
+	c.mode = "eat"
+	c.panic = 1
+	CameraController.run(function(t, dt)
+		if os.clock() < freezeUntil and lastCF then return lastCF, lastFov end
+		local now = workspace:GetServerTimeNow() - start
+		local h = headOf(c.bear)
+		local r = rootOf(c.bear)
+		if not h or not r then return lastCF, lastFov end
+		local sc = c.bear:GetAttribute("Scale") or 1
+		local mouthAtt = h:FindFirstChild("MouthAtt")
+		local mouth = if mouthAtt then (mouthAtt :: Attachment).WorldPosition else h.Position
+		local panicT = os.clock()
+		-- keep the panic alive (lids, heartbeat feel)
+		Cine.setLids(if now > tChomp then 0 else (0.85 + math.sin(panicT * 30) * 0.1))
+		Cine.dark(0.75)
+		local tremble = Vector3.new(math.noise(panicT * 30, 1), math.noise(panicT * 30, 2), math.noise(panicT * 30, 3)) * 0.1
+		if now >= tl.sniff then
+			once("show", function()
+				showFront(c)
+				Sound.play("Sniff", { at = mouth, pitch = 0.6, volume = 1.2 })
+				CameraController.shake(0.6, 0.3)
+				Cine.motion(8)
+			end)
+		end
+		if now >= tl.sniff + 0.45 then once("sniff2", function() Sound.play("Sniff", { at = mouth, pitch = 0.55, volume = 1.2 }) end) end
+		local cf, fov
+		if now < tl.eat + G.pickupAt then
+			-- looking UP at the huge dark muzzle coming down, the jaws opening
+			local k = Easing.sineInOut(math.clamp((now - tl.sniff) / (tl.eat + G.pickupAt - tl.sniff), 0, 1))
+			cf = CFrame.lookAt(ground + tremble, mouth + Vector3.new(0, 0.3 * sc, 0))
+			fov = 72 - 14 * k
+		else
+			-- lifted INTO the mouth: the view rides with the fish, teeth all around, palate above
+			once("lift", function()
+				CameraController.shake(1.0, 0.3)
+				Cine.motion(16)
+				Sound.play("Splash", { volume = 0.4, pitch = 1.5 })
+			end)
+			local up = h.CFrame.UpVector
+			local fwd = h.CFrame.LookVector
+			local inMouth = mouth - fwd * 0.15 * sc - up * 0.12 * sc
+			cf = CFrame.lookAt(inMouth + tremble * 0.5, inMouth + up * 1.2 + fwd * 0.6)
+			fov = 95
+			if now >= tChomp then
+				once("chomp", function()
+					Sound.play("Chomp", { at = mouth, pitch = bearPitch(c.bear) * 0.85, volume = 1.4 })
+					CameraController.shake(1.8, 0.45)
+					CameraController.punch(-14)
+					freezeUntil = os.clock() + 0.12 -- hit-stop on the bite
+					Cine.blackout(true, 0.05)
+					Cine.eyelids(false)
+				end)
+			end
+			if now >= tl.eat + G.swallowAt then
+				once("gulp", function() Sound.play("Chomp", { pitch = 0.5, volume = 0.6 }) end) -- muffled, from inside
+			end
+		end
+		lastCF, lastFov = cf, fov
+		return cf, fov
+	end, tl.total + 1, { smooth = 0, blendIn = 0.15 })
+end
+
+------------------------------------------------------------------------------------------
+-- 3) THE REVEAL. From black, a crane shot high above the bear: a black silhouette.
+-- Colours sweep up the body from the paws to the ears while LUCK and SIZE roll up
+-- NON-STOP (never back down), faster and faster to their peak. The camera spirals down,
+-- the shaking and the heartbeat build... hit-stop... SLAM onto the bear's face.
+------------------------------------------------------------------------------------------
 local function buildCounters()
 	local g = Sim.new("ScreenGui", { Name = "TFBRevealCounters", ResetOnSpawn = false, DisplayOrder = 13, IgnoreGuiInset = true,
 		ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
-	local root = Sim.root(g, "Counters", Vector2.new(560, 130), UDim2.new(0.5, 0, 0, 10), Vector2.new(0.5, 0))
+	local root = Sim.root(g, "Counters", Vector2.new(560, 120), UDim2.new(0.5, 0, 0, 12), Vector2.new(0.5, 0))
 	local inner = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, root)
 	local pop = Sim.new("UIScale", { Scale = 0 }, inner)
 	TweenService:Create(pop, TweenInfo.new(0.4, Enum.EasingStyle.Back), { Scale = 1 }):Play()
 	local function box(x, title, grad)
-		local b = Sim.panel(inner, { Size = UDim2.fromOffset(260, 96), Position = UDim2.fromOffset(x, 4), Gradient = grad, Stroke = 4, ZIndex = 4, Clip = true })
+		local b = Sim.panel(inner, { Size = UDim2.fromOffset(260, 100), Position = UDim2.fromOffset(x, 4), Gradient = grad, Stroke = 4, ZIndex = 4, Clip = true })
 		Sim.bands(b, 0.6, 5)
 		Sim.text(b, title, { Size = UDim2.fromOffset(240, 26), Position = UDim2.fromOffset(130, 18), Max = 22, ZIndex = 7 })
-		local v = Sim.text(b, "", { Size = UDim2.fromOffset(240, 54), Position = UDim2.fromOffset(130, 60), Max = 50, Stroke = 4.5, ZIndex = 7,
-			Gradient = { Color3.new(1, 1, 1), Color3.fromRGB(255, 236, 140) } })
+		local v = Sim.text(b, "", { Size = UDim2.fromOffset(240, 56), Position = UDim2.fromOffset(130, 62), Max = 52, Stroke = 4.5, ZIndex = 7 })
 		return b, v, Sim.new("UIScale", {}, v)
 	end
-	local _, luckV, luckS = box(10, "🍀 LUCK", Sim.G.green)
-	local _, sizeV, sizeS = box(290, "⚖️ SIZE", Sim.G.blue)
-	-- 6 member pips under the counters
-	local pips = {}
-	for i = 1, 6 do
-		local pip = Sim.panel(inner, { Size = UDim2.fromOffset(52, 18), Position = UDim2.fromOffset(98 + (i - 1) * 62, 108), Color = Color3.fromRGB(40, 40, 46), Stroke = 2.5, ZIndex = 4 })
-		pips[i] = pip
-	end
-	local stamp = Sim.text(g, "", { Size = UDim2.fromOffset(460, 70), Position = UDim2.new(0.5, 0, 0, 190), Max = 60, Stroke = 5, ZIndex = 9,
+	local luckB, luckV, luckS = box(10, "🍀 LUCK", Sim.G.green)
+	local sizeB, sizeV, sizeS = box(290, "⚖️ SIZE", Sim.G.blue)
+	local stamp = Sim.text(g, "", { Size = UDim2.fromOffset(460, 70), Position = UDim2.new(0.5, 0, 0, 180), Max = 60, Stroke = 5, ZIndex = 9,
 		Gradient = { Color3.fromRGB(255, 255, 200), Color3.fromRGB(255, 190, 20) } })
 	local ss = Sim.new("UIScale", { Scale = 0 }, stamp)
 	local ui = {}
-	local function bump(sc)
-		sc.Scale = 1.45
-		TweenService:Create(sc, TweenInfo.new(0.3, Enum.EasingStyle.Back), { Scale = 1 }):Play()
-	end
-	function ui.set(luck: number, kg: number, i: number, popIt: boolean)
+	-- heat 0..1: the numbers swell and turn gold as they climb
+	function ui.set(luck: number, kg: number, heat: number)
 		luckV.Text = ("x%.1f"):format(luck)
 		sizeV.Text = Format.kg(kg)
-		if popIt then
-			bump(luckS)
-			bump(sizeS)
-			local pip = pips[i]
-			if pip then
-				pip.BackgroundColor3 = Color3.fromRGB(255, 220, 60)
-				local ps = Sim.new("UIScale", { Scale = 1.6 }, pip)
-				TweenService:Create(ps, TweenInfo.new(0.3, Enum.EasingStyle.Back), { Scale = 1 }):Play()
-			end
-		end
+		local hot = Color3.new(1, 1, 1):Lerp(Color3.fromRGB(255, 214, 60), heat)
+		luckV.TextColor3 = hot
+		sizeV.TextColor3 = hot
+		local sc = 1 + heat * 0.18
+		luckS.Scale = sc
+		sizeS.Scale = sc
 	end
 	function ui.shake(amount: number)
 		local t = os.clock()
-		inner.Position = UDim2.fromOffset(math.sin(t * 61) * amount, math.cos(t * 47) * amount)
+		inner.Position = UDim2.fromOffset(math.noise(t * 22, 1) * amount * 2, math.noise(t * 22, 2) * amount * 2)
+		luckB.Rotation = math.noise(t * 9, 3) * amount * 0.5
+		sizeB.Rotation = math.noise(t * 9, 4) * amount * 0.5
+	end
+	function ui.lock()
+		for _, s2 in { luckS, sizeS } do
+			s2.Scale = 1.5
+			TweenService:Create(s2, TweenInfo.new(0.35, Enum.EasingStyle.Back), { Scale = 1.1 }):Play()
+		end
+		luckB.Rotation, sizeB.Rotation = 0, 0
+		inner.Position = UDim2.new()
 	end
 	function ui.stamp(text: string)
 		stamp.Text = text
@@ -229,516 +454,176 @@ local function buildCounters()
 	return ui
 end
 
--- the card after the 6th member: a PLAIN GUI (no studs) under the bear, which stays visible:
--- rarity, name and money per second
-local function nameCard(d)
-	local tier = RarityConfig.get(d.final)
-	local col = tier.textColor or tier.color
-	if col.R * 0.3 + col.G * 0.59 + col.B * 0.11 < 0.25 then col = tier.color end
-	local spec = BearConfig.get(d.species or "BrownBear")
-	local variant = if d.variant and d.variant ~= "Normal" then d.variant .. " " else ""
-	local income = Formulas.bearIncome({ s = d.species, r = d.final, v = d.variant or "Normal", w = d.weight or 0 })
-
-	local g = Instance.new("ScreenGui")
-	g.Name = "TFBBearCard"
-	g.ResetOnSpawn = false
-	g.DisplayOrder = 13
-	g.IgnoreGuiInset = true
-	g.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
-	g.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	g.Parent = player:WaitForChild("PlayerGui")
-
-	local holder = Instance.new("Frame")
-	holder.BackgroundTransparency = 1
-	holder.AnchorPoint = Vector2.new(0.5, 1)
-	holder.Position = UDim2.new(0.5, 0, 1, 120)
-	holder.Size = UDim2.fromOffset(340, 138)
-	holder.Parent = g
-	local vp = workspace.CurrentCamera.ViewportSize
-	local scale = Instance.new("UIScale")
-	scale.Scale = math.clamp(math.min(vp.X / 700, vp.Y / 420), 0.7, 1.4)
-	scale.Parent = holder
-
-	local card = Instance.new("Frame")
-	card.Size = UDim2.fromScale(1, 1)
-	card.BackgroundColor3 = Color3.fromRGB(22, 24, 32)
-	card.BackgroundTransparency = 0.08
-	card.BorderSizePixel = 0
-	card.Parent = holder
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 16)
-	corner.Parent = card
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = col
-	stroke.Thickness = 3
-	stroke.Parent = card
-	local grad = Instance.new("UIGradient")
-	grad.Color = ColorSequence.new(Color3.fromRGB(46, 50, 64), Color3.fromRGB(18, 20, 28))
-	grad.Rotation = 90
-	grad.Parent = card
-
-	local function label(text, y, h, size, color, font)
-		local l = Instance.new("TextLabel")
-		l.BackgroundTransparency = 1
-		l.Position = UDim2.new(0, 10, 0, y)
-		l.Size = UDim2.new(1, -20, 0, h)
-		l.Font = font or Enum.Font.GothamBold
-		l.Text = text
-		l.TextColor3 = color
-		l.TextSize = size
-		l.TextScaled = false
-		l.TextTruncate = Enum.TextTruncate.AtEnd
-		l.Parent = card
-		return l
-	end
-	label(tier.name:upper(), 10, 26, 22, col)
-	label(variant .. spec.name, 38, 36, 30, Color3.new(1, 1, 1))
-	local divider = Instance.new("Frame")
-	divider.Position = UDim2.new(0.1, 0, 0, 82)
-	divider.Size = UDim2.new(0.8, 0, 0, 2)
-	divider.BackgroundColor3 = col
-	divider.BackgroundTransparency = 0.6
-	divider.BorderSizePixel = 0
-	divider.Parent = card
-	label(Format.perSec(income), 92, 36, 28, Color3.fromRGB(110, 255, 120))
-
-	TweenService:Create(holder, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-		{ Position = UDim2.new(0.5, 0, 1, -16) }):Play()
-	task.delay(GameConfig.Capture.revealFinal + 1.6, function()
-		TweenService:Create(holder, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-			{ Position = UDim2.new(0.5, 0, 1, 160) }):Play()
-		task.delay(0.35, function() g:Destroy() end)
-	end)
-end
-
--- uncover ONE part (continuous bottom -> top sweep); revealAll later skips it
 local function revealPartNow(rv, part: BasePart)
 	local sv = rv.saved[part]
 	if not sv or not part.Parent then return end
 	rv.saved[part] = nil
 	part.Material = sv[2]
-	part.Color = Color3.new(1, 1, 1)
-	TweenService:Create(part, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { Color = sv[1] }):Play()
+	TweenService:Create(part, TweenInfo.new(0.45, Enum.EasingStyle.Quad), { Color = sv[1] }):Play()
 end
 
 local function revealSequence(d)
 	local c = current
 	if not c then return end
 	local G = GameConfig.Capture
-	c.revealing = true
+	c.mode = "reveal"
+	-- the whole black silhouette, out of the darkness
+	if c.rv then
+		for _, parts in c.rv.groups do
+			for _, part in parts do
+				local sv = c.rv.saved[part]
+				if sv then part.Color = SHADOW part.Material = Enum.Material.SmoothPlastic end
+			end
+		end
+	end
+	setBearHidden(c.bear, false)
+	if c.fish then setPartsHidden(bearParts(c.fish), false) end
+	Cine.eyelids(false)
+	Cine.dark(0.35)
+	Cine.letterbox(true)
+	Cine.blackout(false, 0.6)
+	Cine.grade({ tint = Color3.fromRGB(220, 222, 240), saturation = -0.35, contrast = 0.3, brightness = -0.08 }, 0.4)
+	local T = G.revealLimb * 6
 	local ui = buildCounters()
 	local luck, kg = d.luck or 1, d.weight or 0
-	ui.set(1, 0, 0, false)
-	local alive = true
-	local shakeConn = RunService.RenderStepped:Connect(function()
-		if alive then ui.shake(2 + (c.rv and c.rv.idx or 0) * 0.8) end
-	end)
-	Cine.letterbox(true)
-	Cine.speedLines(false)
-	Cine.stress(0)
-	-- THE BEAR APPEARS: black silhouette pops into view with a flash and a shockwave
-	setBearHidden(c.bear, false)
-	local r0 = rootOf(c.bear)
-	Cine.flash(0.5, Color3.new(1, 1, 1))
-	Sound.play("Transform", { volume = 0.8 })
-	if r0 then
-		Cine.shockwave(r0.Position - Vector3.new(0, r0.Position.Y - 0.3, 0), Color3.fromRGB(20, 16, 28), 1.4)
-		Fx.puff(r0.Position, Color3.fromRGB(30, 26, 38), 14, 5)
-	end
-	-- CRANE SHOT ABOVE THE BEAR: starts very high looking straight down, spirals lower while
-	-- the focus slides to every member as it is uncovered (legs, then body, then head)
-	local focus = nil
-	local spin = 0
-	local fireShake = 0
-	if c.shadow then c.shadow.destroy() c.shadow = nil end
-	Cine.grade({ tint = Color3.fromRGB(205, 205, 235), brightness = -0.12, contrast = 0.3, saturation = -0.1 }, 0.3)
-	if r0 then
-		Cine.pillar(r0.Position - Vector3.new(0, r0.Position.Y - 0.3, 0), Color3.fromRGB(190, 190, 255), 90, 4, 1.2)
-		Cine.crown(r0.Position - Vector3.new(0, r0.Position.Y - 0.3, 0), Color3.fromRGB(190, 190, 255), 8, 4 * (c.bear:GetAttribute("Scale") or 1), 14)
-	end
-	CameraController.run(function(t, dt)
-		local rr = rootOf(c.bear)
-		if not rr then return nil, 55 end
-		local sc = c.bear:GetAttribute("Scale") or 1
-		local idx = c.rv and c.rv.idx or 0
-		local want = focus or rr.Position
-		c.focusNow = (c.focusNow or want):Lerp(want, Easing.damp(7, dt))
-		local prog = math.clamp(idx / 6, 0, 1)
-		spin += dt * (0.35 + prog * 0.9)
-		local height = (24 - 11 * prog) * sc
-		local radius = (6 + 5 * prog) * sc
-		local fwd = rr.CFrame.LookVector
-		local dirv = CFrame.Angles(0, spin, 0):VectorToWorldSpace(fwd)
-		local p = c.focusNow + dirv * radius + Vector3.new(0, height, 0)
-		local sway = Vector3.new(math.sin(t * 2.3) * 0.15, math.sin(t * 3.1) * 0.12, 0) * sc
-		return CFrame.lookAt(p + sway, c.focusNow), 62 - 14 * prog
-	end, d.duration + 0.5, { smooth = 9, blendIn = 0.5 })
-	CameraController.punch(-4)
-	task.spawn(function()
-		-- CONTINUOUS reveal, from the BOTTOM of the bear to the TOP: a wave of light climbs the bear and
-		-- uncovers every part it passes. LUCK and SIZE climb at the same time, rolling like an RNG.
-		local T = G.revealLimb * 6
-		local list, minY, maxY = {}, math.huge, -math.huge
-		if c.rv then
-			for _, parts in c.rv.groups do
-				for _, part in parts do
-					if part.Parent then
-						local y = part.Position.Y
-						table.insert(list, { part = part, y = y })
-						minY = math.min(minY, y)
-						maxY = math.max(maxY, y)
-					end
+	ui.set(1, 0, 0)
+	-- sweep list: every part bottom -> top
+	local list, minY, maxY = {}, math.huge, -math.huge
+	if c.rv then
+		for _, parts in c.rv.groups do
+			for _, part in parts do
+				if part.Parent then
+					table.insert(list, { part = part, y = part.Position.Y })
+					minY = math.min(minY, part.Position.Y)
+					maxY = math.max(maxY, part.Position.Y)
 				end
 			end
 		end
-		table.sort(list, function(a, b) return a.y < b.y end)
-		local span = math.max(maxY - minY, 0.5)
-		local rng = Random.new()
-		local tierNow = RarityConfig.get(d.final)
-		local colNow = tierNow.textColor or tierNow.color
-		local t0 = os.clock()
-		local nextPart, lastPip = 1, 0
-		local lastTick, lastRing, lastGrade, lastShake = 0, 0, 0, 0
+	end
+	table.sort(list, function(a, b) return a.y < b.y end)
+	local span = math.max(maxY - minY, 0.5)
+	local progress = 0
+	local spin = 0
+	local slam = nil -- set when the reveal finishes: the slam-zoom shot takes over
+	CameraController.run(function(t, dt)
+		local rr = rootOf(c.bear)
+		local h = headOf(c.bear)
+		if not rr then return nil, 55 end
 		local sc = c.bear:GetAttribute("Scale") or 1
-		while current and c.bear.Parent do
-			local p = math.clamp((os.clock() - t0) / T, 0, 1)
-			local pe = Easing.sineInOut(p)
-			local yNow = minY + span * pe
-			local r = rootOf(c.bear)
-			if c.rv then c.rv.idx = p * 6 end
-			-- uncover everything the wave has passed
+		local fwd = rr.CFrame.LookVector
+		if slam then
+			-- SLAM: low hero angle right in front of the face, lens punching in
+			local k = Easing.expoOut(math.clamp((os.clock() - slam) / 0.35, 0, 1))
+			local side = rr.CFrame.RightVector
+			local face = if h then h.Position else rr.Position
+			local p = face + fwd * (9 - 4.5 * k) * sc + side * 1.6 * sc + Vector3.new(0, -0.8 * sc, 0)
+			p = Vector3.new(p.X, math.max(p.Y, 1), p.Z)
+			Cine.dof((p - face).Magnitude, 0.6)
+			return CFrame.lookAt(p, face + Vector3.new(0, 0.4 * sc, 0)), 70 - 32 * k
+		end
+		-- crane: very high and straight down, spiralling lower and faster as the colours climb
+		local pe = progress
+		spin += dt * (0.25 + pe * pe * 2.6)
+		local focusY = minY + span * pe
+		local focus = Vector3.new(rr.Position.X, focusY, rr.Position.Z)
+		local dirv = CFrame.Angles(0, spin, 0):VectorToWorldSpace(fwd)
+		local height = (30 - 22 * Easing.sineIn(pe)) * sc
+		local radius = (5 + 6 * pe) * sc
+		local p = focus + dirv * radius + Vector3.new(0, height, 0)
+		Cine.dof((p - focus).Magnitude, 0.35 + pe * 0.4)
+		if pe > 0.5 then Cine.motion(pe * 6) end
+		return CFrame.lookAt(p, focus), 60 - 16 * pe
+	end, d.duration + 0.6, { smooth = 5, blendIn = 0.2 })
+	task.spawn(function()
+		local rng = Random.new()
+		local shownL, shownK = 1, 0
+		local t0 = os.clock()
+		local nextPart = 1
+		local tickT, beatT, shakeT = 0, 0, 0
+		local last = os.clock()
+		while current == c and c.bear.Parent do
+			local now = os.clock()
+			local dt = now - last
+			last = now
+			local p = math.clamp((now - t0) / T, 0, 1)
+			-- slow start, then it runs away towards the peak
+			local ease = p ^ 2.1
+			progress = Easing.sineInOut(p)
+			-- colours climb the body
+			local yNow = minY + span * progress
 			while c.rv and nextPart <= #list and list[nextPart].y <= yNow + 0.001 do
 				revealPartNow(c.rv, list[nextPart].part)
 				nextPart += 1
 			end
-			if r then
-				focus = Vector3.new(r.Position.X, yNow, r.Position.Z)
-				local limbCol = Color3.fromHSV(pe * 0.85, 0.45, 1):Lerp(colNow, p * 0.6)
-				-- glowing rings climbing the bear
-				if os.clock() - lastRing > 0.12 then
-					lastRing = os.clock()
-					Cine.ringFacing(focus, Vector3.new(0, 1, 0), limbCol, 1.5 * sc, (4 + 2 * p) * sc, 0.45, 0.25)
-					Fx.sparkle(focus, limbCol, 4, 14)
-				end
-				-- member pips (6) + ground effects each time the wave passes 1/6
-				local pipI = math.floor(p * 6 + 0.0001)
-				if pipI > lastPip then
-					lastPip = pipI
-					local gp = Vector3.new(r.Position.X, r.Position.Y - (c.bear:GetAttribute("HipHeight") or 1.6), r.Position.Z)
-					Cine.shockwave(gp, limbCol, 0.4 + pipI * 0.12)
-					Cine.pillar(gp, limbCol, 40 + pipI * 12, 1.2 + pipI * 0.25, 0.8)
-					Cine.crown(gp, limbCol, 4 + pipI, 2 + pipI * 0.4, 6 + pipI * 2)
-					Sound.play("Heartbeat", { pitch = 1 + pipI * 0.08 })
-					CameraController.punch(-2 - pipI * 0.6)
-					ui.set(1 + (luck - 1) * (pe ^ 1.6), kg * (0.3 + 0.7 * pe), pipI, true)
-				end
+			-- LUCK / SIZE: always up, never down; uneven RNG-like jumps around the curve
+			local targetL = 1 + (luck - 1) * ease
+			local targetK = kg * ease
+			shownL = math.max(shownL, shownL + (targetL - shownL) * rng:NextNumber(0.05, 0.55) + (if p < 1 then rng:NextNumber(0, 0.004) * luck * dt * 60 * (1 - p) else 0))
+			shownK = math.max(shownK, shownK + (targetK - shownK) * rng:NextNumber(0.05, 0.55))
+			shownL = math.min(shownL, luck)
+			shownK = math.min(shownK, kg)
+			ui.set(shownL, shownK, p)
+			ui.shake(1 + p * 7)
+			-- rolling ticks, heartbeat, building shake
+			tickT -= dt
+			if tickT <= 0 then
+				tickT = 0.11 - p * 0.08
+				Sound.play("Tick", { pitch = 0.8 + p * 1.2, volume = 0.35 + p * 0.3 })
 			end
-			-- LUCK / SIZE rolling up like RNG (random jitter that fades out as the wave reaches the head)
-			if os.clock() - lastTick > 0.05 then
-				lastTick = os.clock()
-				local noise = 1 - p
-				local shownLuck = math.max(1, (1 + (luck - 1) * (pe ^ 1.6)) * (1 + rng:NextNumber(-0.25, 0.35) * noise))
-				local shownKg = math.max(0, kg * (0.3 + 0.7 * pe) * (1 + rng:NextNumber(-0.15, 0.2) * noise))
-				ui.set(shownLuck, shownKg, 0, false)
+			beatT -= dt
+			if beatT <= 0 then
+				beatT = 0.8 - p * 0.55
+				Sound.play("Heartbeat", { pitch = 0.9 + p * 0.4, volume = 0.5 + p * 0.4 })
 			end
-			if os.clock() - lastShake > 0.3 then
-				lastShake = os.clock()
-				CameraController.shake(0.15 + p * 0.5, 0.15)
+			shakeT -= dt
+			if shakeT <= 0 then
+				shakeT = 0.18
+				CameraController.shake(0.05 + p * p * 0.6, 0.2)
 			end
-			-- the whole screen climbs towards the rarity colour as the wave rises
-			if os.clock() - lastGrade > 0.25 then
-				lastGrade = os.clock()
-				Cine.grade({ tint = Color3.new(1, 1, 1):Lerp(colNow, p * 0.45), saturation = 0.05 + p * 0.45, contrast = 0.2 + p * 0.15, brightness = -0.1 + p * 0.1 }, 0.25)
-				Cine.flash(0.12 + p * 0.25, Color3.fromHSV(pe * 0.85, 0.45, 1):Lerp(colNow, p * 0.6))
-			end
+			Cine.gradeSet({ saturation = -0.35 + p * 0.45, contrast = 0.3 + p * 0.1, brightness = -0.08 + p * 0.06 })
+			Cine.dark(0.35 + p * 0.3)
 			if p >= 1 then break end
 			task.wait()
 		end
-		-- the wave reached the head: everything uncovered, final luck + size
-		if c.rv then c.rv.idx = 6 end
-		if d.mult then
-			ui.stamp(("LUCK x%d!"):format(d.mult))
-			Cine.flash(0.55, Color3.fromRGB(255, 210, 50))
-			Sound.play("Transform")
-		end
-		ui.set(luck, kg, 6, true)
-		alive = false
-		shakeConn:Disconnect()
-		c.focusNow = nil
-		Cine.stress(0)
+		if current ~= c then ui.close() return end
+		-- PEAK. Everything stops for a heartbeat... then SLAM.
 		if c.rv then
 			revealAll(c.rv)
-			revealAura(c.rv)
 		end
-		ui.close()
+		ui.set(luck, kg, 1)
+		ui.lock()
+		CameraController.shake(0, 0)
+		task.wait(0.22)
+		if current ~= c then ui.close() return end
+		if c.rv then revealAura(c.rv) end
+		slam = os.clock()
 		local tier = RarityConfig.get(d.final)
 		local col = tier.textColor or tier.color
-		Cine.flash(0.6, col)
-		local r = rootOf(c.bear)
-		if r then
-			Cine.shockwave(r.Position - Vector3.new(0, r.Position.Y - 0.3, 0), col, 1 + tier.index * 0.1)
-			Fx.sparkle(r.Position, col, 12 + tier.index * 4, 18)
-		end
-		if tier.index >= 4 then Cine.rarityTint(col, 0.4 + tier.index * 0.04) end
+		if d.mult then ui.stamp(("LUCK x%d!"):format(d.mult)) end
 		Sound.play("Reveal" .. math.max(1, tier.reveal))
-		CameraController.shake(0.5 + tier.index * 0.08, 0.4)
-		-- RARITY EXPLOSION: the better the bear, the bigger (pillars, rings, lightning, bloom)
-		local gpos = if r then Vector3.new(r.Position.X, 0.3, r.Position.Z) else nil
-		if gpos then
-			local ti = tier.index
-			Cine.pillar(gpos, col, 120 + ti * 25, 5 + ti * 1.2, 1.8)
-			for i = 1, 2 + math.floor(ti / 2) do
-				task.delay(i * 0.1, function() Cine.shockwave(gpos, if i % 2 == 0 then Color3.new(1, 1, 1) else col, 1.2 + i * 0.5) end)
-			end
-			Cine.crown(gpos, col, 8 + ti * 2, 5 + ti, 20 + ti * 4)
-			Fx.blocks(gpos + Vector3.new(0, 3, 0), col, 30 + ti * 12, 30 + ti * 4, 0.45, { life = 1.6, up = 2.4, spread = 3, gravity = 40 })
-		end
-		Cine.grade({ tint = Color3.new(1, 1, 1):Lerp(col, 0.4), saturation = 0.5, contrast = 0.3, brightness = 0.05 }, 0.06)
-		task.delay(0.25, function() Cine.grade({ saturation = 0.25, contrast = 0.15, brightness = 0 }, 1.0) end)
-		-- (no more big rarity text / bottom name card: the BEAR UNLOCKED screen shows name + rarity)
-		-- the crane swoops DOWN from above into a hero shot of the full bear
-		CameraController.run(function(t)
-			local rr = rootOf(c.bear)
-			local h = headOf(c.bear)
-			if not rr then return nil, 55 end
-			local sc = c.bear:GetAttribute("Scale") or 1
-			local k = Easing.cubicOut(math.clamp(t / 1.1, 0, 1))
-			local fwd = rr.CFrame.LookVector
-			local dirv = CFrame.Angles(0, 0.5 - t * 0.2, 0):VectorToWorldSpace(fwd)
-			local p = rr.Position + dirv * (9 + t * 1.5) * sc + Vector3.new(0, (13 - 12.2 * k) * sc, 0)
-			return CFrame.lookAt(p, if h then h.Position else rr.Position), 52 + 10 * (1 - k)
-		end, 4, { smooth = 8, blendIn = 0.2 })
+		Sound.play("Growl", { pitch = bearPitch(c.bear), volume = 1.2 })
+		CameraController.shake(1.2 + tier.index * 0.1, 0.5)
+		Cine.motion(18)
+		Cine.dark(0.2)
+		-- the colour of the world comes back, warmer for the rarer bears (no light effects)
+		Cine.grade({ tint = Color3.new(1, 1, 1):Lerp(col, 0.12), saturation = 0.15 + tier.index * 0.03, contrast = 0.18, brightness = 0.02 }, 0.25)
+		local spec = BearConfig.get(d.species or "BrownBear")
+		local variant = if d.variant and d.variant ~= "Normal" then d.variant .. " " else ""
+		Cine.banner((variant .. spec.name):upper(), col, tier.name:upper())
+		task.wait(G.revealFinal - 0.4)
+		ui.close()
 	end)
 end
 
--- shots --------------------------------------------------------------------------
-local function fishPosOf(c)
-	return if c.fish and c.fish.PrimaryPart and c.fish.Parent then c.fish.PrimaryPart.Position else c.landing
-end
-
-local function dirToDen(c)
-	local v = Vector3.new(c.den.X - c.landing.X, 0, c.den.Z - c.landing.Z)
-	return if v.Magnitude > 0.1 then v.Unit else Vector3.new(0, 0, -1)
-end
-
--- ALERT: something growls in the forest, the camera pushes in on the fish
-local function alertShot()
-	local c = current
-	local toDen = dirToDen(c)
-	local side = Vector3.new(-toDen.Z, 0, toDen.X)
-	CameraController.run(function(t)
-		local fp = fishPosOf(c)
-		local k = Easing.cubicOut(math.clamp(t / 0.8, 0, 1))
-		local p = fp - toDen * (7 - 3 * k) + side * (3.5 - 1.5 * k) + Vector3.new(0, 1.4 - 0.5 * k, 0)
-		return CFrame.lookAt(p, fp + Vector3.new(0, 0.3, 0)), 56 - 16 * k
-	end, 60, { smooth = 9, blendIn = 0.35 })
-	CameraController.punch(-5)
-	CameraController.shake(0.4, 0.3)
-	Cine.grade({ tint = Color3.fromRGB(235, 175, 175), saturation = -0.2, contrast = 0.2, brightness = -0.07 }, 0.7)
-	local hd, rt = headOf(c.bear), rootOf(c.bear)
-	if hd and rt then
-		local sc = c.bear:GetAttribute("Scale") or 1
-		c.eyes = Cine.eyes(hd.Position + rt.CFrame.LookVector * 1.2 * sc + Vector3.new(0, 0.3 * sc, 0), rt.CFrame.RightVector, sc)
-	end
-	if c.fish and c.fish.PrimaryPart then
-		Cine.pop(c.fish.PrimaryPart, "!", Color3.fromRGB(255, 225, 50), 130, 1.1)
-	end
-end
-
--- RUN: the camera never leaves the fish. You only hear and feel the unseen bear: footsteps,
--- dust clouds on its path, ground shaking harder and harder, FOV tightening, heartbeat.
-local function runShot()
-	local c = current
-	local toDen = dirToDen(c)
-	local side = Vector3.new(-toDen.Z, 0, toDen.X)
-	local stepT, beatT = 0, 0.5
-	local startDist
-	Cine.speedLines(false)
-	if c.eyes then c.eyes.destroy() c.eyes = nil end
-	CameraController.run(function(t, dt)
-		local r = rootOf(c.bear)
-		local fp = fishPosOf(c)
-		if not r then return nil, 60 end
-		local sc = c.bear:GetAttribute("Scale") or 1
-		local dist = (Vector3.new(r.Position.X, 0, r.Position.Z) - Vector3.new(fp.X, 0, fp.Z)).Magnitude
-		startDist = startDist or math.max(dist, 8)
-		local near = 1 - math.clamp(dist / startDist, 0, 1) -- 0 far .. 1 on top of the fish
-		stepT += dt
-		if stepT > 0.26 / math.max(0.8, (c.bear:GetAttribute("Gait") or 1)) then
-			stepT = 0
-			Sound.play("Footstep", { at = r.Position, pitch = 0.8 / sc, volume = 0.5 + near * 0.8 })
-			Fx.dust(r.Position - Vector3.new(0, r.Position.Y - 0.2, 0), 0.5 * sc)
-			CameraController.shake((0.08 + near * 0.55) * sc, 0.12)
-			local ground = Vector3.new(r.Position.X, 0.25, r.Position.Z)
-			Fx.ring(ground, Color3.fromRGB(70, 50, 45), 0.6, (3 + near * 3) * sc, 0.45, { transparency = 0.45 })
-			if near > 0.35 then
-				-- the ground jumps around the fish with every step
-				Fx.blocks(fp, Color3.fromRGB(140, 110, 80), 3, 5 + near * 6, 0.22, { life = 0.6, up = 1.6, spread = 1.5, gravity = 40 })
-			end
-		end
-		if c.shadow then c.shadow.set(r.Position, (3 + near * 5) * sc, 0.15 + near * 0.55) end
-		Cine.gradeSet({ brightness = -0.07 - near * 0.12, contrast = 0.2 + near * 0.15, saturation = -0.2 - near * 0.2 })
-		beatT -= dt
-		if beatT <= 0 then
-			beatT = 0.9 - near * 0.55
-			Sound.play("Heartbeat", { pitch = 0.85 + near * 0.4, volume = 0.5 + near * 0.4 })
-		end
-		Cine.stress(near * 0.6)
-		local p = fp - toDen * (4 - 1.2 * near) + side * (2 - 1.2 * near) + Vector3.new(0, 1.0 - 0.3 * near, 0)
-		local tremble = Vector3.new(math.sin(t * 40), math.sin(t * 53), 0) * 0.03 * near
-		return CFrame.lookAt(p + tremble, fp + toDen * (1.5 + 3 * (1 - near)) + Vector3.new(0, 0.5, 0)), 52 - 14 * near
-	end, 60, { smooth = 10, blendIn = 0.3 })
-end
-
--- THE FISH GETS TAKEN, SEEN FROM BEHIND (the bear stays invisible, you only see the fish yanked up),
--- then CUT to a close-up of the bear's mouth: the fish goes in, you see teeth, mouth and tongue,
--- then it CHOMPS and chews.
-local MOUTH_PARTS = { MouthInside = true, Tongue = true, TongueTip = true }
-local function isMouthPart(p: BasePart): boolean
-	return MOUTH_PARTS[p.Name] == true or p.Name:sub(1, 5) == "Tooth"
-end
-
--- close-up: the head is shown in its real colours (teeth, tongue, inside of the mouth all visible);
--- it is hidden again (black silhouette) right before the reveal
-local function showMouth(c, on: boolean)
-	local rv = c.rv
-	local parts = rv and rv.groups and rv.groups.Head
-	if not parts then return end
-	for _, d in parts do
-		if d.Parent then
-			d.LocalTransparencyModifier = if on then 0 else 1
-			local sv = rv.saved[d]
-			if sv then
-				d.Color = if on then sv[1] else SHADOW
-				d.Material = if on then sv[2] else Enum.Material.SmoothPlastic
-			end
-		end
-	end
-end
-
-local function eatSequence(d)
-	local c = current
-	local tl = d.tl
-	local start = d.start
-	local G = GameConfig.Capture
-	local tCut = tl.eat + 0.7 -- cut: "fish taken from behind" -> "mouth close-up"
-	local tChomp = tl.eat + 1.0 -- jaw snaps shut (matches the Eat animation)
-	local tHide = tl.total - 0.15 -- back to the full silhouette before the reveal
-	local bitten, swallowed, mouthShown, hidden = false, false, false, false
-	local nextChew = 0
-	local sniffed = false
-	local groundPos = nil
-	local lastCF, lastFov = nil, 50
-	local freezeUntil = 0
-	Cine.speedLines(false)
-	Cine.letterbox(true)
-	Cine.stress(0)
-	Cine.grade({ tint = Color3.new(1, 1, 1), brightness = -0.04, contrast = 0.1, saturation = -0.05 }, 0.4)
-	local function shot()
-		local now = workspace:GetServerTimeNow()
-		local t = now - start
-		local r = rootOf(c.bear)
-		local h = headOf(c.bear)
-		if not r or not h then return nil, 55 end
-		local fwd = r.CFrame.LookVector
-		local right = r.CFrame.RightVector
-		local up = Vector3.new(0, 1, 0)
-		local sc = c.bear:GetAttribute("Scale") or 1
-		local mouthAtt = h:FindFirstChild("MouthAtt")
-		local mouth = if mouthAtt then (mouthAtt :: Attachment).WorldPosition else h.Position
-		local fishPos = (c.fish and c.fish.PrimaryPart and c.fish.Parent) and c.fish.PrimaryPart.Position or mouth
-		if not groundPos then groundPos = fishPos end
-		local te = t - tl.eat
-
-		if t < tCut then
-			-- SHOT 1: low, BEHIND the fish. The bear is invisible: the fish is simply yanked up and out of frame.
-			if t > tl.sniff and not sniffed then
-				sniffed = true
-				Sound.play("Sniff", { at = mouth })
-			end
-			local k = Easing.sineInOut(math.clamp(t / tCut, 0, 1))
-			local p = groundPos + fwd * (8.5 - 3 * k) * sc + right * 1.1 * sc + up * (0.8 + 0.3 * k) * sc
-			return CFrame.lookAt(p, fishPos + up * 0.3 * sc), 54 - 8 * k
-		end
-
-		-- SHOT 2: mouth close-up (teeth, mouth, tongue, the fish going in, CHOMP, chewing)
-		if not mouthShown then
-			mouthShown = true
-			showMouth(c, true)
-			CameraController.punch(-5)
-			CameraController.shake(0.5, 0.2)
-		end
-		if not bitten and t >= tChomp then
-			bitten = true
-			Sound.play("Chomp", { at = mouth, pitch = bearPitch(c.bear) })
-			CameraController.shake(1.2, 0.3)
-			CameraController.punch(-10)
-			freezeUntil = os.clock() + 0.1 -- hit-stop on the bite
-			Cine.flash(0.5, Color3.new(1, 1, 1)) -- (soft flash, see CinematicFx)
-			Cine.shockwave(Vector3.new(mouth.X, 0.3, mouth.Z), Color3.fromRGB(255, 70, 50), 1.1)
-			Cine.ringFacing(mouth, fwd, Color3.fromRGB(255, 120, 60), 0.8, 9, 0.5, 0.4)
-			for i = 1, 2 do
-				local rv = Vector3.new(math.random() - 0.5, math.random() * 0.8, math.random() - 0.5).Unit
-				task.delay(i * 0.03, function() Cine.bolt(mouth, mouth + rv * (3 + math.random() * 3), Color3.fromRGB(255, 160, 80), 0.2, 0.3) end)
-			end
-			Cine.slam("CHOMP!", Color3.fromRGB(255, 140, 40), 110, 0.9)
-			Fx.blocks(mouth, Color3.fromRGB(255, 70, 70), 10, 9, 0.2, { life = 0.6, up = 1.2 })
-			nextChew = te + 0.3
-		end
-		if bitten and te >= nextChew and te < G.swallowAt + 0.3 then
-			nextChew = te + 0.3
-			Cine.pop(h, if math.random() < 0.5 then "NOM!" else "nom", Color3.new(1, 1, 1), 90, 0.7)
-			Fx.blocks(mouth, Color3.fromRGB(255, 190, 170), 3, 6, 0.18, { life = 0.5, up = 1 })
-			CameraController.punch(-1.5)
-			CameraController.shake(0.3, 0.1)
-		end
-		if not swallowed and te > G.swallowAt then
-			swallowed = true
-			Fx.blocks(mouth, Color3.fromRGB(255, 160, 140), 12, 9, 0.22, { life = 0.6, up = 1.2 })
-			Cine.slam("GULP!", Color3.fromRGB(255, 255, 255), 90, 0.8)
-			Cine.flash(0.4, Color3.new(1, 1, 1))
-			Cine.shockwave(Vector3.new(mouth.X, 0.3, mouth.Z), Color3.fromRGB(255, 200, 180), 1.4)
-			CameraController.shake(1.0, 0.3)
-			Sound.play("Chomp", { at = mouth, pitch = bearPitch(c.bear) * 1.2, volume = 0.7 })
-			CameraController.punch(-4)
-		end
-		if not hidden and t >= tHide then
-			hidden = true
-			showMouth(c, false) -- full black silhouette again: the reveal pops it in
-		end
-		-- the camera sits in front of the face (flattened so it never dips into the ground) and creeps in
-		local hl = h.CFrame.LookVector
-		local flat = Vector3.new(hl.X, 0, hl.Z)
-		flat = if flat.Magnitude > 0.05 then flat.Unit else fwd
-		local hr = Vector3.new(-flat.Z, 0, flat.X)
-		local k = Easing.sineOut(math.clamp((t - tCut) / 1.0, 0, 1))
-		local p = mouth + flat * (4.4 - 1.0 * k) * sc + hr * 1.2 * sc + up * 1.1 * sc
-		p = Vector3.new(p.X, math.max(p.Y, 0.9), p.Z)
-		return CFrame.lookAt(p, mouth + up * 0.15 * sc), 46 - 6 * k
-	end
-	CameraController.run(function()
-		if os.clock() < freezeUntil and lastCF then return lastCF, lastFov end
-		local cf, fov = shot()
-		if cf then
-			if c.shadow then
-				local fp0 = (c.fish and c.fish.PrimaryPart and c.fish.Parent) and c.fish.PrimaryPart.Position or cf.Position
-				c.shadow.set(fp0, 8 * (c.bear:GetAttribute("Scale") or 1), 0.7)
-			end
-			lastCF, lastFov = cf, fov
-		end
-		return cf, fov
-	end, tl.total + 1.5, { smooth = 11, blendIn = 0.3 })
-end
-
--- after the reveal: the bear is happy, hero orbit rising around it, flash, then into your arms
+-- 4) FINALE: the happy bear, the camera pulls back and circles up, then it pops into your arms
 local function happyShot(d)
 	local c = current
 	if not c then return end
-	local tier = rarityOf(c.bear)
-	local col = tier.textColor or tier.color
-	local happy, shocked, transformed = false, false, false
+	c.mode = "happy"
+	Cine.dof(nil, 0)
 	local total = d.duration
 	local tHappy = GameConfig.Capture.happy
+	local happy, transformed = false, false
 	CameraController.run(function(t)
 		local r = rootOf(c.bear)
 		local h = headOf(c.bear)
@@ -750,33 +635,27 @@ local function happyShot(d)
 			if not happy then
 				happy = true
 				Sound.play("Happy", { at = h.Position, pitch = bearPitch(c.bear) })
-				Cine.pop(h, "♥", Color3.fromRGB(255, 90, 130), 120, 1.2)
-				Cine.hearts(h.Position + up * 1.5, 8)
+				Cine.hearts(h.Position + up * 1.5, 6)
 			end
 			local k = Easing.cubicOut(math.clamp(t / tHappy, 0, 1))
-			local p = r.Position + fwd * (9 + 6 * k) * sc + up * (3 + 4 * k) * sc + r.CFrame.RightVector * 2 * sc
-			return CFrame.lookAt(p, r.Position + up * sc), 54
+			local p = r.Position + fwd * (8 + 6 * k) * sc + up * (1.5 + 3.5 * k) * sc + r.CFrame.RightVector * 2.5 * sc
+			return CFrame.lookAt(p, r.Position + up * sc), 50 + 6 * k
 		end
 		local k = math.clamp((t - tHappy) / math.max(0.1, total - tHappy), 0, 1)
 		if not transformed then
 			transformed = true
-			Sound.play("Transform")
+			Sound.play("Transform", { volume = 0.6 })
+			Cine.motion(10)
 		end
-		local ang = Easing.cubicInOut(k) * math.pi * 2
-		local radius = (13 - 4 * k) * sc
+		local ang = Easing.cubicInOut(k) * math.pi
 		local dirv = CFrame.Angles(0, ang, 0):VectorToWorldSpace(fwd)
-		local p = r.Position + dirv * radius + up * (3 + 5 * k) * sc
-		if k > 0.8 and not shocked then
-			shocked = true
-			Cine.shockwave(r.Position - Vector3.new(0, r.Position.Y - 0.3, 0), col, sc)
-			if tier.index >= 4 then Cine.rarityTint(col, 0.6) end
-		end
-		if k > 0.6 and not c.gradeCleared then
+		local p = r.Position + dirv * (14 - 3 * k) * sc + up * (3 + 5 * k) * sc
+		if k > 0.5 and not c.gradeCleared then
 			c.gradeCleared = true
-			Cine.gradeOff(1.2)
+			Cine.gradeOff(1.0)
 		end
-		return CFrame.lookAt(p, r.Position + up * sc), 56 + 12 * k
-	end, total + 1.5, { smooth = 10, blendIn = 0.3 })
+		return CFrame.lookAt(p, r.Position + up * sc), 56 + 10 * k
+	end, total + 1.5, { smooth = 9, blendIn = 0.3 })
 end
 
 -- return HUD ----------------------------------------------------------------------
@@ -862,16 +741,18 @@ end
 local function onFx(phase: string, d)
 	if phase == "Spawned" then
 		current = { bear = d.bear, fish = d.fish, landing = d.landing, den = d.den }
-		establishShot()
+		povStart()
+		if d.canSkip then
+			Cine.skipButton(function() Net.event("SkipCapture"):FireServer() end)
+		end
 	elseif phase == "Alert" and current then
-		alertShot()
-		Sound.play("Growl", { at = rootOf(current.bear) and rootOf(current.bear).Position, pitch = bearPitch(current.bear) })
+		povAlert()
 	elseif phase == "Run" and current then
-		runShot()
-	elseif phase == "Reveal" and current then
-		revealSequence(d)
+		-- nothing to show: the bear is only heard (the POV camera handles everything)
 	elseif phase == "Eat" and current then
 		eatSequence(d)
+	elseif phase == "Reveal" and current then
+		revealSequence(d)
 	elseif phase == "Happy" and current then
 		happyShot(d)
 	elseif phase == "Controlling" then
@@ -888,11 +769,15 @@ local function onFx(phase: string, d)
 		stopControlling()
 	elseif phase == "Captured" then
 		-- poof where the bear was, then it pops into your arms
+		if current and current.bear then setBearHidden(current.bear, false) end
+		if current and current.rv then revealAll(current.rv) revealAura(current.rv) end
+		if current and current.fish then setPartsHidden(bearParts(current.fish), false) end
 		current = nil
+		Cine.resetAll()
+		Cine.resetEaten()
 		Cine.letterbox(false)
 		if d.from then
 			Fx.puff(d.from + Vector3.new(0, 3, 0), Color3.new(1, 1, 1), 22, 5)
-			Fx.sparkle(d.from + Vector3.new(0, 3, 0), Color3.fromRGB(255, 230, 120), 18, 20)
 		end
 		CameraController.stop()
 		task.delay(0.35, function()
@@ -915,10 +800,10 @@ local function onFx(phase: string, d)
 			end
 		end)
 	elseif phase == "Failed" then
-		if current and current.shadow then current.shadow.destroy() current.shadow = nil end
-		if current and current.eyes then current.eyes.destroy() current.eyes = nil end
-		Cine.gradeOff(0.5)
+		Cine.resetAll()
+		Cine.resetEaten()
 		if current and current.bear then setBearHidden(current.bear, false) end
+		if current and current.fish then setPartsHidden(bearParts(current.fish), false) end
 		if current and current.rv then revealAll(current.rv) revealAura(current.rv) end
 		current = nil
 		Cine.eyelids(false)
