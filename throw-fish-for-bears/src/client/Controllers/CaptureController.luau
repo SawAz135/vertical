@@ -28,6 +28,7 @@ local Sound = require(script.Parent.Sound)
 local Actions = require(script.Parent.Actions)
 local CameraController = require(script.Parent.CameraController)
 local Cine = require(script.Parent.CinematicFx)
+local Clock = require(script.Parent.Clock)
 local Animator = require(script.Parent.AnimalAnimator)
 local TweenService = game:GetService("TweenService")
 local Sim = require(script.Parent.Parent.UI.Sim)
@@ -410,7 +411,7 @@ local function eatSequence(d)
 	--  S4 chomp   : the lens is SUCKED into the mouth -> hit-stop -> black
 	CameraController.run(function(t, dt)
 		if os.clock() < freezeUntil and lastCF then return lastCF, lastFov end
-		local now = workspace:GetServerTimeNow() - start
+		local now = Clock.now() - start
 		local h = headOf(c.bear)
 		local r = rootOf(c.bear)
 		if not h or not r then return lastCF, lastFov end
@@ -420,9 +421,10 @@ local function eatSequence(d)
 		local mouth = if mouthAtt then (mouthAtt :: Attachment).WorldPosition else h.Position
 		local panicT = os.clock()
 		-- the fish's eyes: wide open in terror, trembling (no more heavy tunnel: we SEE the bear)
-		Cine.setLids(if now > tChomp then 0 else (0.93 + math.sin(panicT * 30) * 0.05))
+		Cine.setLids(if now > tChomp then 0 else (0.94 + math.sin(panicT * 6) * 0.03))
 		Cine.dark(0.42)
-		local tremble = Vector3.new(math.noise(panicT * 30, 1), math.noise(panicT * 30, 2), math.noise(panicT * 30, 3)) * 0.08 * sc
+		-- slow handheld sway (a fast per-frame noise read as stutter)
+		local tremble = Vector3.new(math.noise(panicT * 3.5, 1), math.noise(panicT * 3.5, 2), math.noise(panicT * 3.5, 3)) * 0.14 * sc
 		if now >= 0 then
 			once("show", function()
 				showWhole(c)
@@ -451,7 +453,6 @@ local function eatSequence(d)
 			if now >= at then
 				once("boop" .. i, function()
 					Sound.play("Flop", { pitch = 0.8, volume = 1.2 })
-					freezeUntil = os.clock() + 0.06 -- tiny hit-stop on the jab
 					Fx.blocks(ground, Color3.fromRGB(120, 95, 70), 10, 9 * sc, 0.25 * sc, { life = 0.7, up = 1.4, spread = 2, gravity = 60,
 						colors = { Color3.fromRGB(120, 95, 70), Color3.fromRGB(80, 150, 55), Color3.fromRGB(95, 74, 52) } })
 					Sound.play("Sniff", { at = mouth, pitch = 0.5, volume = 1.4 })
@@ -772,8 +773,8 @@ local function revealSequence(d)
 		if i == shotIdx then return end
 		shotIdx = i
 		if i > 1 then
-			Cine.motion(16)
-			CameraController.punch(6)
+			Cine.motion(10)
+			CameraController.punch(3)
 			Sound.play("Throw", { pitch = 1.2 + i * 0.12, volume = 0.55 })
 		end
 	end
@@ -846,7 +847,7 @@ local function revealSequence(d)
 		-- 4) SPIRAL around the head, accelerating, crash zoom
 		cut(4)
 		local k = (pT - 0.7) / 0.3
-		spin += dt * (1.2 + k * k * 7)
+		spin += dt * (0.5 + 2.2 * k * k)
 		local dirv = CFrame.Angles(0, spin, 0):VectorToWorldSpace(fwd)
 		local p = face + dirv * (bl * 1.3 + 2.5 * sc) * (1 - 0.3 * k) + UP * (-span * 0.25 + span * 0.15 * k)
 		p = Vector3.new(p.X, math.max(p.Y, groundY + 0.6), p.Z)

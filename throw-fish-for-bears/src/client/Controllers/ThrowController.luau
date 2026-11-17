@@ -17,6 +17,7 @@ local Sound = require(script.Parent.Sound)
 local Actions = require(script.Parent.Actions)
 local CameraController = require(script.Parent.CameraController)
 local HumanPose = require(script.Parent.HumanPose)
+local Clock = require(script.Parent.Clock)
 local Cine = require(script.Parent.CinematicFx)
 local Layout = require(Shared.Layout)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
@@ -336,7 +337,7 @@ function Throw.init()
 		Net.event("ChargeStart"):FireServer()
 		charging = { t0 = os.clock() }
 		HumanPose.localPose = "ThrowCharge"
-		HumanPose.localPoseT = workspace:GetServerTimeNow()
+		HumanPose.localPoseT = Clock.now()
 		Sound.play("Charge")
 		local maxed = false
 		local lastRing, lastTone = 0, 0
@@ -382,7 +383,7 @@ function Throw.init()
 		Cine.grade({ tint = Color3.new(1, 1, 1), saturation = 0, contrast = 0 }, 0.2)
 		Cine.dark(0)
 		HumanPose.localPose = "Throw"
-		HumanPose.localPoseT = workspace:GetServerTimeNow()
+		HumanPose.localPoseT = Clock.now()
 		task.delay(1.65, function()
 			if HumanPose.localPose == "Throw" then HumanPose.localPose = nil end
 		end)

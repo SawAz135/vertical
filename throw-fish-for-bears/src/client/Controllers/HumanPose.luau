@@ -12,6 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Easing = require(ReplicatedStorage.Shared.Util.Easing)
 local FishBuilder = require(ReplicatedStorage.Shared.Models.FishBuilder)
 local E = require(ReplicatedStorage.Shared.Config.EconomyConfig)
+local Clock = require(script.Parent.Clock)
 
 local HumanPose = {}
 local rigs = {}
@@ -374,8 +375,8 @@ end
 -- spring feel per pose: { speed, damping }. Lower damping = more cartoon overshoot / wobble.
 local SPRING = {
 	default = { 20, 0.62 },
-	Throw = { 30, 0.42 },
-	ThrowCharge = { 17, 0.5 },
+	Throw = { 24, 0.62 },
+	ThrowCharge = { 15, 0.7 },
 	Lift = { 22, 0.5 },
 }
 
@@ -385,7 +386,7 @@ local LEGS = { Cast = true, Bite = true, Reel = true, Catch = true, ThrowCharge 
 function HumanPose.init()
 	RunService.PreSimulation:Connect(function(dt)
 		dt = math.min(dt, 0.1)
-		local now = workspace:GetServerTimeNow()
+		local now = Clock.now()
 		local me = Players.LocalPlayer.Character
 		for _, player in Players:GetPlayers() do
 			local char = player.Character

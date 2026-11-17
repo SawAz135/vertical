@@ -14,6 +14,7 @@ local Easing = require(ReplicatedStorage.Shared.Util.Easing)
 local FishConfig = require(ReplicatedStorage.Shared.Config.FishConfig)
 local BearConfig = require(ReplicatedStorage.Shared.Config.BearConfig)
 local Fx = require(script.Parent.Fx)
+local Clock = require(script.Parent.Clock)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
 local Animator = {}
@@ -516,7 +517,7 @@ end
 
 local PLANTED = { Sniff = true, Eat = true, Reveal = true, Happy = true, Transform = true, Alert = true, Arrive = true, Look = true }
 -- states driven by a bouncy spring: { speed, damping }
-local SPRINGY = { Alert = { 22, 0.45 }, Eat = { 26, 0.5 }, Happy = { 20, 0.42 }, Reveal = { 18, 0.4 }, Transform = { 18, 0.45 } }
+local SPRINGY = { Alert = { 16, 0.78 }, Eat = { 17, 0.8 }, Happy = { 15, 0.74 }, Reveal = { 13, 0.8 }, Transform = { 14, 0.8 }, Sniff = { 15, 0.82 }, Arrive = { 12, 0.9 } }
 local AXES = { "x", "y", "z", "px", "py", "pz" }
 
 local function updateBear(e, dt, now)
@@ -834,7 +835,7 @@ function Animator.init()
 	RunService.PreSimulation:Connect(function(dt)
 		frame += 1
 		dt = math.min(dt, 0.1)
-		local now = workspace:GetServerTimeNow()
+		local now = Clock.now()
 		local camPos = camera.CFrame.Position
 		for model, e in bears do
 			local root = e.root

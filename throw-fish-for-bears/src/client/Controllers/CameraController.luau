@@ -68,8 +68,10 @@ function Camera.shake(amount: number, duration: number)
 	shakeT = math.max(shakeT, duration)
 end
 
+local kickTarget = 0
 function Camera.punch(deltaFov: number)
-	fovKick += deltaFov
+	-- the lens kick is SMOOTHED (no instant FOV jump): it eases in fast, then drifts back
+	kickTarget += deltaFov
 end
 
 function Camera.init()
@@ -78,12 +80,18 @@ function Camera.init()
 		local shakeOffset = CFrame.identity
 		if shakeT > 0 then
 			shakeT -= dt
-			local a = shakeAmp * math.clamp(shakeT * 3, 0, 1)
-			local n = os.clock() * 28
-			shakeOffset = CFrame.Angles(math.noise(n, 0) * a * 0.03, math.noise(0, n) * a * 0.03, math.noise(n, n) * a * 0.015)
+			local a = shakeAmp * Easing.sineInOut(math.clamp(shakeT * 2.5, 0, 1))
+			-- cinematic shake: a big slow sway + a little fine grain (no high-frequency buzz)
+			local t = os.clock()
+			local lo, hi = t * 7, t * 17
+			shakeOffset = CFrame.Angles(
+				(math.noise(lo, 0.3) * 0.8 + math.noise(hi, 4.1) * 0.2) * a * 0.03,
+				(math.noise(0.7, lo) * 0.8 + math.noise(5.2, hi) * 0.2) * a * 0.03,
+				math.noise(lo, lo) * a * 0.012)
 			if shakeT <= 0 then shakeAmp = 0 end
 		end
-		fovKick *= math.exp(-dt * 6)
+		fovKick += (kickTarget - fovKick) * Easing.damp(16, dt)
+		kickTarget *= math.exp(-dt * 4.5)
 		if active then
 			local a = active
 			a.t += dt

@@ -25,6 +25,7 @@ local Sound = require(script.Parent.Sound)
 local Actions = require(script.Parent.Actions)
 local CameraController = require(script.Parent.CameraController)
 local HumanPose = require(script.Parent.HumanPose)
+local Clock = require(script.Parent.Clock)
 
 local Fishing = {}
 local sessions = {} -- [player] = session
@@ -165,7 +166,7 @@ local function onFx(player: Player, phase: string, data)
 	if phase == "Cast" then
 		if isLocal then
 			HumanPose.localPose = "Cast"
-			HumanPose.localPoseT = workspace:GetServerTimeNow()
+			HumanPose.localPoseT = Clock.now()
 			task.delay(1.35, function()
 				if HumanPose.localPose == "Cast" then HumanPose.localPose = nil end
 			end)

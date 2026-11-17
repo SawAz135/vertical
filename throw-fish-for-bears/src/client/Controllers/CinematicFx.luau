@@ -569,10 +569,10 @@ function Cine.motion(size: number)
 		motion.Size = 0
 		motion.Parent = workspace.CurrentCamera
 	end
-	motion.Size = math.max(motion.Size, size)
+	motion.Size = math.max(motion.Size, math.min(size * 0.45, 9))
 	if not motionConn then
 		motionConn = RunService.RenderStepped:Connect(function(dt)
-			motion.Size = math.max(0, motion.Size - dt * 30)
+			motion.Size = math.max(0, motion.Size - dt * 40)
 			if motion.Size <= 0 then
 				motionConn:Disconnect()
 				motionConn = nil
