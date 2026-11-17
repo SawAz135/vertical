@@ -295,7 +295,7 @@ STATES.Eat = function(p, e, t, s)
 	local sway = sin(t * 2.2) * 0.05 * slow
 	-- head: down -> flung way up -> lowers slightly to catch -> slammed down -> level
 	rot(p, "Neck", -0.85 * dive + 1.55 * toss - 0.35 * waitK - 0.95 * chomp + 0.6 * settle + sway, sway * 0.6)
-	pos(p, "Neck", 0, (-0.3 * dive + 0.4 * toss - 0.1 * wait - 0.3 * chomp + 0.3 * settle) * s,
+	pos(p, "Neck", 0, (-0.3 * dive + 0.4 * toss - 0.1 * waitK - 0.3 * chomp + 0.3 * settle) * s,
 		(-0.4 * dive + 0.25 * toss - 0.45 * chomp + 0.6 * settle) * s)
 	-- body: leans in, rears with the toss (stays up while waiting), squashes on the chomp
 	rot(p, "BodyJoint", -0.12 * dive + 0.42 * toss - 0.1 * waitK - 0.4 * chomp + 0.2 * settle + sway * 0.4)
@@ -337,7 +337,7 @@ end
 STATES.Reveal = function(p, e, t, s)
 	local G = GameConfig.Capture
 	local T = G.revealLimb * 6
-	local peak = T + 0.22
+	local peak = T + 0.38 -- freeze (0.2) + cut to black (0.16) on the client
 	if t < peak then
 		local k = clamp(t / T, 0, 1)
 		local kk = k * k

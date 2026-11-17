@@ -556,7 +556,7 @@ end
 local function buildCounters()
 	local g = Sim.new("ScreenGui", { Name = "TFBRevealCounters", ResetOnSpawn = false, DisplayOrder = 13, IgnoreGuiInset = true,
 		ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
-	local root = Sim.root(g, "Counters", Vector2.new(560, 120), UDim2.new(0.5, 0, 0, 12), Vector2.new(0.5, 0))
+	local root = Sim.root(g, "Counters", Vector2.new(560, 196), UDim2.new(0.5, 0, 0, 12), Vector2.new(0.5, 0))
 	local inner = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, root)
 	local pop = Sim.new("UIScale", { Scale = 0 }, inner)
 	TweenService:Create(pop, TweenInfo.new(0.4, Enum.EasingStyle.Back), { Scale = 1 }):Play()
@@ -569,7 +569,12 @@ local function buildCounters()
 	end
 	local luckB, luckV, luckS = box(10, "🍀 LUCK", Sim.G.green)
 	local sizeB, sizeV, sizeS = box(290, "⚖️ SIZE", Sim.G.blue)
-	local stamp = Sim.text(g, "", { Size = UDim2.fromOffset(460, 70), Position = UDim2.new(0.5, 0, 0, 180), Max = 60, Stroke = 5, ZIndex = 9,
+	-- casino RARITY ticker: climbs tier by tier (never down) and lands on the final rarity
+	local rarB = Sim.panel(inner, { Size = UDim2.fromOffset(540, 70), Position = UDim2.fromOffset(10, 114), Gradient = Sim.G.purple or Sim.G.blue, Stroke = 4, ZIndex = 4, Clip = true })
+	Sim.bands(rarB, 0.6, 5)
+	local rarV = Sim.text(rarB, "", { Size = UDim2.fromOffset(520, 52), Position = UDim2.fromOffset(270, 35), Max = 46, Stroke = 4.5, ZIndex = 7 })
+	local rarS = Sim.new("UIScale", {}, rarV)
+	local stamp = Sim.text(g, "", { Size = UDim2.fromOffset(460, 70), Position = UDim2.new(0.5, 0, 0, 250), Max = 60, Stroke = 5, ZIndex = 9,
 		Gradient = { Color3.fromRGB(255, 255, 200), Color3.fromRGB(255, 190, 20) } })
 	local ss = Sim.new("UIScale", { Scale = 0 }, stamp)
 	local ui = {}
@@ -584,10 +589,26 @@ local function buildCounters()
 		luckS.Scale = sc
 		sizeS.Scale = sc
 	end
+	-- rarity ticker step (pop + colour); returns true when it changed
+	local lastRar = nil
+	function ui.rarity(id: string)
+		if id == lastRar then return false end
+		lastRar = id
+		local tier = RarityConfig.get(id)
+		rarV.Text = tier.name:upper()
+		rarV.TextColor3 = tier.textColor or tier.color
+		rarB.BackgroundColor3 = (tier.color):Lerp(Color3.new(0, 0, 0), 0.35)
+		local grad = rarB:FindFirstChildOfClass("UIGradient")
+		if grad then grad.Color = ColorSequence.new((tier.color):Lerp(Color3.new(1, 1, 1), 0.25), (tier.color):Lerp(Color3.new(0, 0, 0), 0.4)) end
+		rarS.Scale = 1.45
+		TweenService:Create(rarS, TweenInfo.new(0.22, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+		return true
+	end
 	function ui.shake(amount: number)
 		local t = os.clock()
 		inner.Position = UDim2.fromOffset(math.noise(t * 22, 1) * amount * 2, math.noise(t * 22, 2) * amount * 2)
 		luckB.Rotation = math.noise(t * 9, 3) * amount * 0.5
+		rarB.Rotation = math.noise(t * 9, 5) * amount * 0.35
 		sizeB.Rotation = math.noise(t * 9, 4) * amount * 0.5
 	end
 	function ui.lock()
@@ -595,7 +616,9 @@ local function buildCounters()
 			s2.Scale = 1.5
 			TweenService:Create(s2, TweenInfo.new(0.35, Enum.EasingStyle.Back), { Scale = 1.1 }):Play()
 		end
-		luckB.Rotation, sizeB.Rotation = 0, 0
+		luckB.Rotation, sizeB.Rotation, rarB.Rotation = 0, 0, 0
+		rarS.Scale = 1.7
+		TweenService:Create(rarS, TweenInfo.new(0.4, Enum.EasingStyle.Back), { Scale = 1.15 }):Play()
 		inner.Position = UDim2.new()
 	end
 	function ui.stamp(text: string)
@@ -633,6 +656,7 @@ local function revealSequence(d)
 			end
 		end
 	end
+	if c.tossCopy and c.tossCopy.Parent then c.tossCopy:Destroy() end
 	setBearHidden(c.bear, false)
 	if c.fish then setPartsHidden(bearParts(c.fish), false) end
 	Cine.eyelids(false)
@@ -643,7 +667,9 @@ local function revealSequence(d)
 	local T = G.revealLimb * 6
 	local ui = buildCounters()
 	local luck, kg = d.luck or 1, d.weight or 0
+	local finalIdx = RarityConfig.index(d.final or "Common")
 	ui.set(1, 0, 0)
+	ui.rarity("Common")
 	-- sweep list: every part bottom -> top
 	local list, minY, maxY = {}, math.huge, -math.huge
 	if c.rv then
@@ -657,40 +683,105 @@ local function revealSequence(d)
 			end
 		end
 	end
+	if #list == 0 then
+		local rr0 = rootOf(c.bear)
+		minY = if rr0 then rr0.Position.Y - 2 else 0
+		maxY = minY + 4
+	end
 	table.sort(list, function(a, b) return a.y < b.y end)
 	local span = math.max(maxY - minY, 0.5)
 	local progress = 0
+	local slam = nil -- set when the reveal finishes: the slam / roar shots take over
+	local shotIdx = 0
 	local spin = 0
-	local slam = nil -- set when the reveal finishes: the slam-zoom shot takes over
+	local UP = Vector3.new(0, 1, 0)
+	-- a CUT between two shots: whip blur, whoosh, lens kick
+	local function cut(i: number)
+		if i == shotIdx then return end
+		shotIdx = i
+		if i > 1 then
+			Cine.motion(16)
+			CameraController.punch(6)
+			Sound.play("Throw", { pitch = 1.2 + i * 0.12, volume = 0.55 })
+		end
+	end
+	-- THE SHOTS follow the colour climbing the body:
+	--  1 paws   : macro at ground level, shallow focus, the colour spreading over the claws
+	--  2 flank  : side tracking shot along the body at belly height, tail -> head
+	--  3 shoulder: crane rising behind, over the shoulder, the head still black
+	--  4 spiral : spiral around the head from below, tighter and FASTER, crash zoom, shaking
+	--  peak     : freeze... cut to BLACK, silence... SLAM on the face: the bear rears up ROARING,
+	--             crashes down (ground stomp, earth flying), slow heroic orbit with the name
 	CameraController.run(function(t, dt)
 		local rr = rootOf(c.bear)
 		local h = headOf(c.bear)
 		if not rr then return nil, 55 end
 		local sc = c.bear:GetAttribute("Scale") or 1
+		local bl = math.max(c.bear:GetAttribute("BodyLength") or 6 * sc, 4)
 		local fwd = rr.CFrame.LookVector
+		fwd = Vector3.new(fwd.X, 0, fwd.Z)
+		fwd = if fwd.Magnitude > 0.05 then fwd.Unit else Vector3.new(0, 0, -1)
+		local side = Vector3.new(-fwd.Z, 0, fwd.X)
+		local face = if h then h.Position else rr.Position + UP * span * 0.6
+		local center = Vector3.new(rr.Position.X, minY + span * 0.45, rr.Position.Z)
+		local groundY = minY - 0.2
 		if slam then
-			-- SLAM: low hero angle right in front of the face, lens punching in
-			local k = Easing.expoOut(math.clamp((os.clock() - slam) / 0.35, 0, 1))
-			local side = rr.CFrame.RightVector
-			local face = if h then h.Position else rr.Position
-			local p = face + fwd * (9 - 4.5 * k) * sc + side * 1.6 * sc + Vector3.new(0, -0.8 * sc, 0)
-			p = Vector3.new(p.X, math.max(p.Y, 1), p.Z)
-			Cine.dof((p - face).Magnitude, 0.6)
-			return CFrame.lookAt(p, face + Vector3.new(0, 0.4 * sc, 0)), 70 - 32 * k
+			local st = os.clock() - slam
+			if st < 1.15 then
+				-- SLAM + ROAR: crash-zoom to a low hero angle under the face, looking UP as it rears
+				local k = Easing.expoOut(math.clamp(st / 0.3, 0, 1))
+				local p = face + fwd * (9.5 - 4 * k) * sc + side * 1.8 * sc + UP * (-1.6 * k) * sc
+				p = Vector3.new(p.X, math.max(p.Y, groundY + 0.6), p.Z)
+				Cine.dof((p - face).Magnitude, 0.55)
+				return CFrame.lookAt(p, face + UP * 0.3 * sc), 72 - 30 * k
+			end
+			-- heroic orbit: slow, low, the bear proud in the middle, name on screen
+			local k = Easing.sineInOut(math.clamp((st - 1.15) / 2.2, 0, 1))
+			local ang = -0.35 + k * 1.1
+			local dirv = CFrame.Angles(0, ang, 0):VectorToWorldSpace(fwd)
+			local p = center + dirv * bl * (1.25 + 0.25 * k) + UP * (0.2 + 1.4 * k) * sc
+			p = Vector3.new(p.X, math.max(p.Y, groundY + 0.6), p.Z)
+			Cine.dof((p - center).Magnitude, 0.3)
+			return CFrame.lookAt(p, center:Lerp(face, 0.45)), 50 + 4 * k
 		end
-		-- crane: very high and straight down, spiralling lower and faster as the colours climb
-		local pe = progress
-		spin += dt * (0.25 + pe * pe * 2.6)
-		local focusY = minY + span * pe
-		local focus = Vector3.new(rr.Position.X, focusY, rr.Position.Z)
+		local pT = math.clamp(t / T, 0, 1)
+		if pT < 0.22 then
+			-- 1) PAWS
+			cut(1)
+			local k = pT / 0.22
+			local paw = rr.Position + fwd * bl * 0.3
+			paw = Vector3.new(paw.X, minY + span * 0.12, paw.Z)
+			local p = Vector3.new(paw.X, groundY + 0.5 * sc, paw.Z) + fwd * bl * 0.55 + side * bl * (0.55 - 0.9 * k)
+			Cine.dof((p - paw).Magnitude, 0.75)
+			return CFrame.lookAt(p, paw), 40 + 4 * k
+		elseif pT < 0.45 then
+			-- 2) FLANK tracking
+			cut(2)
+			local k = (pT - 0.22) / 0.23
+			local yb = minY + span * (0.25 + 0.3 * k)
+			local p = Vector3.new(center.X, yb, center.Z) + side * bl * 1.05 + fwd * bl * (-0.55 + 1.0 * k)
+			local look = Vector3.new(center.X, yb, center.Z) + fwd * bl * (-0.35 + 0.8 * k)
+			Cine.dof((p - look).Magnitude, 0.5)
+			return CFrame.lookAt(p, look), 50
+		elseif pT < 0.7 then
+			-- 3) OVER THE SHOULDER crane
+			cut(3)
+			local k = (pT - 0.45) / 0.25
+			local p = center - fwd * bl * (0.95 - 0.2 * k) - side * bl * 0.45 + UP * (span * 0.9 + (1.5 + 3 * k) * sc)
+			Cine.dof((p - face).Magnitude, 0.4)
+			return CFrame.lookAt(p, face:Lerp(center, 0.3)), 56 - 4 * k
+		end
+		-- 4) SPIRAL around the head, accelerating, crash zoom
+		cut(4)
+		local k = (pT - 0.7) / 0.3
+		spin += dt * (1.2 + k * k * 7)
 		local dirv = CFrame.Angles(0, spin, 0):VectorToWorldSpace(fwd)
-		local height = (30 - 22 * Easing.sineIn(pe)) * sc
-		local radius = (5 + 6 * pe) * sc
-		local p = focus + dirv * radius + Vector3.new(0, height, 0)
-		Cine.dof((p - focus).Magnitude, 0.35 + pe * 0.4)
-		if pe > 0.5 then Cine.motion(pe * 6) end
-		return CFrame.lookAt(p, focus), 60 - 16 * pe
-	end, d.duration + 0.6, { smooth = 5, blendIn = 0.2 })
+		local p = face + dirv * bl * (1.0 - 0.45 * k) + UP * (-span * 0.35 + span * 0.15 * k)
+		p = Vector3.new(p.X, math.max(p.Y, groundY + 0.6), p.Z)
+		Cine.dof((p - face).Magnitude, 0.45 + 0.3 * k)
+		Cine.motion(2 + k * 8)
+		return CFrame.lookAt(p, face), 62 - 26 * k * k
+	end, d.duration + 0.8, { smooth = 8, blendIn = 0.2 })
 	task.spawn(function()
 		local rng = Random.new()
 		local shownL, shownK = 1, 0
@@ -698,6 +789,7 @@ local function revealSequence(d)
 		local nextPart = 1
 		local tickT, beatT, shakeT = 0, 0, 0
 		local last = os.clock()
+		local rarNow = 1
 		while current == c and c.bear.Parent do
 			local now = os.clock()
 			local dt = now - last
@@ -720,7 +812,18 @@ local function revealSequence(d)
 			shownL = math.min(shownL, luck)
 			shownK = math.min(shownK, kg)
 			ui.set(shownL, shownK, p)
-			ui.shake(1 + p * 7)
+			ui.shake(1 + p * 8)
+			-- RARITY ticker: climbs tier by tier, the last steps land late (casino slow-down)
+			local want = math.clamp(1 + math.floor((finalIdx - 1) * (p ^ 1.35) + 0.0001), 1, finalIdx)
+			if p < 0.97 then want = math.min(want, math.max(1, finalIdx - 1)) end -- the last tier waits for the peak
+			if want > rarNow then
+				rarNow = want
+				if ui.rarity(RarityConfig.Order[rarNow]) then
+					Sound.play("Tick", { pitch = 0.9 + rarNow * 0.12, volume = 0.9 })
+					Sound.play("Reveal1", { pitch = 0.7 + rarNow * 0.08, volume = 0.5 })
+					CameraController.shake(0.3 + rarNow * 0.06, 0.2)
+				end
+			end
 			-- rolling ticks, heartbeat, building shake
 			tickT -= dt
 			if tickT <= 0 then
@@ -729,44 +832,66 @@ local function revealSequence(d)
 			end
 			beatT -= dt
 			if beatT <= 0 then
-				beatT = 0.8 - p * 0.55
-				Sound.play("Heartbeat", { pitch = 0.9 + p * 0.4, volume = 0.5 + p * 0.4 })
+				beatT = 0.8 - p * 0.58
+				Sound.play("Heartbeat", { pitch = 0.9 + p * 0.45, volume = 0.5 + p * 0.5 })
 			end
 			shakeT -= dt
 			if shakeT <= 0 then
 				shakeT = 0.18
-				CameraController.shake(0.05 + p * p * 0.6, 0.2)
+				CameraController.shake(0.05 + p * p * 0.7, 0.2)
 			end
-			Cine.gradeSet({ saturation = -0.35 + p * 0.45, contrast = 0.3 + p * 0.1, brightness = -0.08 + p * 0.06 })
-			Cine.dark(0.35 + p * 0.3)
+			Cine.gradeSet({ saturation = -0.35 + p * 0.45, contrast = 0.3 + p * 0.12, brightness = -0.08 + p * 0.06 })
+			Cine.dark(0.35 + p * 0.35)
 			if p >= 1 then break end
 			task.wait()
 		end
 		if current ~= c then ui.close() return end
-		-- PEAK. Everything stops for a heartbeat... then SLAM.
-		if c.rv then
-			revealAll(c.rv)
-		end
+		-- PEAK. Everything freezes... CUT TO BLACK, total silence... then SLAM.
+		if c.rv then revealAll(c.rv) end
 		ui.set(luck, kg, 1)
+		ui.rarity(d.final or "Common")
 		ui.lock()
 		CameraController.shake(0, 0)
-		task.wait(0.22)
+		Sound.play("Heartbeat", { pitch = 0.45, volume = 1.2 })
+		task.wait(0.2)
 		if current ~= c then ui.close() return end
+		Cine.blackout(true, 0.03)
+		task.wait(0.16)
+		if current ~= c then ui.close() return end
+		Cine.blackout(false, 0)
 		if c.rv then revealAura(c.rv) end
 		slam = os.clock()
 		local tier = RarityConfig.get(d.final)
 		local col = tier.textColor or tier.color
 		if d.mult then ui.stamp(("LUCK x%d!"):format(d.mult)) end
 		Sound.play("Reveal" .. math.max(1, tier.reveal))
-		Sound.play("Growl", { pitch = bearPitch(c.bear), volume = 1.2 })
-		CameraController.shake(1.2 + tier.index * 0.1, 0.5)
-		Cine.motion(18)
+		Sound.play("Growl", { pitch = bearPitch(c.bear) * 0.85, volume = 1.5 })
+		Sound.play("Transform", { volume = 0.8 })
+		CameraController.shake(1.4 + tier.index * 0.12, 0.6)
+		CameraController.punch(-12)
+		Cine.motion(22)
 		Cine.dark(0.2)
 		-- the colour of the world comes back, warmer for the rarer bears (no light effects)
-		Cine.grade({ tint = Color3.new(1, 1, 1):Lerp(col, 0.12), saturation = 0.15 + tier.index * 0.03, contrast = 0.18, brightness = 0.02 }, 0.25)
+		Cine.grade({ tint = Color3.new(1, 1, 1):Lerp(col, 0.12), saturation = 0.15 + tier.index * 0.03, contrast = 0.2, brightness = 0.02 }, 0.25)
 		local spec = BearConfig.get(d.species or "BrownBear")
 		local variant = if d.variant and d.variant ~= "Normal" then d.variant .. " " else ""
 		Cine.banner((variant .. spec.name):upper(), col, tier.name:upper())
+		-- the bear crashes back down from its roar: ground STOMP, earth and grass flying
+		task.delay(1.11, function()
+			if current ~= c or not c.bear.Parent then return end
+			local rr = rootOf(c.bear)
+			if not rr then return end
+			local sc = c.bear:GetAttribute("Scale") or 1
+			local at = Vector3.new(rr.Position.X, minY, rr.Position.Z) + rr.CFrame.LookVector * 1.2 * sc
+			CameraController.shake(1.6 + tier.index * 0.1, 0.5)
+			CameraController.punch(-6)
+			Cine.motion(12)
+			Sound.play("Land", { pitch = 0.45, volume = 1.4 })
+			Sound.play("Lift", { pitch = 0.5, volume = 0.8 })
+			Fx.dust(at, 2.2 * sc)
+			Fx.blocks(at + Vector3.new(0, 0.5, 0), Color3.fromRGB(120, 95, 70), 22, 16 * sc, 0.4, { life = 1.1, up = 1.8, spread = 3, gravity = 70,
+				colors = { Color3.fromRGB(120, 95, 70), Color3.fromRGB(95, 74, 52), Color3.fromRGB(80, 150, 55), Color3.fromRGB(65, 125, 45) } })
+		end)
 		task.wait(G.revealFinal - 0.4)
 		ui.close()
 	end)
