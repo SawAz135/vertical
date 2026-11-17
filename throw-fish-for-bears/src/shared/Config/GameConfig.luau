@@ -41,7 +41,8 @@ return {
 		maxSpeedTolerance = 1.7, -- anti teleport (x max legal speed)
 		arrivalHappy = 0.7,
 		-- the rarity reveal (bear frozen in front of the fish): roulette spin, then optional luck climb
-		revealSpin = 2.8, revealStep = 0.55, revealLuck = 0.9, revealHold = 1.1,
+		-- reveal: 6 body parts uncovered one by one (luck + size counters climb), then name / rarity
+		revealLimb = 0.8, revealFinal = 2.2,
 		-- LUCK BONUS rolled by the server during the reveal: rerolls the rarity with luck x mult
 		-- and keeps the better result (only shown when it really upgrades the bear)
 		luckBonus = { { mult = 25, chance = 0.003 }, { mult = 10, chance = 0.012 }, { mult = 5, chance = 0.05 }, { mult = 2, chance = 0.14 } },

@@ -176,12 +176,14 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 			CaptureService.abort(player, "state")
 			return
 		end
-		-- 3a) RARITY REVEAL: the bear stands over the fish while the roulette spins
-		--     (base rarity first, then the luck bonus climbs it tier by tier)
-		local steps = if outcome.mult then RarityConfig.index(outcome.r) - RarityConfig.index(outcome.baseR) else 0
-		local revealDur = G.revealSpin + (if outcome.mult then G.revealLuck + steps * G.revealStep else 0) + G.revealHold
+		-- 3a) REVEAL: the bear stands over the fish; its 6 body parts are uncovered one by
+		--     one while LUCK and SIZE climb at the top of the screen, then name + rarity
+		local revealDur = G.revealLimb * 6 + G.revealFinal
 		agent:setAnim("Look")
-		fx(player, "Reveal", { start = workspace:GetServerTimeNow(), duration = revealDur, base = outcome.baseR, final = outcome.r, mult = outcome.mult, bear = agent.model })
+		fx(player, "Reveal", {
+			start = workspace:GetServerTimeNow(), duration = revealDur, final = outcome.r, mult = outcome.mult,
+			luck = c.luck * (outcome.mult or 1), weight = outcome.w, species = outcome.s, variant = outcome.v, bear = agent.model,
+		})
 		if not wait(c, revealDur) then return end
 		-- 3) eating cinematic (timeline shared with the client camera)
 		local tl = stagesTimeline()
