@@ -186,6 +186,10 @@ function FishingService.finish(player: Player, success: boolean)
 	R.PlayerData.push(player, "fish")
 	fx(player, "Catch", { bobber = s.bobber, fish = fish })
 	Net.event("CatchReveal"):FireClient(player, fish, { isNew = isNew, capped = s.capped, value = Formulas.fishValue(fish) })
+	-- rare catch: the whole server sees it (after the personal reveal has started)
+	task.delay(1.2, function()
+		if player.Parent then R.Announce.fish(player, fish) end
+	end)
 end
 
 function FishingService.stop(player: Player)

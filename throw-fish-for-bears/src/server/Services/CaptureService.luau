@@ -259,6 +259,9 @@ function CaptureService.giveToPlayer(player: Player, c)
 	data.bears[id] = record
 	data.stats.bears += 1
 	local isNew = R.IndexService.discoverBear(player, record)
+	task.delay(1.6, function()
+		if player.Parent then R.Announce.bear(player, record) end
+	end)
 	R.PlayerData.push(player, "bears")
 	R.State.set(player, "CarryingCapturedBear", true)
 	local char = player.Character
@@ -296,6 +299,9 @@ function CaptureService.complete(player: Player, c)
 	data.bears[id] = record
 	data.stats.bears += 1
 	local isNew = R.IndexService.discoverBear(player, record)
+	task.delay(1.6, function()
+		if player.Parent then R.Announce.bear(player, record) end
+	end)
 	R.PlayerData.push(player, "bears")
 	fx(player, "Arrived", { outcome = o })
 	task.wait(G.arrivalHappy)

@@ -25,6 +25,15 @@ Force : station **FISH-UP** (modèle 3D : plateforme à studs, anneau, rack d'ha
 Tiens-toi dans l'anneau = entraînement auto. L'enseigne « FISH-UP » apparaît quand tu t'approches. **Shop > Strength** augmente le gain par soulevé.
 Chaque zone affiche sa force recommandée (💪) sur son arche ; plus de force = lancer plus loin (jusqu'à ~3000 studs, zone 10).
 
+## Tutoriel et annonces
+- **Tutoriel** (style studs) : 10 étapes guidées (canne → ponton → lancer → moulinet → tenir le poisson → Throw Zone → lancer → ours → placer → FISH-UP).
+  Bulle avec bébé ours 3D, texte machine à écrire, barre de progression en studs ; flèche voxel 3D au-dessus de la cible, anneau et chemin de dalles à studs
+  (pathfinding) jusqu'à la cible, flèche au bord de l'écran avec la distance, flèche au-dessus du slot à toucher. Revient en arrière si besoin
+  (ligne cassée, lancer trop faible). Progression sauvegardée, récompense unique de $1 000, bouton X pour passer.
+- **Annonces serveur** : Legendary = bandeau ; Mythic = grand bandeau + confettis studs + colonne de lumière sur le joueur ;
+  Secret / Ultra Secret = cinématique (fond assombri, rayons, tampon « SECRET! », confettis, secousse). Variantes Diamond/Rainbow = un niveau de plus.
+  Ligne colorée dans le chat pour tout le serveur.
+
 ## Contenu
 - **10 zones** avec décor propre : forêt, pins, lac de montagne (étangs + roseaux), forêt enneigée, lac gelé (glace), bambous (lanternes, cerisiers),
   vallée de rivière (ruisseaux + ponts), montagnes rocheuses (falaises), forêt profonde (champignons géants), plage tropicale (palmiers, parasols, mer).

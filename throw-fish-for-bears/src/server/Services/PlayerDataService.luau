@@ -55,6 +55,8 @@ local function template()
 		daily = { streak = 0, last = 0 },
 		settings = { lowFx = false },
 		stats = { fish = 0, bears = 0, throws = 0 },
+		tutorial = 0, -- tutorial step reached (TUTORIAL_DONE = finished)
+		tutorialPaid = false,
 		nextId = 1,
 	}
 end

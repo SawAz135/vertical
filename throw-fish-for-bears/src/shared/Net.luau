@@ -11,11 +11,11 @@ Net.ClientToServer = {
 	ChargeStart = 4, Throw = 3, PlaceBear = 4, StoreBear = 3, PickupBear = 4,
 	TakeFromStorage = 3, PlaceBest = 2, SellFish = 4, SellBear = 4, BuyRod = 3, EquipRod = 3,
 	UpgradeCapacity = 4, BuyStrength = 6, ClaimDaily = 2, ClaimPlaytime = 4,
-	ClaimIndex = 2, SetSetting = 4, SelectFish = 8,
+	ClaimIndex = 2, SetSetting = 4, SelectFish = 8, TutorialStep = 4,
 }
 
 Net.ServerToClient = {
-	"Data", "Notify", "State", "FishingFx", "CatchReveal", "ThrowFx", "CaptureFx", "WorkoutFx", "Sfx",
+	"Data", "Notify", "State", "FishingFx", "CatchReveal", "ThrowFx", "CaptureFx", "WorkoutFx", "Sfx", "Announce",
 }
 
 local folder

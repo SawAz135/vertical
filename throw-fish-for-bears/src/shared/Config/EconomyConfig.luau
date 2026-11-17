@@ -51,6 +51,9 @@ E.Playtime = { -- session gifts (minutes) for the Rewards menu
 }
 E.PlaytimeIncomeSeconds = 20
 
+E.TutorialReward = 1_000 -- once, after the first bear is placed through the tutorial
+E.TutorialDone = 99
+
 E.IndexReward = { Fish = 250, Bears = 600 } -- per newly discovered species
 
 E.Lucky = { period = 900, duration = 180, fishLuck = 2, biteSpeed = 1.5 }

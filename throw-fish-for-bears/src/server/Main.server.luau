@@ -9,6 +9,7 @@ local StarterPlayer = game:GetService("StarterPlayer")
 local Shared = ReplicatedStorage.Shared
 local Net = require(Shared.Net)
 local Layout = require(Shared.Layout)
+local E = require(Shared.Config.EconomyConfig)
 local R = require(script.Parent.Registry)
 local S = script.Parent.Services
 
@@ -31,6 +32,7 @@ R.ShopService = require(S.ShopService)
 R.UpgradeService = require(S.UpgradeService)
 R.IndexService = require(S.IndexService)
 R.RewardService = require(S.RewardService)
+R.Announce = require(S.AnnounceService)
 
 function R.Notify(player: Player, text: string, kind: string?)
 	Net.event("Notify"):FireClient(player, text, kind or "info")
@@ -188,6 +190,22 @@ on("ClaimPlaytime", { "number" }, function(player, i)
 	R.RewardService.claimPlaytime(player, math.floor(i))
 end)
 on("ClaimIndex", { "string" }, R.IndexService.claim)
+-- tutorial progress (client drives the steps; the server only stores the furthest
+-- step and pays the one-time reward once the player really owns a bear)
+on("TutorialStep", { "number" }, function(player, step)
+	local data = R.PlayerData.get(player)
+	if not data then return end
+	step = math.clamp(math.floor(step), 0, E.TutorialDone)
+	if step <= data.tutorial then return end
+	data.tutorial = step
+	if step >= E.TutorialDone and not data.tutorialPaid and data.stats.bears >= 1 then
+		data.tutorialPaid = true
+		R.EconomyService.add(player, E.TutorialReward)
+		R.Notify(player, ("Tutorial complete! +$%d"):format(E.TutorialReward), "good")
+	end
+	R.PlayerData.push(player, "tutorial")
+end)
+
 on("SetSetting", { "string", "boolean" }, function(player, name, value)
 	local data = R.PlayerData.get(player)
 	if data and name == "lowFx" then

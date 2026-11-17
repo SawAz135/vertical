@@ -231,6 +231,11 @@ local function buildHotbar()
 	refs.hotbarRoot = root
 end
 
+-- the tutorial points at hotbar slots
+function HUD.slotButton(i: number): GuiObject?
+	return slots[i] and slots[i].button
+end
+
 local function setSlotModel(i: number, key: string?, opts)
 	local s = slots[i]
 	if iconKeys[i] == key then return end
