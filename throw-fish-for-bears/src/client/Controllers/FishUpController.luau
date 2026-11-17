@@ -8,6 +8,7 @@ local TweenService = game:GetService("TweenService")
 local Data = require(script.Parent.Data)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Layout = require(ReplicatedStorage.Shared.Layout)
+local Net = require(ReplicatedStorage.Shared.Net)
 local FishUpConfig = require(ReplicatedStorage.Shared.Config.FishUpConfig)
 local Easing = require(ReplicatedStorage.Shared.Util.Easing)
 local CameraController = require(script.Parent.CameraController)
@@ -72,7 +73,7 @@ local function infoText(s): string
 	end
 	local gain = Data.values.strengthGain or 1
 	if player:GetAttribute("Training") then
-		return ('<font color="#FFD23F">LIFTING!</font>  +%d 💪 / lift'):format(gain)
+		return ('<font color="#FFD23F">+%d 💪</font> / lift  ·  <font color="#7CFF46">JUMP</font> to leave'):format(gain)
 	end
 	return ('Stand here: <font color="#7CFF46">+%d 💪</font> / lift'):format(gain)
 end
@@ -222,6 +223,10 @@ function FishUp.init(Sim)
 		map.DescendantAdded:Connect(scan)
 	end)
 
+	-- JUMP = the only way off the mat (the server locks you in the centre while lifting)
+	game:GetService("UserInputService").JumpRequest:Connect(function()
+		if player:GetAttribute("Training") then Net.event("LeaveTraining"):FireServer() end
+	end)
 	player:GetAttributeChangedSignal("Training"):Connect(function()
 		if player:GetAttribute("Training") then startTraining() else stopTraining() end
 	end)

@@ -21,11 +21,55 @@ local function restPose(char: Model)
 	char:SetAttribute("Pose", if holding == "Rod" then "RodIdle" elseif holding == "Fish" then "HoldFish" elseif holding == "Bear" then "CarryBear" else "")
 end
 
-local function stop(player: Player)
+-- while training the character is locked in the middle of the mat (fixed spot, fixed
+-- animation); a JUMP is the only way out. After a jump the station does not grab you
+-- again until you have walked out of the ring.
+local locked: { [Player]: any } = {}
+local blocked: { [Player]: boolean } = {}
+
+local function unlock(player: Player)
+	local l = locked[player]
+	locked[player] = nil
+	if not l then return end
+	if l.conn then l.conn:Disconnect() end
+	if l.hum and l.hum.Parent then
+		l.hum.WalkSpeed = l.walk
+		l.hum.AutoRotate = true
+	end
+end
+
+local function stop(player: Player, jumped: boolean?)
 	training[player] = nil
+	unlock(player)
+	if jumped then blocked[player] = true end
 	local char = player.Character
 	if char and char:GetAttribute("Pose") == "Lift" then restPose(char) end
 	player:SetAttribute("Training", false)
+end
+
+local function lock(player: Player, char: Model, base: number)
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hum or not root then return end
+	unlock(player)
+	local c = Layout.trainPos(base)
+	-- stand in the centre of the ring, facing the front of the map
+	local at = Vector3.new(c.X, root.Position.Y, c.Z)
+	char:PivotTo(CFrame.lookAt(at, at + Vector3.new(0, 0, -1)))
+	root.AssemblyLinearVelocity = Vector3.zero
+	local l = { hum = hum, walk = if hum.WalkSpeed > 0 then hum.WalkSpeed else 20 }
+	hum.WalkSpeed = 0
+	hum.AutoRotate = false
+	l.conn = hum.StateChanged:Connect(function(_, new)
+		if new == Enum.HumanoidStateType.Jumping and training[player] then
+			stop(player, true)
+		end
+	end)
+	locked[player] = l
+end
+
+function Upgrade.leaveTraining(player: Player)
+	if training[player] then stop(player, true) end
 end
 
 local function rep(player: Player)
@@ -42,8 +86,9 @@ task.spawn(function()
 			local base = R.BaseService.get(player)
 			local char = player.Character
 			local root = char and char:FindFirstChild("HumanoidRootPart")
-			local ok = base and root and not char:GetAttribute("IsBear") and R.State.is(player, "Idle")
-				and Layout.isInTraining(base, root.Position)
+			local inRing = base and root and Layout.isInTraining(base, root.Position)
+			if blocked[player] and not inRing then blocked[player] = nil end
+			local ok = inRing and not blocked[player] and not char:GetAttribute("IsBear") and R.State.is(player, "Idle")
 			if ok then
 				local now = os.clock()
 				if not training[player] then
@@ -52,6 +97,7 @@ task.spawn(function()
 						R.EquipService.clear(player)
 					end
 					training[player] = now
+					lock(player, char, base)
 					player:SetAttribute("Training", true)
 					char:SetAttribute("Pose", "Lift")
 					char:SetAttribute("PoseT", workspace:GetServerTimeNow())
@@ -66,7 +112,11 @@ task.spawn(function()
 	end
 end)
 
-Players.PlayerRemoving:Connect(function(p) training[p] = nil end)
+Players.PlayerRemoving:Connect(function(p)
+	training[p] = nil
+	locked[p] = nil
+	blocked[p] = nil
+end)
 
 -- shop: the gain per lift goes +1 -> +2 -> +3 ...
 function Upgrade.buyStrength(player: Player)
