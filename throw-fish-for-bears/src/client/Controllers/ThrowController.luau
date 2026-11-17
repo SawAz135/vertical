@@ -71,6 +71,24 @@ local function onThrow(player: Player, d)
 	local dir = d.to - d.from
 	local yaw = math.atan2(-dir.X, -dir.Z)
 	local handStart: Vector3? = nil
+	-- SMOOTH CLOCK: GetServerTimeNow() wobbles a little every frame (time sync), which made the
+	-- 200-400 studs/s fish stutter. Lock the offset once and run on the steady local clock.
+	local clockOffset = workspace:GetServerTimeNow() - os.clock()
+	local function sNow(): number
+		return os.clock() + clockOffset
+	end
+	-- the ONE place the flying fish's position is computed: the fish model AND the camera use it
+	-- for the same instant, so the camera is never a frame behind the fish
+	local function flightAt(now: number): (Vector3, number, number)
+		local u = math.clamp((now - d.t0) / d.flight, 0, 1)
+		local w = warp(u)
+		local p = Formulas.arc(d.from, d.to, d.apex, w)
+		if handStart then
+			local k = 1 - math.clamp(w / 0.1, 0, 1)
+			p += (handStart - d.from) * (k * k)
+		end
+		return p, u, w
+	end
 	if isLocal then
 		Sound.play("Throw")
 		Throw.Flight:Fire(d)
@@ -102,8 +120,8 @@ local function onThrow(player: Player, d)
 		Cine.letterbox(true)
 		Cine.grade({ tint = Color3.fromRGB(255, 248, 238), saturation = 0.1, contrast = 0.18 }, 0.2)
 		local function shot(t, dt)
-			local now = workspace:GetServerTimeNow()
-			local fp = model.Parent and model.PrimaryPart.Position or d.to
+			local now = sNow()
+			local fp = if now < startT then d.from else (flightAt(now))
 			if now < startT then
 				-- A) wind-up
 				if not root then return nil, 60 end
@@ -155,9 +173,9 @@ local function onThrow(player: Player, d)
 				end
 				local k = (u - 0.16) / 0.39
 				local p = fp - travel * (6 + 7 * Easing.sineOut(k)) + Vector3.new(0, 1.6 + 2.2 * k, 0) + side * (1.6 - 1.2 * k)
-				Cine.motion(3 + 4 * math.sin(k * math.pi))
-				CameraController.shake(0.12 + 0.2 * math.sin(k * math.pi), 0.06)
-				return CFrame.lookAt(p, fp + travel * (10 + d.power * 6)), 78 + 18 * math.sin(k * math.pi)
+				-- smooth wind buffeting (low-frequency noise, NOT a random shake every frame)
+				local buffet = Vector3.new(math.noise(t * 3, 1.7), math.noise(t * 3, 4.2), 0) * 0.25 * math.sin(k * math.pi)
+				return CFrame.lookAt(p + buffet, fp + travel * (10 + d.power * 6)), 78 + 18 * math.sin(k * math.pi)
 			elseif u < 0.8 then
 				-- E) drone: high above, the fish crossing the corridor, the zones under it
 				if not droned then
@@ -227,7 +245,7 @@ local function onThrow(player: Player, d)
 				offs = nil
 				return guard(cf, fov)
 			end
-			local fpNow = if model.Parent then model.PrimaryPart.Position else d.to
+			local fpNow = flightAt(sNow())
 			if not offs then
 				offs = lastCF.Position - fpNow
 				lookv = lastCF.LookVector
@@ -244,11 +262,14 @@ local function onThrow(player: Player, d)
 
 	-- the flying fish: re-timed by the speed ramp, twisting like a live fish (body bends,
 	-- tumbles, tail lashes), a few water drops at the start
-	local conn
 	local dropAcc = 0
-	conn = RunService.RenderStepped:Connect(function(dt)
-		if not model.Parent then conn:Disconnect() return end
-		local now = workspace:GetServerTimeNow()
+	local bindName = "TFBThrowFish" .. tostring(math.random(1, 1e9))
+	local function unbind()
+		pcall(function() RunService:UnbindFromRenderStep(bindName) end)
+	end
+	RunService:BindToRenderStep(bindName, Enum.RenderPriority.Camera.Value - 1, function(dt)
+		if not model.Parent then unbind() return end
+		local now = sNow()
 		if now < d.t0 then
 			local char = player.Character
 			local hand = char and (char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm"))
@@ -258,16 +279,10 @@ local function onThrow(player: Player, d)
 			end
 			return
 		end
-		local u = math.clamp((now - d.t0) / d.flight, 0, 1)
-		local w = warp(u)
-		local p = Formulas.arc(d.from, d.to, d.apex, w)
-		if handStart then
-			local k = 1 - math.clamp(w / 0.1, 0, 1)
-			p += (handStart - d.from) * (k * k)
-		end
+		local p, u, w = flightAt(now)
 		-- orientation: nose follows the arc, slow tumble + wriggle (the body animation comes
 		-- from the "Thrown" fish anim: tail lashes, spine bends)
-		local p2 = Formulas.arc(d.from, d.to, d.apex, math.min(1, w + 0.01))
+		local p2 = Formulas.arc(d.from, d.to, d.apex, math.min(1, w + 0.01)) + (p - Formulas.arc(d.from, d.to, d.apex, w))
 		local vel = p2 - p
 		local base = if vel.Magnitude > 1e-3 then CFrame.lookAt(p, p + vel) else CFrame.new(p) * CFrame.Angles(0, yaw, 0)
 		local tumble = w * (2.5 + d.power * 3) * math.pi
@@ -280,7 +295,7 @@ local function onThrow(player: Player, d)
 			end
 		end
 		if u >= 1 then
-			conn:Disconnect()
+			unbind()
 			Fx.dust(d.to, 1.4)
 			Sound.play("Land", { at = d.to })
 			if d.ok then

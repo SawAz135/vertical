@@ -354,23 +354,34 @@ local function eatSequence(d)
 		end
 		if now >= tl.sniff + 0.45 then once("sniff2", function() Sound.play("Sniff", { at = mouth, pitch = 0.55, volume = 1.2 }) end) end
 		local cf, fov
+		-- direction from the muzzle back toward where the fish lay (flattened): the camera stays
+		-- on this side, far enough to see the whole muzzle, the head and a bit of the body
+		local hfwd = h.CFrame.LookVector
+		local flat = Vector3.new(hfwd.X, 0, hfwd.Z)
+		flat = if flat.Magnitude > 0.05 then flat.Unit else r.CFrame.LookVector
 		if now < tl.eat + G.pickupAt then
-			-- looking UP at the huge dark muzzle coming down, the jaws opening
+			-- from the ground, looking UP at the dark head coming down, jaws opening
 			local k = Easing.sineInOut(math.clamp((now - tl.sniff) / (tl.eat + G.pickupAt - tl.sniff), 0, 1))
-			cf = CFrame.lookAt(ground + tremble, mouth + Vector3.new(0, 0.3 * sc, 0))
-			fov = 72 - 14 * k
+			local eye = ground + flat * (1.8 + 1.2 * (1 - k)) * sc
+			local target = mouth:Lerp(h.Position, 0.45)
+			cf = CFrame.lookAt(eye + tremble, target)
+			fov = 80 - 8 * k
 		else
-			-- lifted INTO the mouth: the view rides with the fish, teeth all around, palate above
+			-- the fish is lifted toward the mouth: just in front of the jaws, the whole muzzle,
+			-- teeth and tongue in frame, the head and shoulders behind; at the CHOMP the view
+			-- is yanked in and goes black
 			once("lift", function()
 				CameraController.shake(1.0, 0.3)
-				Cine.motion(16)
+				Cine.motion(12)
 				Sound.play("Splash", { volume = 0.4, pitch = 1.5 })
 			end)
-			local up = h.CFrame.UpVector
-			local fwd = h.CFrame.LookVector
-			local inMouth = mouth - fwd * 0.15 * sc - up * 0.12 * sc
-			cf = CFrame.lookAt(inMouth + tremble * 0.5, inMouth + up * 1.2 + fwd * 0.6)
-			fov = 95
+			local te = now - (tl.eat + G.pickupAt)
+			local pull = Easing.cubicIn(math.clamp((now - (tChomp - 0.25)) / 0.25, 0, 1)) -- last instant: sucked in
+			local dist = (3.6 - 0.5 * math.clamp(te / 0.6, 0, 1) - 2.2 * pull) * sc
+			local eye = mouth + flat * dist + Vector3.new(0, -0.5 * sc, 0)
+			eye = Vector3.new(eye.X, math.max(eye.Y, 0.8), eye.Z)
+			cf = CFrame.lookAt(eye + tremble * 0.6, mouth:Lerp(h.Position, 0.3))
+			fov = 72 - 10 * pull
 			if now >= tChomp then
 				once("chomp", function()
 					Sound.play("Chomp", { at = mouth, pitch = bearPitch(c.bear) * 0.85, volume = 1.4 })
