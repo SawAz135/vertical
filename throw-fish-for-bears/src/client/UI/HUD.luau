@@ -454,10 +454,18 @@ function HUD.throwDistance(d)
 	local my = throwToken
 	local old = gui:FindFirstChild("ThrowDistance")
 	if old then old:Destroy() end
-	local root = Sim.root(gui, "ThrowDistance", Vector2.new(320, 90), UDim2.new(0.5, 0, 1, -226), Vector2.new(0.5, 1))
-	local pop = new("UIScale", { Scale = 0.6 }, root)
+	-- at the very top of the screen; the title steps aside while the counter is shown
+	local root = Sim.root(gui, "ThrowDistance", Vector2.new(320, 90), UDim2.new(0.5, 0, 0, 2), Vector2.new(0.5, 0))
+	local title = gui:FindFirstChild("Title")
+	if title then title.Visible = false end
+	local function restoreTitle()
+		if my == throwToken and title then title.Visible = true end
+	end
+	-- inner box: the root already has its responsive WindowScale (one UIScale per object)
+	local box = new("Frame", { Name = "Box", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, root)
+	local pop = new("UIScale", { Scale = 0.6 }, box)
 	tween(pop, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
-	local label = Sim.text(root, "0 m", { Size = UDim2.fromOffset(300, 44), Position = UDim2.fromOffset(160, 24), Max = 38, Stroke = 3.5,
+	local label = Sim.text(box, "0 m", { Size = UDim2.fromOffset(300, 44), Position = UDim2.fromOffset(160, 24), Max = 38, Stroke = 3.5,
 		Gradient = { RGB(255, 255, 255), RGB(150, 220, 255) }, ZIndex = 5 })
 	local total = d.dist * STUD_M
 	local conn
@@ -471,14 +479,14 @@ function HUD.throwDistance(d)
 			pop.Scale = 1.15
 			tween(pop, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
 			if d.record then
-				local pill = Sim.infoBar(root, '<font color="#FFD23F">NEW RECORD!</font>', { Size = UDim2.fromOffset(180, 28), Position = UDim2.fromOffset(160, 68), Max = 20, ZIndex = 4 })
+				local pill = Sim.infoBar(box, '<font color="#FFD23F">NEW RECORD!</font>', { Size = UDim2.fromOffset(180, 28), Position = UDim2.fromOffset(160, 68), Max = 20, ZIndex = 4 })
 				local ps = new("UIScale", { Scale = 0 }, pill)
 				tween(ps, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 				local grad = label:FindFirstChildOfClass("UIGradient")
 				if grad then grad.Color = ColorSequence.new(RGB(255, 250, 200), RGB(255, 200, 40)) end
 				Sound.play("Reveal1")
 			elseif (d.best or 0) > 0 then
-				Sim.text(root, ("Best %d m"):format(math.floor(math.max(d.best, if d.ok then d.dist else 0) * STUD_M + 0.5)), { Size = UDim2.fromOffset(160, 22), Position = UDim2.fromOffset(160, 66), Max = 18, Stroke = 2.5,
+				Sim.text(box, ("Best %d m"):format(math.floor(math.max(d.best, if d.ok then d.dist else 0) * STUD_M + 0.5)), { Size = UDim2.fromOffset(160, 22), Position = UDim2.fromOffset(160, 66), Max = 18, Stroke = 2.5,
 					Color = RGB(220, 230, 240), ZIndex = 4 })
 			end
 			task.delay(if d.record then 3 else 2.2, function()
@@ -486,6 +494,7 @@ function HUD.throwDistance(d)
 				tween(pop, 0.25, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 				task.wait(0.3)
 				if root.Parent then root:Destroy() end
+				restoreTitle()
 			end)
 		end
 	end)

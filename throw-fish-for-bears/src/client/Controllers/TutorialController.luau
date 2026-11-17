@@ -182,13 +182,15 @@ local function buildUI(gui: ScreenGui)
 	local r = Sim.root(gui, "Tutorial", Vector2.new(600, 150), UDim2.new(0.5, 0, 0, 112), Vector2.new(0.5, 0))
 	r.Visible = false
 	ui.root = r
-	ui.pop = Sim.new("UIScale", { Name = "Pop", Scale = 1 }, r)
-	local panel = Sim.panel(r, { Size = UDim2.fromOffset(580, 108), Position = UDim2.fromOffset(10, 26), Gradient = Sim.G.blue, Stroke = 4, ZIndex = 3 })
+	-- inner frame carries the pop scale (the root already has its WindowScale)
+	local inner = Sim.new("Frame", { Name = "Inner", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, r)
+	ui.pop = Sim.new("UIScale", { Name = "Pop", Scale = 1 }, inner)
+	local panel = Sim.panel(inner, { Size = UDim2.fromOffset(580, 108), Position = UDim2.fromOffset(10, 26), Gradient = Sim.G.blue, Stroke = 4, ZIndex = 3 })
 	Sim.bands(panel, 0.6, 4)
 	panel.ClipsDescendants = true
 	ui.panel = panel
 	-- tab
-	local tab = Sim.panel(r, { Size = UDim2.fromOffset(220, 36), Position = UDim2.fromOffset(28, 6), Gradient = Sim.G.orange, ZIndex = 6 })
+	local tab = Sim.panel(inner, { Size = UDim2.fromOffset(220, 36), Position = UDim2.fromOffset(28, 6), Gradient = Sim.G.orange, ZIndex = 6 })
 	ui.tab = Sim.text(tab, "TUTORIAL", { Size = UDim2.new(1, -14, 0.8, 0), Max = 22, ZIndex = 7 })
 	-- mascot (3D Baby Bear) in a dark studded box
 	local box = Sim.panel(panel, { Size = UDim2.fromOffset(88, 88), Position = UDim2.fromOffset(10, 10), Color = RGB(36, 60, 110), DarkStuds = true, ZIndex = 5 })
@@ -199,7 +201,7 @@ local function buildUI(gui: ScreenGui)
 	ui.text = Sim.text(panel, "", { Size = UDim2.fromOffset(440, 80), Position = UDim2.fromOffset(330, 54), Max = 28, Rich = true, Wrap = true, ZIndex = 7,
 		AlignX = Enum.TextXAlignment.Left })
 	-- skip
-	Sim.button(r, { Name = "Skip", Grad = "red", Size = Vector2.new(40, 40), Position = UDim2.fromOffset(584, 30), Text = "X", Max = 24, ZIndex = 9 }, function()
+	Sim.button(inner, { Name = "Skip", Grad = "red", Size = Vector2.new(40, 40), Position = UDim2.fromOffset(584, 30), Text = "X", Max = 24, ZIndex = 9 }, function()
 		Menus.confirm("Skip the tutorial?", function()
 			Tutorial.finish(true)
 		end)
