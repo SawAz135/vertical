@@ -219,10 +219,13 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 		if not wait(c, G.eat - G.swallowAt) then return end
 		-- 4) REVEAL: seen from above, the 6 body parts are uncovered one by one while LUCK
 		--    and SIZE climb, then name + rarity
-		local revealDur = G.revealLimb * 6 + G.revealFinal
+		local mut = if outcome.v and outcome.v ~= "Normal" then G.revealMutation else 0
+		local stages = { rarity = G.revealRarity, mutation = mut, luck = G.revealLuck, kg = G.revealKg, final = G.revealFinal }
+		local revealDur = G.revealRarity + mut + G.revealLuck + G.revealKg + G.revealFinal
+		agent.model:SetAttribute("RevealMut", mut)
 		agent:setAnim("Reveal")
 		fx(player, "Reveal", {
-			start = workspace:GetServerTimeNow(), duration = revealDur, final = outcome.r, mult = outcome.mult,
+			start = workspace:GetServerTimeNow(), duration = revealDur, final = outcome.r, mult = outcome.mult, stages = stages,
 			luck = c.luck * (outcome.mult or 1), weight = outcome.w, species = outcome.s, variant = outcome.v, bear = agent.model,
 		})
 		if not wait(c, revealDur) then return end

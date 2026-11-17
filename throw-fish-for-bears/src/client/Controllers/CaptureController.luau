@@ -19,6 +19,7 @@ local Net = require(Shared.Net)
 local Layout = require(Shared.Layout)
 local GameConfig = require(Shared.Config.GameConfig)
 local BearConfig = require(Shared.Config.BearConfig)
+local BearBuilder = require(Shared.Models.BearBuilder)
 local RarityConfig = require(Shared.Config.RarityConfig)
 local Easing = require(Shared.Util.Easing)
 local Format = require(Shared.Util.Format)
@@ -75,24 +76,15 @@ local GROUP_OF = { TailBone = "Torso", JawBone = "Head", EarBoneL = "Head", EarB
 local SHADOW = Color3.fromRGB(12, 10, 16)
 
 local function prepareReveal(bear: Model)
+	-- the bear keeps its REAL colours now; only its rarity effects (aura motes, lights,
+	-- variant sparkles) stay off until the reveal is over
 	local rv = { groups = {}, saved = {}, fx = {}, idx = 0, bear = bear }
 	for _, d in bear:GetDescendants() do
-		if d:IsA("BasePart") and d.Transparency < 1 then
-			local w = d:FindFirstChildOfClass("WeldConstraint")
-			local bone = if w and w.Part0 then w.Part0.Name else "Torso"
-			bone = GROUP_OF[bone] or bone
-			if not table.find(REVEAL_ORDER, bone) then bone = "Torso" end
-			rv.groups[bone] = rv.groups[bone] or {}
-			table.insert(rv.groups[bone], d)
-			rv.saved[d] = { d.Color, d.Material }
-			d.Color = SHADOW
-			d.Material = Enum.Material.SmoothPlastic
-		elseif d:IsA("ParticleEmitter") or d:IsA("PointLight") or d:IsA("Sparkles") then
+		if d:IsA("ParticleEmitter") or d:IsA("PointLight") or d:IsA("Sparkles") then
 			rv.fx[d] = d.Enabled
 			d.Enabled = false
 		end
 	end
-	bear:SetAttribute("Silhouette", true)
 	return rv
 end
 
@@ -306,28 +298,14 @@ local function showWhole(c)
 	local rv = c.rv
 	if not rv or not c.bear then return end
 	setBearHidden(c.bear, false)
-	-- keep the rarity effects / name tags off during the meal
 	for _, d in c.bear:GetDescendants() do
 		if d:IsA("BillboardGui") or d:IsA("SurfaceGui") then d.Enabled = false end
 	end
 	rv.teeth = rv.teeth or {}
 	for _, d in c.bear:GetDescendants() do
-		if d:IsA("BasePart") then
-			local sv = rv.saved[d]
-			if sv and (isMouthPart(d) or d.Name:sub(1, 8) == "EyeShine") then
-				d.Color = sv[1]
-				d.Material = sv[2]
-			end
-			if d.Name == "Eyelid" and not rv.lids then rv.lids = {} end
-			if d.Name == "Eyelid" and rv.lids[d] == nil then
-				rv.lids[d] = d.Color -- blinking / squeezed eyes stay black on the silhouette
-				d.Color = SHADOW
-			end
-			if d.Name:sub(1, 5) == "Tooth" and not rv.teeth[d] then
-				rv.teeth[d] = d.Size
-				-- longer + wider fangs, grown downward/upward from the gum so they show
-				d.Size = Vector3.new(d.Size.X * 1.5, d.Size.Y * TOOTH_GROW, d.Size.Z * 1.3)
-			end
+		if d:IsA("BasePart") and d.Name:sub(1, 5) == "Tooth" and not rv.teeth[d] then
+			rv.teeth[d] = d.Size
+			d.Size = Vector3.new(d.Size.X * 1.5, d.Size.Y * TOOTH_GROW, d.Size.Z * 1.3)
 		end
 	end
 end
@@ -367,7 +345,6 @@ local function eatSequence(d)
 	local tChomp = tl.eat + G.chompAt
 	local tPick = tl.eat + G.pickupAt
 	local tApex = tl.eat + G.tossApex
-	local tPov = tApex + 0.12 -- cut INTO the fish's eyes as it starts to fall
 	-- the TOSS is played locally on a copy of the fish (smooth, frame-exact): the server fish
 	-- (welded in the mouth) is hidden for us
 	local toss = nil -- { model, start, apex, spin }
@@ -491,111 +468,66 @@ local function eatSequence(d)
 			local eye = ground + Vector3.new(0, 0.1, 0) - away * boopKick * 0.5 * sc
 			cf = CFrame.lookAt(eye + tremble, mouth:Lerp(h.Position, 0.35)) * CFrame.Angles(0, 0, boopKick * 0.25)
 			fov = 82
-		elseif now < tl.eat + G.pickupAt + 0.08 then
-			-- S2: the dive. closer and lower, more frontal: gaping jaws coming at us, body behind
-			local k = Easing.cubicOut(math.clamp((now - tl.eat) / (G.pickupAt + 0.08), 0, 1))
+		elseif now < tPick then
+			-- S2: THE BITE, from the fish's eyes on the ground: the jaws open WIDE and come
+			-- down at the lens (fangs, tongue, red mouth filling the screen)
+			local k = Easing.sineIn(math.clamp((now - tl.eat) / (tPick - tl.eat), 0, 1))
 			once("dive", function()
-				CameraController.shake(1.1, 0.3)
-				CameraController.punch(10)
-				Cine.motion(14)
+				CameraController.shake(0.8, 0.3)
+				CameraController.punch(-6)
 				Sound.play("Growl", { at = mouth, pitch = bearPitch(c.bear) * 0.7, volume = 1.4 })
 			end)
-			local eye = ground + baseFwd * (bl * 1.2 + 2.5 * sc) + baseSide * (bl * 0.6 + 1.5 * sc) + UP * 0.4 * sc
-			cf = CFrame.lookAt(eye + tremble * 1.5, mouth:Lerp(body, 0.4))
-			fov = 64
-		elseif now < tPov then
-			-- S3: THE TOSS. WIDE low angle: the bear whips its head up and flings the fish high;
-			-- the frame holds the whole rearing bear AND the fish going up
+			local eye = ground + Vector3.new(0, 0.1, 0)
+			-- look up into the mouth (slightly under the mouth point: the jaw opens downward)
+			local aim = mouth - h.CFrame.UpVector * 0.3 * sc
+			cf = CFrame.lookAt(eye + tremble, aim)
+			fov = 80 + 6 * k
+		elseif now < tChomp then
+			-- S3 + S4: WE are snatched and FLUNG into the sky. The view spins once, smoothly,
+			-- always on the bear below (head up, jaws open, waiting)... the slow fall... and
+			-- we drop straight into the open jaws, between the fangs... CHOMP
 			once("toss", function()
-				CameraController.shake(0.8, 0.25)
-				Cine.motion(8)
-				Sound.play("Throw", { pitch = 0.8, volume = 0.9 })
-				Sound.play("Growl", { at = mouth, pitch = bearPitch(c.bear) * 0.75, volume = 1.3 })
-				if c.fish and c.fish.Parent then
-					c.fish.Archivable = true
-					local copy = c.fish:Clone()
-					if copy then
-						for _, dd in copy:GetDescendants() do
-							if dd:IsA("WeldConstraint") or dd:IsA("Weld") then
-								dd:Destroy()
-							elseif dd:IsA("BasePart") then
-								dd.Anchored = true
-								dd.CanCollide = false
-								dd.CanQuery = false
-								local tr = dd:GetAttribute("TFBTr")
-								if tr ~= nil then dd.Transparency = tr dd:SetAttribute("TFBTr", nil) end
-								dd.LocalTransparencyModifier = 0
-							end
-						end
-						copy:SetAttribute("Anim", "Thrown")
-						copy:SetAttribute("FlyPanic", 1)
-						copy.Parent = Fx.folder
-						setPartsHidden(bearParts(c.fish), true)
-						toss = { model = copy, start = mouth, apex = mouth + UP * (4 + 2.5 * sc) + baseFwd * 1.2 * sc, spin = math.random() * 6 }
-						c.tossCopy = copy
-					end
-				end
-				if not toss then
-					-- no fish to copy: still fly the camera along the same path
-					toss = { start = mouth, apex = mouth + UP * (4 + 2.5 * sc) + baseFwd * 1.2 * sc, spin = 0 }
-				end
+				Sound.play("Chomp", { at = mouth, pitch = bearPitch(c.bear) * 1.2, volume = 0.9 })
+				Sound.play("Throw", { pitch = 0.75, volume = 1 })
+				CameraController.shake(1.0, 0.3)
+				toss = { start = mouth, apex = mouth + UP * (5 + 3 * sc) + baseFwd * 1.4 * sc }
 			end)
 			local look = h.CFrame.LookVector
 			local fp = tossPos(now, mouth, look, sc) or mouth
-			if toss and toss.model and toss.model.Parent then
-				local w = now - tPick
-				toss.model:PivotTo(CFrame.new(fp) * CFrame.Angles(toss.spin + w * 7, w * 4, w * 9))
-			end
-			local k = Easing.sineInOut(math.clamp((now - tPick) / (tPov - tPick), 0, 1))
-			local eye = feet + baseFwd * (bl * 1.5 + 4 * sc) + baseSide * (bl * 1.1 + 3 * sc) + UP * (0.8 + 1.2 * k) * sc
-			cf = CFrame.lookAt(eye + tremble, mouth:Lerp(fp, 0.45):Lerp(body, 0.2))
-			fov = 62
-		else
-			-- S4: THE FISH'S EYES, SLOW MOTION. We fall back down IN FRONT of the face and dive
-			-- straight into the wide open jaws: fangs top and bottom, tongue, red mouth... CHOMP.
-			once("pov", function()
-				Cine.motion(10)
-				CameraController.shake(0.4, 0.2)
-				Sound.play("Throw", { pitch = 0.32, volume = 1 }) -- stretched slow-motion whoosh
-				Sound.play("Heartbeat", { pitch = 0.55, volume = 1 })
-				Cine.grade({ tint = Color3.fromRGB(240, 232, 255), saturation = -0.2, contrast = 0.3, brightness = 0.05 }, 0.2)
-				if toss and toss.model and toss.model.Parent then
-					for _, dd in toss.model:GetDescendants() do
-						if dd:IsA("BasePart") then dd.LocalTransparencyModifier = 1 end -- we ARE the fish
-					end
-				end
-			end)
-			c.slowBeat = c.slowBeat or 0
-			if os.clock() - c.slowBeat > 0.55 and now < tChomp then
-				c.slowBeat = os.clock()
-				Sound.play("Heartbeat", { pitch = 0.5, volume = 0.9 })
-			end
-			local look = h.CFrame.LookVector
-			local fp = tossPos(now, mouth, look, sc) or (mouth + look * 3 * sc)
-			if toss and toss.model and toss.model.Parent then toss.model:PivotTo(CFrame.new(fp)) end
-			local k = math.clamp((now - tPov) / math.max(0.1, tChomp - tPov), 0, 1)
-			-- look slightly UNDER the mouth point: the jaw opens downward, so the whole opening
-			-- (upper fangs, tongue, lower fangs) sits in the middle of the frame
-			local aim = mouth - h.CFrame.UpVector * 0.25 * sc
-			local roll = math.sin(k * 3) * 0.2
-			cf = CFrame.lookAt(fp + tremble * 0.2, aim) * CFrame.Angles(0, 0, roll)
-			fov = 66 + 8 * k
-			Cine.dark(0.3 + 0.4 * math.clamp((k - 0.85) / 0.15, 0, 1))
-			Cine.setLids(1)
-			if now >= tChomp then
-				once("chomp", function()
-					Sound.play("Chomp", { at = mouth, pitch = bearPitch(c.bear) * 0.85, volume = 1.5 })
-					Sound.play("Growl", { pitch = bearPitch(c.bear) * 0.6, volume = 0.8 })
-					CameraController.shake(1.6, 0.45)
-					freezeUntil = os.clock() + 0.12 -- hit-stop on the bite
-					Cine.blackout(true, 0.04)
-					Cine.eyelids(false)
-					if toss and toss.model and toss.model.Parent then toss.model:Destroy() end
+			local w = math.clamp((now - tPick) / (tChomp - tPick), 0, 1)
+			if now >= tApex then
+				once("pov", function()
+					Sound.play("Throw", { pitch = 0.32, volume = 1 }) -- stretched slow-motion whoosh
+					Cine.grade({ tint = Color3.fromRGB(240, 235, 252), saturation = -0.1, contrast = 0.25, brightness = 0.04 }, 0.4)
 				end)
+				c.slowBeat = c.slowBeat or 0
+				if os.clock() - c.slowBeat > 0.6 then
+					c.slowBeat = os.clock()
+					Sound.play("Heartbeat", { pitch = 0.5, volume = 0.9 })
+				end
 			end
-		end
-		if now >= tl.eat + G.swallowAt then
-			once("gulp", function() Sound.play("Chomp", { pitch = 0.5, volume = 0.6 }) end) -- muffled, from inside
+			-- going up we look DOWN at the bear; falling we look straight into the mouth
+			local aim = mouth - h.CFrame.UpVector * 0.25 * sc
+			local upK = math.clamp((now - tPick) / (tApex - tPick), 0, 1)
+			local headAim = h.Position:Lerp(aim, upK)
+			local target = if now < tApex then headAim else aim
+			-- one smooth full roll across the whole flight (the fish tumbles)
+			local roll = Easing.sineInOut(w) * math.pi * 2
+			cf = CFrame.lookAt(fp, target) * CFrame.Angles(0, 0, roll)
+			fov = 72 + 6 * w
+			local enter = math.clamp((w - 0.9) / 0.1, 0, 1)
+			Cine.dark(0.3 + 0.45 * enter)
+			Cine.setLids(1)
+		else
+			once("chomp", function()
+				Sound.play("Chomp", { at = mouth, pitch = bearPitch(c.bear) * 0.85, volume = 1.5 })
+				Sound.play("Growl", { pitch = bearPitch(c.bear) * 0.6, volume = 0.8 })
+				CameraController.shake(1.6, 0.45)
+				freezeUntil = os.clock() + 0.12 -- hit-stop on the bite
+				Cine.blackout(true, 0.04)
+				Cine.eyelids(false)
+			end)
+			cf, fov = lastCF or CFrame.lookAt(mouth + h.CFrame.LookVector * 0.3, mouth), lastFov
 		end
 		-- DROOL dripping off the fangs while the jaws are open (little drops, natural colour)
 		if now > tl.eat + 0.2 and now < tChomp then
@@ -611,318 +543,428 @@ local function eatSequence(d)
 		if pp.Y < ground.Y - 0.5 then cf = CFrame.lookAt(Vector3.new(pp.X, ground.Y - 0.5, pp.Z), pp + cf.LookVector) end
 		lastCF, lastFov = cf, fov
 		return cf, fov
-	end, tl.total + 1, { smooth = 7, blendIn = 0.2 })
+	end, tl.total + 1, { smooth = 12, blendIn = 0.2 })
 end
 
-------------------------------------------------------------------------------------------
--- 3) THE REVEAL. From black, a crane shot high above the bear: a black silhouette.
--- Colours sweep up the body from the paws to the ears while LUCK and SIZE roll up
--- NON-STOP (never back down), faster and faster to their peak. The camera spirals down,
--- the shaking and the heartbeat build... hit-stop... SLAM onto the bear's face.
-------------------------------------------------------------------------------------------
 local function luckText(v: number): string
 	if v < 10 then return ("x%.2f"):format(v) end
 	if v < 1000 then return ("x%.1f"):format(v) end
 	return "x" .. Format.short(v)
 end
 
--- LUCK / SIZE / RARITY counters, stud style. Clean layout just under the top letterbox bar:
--- no rotation (rotated frames stop clipping in Roblox, the stripes spilled out), only a small
--- position jitter that grows with the tension.
-local function buildCounters()
-	local g = Sim.new("ScreenGui", { Name = "TFBRevealCounters", ResetOnSpawn = false, DisplayOrder = 13, IgnoreGuiInset = true,
+------------------------------------------------------------------------------------------
+-- STAGE UI (stud style): one big card for the stage being played (title + rolling value);
+-- when a stage lands, its value STAMPS, then the card shrinks into a chip in the result row
+-- at the top (RARITY · MUTATION · LUCK · KG). One UIScale per object (inner frames).
+------------------------------------------------------------------------------------------
+local function buildStageUi()
+	local g = Sim.new("ScreenGui", { Name = "TFBRevealStages", ResetOnSpawn = false, DisplayOrder = 13, IgnoreGuiInset = true,
 		ScreenInsets = Enum.ScreenInsets.None, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
-	local root = Sim.root(g, "Counters", Vector2.new(540, 230), UDim2.new(0.5, 0, 0.11, 6), Vector2.new(0.5, 0))
+	local root = Sim.root(g, "Stages", Vector2.new(560, 250), UDim2.new(0.5, 0, 0.11, 6), Vector2.new(0.5, 0))
 	local inner = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, root)
-	local pop = Sim.new("UIScale", { Scale = 0 }, inner)
-	TweenService:Create(pop, TweenInfo.new(0.4, Enum.EasingStyle.Back), { Scale = 1 }):Play()
-	local function box(x, title, grad)
-		local b = Sim.panel(inner, { Size = UDim2.fromOffset(260, 92), Position = UDim2.fromOffset(x, 0), Gradient = grad, Stroke = 4, ZIndex = 4, Studs = false })
-		Sim.text(b, title, { Size = UDim2.fromOffset(240, 24), Position = UDim2.fromOffset(130, 16), Max = 22, ZIndex = 7 })
-		local v = Sim.text(b, "", { Size = UDim2.fromOffset(240, 52), Position = UDim2.fromOffset(130, 60), Max = 46, Stroke = 4.5, ZIndex = 7 })
-		return b, v, Sim.new("UIScale", {}, v)
-	end
-	local _, luckV, luckS = box(0, "🍀 LUCK", Sim.G.green)
-	local _, sizeV, sizeS = box(280, "⚖️ SIZE", Sim.G.blue)
-	-- casino RARITY ticker: climbs tier by tier (never down) and lands on the final rarity
-	local rarB = Sim.panel(inner, { Size = UDim2.fromOffset(540, 64), Position = UDim2.fromOffset(0, 104), Color = Color3.fromRGB(60, 60, 70), Stroke = 4, ZIndex = 4, Studs = false })
-	local rarV = Sim.text(rarB, "", { Size = UDim2.fromOffset(520, 48), Position = UDim2.fromOffset(270, 32), Max = 42, Stroke = 4.5, ZIndex = 7 })
-	local rarS = Sim.new("UIScale", {}, rarV)
-	-- "LUCK x5!" stamp, inside the scaled root (under the ticker)
-	local stamp = Sim.text(inner, "", { Size = UDim2.fromOffset(460, 54), Position = UDim2.fromOffset(270, 200), Max = 48, Stroke = 5, ZIndex = 9,
+	local innerScale = Sim.new("UIScale", { Scale = 1 }, inner)
+	local row = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(560, 44) }, inner)
+	Sim.new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, row)
+	local cardHolder = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(420, 118), Position = UDim2.fromOffset(70, 56) }, inner)
+	local cardScale = Sim.new("UIScale", { Scale = 0 }, cardHolder)
+	local card = Sim.panel(cardHolder, { Size = UDim2.fromScale(1, 1), Gradient = Sim.G.purple, Stroke = 4, ZIndex = 4, Studs = false })
+	local grad = card:FindFirstChildOfClass("UIGradient")
+	local title = Sim.text(card, "", { Size = UDim2.fromOffset(400, 28), Position = UDim2.fromOffset(210, 20), Max = 26, ZIndex = 7 })
+	local value = Sim.text(card, "", { Size = UDim2.fromOffset(400, 64), Position = UDim2.fromOffset(210, 76), Max = 58, Stroke = 5, ZIndex = 7 })
+	local vHolder = value -- the value text pops with its own UIScale
+	local vScale = Sim.new("UIScale", {}, vHolder)
+	local stamp = Sim.text(inner, "", { Size = UDim2.fromOffset(460, 50), Position = UDim2.fromOffset(280, 206), Max = 44, Stroke = 5, ZIndex = 9,
 		Gradient = { Color3.fromRGB(255, 255, 200), Color3.fromRGB(255, 190, 20) } })
 	local ss = Sim.new("UIScale", { Scale = 0 }, stamp)
+	local function tw(o, t, goal, style, dir)
+		TweenService:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), goal):Play()
+	end
 	local ui = {}
-	-- heat 0..1: the numbers swell and turn gold as they climb
-	function ui.set(luck: number, kg: number, heat: number)
-		luckV.Text = luckText(luck)
-		sizeV.Text = Format.kg(kg)
-		local hot = Color3.new(1, 1, 1):Lerp(Color3.fromRGB(255, 214, 60), heat)
-		luckV.TextColor3 = hot
-		sizeV.TextColor3 = hot
-		local sc = 1 + heat * 0.12
-		luckS.Scale = sc
-		sizeS.Scale = sc
+	local order = 0
+	local ver = 0
+	function ui.stage(name: string, pair)
+		ver += 1
+		title.Text = name
+		value.Text = ""
+		value.TextColor3 = Color3.new(1, 1, 1)
+		if grad then grad.Color = ColorSequence.new(pair[1], pair[2]) end
+		cardScale.Scale = 0.4
+		tw(cardScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 	end
-	local lastRar = nil
-	function ui.rarity(id: string)
-		if id == lastRar then return false end
-		lastRar = id
-		local tier = RarityConfig.get(id)
-		rarV.Text = tier.name:upper()
-		rarV.TextColor3 = tier.textColor or tier.color
-		rarB.BackgroundColor3 = (tier.color):Lerp(Color3.new(0, 0, 0), 0.55)
-		rarS.Scale = 1.35
-		TweenService:Create(rarS, TweenInfo.new(0.22, Enum.EasingStyle.Back), { Scale = 1 }):Play()
-		return true
-	end
-	function ui.shake(amount: number)
-		-- amount 0..1: a few pixels at most
-		local t = os.clock()
-		local a = math.clamp(amount, 0, 1) * 3
-		inner.Position = UDim2.fromOffset(math.noise(t * 18, 1) * a, math.noise(t * 18, 2) * a)
-	end
-	function ui.lock()
-		for _, s2 in { luckS, sizeS } do
-			s2.Scale = 1.4
-			TweenService:Create(s2, TweenInfo.new(0.35, Enum.EasingStyle.Back), { Scale = 1.08 }):Play()
+	function ui.value(text: string, color: Color3?, pop: boolean?)
+		value.Text = text
+		value.TextColor3 = color or Color3.new(1, 1, 1)
+		if pop then
+			vScale.Scale = 1.25
+			tw(vScale, 0.18, { Scale = 1 }, Enum.EasingStyle.Back)
 		end
-		inner.Position = UDim2.new()
-		rarS.Scale = 1.5
-		TweenService:Create(rarS, TweenInfo.new(0.4, Enum.EasingStyle.Back), { Scale = 1.1 }):Play()
+	end
+	function ui.done(chipText: string, chipColor: Color3)
+		vScale.Scale = 1.6
+		tw(vScale, 0.3, { Scale = 1.08 }, Enum.EasingStyle.Back)
+		local myVer = ver
+		task.delay(0.4, function()
+			if not g.Parent then return end
+			-- a new stage may already be on the card: only fold the card if it is still ours
+			if ver == myVer then tw(cardScale, 0.22, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In) end
+			order += 1
+			local chipHolder = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(128, 40), LayoutOrder = order }, row)
+			local cs = Sim.new("UIScale", { Scale = 0 }, chipHolder)
+			local chip = Sim.panel(chipHolder, { Size = UDim2.fromScale(1, 1), Color = chipColor:Lerp(Color3.new(0, 0, 0), 0.55), Stroke = 3, ZIndex = 4, Studs = false })
+			Sim.text(chip, chipText, { Size = UDim2.new(1, -10, 1, -6), Max = 24, ZIndex = 6, Color = chipColor:Lerp(Color3.new(1, 1, 1), 0.25) })
+			tw(cs, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+		end)
+	end
+	function ui.shake(a: number)
+		local t = os.clock()
+		local k = math.clamp(a, 0, 1) * 3
+		cardHolder.Position = UDim2.fromOffset(70 + math.noise(t * 16, 1) * k, 56 + math.noise(t * 16, 2) * k)
 	end
 	function ui.stamp(text: string)
 		stamp.Text = text
 		ss.Scale = 2.5
-		TweenService:Create(ss, TweenInfo.new(0.3, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+		tw(ss, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
 	end
 	local closed = false
 	function ui.close()
 		if closed then return end
 		closed = true
-		TweenService:Create(pop, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 }):Play()
+		tw(innerScale, 0.25, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 		task.delay(0.3, function() g:Destroy() end)
 	end
 	return ui
 end
 
-local function revealPartNow(rv, part: BasePart)
-	local sv = rv.saved[part]
-	if not sv or not part.Parent then return end
-	rv.saved[part] = nil
-	part.Material = sv[2]
-	TweenService:Create(part, TweenInfo.new(0.45, Enum.EasingStyle.Quad), { Color = sv[1] }):Play()
+------------------------------------------------------------------------------------------
+-- 3) THE REVEAL, IN STAGES. The bear is in full colour. A LOCAL copy plays it (so it can
+-- physically grow and mutate): it starts at ~45 % of its size.
+--   RARITY   : casino ticker climbing tier by tier, the bear tense... ROAR when it lands
+--   MUTATION : (only Golden / Diamond / Rainbow) ticker, then the mutation WASHES over the
+--              bear bottom -> top, stud chips flying off the wave front, big dog-shake
+--   LUCK     : x1.00 rolling up (never down) while the bear GROWS
+--   KG       : the weight rolling up, the bear grows to its REAL size in heavy stomps
+--   FINAL    : freeze... cut to black... SLAM under the face: giant rear-up roar, crash
+--              down, the name, slow hero orbit
+-- One continuous, slow orbit carries the camera through all the stages (fluid).
+------------------------------------------------------------------------------------------
+local function flatUnit(v: Vector3, fallback: Vector3): Vector3
+	local f = Vector3.new(v.X, 0, v.Z)
+	return if f.Magnitude > 0.05 then f.Unit else fallback
 end
 
 local function revealSequence(d)
-	Cine.dof(nil, 0)
 	local c = current
 	if not c then return end
 	local G = GameConfig.Capture
 	c.mode = "reveal"
-	-- the whole black silhouette, out of the darkness
-	if c.rv then
-		for _, parts in c.rv.groups do
-			for _, part in parts do
-				local sv = c.rv.saved[part]
-				if sv then part.Color = SHADOW part.Material = Enum.Material.SmoothPlastic end
+	local st = d.stages or { rarity = G.revealRarity, mutation = 0, luck = G.revealLuck, kg = G.revealKg, final = G.revealFinal }
+	local e1 = st.rarity
+	local e2 = e1 + st.mutation
+	local e3 = e2 + st.luck
+	local e4 = e3 + st.kg
+	local tier = RarityConfig.get(d.final or "Common")
+	local tcol = tier.textColor or tier.color
+	local finalIdx = tier.index
+	local variant = d.variant or "Normal"
+	local vIdx = math.max(1, table.find(RarityConfig.VariantOrder, variant) or 1)
+	local luck, kg = d.luck or 1, d.weight or 0
+	local sb = c.bear
+	local sroot = rootOf(sb)
+	if not sroot then return end
+	local species = d.species or sb:GetAttribute("Species")
+	local fullScale = sb:GetAttribute("Scale") or 1
+	local fullLen = sb:GetAttribute("BodyLength") or 6 * fullScale
+	local feetAtt = sroot:FindFirstChild("Feet")
+	local groundY = if feetAtt then (feetAtt :: Attachment).WorldPosition.Y - 0.1 else sroot.Position.Y - 2
+	local fwd = flatUnit(sroot.CFrame.LookVector, Vector3.new(0, 0, -1))
+	local basePos = Vector3.new(sroot.Position.X, groundY, sroot.Position.Z)
+	local baseCF = CFrame.lookAt(basePos, basePos + fwd)
+	local side = baseCF.RightVector
+	local UP = Vector3.new(0, 1, 0)
+	local S0 = G.revealStartScale or 0.45
+
+	-- the local copies --------------------------------------------------------------
+	local function makeCopy(v: string): Model?
+		local ok, m = pcall(BearBuilder.build, species, { weight = kg, variant = v })
+		if not ok or not m or not m.PrimaryPart then
+			warn("[TFB] reveal copy", m)
+			return nil
+		end
+		m.Name = "TFBRevealBear"
+		for _, x in m:GetDescendants() do
+			if x:IsA("BasePart") then
+				x.Anchored = false
+				x.CanCollide = false
+				x.CanQuery = false
+				x.CanTouch = false
+			elseif x:IsA("ParticleEmitter") or x:IsA("PointLight") or x:IsA("Sparkles") then
+				x.Enabled = false -- no glow
+			end
+		end
+		m.PrimaryPart.Anchored = true
+		m:SetAttribute("Anim", "Reveal")
+		m:SetAttribute("AnimT", d.start)
+		m:SetAttribute("RevealMut", st.mutation)
+		pcall(function() m:ScaleTo(S0) end)
+		return m
+	end
+	local function place(m: Model?, g: number)
+		if not m or not m.Parent or not m.PrimaryPart then return end
+		if math.abs(m:GetScale() - g) > 0.002 then pcall(function() m:ScaleTo(g) end) end
+		local r = m.PrimaryPart
+		local fa = r:FindFirstChild("Feet")
+		local fy = if fa then (fa :: Attachment).Position.Y - 0.1 else -2 * g
+		r.CFrame = baseCF + Vector3.new(0, -fy, 0)
+	end
+	local normal = makeCopy("Normal")
+	local mutant = if variant ~= "Normal" then makeCopy(variant) else nil
+	if not normal then
+		-- could not build the copy: play the reveal on the real bear (no growth / wave)
+		normal = nil
+	end
+	local mutantParts, normalParts = {}, {}
+	if mutant then
+		for _, x in mutant:GetDescendants() do
+			if x:IsA("BasePart") then
+				x.LocalTransparencyModifier = 1
+				table.insert(mutantParts, x)
 			end
 		end
 	end
-	if c.tossCopy and c.tossCopy.Parent then c.tossCopy:Destroy() end
-	setBearHidden(c.bear, false)
-	if c.fish then setPartsHidden(bearParts(c.fish), false) end
+	if normal then
+		for _, x in normal:GetDescendants() do
+			if x:IsA("BasePart") then table.insert(normalParts, x) end
+		end
+	end
+	local growth = S0
+	if normal then
+		place(normal, growth)
+		normal.Parent = Fx.folder
+		setBearHidden(sb, true)
+	end
+	if mutant then
+		place(mutant, growth)
+		mutant.Parent = Fx.folder
+	end
+	if c.rv then restoreTeeth(c.rv) end
+	c.finishReveal = function()
+		c.finishReveal = nil
+		if normal and normal.Parent then normal:Destroy() end
+		if mutant and mutant.Parent then mutant:Destroy() end
+		if sb.Parent then setBearHidden(sb, false) end
+		if c.rv then revealAura(c.rv) end
+	end
+	local shown = normal -- the copy the camera frames (switches to the mutant after the wave)
+
+	-- look of the scene: full colour, cinematic
 	Cine.eyelids(false)
-	Cine.dark(0.35)
+	Cine.dark(0.25)
 	Cine.letterbox(true)
 	Cine.blackout(false, 0.6)
-	Cine.grade({ tint = Color3.fromRGB(220, 222, 240), saturation = -0.35, contrast = 0.3, brightness = -0.08 }, 0.4)
-	local T = G.revealLimb * 6
-	local ui = buildCounters()
-	local luck, kg = d.luck or 1, d.weight or 0
-	local finalIdx = RarityConfig.index(d.final or "Common")
-	ui.set(1, 0, 0)
-	ui.rarity("Common")
-	-- sweep list: every part bottom -> top
-	local list, minY, maxY = {}, math.huge, -math.huge
-	if c.rv then
-		for _, parts in c.rv.groups do
-			for _, part in parts do
-				if part.Parent then
-					table.insert(list, { part = part, y = part.Position.Y })
-					minY = math.min(minY, part.Position.Y)
-					maxY = math.max(maxY, part.Position.Y)
-				end
-			end
-		end
-	end
-	if #list == 0 then
-		local rr0 = rootOf(c.bear)
-		minY = if rr0 then rr0.Position.Y - 2 else 0
-		maxY = minY + 4
-	end
-	table.sort(list, function(a, b) return a.y < b.y end)
-	local span = math.max(maxY - minY, 0.5)
-	local progress = 0
-	local slam = nil -- set when the reveal finishes: the slam / roar shots take over
-	local shotIdx = 0
-	local spin = 0
-	local UP = Vector3.new(0, 1, 0)
-	-- a CUT between two shots: whip blur, whoosh, lens kick
-	local function cut(i: number)
-		if i == shotIdx then return end
-		shotIdx = i
-		if i > 1 then
-			Cine.motion(10)
-			CameraController.punch(3)
-			Sound.play("Throw", { pitch = 1.2 + i * 0.12, volume = 0.55 })
-		end
-	end
-	-- THE SHOTS follow the colour climbing the body:
-	--  1 paws   : macro at ground level, shallow focus, the colour spreading over the claws
-	--  2 flank  : side tracking shot along the body at belly height, tail -> head
-	--  3 shoulder: crane rising behind, over the shoulder, the head still black
-	--  4 spiral : spiral around the head from below, tighter and FASTER, crash zoom, shaking
-	--  peak     : freeze... cut to BLACK, silence... SLAM on the face: the bear rears up ROARING,
-	--             crashes down (ground stomp, earth flying), slow heroic orbit with the name
+	Cine.grade({ tint = Color3.new(1, 1, 1), saturation = 0.08, contrast = 0.16, brightness = 0 }, 0.5)
+	local ui = buildStageUi()
+
+	local tt = 0 -- stage clock (synced with the bear's animation)
+	local slam = nil
+	-- ONE continuous slow orbit through all the stages; distance follows the bear's size
 	CameraController.run(function(t, dt)
-		local rr = rootOf(c.bear)
-		local h = headOf(c.bear)
-		if not rr then return nil, 55 end
-		local sc = c.bear:GetAttribute("Scale") or 1
-		local bl = math.max(c.bear:GetAttribute("BodyLength") or 6 * sc, 4)
-		local fwd = rr.CFrame.LookVector
-		fwd = Vector3.new(fwd.X, 0, fwd.Z)
-		fwd = if fwd.Magnitude > 0.05 then fwd.Unit else Vector3.new(0, 0, -1)
-		local side = Vector3.new(-fwd.Z, 0, fwd.X)
-		local face = if h then h.Position else rr.Position + UP * span * 0.6
-		local center = Vector3.new(rr.Position.X, minY + span * 0.45, rr.Position.Z)
-		local groundY = minY - 0.2
+		local m = shown or sb
+		local r = rootOf(m)
+		local h = headOf(m)
+		if not r then return nil, 55 end
+		local g = if shown then growth else 1
+		local sc = fullScale * g
+		local bl = math.max(fullLen * g, 2.5)
+		local face = if h then h.Position else r.Position + UP * 2 * sc
+		local center = r.Position:Lerp(face, 0.35)
 		if slam then
-			local st = os.clock() - slam
-			if st < 1.15 then
-				-- SLAM + ROAR: crash-zoom to a low hero angle under the face, looking UP as it rears
-				local k = Easing.expoOut(math.clamp(st / 0.3, 0, 1))
+			local s2 = os.clock() - slam
+			if s2 < 1.15 then
+				-- SLAM + ROAR: crash-zoom to a low hero angle under the face, looking UP
+				local k = Easing.expoOut(math.clamp(s2 / 0.3, 0, 1))
 				local p = face + fwd * (bl * 1.3 + (6 - 2.5 * k) * sc) + side * 2.2 * sc + UP * (-1.2 * k) * sc
 				p = Vector3.new(p.X, math.max(p.Y, groundY + 0.6), p.Z)
-				noDof((p - face).Magnitude, 0.55)
 				return CFrame.lookAt(p, face:Lerp(center, 0.3) + UP * 0.3 * sc), 70 - 12 * k
 			end
-			-- heroic orbit: slow, low, the bear proud in the middle, name on screen
-			local k = Easing.sineInOut(math.clamp((st - 1.15) / 2.2, 0, 1))
-			local ang = -0.35 + k * 1.1
-			local dirv = CFrame.Angles(0, ang, 0):VectorToWorldSpace(fwd)
+			local k = Easing.sineInOut(math.clamp((s2 - 1.15) / 2.2, 0, 1))
+			local dirv = CFrame.Angles(0, -0.35 + k * 1.1, 0):VectorToWorldSpace(fwd)
 			local p = center + dirv * (bl * 1.5 + 3 * sc) + UP * (0.6 + 1.6 * k) * sc
 			p = Vector3.new(p.X, math.max(p.Y, groundY + 0.6), p.Z)
-			noDof((p - center).Magnitude, 0.3)
-			return CFrame.lookAt(p, center:Lerp(face, 0.45)), 50 + 4 * k
+			return CFrame.lookAt(p, center:Lerp(face, 0.45)), 52 + 4 * k
 		end
-		local pT = math.clamp(t / T, 0, 1)
-		if pT < 0.22 then
-			-- 1) PAWS
-			cut(1)
-			local k = pT / 0.22
-			local paw = rr.Position + fwd * bl * 0.3
-			paw = Vector3.new(paw.X, minY + span * 0.12, paw.Z)
-			local p = Vector3.new(paw.X, groundY + 0.9 * sc, paw.Z) + fwd * (bl * 0.9 + 2 * sc) + side * (bl * 0.8 + 1.5 * sc) * (1 - 1.6 * k)
-			noDof((p - paw).Magnitude, 0.75)
-			return CFrame.lookAt(p, paw:Lerp(center, 0.25)), 58
-		elseif pT < 0.45 then
-			-- 2) FLANK tracking
-			cut(2)
-			local k = (pT - 0.22) / 0.23
-			local yb = minY + span * (0.25 + 0.3 * k)
-			local p = Vector3.new(center.X, yb, center.Z) + side * (bl * 1.4 + 2 * sc) + fwd * bl * (-0.55 + 1.0 * k)
-			local look = Vector3.new(center.X, yb, center.Z) + fwd * bl * (-0.35 + 0.8 * k)
-			noDof((p - look).Magnitude, 0.5)
-			return CFrame.lookAt(p, look), 58
-		elseif pT < 0.7 then
-			-- 3) OVER THE SHOULDER crane
-			cut(3)
-			local k = (pT - 0.45) / 0.25
-			local p = center - fwd * (bl * 1.2 + 2 * sc) - side * bl * 0.5 + UP * (span * 1.0 + (2.5 + 3 * k) * sc)
-			noDof((p - face).Magnitude, 0.4)
-			return CFrame.lookAt(p, face:Lerp(center, 0.3)), 56 - 4 * k
-		end
-		-- 4) SPIRAL around the head, accelerating, crash zoom
-		cut(4)
-		local k = (pT - 0.7) / 0.3
-		spin += dt * (0.5 + 2.2 * k * k)
-		local dirv = CFrame.Angles(0, spin, 0):VectorToWorldSpace(fwd)
-		local p = face + dirv * (bl * 1.3 + 2.5 * sc) * (1 - 0.3 * k) + UP * (-span * 0.25 + span * 0.15 * k)
-		p = Vector3.new(p.X, math.max(p.Y, groundY + 0.6), p.Z)
-		noDof((p - face).Magnitude, 0.45 + 0.3 * k)
-		return CFrame.lookAt(p, face:Lerp(center, 0.2)), 62 - 10 * k * k
-	end, d.duration + 0.8, { smooth = 8, blendIn = 0.2 })
+		-- the orbit: from 3/4 front-left, slowly round the front, to 3/4 front-right
+		local ang = -0.75 + 1.5 * Easing.sineInOut(math.clamp(tt / e4, 0, 1))
+		local dirv = CFrame.Angles(0, ang, 0):VectorToWorldSpace(fwd)
+		-- height: low and tense (rarity), a little higher round the mutation / luck,
+		-- very low hero angle for the growth (KG) so it towers over us
+		local hk = Easing.bump(math.clamp((tt - e1 * 0.6) / math.max(0.1, e3 - e1 * 0.6), 0, 1))
+		local lowK = Easing.sineInOut(math.clamp((tt - e3) / 0.6, 0, 1))
+		local height = (0.7 + 1.8 * hk - 0.5 * lowK) * sc
+		local dist = (bl * 1.45 + 4.2 * sc) * (1 - 0.1 * Easing.sineInOut(math.clamp(tt / e1, 0, 1)))
+		local p = center + dirv * dist + UP * height
+		p = Vector3.new(p.X, math.max(p.Y, groundY + 0.5), p.Z)
+		return CFrame.lookAt(p, center + UP * 0.15 * sc), 52
+	end, d.duration + 0.8, { smooth = 6, blendIn = 0.35 })
+
 	task.spawn(function()
 		local rng = Random.new()
+		local rarNow, mutNow = 0, 0
 		local shownL, shownK = 1, 0
-		local t0 = os.clock()
-		local nextPart = 1
-		local tickT, beatT, shakeT = 0, 0, 0
-		local last = os.clock()
-		local rarNow = 1
-		while current == c and c.bear.Parent do
-			local now = os.clock()
-			local dt = now - last
-			last = now
-			local p = math.clamp((now - t0) / T, 0, 1)
-			-- slow start, then it runs away towards the peak
-			local ease = p ^ 2.1
-			progress = Easing.sineInOut(p)
-			-- colours climb the body
-			local yNow = minY + span * progress
-			while c.rv and nextPart <= #list and list[nextPart].y <= yNow + 0.001 do
-				revealPartNow(c.rv, list[nextPart].part)
-				nextPart += 1
-			end
-			-- LUCK / SIZE: always up, never down; uneven RNG-like jumps around the curve
-			local targetL = 1 + (luck - 1) * ease
-			local targetK = kg * ease
-			shownL = math.max(shownL, shownL + (targetL - shownL) * rng:NextNumber(0.05, 0.55) + (if p < 1 then rng:NextNumber(0, 0.004) * luck * dt * 60 * (1 - p) else 0))
-			shownK = math.max(shownK, shownK + (targetK - shownK) * rng:NextNumber(0.05, 0.55))
-			shownL = math.min(shownL, luck)
-			shownK = math.min(shownK, kg)
-			ui.set(shownL, shownK, p)
-			ui.shake(p * p)
-			-- RARITY ticker: climbs tier by tier, the last steps land late (casino slow-down)
-			local want = math.clamp(1 + math.floor((finalIdx - 1) * (p ^ 1.35) + 0.0001), 1, finalIdx)
-			if p < 0.97 then want = math.min(want, math.max(1, finalIdx - 1)) end -- the last tier waits for the peak
-			if want > rarNow then
-				rarNow = want
-				if ui.rarity(RarityConfig.Order[rarNow]) then
+		local stage = ""
+		local landedR, landedM, landedL, landedK = false, false, false, false
+		local wave = nil -- os.clock() when the mutation wave starts
+		local lastPulse = -1
+		local tickT = 0
+		while current == c and sb.Parent do
+			tt = Clock.now() - d.start
+			if tt >= e4 then break end
+			local dt = 1 / 60
+			-- 1) RARITY -----------------------------------------------------------------
+			if tt < e1 then
+				if stage ~= "rarity" then
+					stage = "rarity"
+					ui.stage("RARITY", Sim.G.purple)
+				end
+				local p = math.clamp(tt / math.max(0.1, e1 - 0.6), 0, 1)
+				local want = math.clamp(1 + math.floor((finalIdx - 1) * p ^ 1.5 + 1e-4), 1, finalIdx)
+				if p < 1 then want = math.min(want, math.max(1, finalIdx - 1)) end -- the last tier waits
+				if want > rarNow then
+					rarNow = want
+					local tr = RarityConfig.get(RarityConfig.Order[rarNow])
+					ui.value(tr.name:upper(), tr.textColor or tr.color, true)
 					Sound.play("Tick", { pitch = 0.9 + rarNow * 0.12, volume = 0.9 })
-					Sound.play("Reveal1", { pitch = 0.7 + rarNow * 0.08, volume = 0.5 })
-					CameraController.shake(0.3 + rarNow * 0.06, 0.2)
+					CameraController.shake(0.15 + rarNow * 0.04, 0.2)
+				end
+				ui.shake(p * p)
+				if tt >= e1 - 0.55 and not landedR then
+					landedR = true
+					ui.value(tier.name:upper(), tcol, true)
+					ui.done(tier.name:upper(), tcol)
+					Sound.play("Reveal" .. math.max(1, tier.reveal))
+					Sound.play("Growl", { pitch = bearPitch(sb), volume = 1.2 })
+					CameraController.shake(0.6 + tier.index * 0.08, 0.4)
+					CameraController.punch(-5)
+					Cine.grade({ tint = Color3.new(1, 1, 1):Lerp(tier.color, 0.1), saturation = 0.12 + tier.index * 0.02, contrast = 0.18, brightness = 0.01 }, 0.4)
+				end
+			-- 2) MUTATION ---------------------------------------------------------------
+			elseif tt < e2 then
+				if stage ~= "mutation" then
+					stage = "mutation"
+					ui.stage("MUTATION", Sim.G.pink)
+				end
+				local p = math.clamp((tt - e1) / math.max(0.1, st.mutation - 0.55), 0, 1)
+				local want = math.clamp(1 + math.floor((vIdx - 1) * p ^ 1.3 + 1e-4), 1, vIdx)
+				if p < 1 then want = math.min(want, math.max(1, vIdx - 1)) end
+				if want > mutNow then
+					mutNow = want
+					local vid = RarityConfig.VariantOrder[mutNow]
+					local vd = RarityConfig.Variants[vid]
+					ui.value(vid:upper(), vd.color, true)
+					Sound.play("Tick", { pitch = 1.1 + mutNow * 0.15, volume = 0.9 })
+				end
+				ui.shake(p)
+				if tt >= e2 - 0.55 and not landedM then
+					landedM = true
+					local vd = RarityConfig.Variants[variant]
+					ui.value(variant:upper(), vd.color, true)
+					ui.done(variant:upper(), vd.color)
+					Sound.play("Transform", { volume = 1 })
+					Sound.play("Reveal3", { volume = 0.8 })
+					CameraController.punch(-6)
+					wave = os.clock()
+				end
+			-- 3) LUCK -------------------------------------------------------------------
+			elseif tt < e3 then
+				if stage ~= "luck" then
+					stage = "luck"
+					ui.stage("🍀 LUCK", Sim.G.green)
+				end
+				local p = math.clamp((tt - e2) / math.max(0.1, st.luck - 0.6), 0, 1)
+				local ease = p ^ 1.7
+				local target = 1 + (luck - 1) * ease
+				shownL = math.min(luck, math.max(shownL, shownL + (target - shownL) * rng:NextNumber(0.1, 0.6)))
+				ui.value(luckText(shownL), Color3.new(1, 1, 1):Lerp(Color3.fromRGB(255, 214, 60), p), false)
+				ui.shake(p * 0.7)
+				growth = S0 + (0.72 - S0) * Easing.sineInOut(math.clamp((tt - e2) / st.luck, 0, 1))
+				tickT -= dt
+				if tickT <= 0 then
+					tickT = 0.1 - 0.05 * p
+					Sound.play("Tick", { pitch = 0.8 + p, volume = 0.5 })
+				end
+				if p >= 1 and not landedL then
+					landedL = true
+					ui.value(luckText(luck), Color3.fromRGB(255, 214, 60), true)
+					ui.done(luckText(luck), Color3.fromRGB(150, 255, 90))
+					Sound.play("Reveal2", { volume = 0.8 })
+					if d.mult then ui.stamp(("LUCK x%d!"):format(d.mult)) end
+				end
+			-- 4) KG ---------------------------------------------------------------------
+			else
+				if stage ~= "kg" then
+					stage = "kg"
+					ui.stage("⚖️ SIZE", Sim.G.blue)
+				end
+				local q = math.clamp((tt - e3) / st.kg, 0, 1)
+				local p = math.clamp((tt - e3) / math.max(0.1, st.kg - 0.3), 0, 1)
+				local target = kg * p ^ 1.5
+				shownK = math.min(kg, math.max(shownK, shownK + (target - shownK) * rng:NextNumber(0.1, 0.6)))
+				ui.value(Format.kg(shownK), Color3.new(1, 1, 1):Lerp(Color3.fromRGB(255, 214, 60), p), false)
+				-- growth in heavy STOMPS (one every 0.4 s, synced with the bear's stomps)
+				local n = math.max(1, math.floor(st.kg / 0.4))
+				local step = q * n
+				local idx = math.floor(step)
+				local frac = step - idx
+				local stair = (math.min(idx, n) + (if idx < n then Easing.sineOut(math.clamp(frac / 0.35, 0, 1)) else 0)) / n
+				growth = 0.72 + (1 - 0.72) * math.clamp(stair, 0, 1)
+				if idx ~= lastPulse and idx < n then
+					lastPulse = idx
+					CameraController.shake(0.5 + 0.3 * q, 0.25)
+					CameraController.punch(-1.5)
+					Sound.play("Land", { pitch = 0.5 - 0.1 * q, volume = 1.1 })
+					Sound.play("Lift", { pitch = 0.45, volume = 0.6 })
+				end
+				if p >= 1 and not landedK then
+					landedK = true
+					ui.value(Format.kg(kg), Color3.fromRGB(255, 214, 60), true)
+					ui.done(Format.kg(kg), Color3.fromRGB(110, 210, 255))
 				end
 			end
-			-- rolling ticks, heartbeat, building shake
-			tickT -= dt
-			if tickT <= 0 then
-				tickT = 0.11 - p * 0.08
-				Sound.play("Tick", { pitch = 0.8 + p * 1.2, volume = 0.35 + p * 0.3 })
+			-- the MUTATION WAVE: the variant copy replaces the normal one, bottom -> top
+			if wave and normal and mutant then
+				local k = math.clamp((os.clock() - wave) / 0.8, 0, 1)
+				local r0 = normal.PrimaryPart
+				local lo = r0.Position.Y - 3 * fullScale * growth
+				local hi = r0.Position.Y + 3 * fullScale * growth
+				local y = lo + (hi - lo) * Easing.sineInOut(k)
+				for _, x in normalParts do
+					if x.Parent then x.LocalTransparencyModifier = if x.Position.Y <= y then 1 else 0 end
+				end
+				for _, x in mutantParts do
+					if x.Parent then x.LocalTransparencyModifier = if x.Position.Y <= y then 0 else 1 end
+				end
+				-- stud chips of the new colour flying off the wave front
+				if k < 1 and math.random() < 0.6 then
+					local vd = RarityConfig.Variants[variant]
+					Fx.blocks(Vector3.new(r0.Position.X, y, r0.Position.Z) + side * (math.random() - 0.5) * 2 * fullScale * growth,
+						vd.color, 2, 6, 0.18 * fullScale, { life = 0.7, up = 0.8, spread = 1.6, gravity = 30 })
+				end
+				if k >= 1 then
+					wave = nil
+					shown = mutant
+					normal:Destroy()
+					normal = nil
+				end
 			end
-			beatT -= dt
-			if beatT <= 0 then
-				beatT = 0.8 - p * 0.58
-				Sound.play("Heartbeat", { pitch = 0.9 + p * 0.45, volume = 0.5 + p * 0.5 })
-			end
-			shakeT -= dt
-			if shakeT <= 0 then
-				shakeT = 0.18
-				CameraController.shake(0.05 + p * p * 0.7, 0.2)
-			end
-			Cine.gradeSet({ saturation = -0.35 + p * 0.45, contrast = 0.3 + p * 0.12, brightness = -0.08 + p * 0.06 })
-			Cine.dark(0.35 + p * 0.35)
-			if p >= 1 then break end
+			place(normal, growth)
+			place(mutant, growth)
 			task.wait()
 		end
 		if current ~= c then ui.close() return end
-		-- PEAK. Everything freezes... CUT TO BLACK, total silence... then SLAM.
-		if c.rv then revealAll(c.rv) end
-		ui.set(luck, kg, 1)
-		ui.rarity(d.final or "Common")
-		ui.lock()
+		growth = 1
+		place(normal, 1)
+		place(mutant, 1)
+		-- PEAK: freeze... CUT TO BLACK, silence... SLAM
 		CameraController.shake(0, 0)
 		Sound.play("Heartbeat", { pitch = 0.45, volume = 1.2 })
 		task.wait(0.2)
@@ -931,48 +973,33 @@ local function revealSequence(d)
 		task.wait(0.16)
 		if current ~= c then ui.close() return end
 		Cine.blackout(false, 0)
-		if c.rv then revealAura(c.rv) end
 		slam = os.clock()
-		local tier = RarityConfig.get(d.final)
-		local col = tier.textColor or tier.color
-		if d.mult then ui.stamp(("LUCK x%d!"):format(d.mult)) end
 		Sound.play("Reveal" .. math.max(1, tier.reveal))
-		Sound.play("Growl", { pitch = bearPitch(c.bear) * 0.85, volume = 1.5 })
+		Sound.play("Growl", { pitch = bearPitch(sb) * 0.85, volume = 1.5 })
 		Sound.play("Transform", { volume = 0.8 })
-		CameraController.shake(1.4 + tier.index * 0.12, 0.6)
-		CameraController.punch(-12)
-		Cine.motion(22)
-		Cine.dark(0.2)
-		-- the colour of the world comes back, warmer for the rarer bears (no light effects)
-		Cine.grade({ tint = Color3.new(1, 1, 1):Lerp(col, 0.12), saturation = 0.15 + tier.index * 0.03, contrast = 0.2, brightness = 0.02 }, 0.25)
-		local spec = BearConfig.get(d.species or "BrownBear")
-		local variant = if d.variant and d.variant ~= "Normal" then d.variant .. " " else ""
-		task.delay(0.9, function()
-			if current ~= c then return end
-			ui.close()
+		CameraController.shake(1.2 + tier.index * 0.1, 0.6)
+		CameraController.punch(-10)
+		Cine.motion(14)
+		local spec = BearConfig.get(species or "BrownBear")
+		local vname = if variant ~= "Normal" then variant .. " " else ""
+		task.delay(0.7, function()
+			if current == c then ui.close() end
 		end)
-		task.delay(1.05, function()
-			if current ~= c then return end
-			Cine.banner((variant .. spec.name):upper(), col, tier.name:upper())
+		task.delay(0.85, function()
+			if current == c then Cine.banner((vname .. spec.name):upper(), tcol, tier.name:upper()) end
 		end)
-		-- the bear crashes back down from its roar: ground STOMP, earth and grass flying
+		-- crash back down from the roar: ground STOMP, earth flying
 		task.delay(1.11, function()
-			if current ~= c or not c.bear.Parent then return end
-			local rr = rootOf(c.bear)
-			if not rr then return end
-			local sc = c.bear:GetAttribute("Scale") or 1
-			local at = Vector3.new(rr.Position.X, minY, rr.Position.Z) + rr.CFrame.LookVector * 1.2 * sc
-			CameraController.shake(1.6 + tier.index * 0.1, 0.5)
-			CameraController.punch(-6)
-			Cine.motion(12)
+			if current ~= c then return end
+			local m = shown or sb
+			local r = rootOf(m)
+			if not r then return end
+			CameraController.shake(1.4 + tier.index * 0.1, 0.5)
+			CameraController.punch(-5)
 			Sound.play("Land", { pitch = 0.45, volume = 1.4 })
-			Sound.play("Lift", { pitch = 0.5, volume = 0.8 })
-			Fx.dust(at, 2.2 * sc)
-			Fx.blocks(at + Vector3.new(0, 0.5, 0), Color3.fromRGB(120, 95, 70), 22, 16 * sc, 0.4, { life = 1.1, up = 1.8, spread = 3, gravity = 70,
+			Fx.blocks(basePos + fwd * 1.2 * fullScale + Vector3.new(0, 0.5, 0), Color3.fromRGB(120, 95, 70), 22, 16 * fullScale, 0.4, { life = 1.1, up = 1.8, spread = 3, gravity = 70,
 				colors = { Color3.fromRGB(120, 95, 70), Color3.fromRGB(95, 74, 52), Color3.fromRGB(80, 150, 55), Color3.fromRGB(65, 125, 45) } })
 		end)
-		task.wait(G.revealFinal - 0.4)
-		ui.close()
 	end)
 end
 
@@ -981,6 +1008,7 @@ local function happyShot(d)
 	local c = current
 	if not c then return end
 	c.mode = "happy"
+	if c.finishReveal then c.finishReveal() end
 	Cine.dof(nil, 0)
 	local total = d.duration
 	local tHappy = GameConfig.Capture.happy
@@ -1132,7 +1160,7 @@ local function onFx(phase: string, d)
 		-- poof where the bear was, then it pops into your arms
 		if current and current.bear then setBearHidden(current.bear, false) end
 		if current and current.rv then revealAll(current.rv) revealAura(current.rv) end
-		if current and current.tossCopy and current.tossCopy.Parent then current.tossCopy:Destroy() end
+		if current and current.finishReveal then current.finishReveal() end
 		if current and current.fish then setPartsHidden(bearParts(current.fish), false) end
 		current = nil
 		Cine.resetAll()
@@ -1166,7 +1194,7 @@ local function onFx(phase: string, d)
 		Cine.resetEaten()
 		if current and current.bear then setBearHidden(current.bear, false) end
 		if current and current.fish then setPartsHidden(bearParts(current.fish), false) end
-		if current and current.tossCopy and current.tossCopy.Parent then current.tossCopy:Destroy() end
+		if current and current.finishReveal then current.finishReveal() end
 		if current and current.rv then revealAll(current.rv) revealAura(current.rv) end
 		current = nil
 		Cine.eyelids(false)

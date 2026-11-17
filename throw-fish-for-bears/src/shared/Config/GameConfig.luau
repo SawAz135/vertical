@@ -45,7 +45,11 @@ return {
 		arrivalHappy = 0.7,
 		-- the rarity reveal (bear frozen in front of the fish): roulette spin, then optional luck climb
 		-- reveal: 6 body parts uncovered one by one (luck + size counters climb), then name / rarity
-		revealLimb = 0.85, revealFinal = 2.6, -- ~12 s for the whole capture cinematic
+		-- the reveal, in STAGES (the bear in full colour, growing from small to its real size):
+		-- RARITY (casino ticker) -> MUTATION (only if Golden / Diamond / Rainbow: colour wave)
+		-- -> LUCK (bear grows) -> KG (bear grows to its real size) -> final slam + roar + name
+		revealRarity = 2.2, revealMutation = 2.0, revealLuck = 1.8, revealKg = 2.4, revealFinal = 2.6,
+		revealStartScale = 0.45, -- size of the bear when the reveal starts (x its real size)
 		-- LUCK BONUS rolled by the server during the reveal: rerolls the rarity with luck x mult
 		-- and keeps the better result (only shown when it really upgrades the bear)
 		luckBonus = { { mult = 25, chance = 0.003 }, { mult = 10, chance = 0.012 }, { mult = 5, chance = 0.05 }, { mult = 2, chance = 0.14 } },

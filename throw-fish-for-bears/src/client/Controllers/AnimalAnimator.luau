@@ -369,44 +369,84 @@ STATES.Eat = function(p, e, t, s)
 	e.eyesClosed = (chewing and (ct % 0.32) < 0.14) or gulp > 0.3 or (chomp > 0.5 and settle < 0.2)
 end
 
--- REVEAL (the colours climb the black silhouette): the bear builds up power like a storm,
--- crouching lower and lower, breathing harder and faster, trembling more and more... and at
--- the peak (with the name slam) it EXPLODES into a giant rear-up roar, then crashes back
--- down on its front paws (ground stomp) and holds a proud hero stance.
+-- REVEAL IN STAGES (timings from GameConfig.Capture + the model's "RevealMut" attribute):
+--  RARITY  : proud, tense stance, looking around... ROAR when the rarity lands
+--  MUTATION: a shiver builds up through the body... big DOG-SHAKE as the mutation washes over
+--  LUCK    : chest swells, head rises (it grows)
+--  KG      : heavy growth STOMPS (it grows to its real size), then crouches, loading up...
+--  PEAK    : giant rear-up ROAR, crash down (stomp), proud hero stance
 STATES.Reveal = function(p, e, t, s)
 	local G = GameConfig.Capture
-	local T = G.revealLimb * 6
-	local peak = T + 0.38 -- freeze (0.2) + cut to black (0.16) on the client
+	local mut = e.model:GetAttribute("RevealMut") or 0
+	local e1 = G.revealRarity
+	local e2 = e1 + mut
+	local e3 = e2 + G.revealLuck
+	local e4 = e3 + G.revealKg
+	local peak = e4 + 0.38 -- freeze (0.2) + cut to black (0.16) on the client
 	if t < peak then
-		local k = clamp(t / T, 0, 1)
-		local kk = k * k
-		local breath = sin(t * (2.5 + kk * 9))
-		local tremble = sin(t * 53) * 0.04 * kk + sin(t * 31) * 0.025 * kk
-		pos(p, "BodyJoint", 0, (-0.32 * kk + breath * (0.03 + 0.05 * kk)) * s, 0)
-		rot(p, "BodyJoint", -0.1 * kk + tremble, 0, tremble * 0.6)
-		rot(p, "LegFL", 0.25 * kk) rot(p, "LegFR", 0.25 * kk)
-		rot(p, "LegBL", -0.35 * kk) rot(p, "LegBR", -0.35 * kk)
-		rot(p, "Neck", -0.35 * kk + breath * 0.05 + tremble, sin(t * 0.9) * 0.3 * (1 - k))
-		rot(p, "Jaw", -0.08 - 0.12 * kk - abs(breath) * 0.08 * kk)
-		rot(p, "EarL", -0.55 * kk) rot(p, "EarR", -0.55 * kk)
-		rot(p, "Tail", -0.3 * kk)
-		e.eyesClosed = k > 0.85
+		local breath = sin(t * 2.4)
+		-- base: proud, tense stance + breathing
+		pos(p, "BodyJoint", 0, breath * 0.03 * s, 0)
+		rot(p, "BodyJoint", 0.04 + breath * 0.015)
+		rot(p, "Neck", 0.12 + breath * 0.03, sin(t * 0.9) * 0.35 * clamp(1 - (t - e1) / 0.5, 0.15, 1))
+		rot(p, "Jaw", -0.06 - abs(breath) * 0.04)
+		rot(p, "Tail", 0.3, sin(t * 3) * 0.25)
+		-- 1) rarity lands: ROAR (head up, jaws wide, front paws planted, body leans back)
+		local r1 = Easing.bump(clamp((t - (e1 - 0.6)) / 0.95, 0, 1))
+		rot(p, "Neck", -0.5 * r1)
+		rot(p, "Jaw", -1.25 * r1)
+		rot(p, "BodyJoint", 0.22 * r1)
+		pos(p, "BodyJoint", 0, 0.12 * s * r1, 0.1 * s * r1)
+		rot(p, "EarL", -0.6 * r1) rot(p, "EarR", -0.6 * r1)
+		-- 2) mutation: shiver building, then the dog-shake
+		if mut > 0 and t > e1 and t < e2 + 0.7 then
+			local k = clamp((t - e1) / math.max(0.1, mut), 0, 1)
+			local shiver = sin(t * 45) * 0.03 * k * k * (if t < e2 then 1 else 0)
+			rot(p, "BodyJoint", shiver, 0, shiver)
+			local u = (t - e2) / 0.7
+			if u > 0 and u < 1 then
+				local shake = sin(u * 28) * (1 - u)
+				rot(p, "BodyJoint", 0, shake * 0.12, shake * 0.35)
+				rot(p, "Neck", 0, shake * 0.5, shake * 0.4)
+				rot(p, "EarL", shake * 0.6) rot(p, "EarR", -shake * 0.6)
+				rot(p, "Tail", 0, shake * 0.8)
+			end
+		end
+		-- 3) luck: chest swells, head rises
+		local l = Easing.sineInOut(clamp((t - e2) / G.revealLuck, 0, 1)) * (1 - clamp((t - e3) / 0.4, 0, 1))
+		rot(p, "BodyJoint", 0.1 * l)
+		rot(p, "Neck", 0.25 * l)
+		local toss = Easing.bump(clamp((t - (e3 - 0.65)) / 0.5, 0, 1))
+		rot(p, "Neck", -0.35 * toss)
+		rot(p, "Jaw", -0.6 * toss)
+		-- 4) kg: growth STOMPS every 0.4 s (front paws lift, then pound the ground)
+		if t > e3 and t < e4 then
+			local ph = ((t - e3) / 0.4) % 1
+			local lift = if ph < 0.55 then Easing.sineOut(ph / 0.55) else 1 - Easing.quadIn((ph - 0.55) / 0.45)
+			rot(p, "LegFL", -0.5 * lift) rot(p, "LegFR", -0.5 * lift)
+			rot(p, "BodyJoint", 0.18 * lift)
+			pos(p, "BodyJoint", 0, (0.12 * lift - 0.06 * (1 - lift)) * s, 0)
+			rot(p, "Jaw", -0.3 * lift)
+		end
+		-- 5) loading up for the peak: crouch low, ears back, trembling
+		local load = Easing.sineInOut(clamp((t - (e4 - 0.5)) / 0.85, 0, 1))
+		local trem = sin(t * 53) * 0.03 * load
+		pos(p, "BodyJoint", 0, -0.3 * s * load, 0)
+		rot(p, "BodyJoint", -0.1 * load + trem)
+		rot(p, "LegFL", 0.25 * load) rot(p, "LegFR", 0.25 * load)
+		rot(p, "LegBL", -0.35 * load) rot(p, "LegBR", -0.35 * load)
+		rot(p, "Neck", -0.35 * load + trem)
+		rot(p, "EarL", -0.5 * load) rot(p, "EarR", -0.5 * load)
 		return
 	end
 	local u = t - peak
-	-- the ROAR: shoots up past vertical (overshoot), paws spread wide, head thrown back
+	-- the ROAR: shoots up (overshoot), paws spread wide, head thrown back, jaws all the way open
 	local up = Easing.backOut(clamp(u / 0.22, 0, 1))
 	local down = Easing.quadIn(clamp((u - 0.95) / 0.16, 0, 1)) -- crash back down
 	local stomp = if u > 1.11 then Easing.bump(clamp((u - 1.11) / 0.25, 0, 1)) else 0
 	local proud = Easing.cubicOut(clamp((u - 1.3) / 0.4, 0, 1))
 	local roar = up * (1 - down)
-	local shiver = sin(u * 60) * 0.05 * roar * (1 - clamp(u / 0.95, 0, 1))
-	if not e.revealStomp and u > 1.11 then
-		e.revealStomp = true
-		if e.root then Fx.dust(e.root.Position - Vector3.new(0, e.legLen + 0.6 * s, 0) + e.root.CFrame.LookVector * 1.2 * s, 0.9 * s) end
-	elseif u < 1 then
-		e.revealStomp = nil
-	end
+	local shiver = sin(u * 60) * 0.04 * roar * (1 - clamp(u / 0.95, 0, 1))
 	pos(p, "BodyJoint", 0, (0.95 * roar - 0.32 * stomp + 0.08 * proud) * s, 0.75 * s * roar)
 	rot(p, "BodyJoint", 1.3 * roar + shiver - 0.18 * stomp + 0.05 * proud)
 	rot(p, "LegFL", -1.65 * roar + 0.4 * stomp, 0, 0.5 * roar) rot(p, "LegFR", -1.65 * roar + 0.4 * stomp, 0, -0.5 * roar)
@@ -524,7 +564,8 @@ local function updateBear(e, dt, now)
 	local model = e.model
 	local root = e.root
 	if not root or not root.Parent then return end
-	local s = e.scale
+	-- local scaling (Model:ScaleTo, the growing reveal bear) is taken into account
+	local s = e.scale * (if model.GetScale then model:GetScale() else 1)
 	e.t += dt
 	local t = e.t
 	-- velocity: physics velocity (NPCs, players) or measured (carried / anchored)
