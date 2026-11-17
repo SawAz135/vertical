@@ -14,6 +14,7 @@ local Easing = require(ReplicatedStorage.Shared.Util.Easing)
 local FishConfig = require(ReplicatedStorage.Shared.Config.FishConfig)
 local BearConfig = require(ReplicatedStorage.Shared.Config.BearConfig)
 local Fx = require(script.Parent.Fx)
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
 local Animator = {}
 local bears = {}
@@ -125,15 +126,21 @@ STATES.Look = function(p, e, t, s)
 end
 
 STATES.Alert = function(p, e, t, s)
-	local k = Easing.backOut(clamp(t / 0.35, 0, 1))
-	rot(p, "Neck", 0.32 * k, 0, 0)
-	pos(p, "BodyJoint", 0, 0.12 * s * k, 0)
-	rot(p, "BodyJoint", 0.06 * k)
-	rot(p, "LegFL", -0.06 * k) rot(p, "LegFR", -0.06 * k)
-	rot(p, "EarL", -0.35 * k, 0, 0.2 * k) rot(p, "EarR", -0.35 * k, 0, -0.2 * k)
-	rot(p, "Tail", 0.6 * k)
-	-- quick sniff of the air
-	rot(p, "Neck", sin(t * 18) * 0.03 * k)
+	-- CARTOON STARTLE: a tiny flinch down, then the whole bear JOLTS up (front paws off the
+	-- ground, ears shoot up, head snaps round), lands, and drops into a coiled "ready to
+	-- charge" crouch: head low, shoulders down, rump up, trembling with intent
+	local flinch = Easing.bump(clamp(t / 0.1, 0, 1))
+	local jolt = Easing.bump(clamp((t - 0.06) / 0.3, 0, 1))
+	local ready = Easing.backOut(clamp((t - 0.32) / 0.25, 0, 1))
+	local quiver = sin(t * 47) * 0.025 * ready
+	pos(p, "BodyJoint", 0, (-0.12 * flinch + 0.55 * jolt - 0.18 * ready) * s, -0.15 * s * ready)
+	rot(p, "BodyJoint", 0.5 * jolt - 0.16 * ready + quiver)
+	rot(p, "LegFL", -0.9 * jolt + 0.35 * ready) rot(p, "LegFR", -0.75 * jolt + 0.35 * ready)
+	rot(p, "LegBL", -0.25 * jolt - 0.3 * ready) rot(p, "LegBR", -0.25 * jolt - 0.3 * ready)
+	rot(p, "Neck", 0.55 * jolt - 0.3 * ready + quiver, 0, 0)
+	rot(p, "Jaw", -0.35 * jolt - 0.15 * ready)
+	rot(p, "EarL", -0.7 * jolt - 0.4 * ready, 0, 0.35 * jolt) rot(p, "EarR", -0.7 * jolt - 0.4 * ready, 0, -0.35 * jolt)
+	rot(p, "Tail", 0.9 * jolt + 0.5 * ready, sin(t * 30) * 0.3 * ready)
 end
 
 STATES.Sniff = function(p, e, t, s)
@@ -224,79 +231,145 @@ end
 -- joy in 3 beats: rears up roaring and pawing the air -> drops into two bouncy hops
 -- (squash on landing) -> a happy left-right wiggle, then keeps bouncing
 STATES.Happy = function(p, e, t, s)
-	if t < 0.55 then
-		local k = Easing.backOut(clamp(t / 0.3, 0, 1))
-		local paw = sin(t * 22) * 0.3
-		rot(p, "BodyJoint", 0.85 * k)
-		pos(p, "BodyJoint", 0, 0.45 * s * k, 0.5 * s * k)
-		rot(p, "LegFL", -1.15 * k + paw) rot(p, "LegFR", -1.15 * k - paw)
-		rot(p, "LegBL", -0.85 * k) rot(p, "LegBR", -0.85 * k)
-		rot(p, "Neck", -0.45 * k, sin(t * 9) * 0.15)
-		rot(p, "Jaw", -0.6 * k) -- big roar
-		rot(p, "EarL", -0.4 * k) rot(p, "EarR", -0.4 * k)
-		rot(p, "Tail", 0.7 * k, sin(t * 25) * 0.5)
+	-- 1) HUGE rear-up roar (crouch first, then up past vertical, paws flailing)
+	if t < 0.65 then
+		local crouch = Easing.bump(clamp(t / 0.12, 0, 1))
+		local k = Easing.backOut(clamp((t - 0.08) / 0.28, 0, 1))
+		local paw = sin(t * 26) * 0.45 * k
+		pos(p, "BodyJoint", 0, (-0.2 * crouch + 0.75 * k) * s, 0.65 * s * k)
+		rot(p, "BodyJoint", -0.12 * crouch + 1.15 * k)
+		rot(p, "LegFL", -1.5 * k + paw, 0, 0.35 * k) rot(p, "LegFR", -1.5 * k - paw, 0, -0.35 * k)
+		rot(p, "LegBL", -1.05 * k) rot(p, "LegBR", -1.05 * k)
+		rot(p, "Neck", -0.7 * k + sin(t * 40) * 0.04 * k, sin(t * 9) * 0.2)
+		rot(p, "Jaw", -0.95 * k) -- the roar: jaws all the way open
+		rot(p, "EarL", -0.6 * k) rot(p, "EarR", -0.6 * k)
+		rot(p, "Tail", 0.9 * k, sin(t * 25) * 0.6)
 		return
 	end
-	local u = t - 0.55
-	if u < 0.9 then
-		-- two hops; squash when the paws touch the ground
-		local ph = (u / 0.45) % 1
+	local u = t - 0.65
+	if u < 1.05 then
+		-- 2) three big bouncy hops: stretch in the air, SQUASH on every landing
+		local ph = (u / 0.35) % 1
 		local air = sin(ph * math.pi)
-		local squash = if ph < 0.15 then (1 - ph / 0.15) else 0
-		pos(p, "BodyJoint", 0, (air * 0.7 - squash * 0.18) * s, 0)
-		rot(p, "BodyJoint", -0.12 + air * 0.18, 0, sin(u * 14) * 0.06)
-		rot(p, "LegFL", -0.55 * air) rot(p, "LegFR", -0.55 * air)
-		rot(p, "LegBL", 0.5 * air) rot(p, "LegBR", 0.5 * air)
-		rot(p, "Neck", 0.3 - squash * 0.2, sin(u * 6) * 0.15)
-		rot(p, "Jaw", -0.35)
-		rot(p, "Tail", 0.6, sin(u * 22) * 0.6)
-		rot(p, "EarL", sin(u * 16) * 0.3) rot(p, "EarR", -sin(u * 16) * 0.3)
+		local squash = if ph < 0.18 then (1 - ph / 0.18) else 0
+		pos(p, "BodyJoint", 0, (air * 1.05 - squash * 0.3) * s, 0)
+		rot(p, "BodyJoint", -0.18 + air * 0.3 - squash * 0.12, 0, sin(u * 14) * 0.1)
+		rot(p, "LegFL", -0.85 * air + 0.25 * squash) rot(p, "LegFR", -0.85 * air + 0.25 * squash)
+		rot(p, "LegBL", 0.75 * air - 0.2 * squash) rot(p, "LegBR", 0.75 * air - 0.2 * squash)
+		rot(p, "Neck", 0.4 - squash * 0.35, sin(u * 6) * 0.2)
+		rot(p, "Jaw", -0.45 - air * 0.2)
+		rot(p, "Tail", 0.8, sin(u * 24) * 0.8)
+		rot(p, "EarL", sin(u * 18) * 0.45 - squash * 0.3) rot(p, "EarR", -sin(u * 18) * 0.45 - squash * 0.3)
 		return
 	end
-	local v = u - 0.9
-	-- happy wiggle (body swings left / right) then little bounces
-	local spin = sin(clamp(v / 0.7, 0, 1) * math.pi * 2) * 0.55
+	local v = u - 1.05
+	-- 3) happy wiggle (whole body swings left / right) then little bounces
+	local spin = sin(clamp(v / 0.7, 0, 1) * math.pi * 2) * 0.75
 	local hop = abs(sin(v * 7.5))
-	pos(p, "BodyJoint", 0, hop * 0.4 * s, 0)
-	rot(p, "BodyJoint", -0.08 + hop * 0.12, spin, sin(v * 7.5) * 0.08)
-	rot(p, "LegFL", -0.4 * hop) rot(p, "LegFR", -0.4 * hop)
-	rot(p, "LegBL", 0.35 * hop) rot(p, "LegBR", 0.35 * hop)
-	rot(p, "Neck", 0.28, sin(v * 4) * 0.2)
-	rot(p, "Jaw", -0.32)
-	rot(p, "Tail", 0.5, sin(v * 20) * 0.6)
-	rot(p, "EarL", sin(v * 15) * 0.25) rot(p, "EarR", -sin(v * 15) * 0.25)
+	pos(p, "BodyJoint", 0, hop * 0.5 * s, 0)
+	rot(p, "BodyJoint", -0.1 + hop * 0.16, spin, sin(v * 7.5) * 0.12)
+	rot(p, "LegFL", -0.5 * hop) rot(p, "LegFR", -0.5 * hop)
+	rot(p, "LegBL", 0.45 * hop) rot(p, "LegBR", 0.45 * hop)
+	rot(p, "Neck", 0.32, sin(v * 4) * 0.28)
+	rot(p, "Jaw", -0.38)
+	rot(p, "Tail", 0.6, sin(v * 20) * 0.8)
+	rot(p, "EarL", sin(v * 15) * 0.35) rot(p, "EarR", -sin(v * 15) * 0.35)
 end
 
 STATES.Eat = function(p, e, t, s)
-	-- head goes down, jaws WIDE (teeth + tongue), CHOMP at ~1.0 s, then real chewing:
-	-- the jaw grinds side to side, the head rocks with each bite, ears pull back,
-	-- a big swallow (neck stretches up, eyes closed), then a satisfied lick of the chops
-	local down = Easing.cubicOut(clamp(t / 0.3, 0, 1))
-	local lift = Easing.cubicInOut(clamp((t - 0.45) / 0.35, 0, 1))
-	rot(p, "Neck", -0.8 * down + 0.6 * lift)
-	pos(p, "Neck", 0, -0.25 * s * down * (1 - lift), -0.35 * s * down * (1 - lift))
-	rot(p, "BodyJoint", -0.1 * down * (1 - lift))
-	local open = Easing.cubicOut(clamp((t - 0.25) / 0.4, 0, 1)) * (1 - Easing.cubicIn(clamp((t - 0.95) / 0.12, 0, 1)))
-	local chewing = t > 1.1 and t < 1.55
-	local ct = t - 1.1
-	local chew = if chewing then abs(sin(ct * 11)) else 0
-	local grind = if chewing then sin(ct * 5.5) else 0
-	rot(p, "Jaw", -0.85 * open - chew * 0.34, grind * 0.18, grind * 0.08)
+	-- CARTOON BITE, keyed on the server timeline (pickup 0.35 s, CHOMP ~1.0 s, swallow 1.55 s):
+	--  0.00 head dives at the fish, jaws gaping
+	--  0.35 SNATCH: head whips UP with the fish, rearing a little, jaws WIDE (teeth + tongue)
+	--  0.95 CHOMP: head slams down/forward with overshoot, jaw shuts hard, body squashes
+	--  1.05 violent dog-shake, then heavy chewing (grinding jaw, rocking head, eyes squeezed)
+	--  1.55 GULP: neck stretches way up, body lifts, then a long satisfied lick
+	local dive = Easing.cubicOut(clamp(t / 0.28, 0, 1))
+	local snatch = Easing.backOut(clamp((t - 0.33) / 0.22, 0, 1))
+	local chomp = Easing.expoOut(clamp((t - 0.93) / 0.1, 0, 1))
+	local settle = Easing.cubicInOut(clamp((t - 1.05) / 0.35, 0, 1))
+	-- head: down -> way up -> slammed down -> back to level
+	local headUp = -0.85 * dive + 1.35 * snatch - 1.05 * chomp + 0.55 * settle
+	rot(p, "Neck", headUp)
+	pos(p, "Neck", 0, (-0.3 * dive + 0.35 * snatch - 0.3 * chomp + 0.25 * settle) * s,
+		(-0.4 * dive + 0.25 * snatch - 0.45 * chomp + 0.6 * settle) * s)
+	-- body: leans in, rears with the snatch, squashes on the chomp
+	rot(p, "BodyJoint", -0.12 * dive + 0.3 * snatch - 0.34 * chomp + 0.16 * settle)
+	pos(p, "BodyJoint", 0, (0.22 * snatch - 0.38 * chomp + 0.16 * settle) * s, 0)
+	rot(p, "LegFL", -0.3 * snatch + 0.3 * chomp) rot(p, "LegFR", -0.3 * snatch + 0.3 * chomp)
+	-- jaw: gaping, WIDE during the snatch, shut hard on the chomp
+	local open = (0.6 * dive + 0.65 * snatch) * (1 - chomp)
+	local chewing = t > 1.05 and t < 1.55
+	local ct = t - 1.05
+	local shake = if ct > 0 and ct < 0.22 then sin(ct * 70) * (1 - ct / 0.22) else 0
+	local chew = if chewing then abs(sin(ct * 12)) else 0
+	local grind = if chewing then sin(ct * 6) else 0
+	rot(p, "Jaw", -open - chew * 0.42, grind * 0.22, grind * 0.1)
 	if chewing then
-		rot(p, "Neck", -chew * 0.08, grind * 0.12, grind * 0.12) -- the head rocks with each bite
-		rot(p, "EarL", -chew * 0.35) rot(p, "EarR", -chew * 0.35)
+		rot(p, "Neck", -chew * 0.12, grind * 0.16 + shake * 0.45, grind * 0.14 + shake * 0.3)
+		rot(p, "BodyJoint", 0, shake * 0.1, shake * 0.08)
+		rot(p, "EarL", -chew * 0.45) rot(p, "EarR", -chew * 0.45)
 	end
-	-- the swallow: neck stretches up, a gulp
-	local gulp = Easing.bump(clamp((t - 1.55) / 0.4, 0, 1))
-	rot(p, "Neck", 0.35 * gulp)
-	pos(p, "Neck", 0, 0.12 * s * gulp, 0)
-	rot(p, "Jaw", 0.05 * gulp)
-	-- satisfied lick
-	local lick = Easing.bump(clamp((t - 1.85) / 0.35, 0, 1))
-	rot(p, "Jaw", -0.22 * lick)
-	rot(p, "EarL", 0.3 * down * (1 - gulp)) rot(p, "EarR", 0.3 * down * (1 - gulp))
-	rot(p, "Tail", 0, sin(t * 9) * 0.3)
-	e.eyesClosed = (chewing and (ct % 0.36) < 0.12) or gulp > 0.3
+	-- the swallow: everything stretches up, a big gulp
+	local gulp = Easing.bump(clamp((t - 1.55) / 0.45, 0, 1))
+	rot(p, "Neck", 0.5 * gulp)
+	pos(p, "Neck", 0, 0.22 * s * gulp, 0)
+	pos(p, "BodyJoint", 0, 0.14 * s * gulp, 0)
+	rot(p, "Jaw", 0.06 * gulp)
+	-- satisfied lick (jaw drops twice)
+	local lick = Easing.bump(clamp((t - 1.9) / 0.4, 0, 1))
+	rot(p, "Jaw", -0.3 * lick * (0.6 + 0.4 * abs(sin(t * 14))))
+	rot(p, "Neck", 0, sin(t * 7) * 0.12 * lick)
+	rot(p, "EarL", 0.35 * dive * (1 - snatch) - 0.5 * chomp * (1 - settle)) rot(p, "EarR", 0.35 * dive * (1 - snatch) - 0.5 * chomp * (1 - settle))
+	rot(p, "Tail", 0.4 * snatch * (1 - settle), sin(t * 9) * (0.3 + 0.5 * gulp))
+	e.eyesClosed = (chewing and (ct % 0.32) < 0.14) or gulp > 0.3 or (chomp > 0.5 and settle < 0.2)
+end
+
+-- REVEAL (the colours climb the black silhouette): the bear builds up power like a storm,
+-- crouching lower and lower, breathing harder and faster, trembling more and more... and at
+-- the peak (with the name slam) it EXPLODES into a giant rear-up roar, then crashes back
+-- down on its front paws (ground stomp) and holds a proud hero stance.
+STATES.Reveal = function(p, e, t, s)
+	local G = GameConfig.Capture
+	local T = G.revealLimb * 6
+	local peak = T + 0.22
+	if t < peak then
+		local k = clamp(t / T, 0, 1)
+		local kk = k * k
+		local breath = sin(t * (2.5 + kk * 9))
+		local tremble = sin(t * 53) * 0.04 * kk + sin(t * 31) * 0.025 * kk
+		pos(p, "BodyJoint", 0, (-0.32 * kk + breath * (0.03 + 0.05 * kk)) * s, 0)
+		rot(p, "BodyJoint", -0.1 * kk + tremble, 0, tremble * 0.6)
+		rot(p, "LegFL", 0.25 * kk) rot(p, "LegFR", 0.25 * kk)
+		rot(p, "LegBL", -0.35 * kk) rot(p, "LegBR", -0.35 * kk)
+		rot(p, "Neck", -0.35 * kk + breath * 0.05 + tremble, sin(t * 0.9) * 0.3 * (1 - k))
+		rot(p, "Jaw", -0.08 - 0.12 * kk - abs(breath) * 0.08 * kk)
+		rot(p, "EarL", -0.55 * kk) rot(p, "EarR", -0.55 * kk)
+		rot(p, "Tail", -0.3 * kk)
+		e.eyesClosed = k > 0.85
+		return
+	end
+	local u = t - peak
+	-- the ROAR: shoots up past vertical (overshoot), paws spread wide, head thrown back
+	local up = Easing.backOut(clamp(u / 0.22, 0, 1))
+	local down = Easing.quadIn(clamp((u - 0.95) / 0.16, 0, 1)) -- crash back down
+	local stomp = if u > 1.11 then Easing.bump(clamp((u - 1.11) / 0.25, 0, 1)) else 0
+	local proud = Easing.cubicOut(clamp((u - 1.3) / 0.4, 0, 1))
+	local roar = up * (1 - down)
+	local shiver = sin(u * 60) * 0.05 * roar * (1 - clamp(u / 0.95, 0, 1))
+	if not e.revealStomp and u > 1.11 then
+		e.revealStomp = true
+		if e.root then Fx.dust(e.root.Position - Vector3.new(0, e.legLen + 0.6 * s, 0) + e.root.CFrame.LookVector * 1.2 * s, 0.9 * s) end
+	elseif u < 1 then
+		e.revealStomp = nil
+	end
+	pos(p, "BodyJoint", 0, (0.95 * roar - 0.32 * stomp + 0.08 * proud) * s, 0.75 * s * roar)
+	rot(p, "BodyJoint", 1.3 * roar + shiver - 0.18 * stomp + 0.05 * proud)
+	rot(p, "LegFL", -1.65 * roar + 0.4 * stomp, 0, 0.5 * roar) rot(p, "LegFR", -1.65 * roar + 0.4 * stomp, 0, -0.5 * roar)
+	rot(p, "LegBL", -1.15 * roar - 0.25 * stomp) rot(p, "LegBR", -1.15 * roar - 0.25 * stomp)
+	rot(p, "Neck", -0.85 * roar + shiver * 1.5 - 0.3 * stomp + 0.3 * proud, sin(u * 1.4) * 0.12 * proud)
+	rot(p, "Jaw", -1.05 * roar - 0.25 * stomp - 0.12 * proud)
+	rot(p, "EarL", -0.8 * roar + 0.1 * proud) rot(p, "EarR", -0.8 * roar + 0.1 * proud)
+	rot(p, "Tail", 1.0 * roar + 0.4 * proud, sin(u * 22) * 0.5 * roar)
 end
 
 STATES.Transform = function(p, e, t, s)
@@ -407,6 +480,10 @@ local function airLayer(p, e, s, vy)
 	rot(p, "Neck", 0.1 * k)
 end
 
+-- states driven by a bouncy spring: { speed, damping }
+local SPRINGY = { Alert = { 22, 0.45 }, Eat = { 26, 0.5 }, Happy = { 20, 0.42 }, Reveal = { 18, 0.4 }, Transform = { 18, 0.45 } }
+local AXES = { "x", "y", "z", "px", "py", "pz" }
+
 local function updateBear(e, dt, now)
 	local model = e.model
 	local root = e.root
@@ -479,7 +556,30 @@ local function updateBear(e, dt, now)
 		for _, lid in e.lids do lid.Transparency = if closed then 0 else 1 end
 	end
 
-	-- smooth toward the target pose and apply
+	-- smooth toward the target pose and apply. The big cartoon moments use an under-damped
+	-- SPRING (overshoot and wobble, like a squash-and-stretch animator would key it);
+	-- everything else keeps the calm critically-smoothed blend.
+	if SPRINGY[anim] and moving < 0.3 then
+		local sp = SPRINGY[anim]
+		e.vel = e.vel or newPose()
+		local steps = math.max(1, math.ceil(dt * 120))
+		local h = dt / steps
+		local w2, d2 = sp[1] * sp[1], 2 * sp[2] * sp[1]
+		for name, m in e.motors do
+			local tgt, c, vv = p[name], e.cur[name], e.vel[name]
+			for _ = 1, steps do
+				for _, f in AXES do
+					vv[f] += ((tgt[f] - c[f]) * w2 - vv[f] * d2) * h
+					c[f] += vv[f] * h
+				end
+			end
+			m.Transform = CFrame.new(c.px, c.py, c.pz) * CFrame.Angles(c.x, c.y, c.z)
+		end
+		return
+	end
+	if e.vel then
+		for _, vv in e.vel do vv.x, vv.y, vv.z, vv.px, vv.py, vv.pz = 0, 0, 0, 0, 0, 0 end
+	end
 	local k = Easing.damp(14, dt)
 	for name, m in e.motors do
 		local tgt = p[name]
@@ -510,9 +610,11 @@ local function updateFish(e, dt, now)
 	elseif anim == "Eaten" then
 		speed, amp = 22, 0.45
 	elseif anim == "Thrown" then
-		-- big S-bends in the air, fins flared
-		speed, amp = 11, 0.55
-		e.flare = 1.8
+		-- big S-bends in the air, fins flared; the thrower drives "FlyPanic" (0 stiff arrow /
+		-- frozen apex .. 1 frantic fall) so the body acting follows the flight beats
+		local panic = e.model:GetAttribute("FlyPanic") or 0.6
+		speed, amp = 6 + 14 * panic, 0.15 + 0.6 * panic
+		e.flare = 1 + 1.2 * panic
 	elseif anim == "Swim" then
 		speed, amp = 7, 0.32
 	elseif anim == "Held" then

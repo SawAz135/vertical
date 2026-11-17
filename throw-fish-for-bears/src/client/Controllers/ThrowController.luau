@@ -127,7 +127,7 @@ local function onThrow(player: Player, d)
 				if not root then return nil, 60 end
 				local k = 1 - math.clamp((startT - now) / RELEASE, 0, 1)
 				local orbit = CFrame.Angles(0, -1.0 + k * 0.5, 0):VectorToWorldSpace(side)
-				local p = root.Position + orbit * (5.5 - 1.5 * k) - travel * 2 + Vector3.new(0, 0.2 + k * 0.9, 0)
+				local p = root.Position + orbit * (7.2 - 2.2 * k) - travel * 2 + Vector3.new(0, -0.4 + k * 1.3, 0)
 				local cf = CFrame.lookAt(p, root.Position + Vector3.new(0, 1.8, 0) + travel * 3 * k)
 				lastCF, lastFov = cf, 52 - 14 * k
 				return cf, lastFov
@@ -285,8 +285,19 @@ local function onThrow(player: Player, d)
 		local p2 = Formulas.arc(d.from, d.to, d.apex, math.min(1, w + 0.01)) + (p - Formulas.arc(d.from, d.to, d.apex, w))
 		local vel = p2 - p
 		local base = if vel.Magnitude > 1e-3 then CFrame.lookAt(p, p + vel) else CFrame.new(p) * CFrame.Angles(0, yaw, 0)
-		local tumble = w * (2.5 + d.power * 3) * math.pi
-		model:PivotTo(base * CFrame.Angles(0, 0, tumble) * CFrame.Angles(math.sin(w * 40) * 0.15, math.sin(w * 26) * 0.25, 0))
+		-- CARTOON FLIGHT ACTING:
+		--  launch : shot out like an arrow, stiff, a tight football spiral that slowly winds down
+		--  climb  : starts wriggling, more and more
+		--  apex   : the "uh-oh" beat: it freezes, nose tips down to look at the drop
+		--  fall   : total panic, frantic lashing all the way down
+		local spiral = (2.5 + d.power * 3) * math.pi * (1 - (1 - w) ^ 3)
+		local stiff = 1 - math.clamp(w / 0.08, 0, 1)
+		local uhoh = Easing.bump(math.clamp((w - 0.42) / 0.16, 0, 1))
+		local panic = math.clamp((w - 0.55) / 0.2, 0, 1)
+		local wrig = (0.18 + 0.2 * w + 0.35 * panic) * (1 - stiff) * (1 - 0.85 * uhoh)
+		local freq = 26 + 30 * panic
+		model:PivotTo(base * CFrame.Angles(0, 0, spiral) * CFrame.Angles(math.sin(w * freq * 1.5) * wrig * 0.6 - 0.55 * uhoh, math.sin(w * freq) * wrig, 0))
+		model:SetAttribute("FlyPanic", panic * (1 - uhoh) + 0.25 * (1 - stiff))
 		if isLocal and u < 0.2 then
 			dropAcc += dt
 			if dropAcc > 0.06 then
@@ -372,7 +383,7 @@ function Throw.init()
 		Cine.dark(0)
 		HumanPose.localPose = "Throw"
 		HumanPose.localPoseT = workspace:GetServerTimeNow()
-		task.delay(1.25, function()
+		task.delay(1.65, function()
 			if HumanPose.localPose == "Throw" then HumanPose.localPose = nil end
 		end)
 		Net.event("Throw"):FireServer(aim)

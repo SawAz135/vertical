@@ -210,7 +210,7 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 		-- 4) REVEAL: seen from above, the 6 body parts are uncovered one by one while LUCK
 		--    and SIZE climb, then name + rarity
 		local revealDur = G.revealLimb * 6 + G.revealFinal
-		agent:setAnim("Look")
+		agent:setAnim("Reveal")
 		fx(player, "Reveal", {
 			start = workspace:GetServerTimeNow(), duration = revealDur, final = outcome.r, mult = outcome.mult,
 			luck = c.luck * (outcome.mult or 1), weight = outcome.w, species = outcome.s, variant = outcome.v, bear = agent.model,

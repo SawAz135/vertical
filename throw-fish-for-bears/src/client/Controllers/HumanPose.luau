@@ -175,44 +175,80 @@ function P.HoldFish(o, t, now)
 	return o
 end
 
--- throw wind-up: coil the whole body, fish pulled back behind the head, back leg loaded;
--- the coil deepens with the charge and trembles at full power
+-- throw wind-up (CARTOON PITCHER): the body coils like a spring. Off-arm stretched out at the
+-- target, fish arm cocked WAY back behind the head, torso twisted almost sideways, deep sit
+-- into the back leg, front knee lifted. The coil deepens with the charge, the whole body
+-- rocks (breathing gets heavier) and at full power it shakes like it is about to burst.
 function P.ThrowCharge(o, t, now, char)
 	local c = if char == Players.LocalPlayer.Character then HumanPose.charge else clamp(t / 1.4, 0, 1)
-	local enter = Easing.backOut(clamp(t / 0.3, 0, 1))
-	local tremble = if c >= 0.99 then sin(now * 55) * 0.05 else sin(now * 20) * 0.01 * c
-	local arm = 2.75 + c * 0.6
-	o.RS = V3(arm * enter + tremble, -0.15 * c, 0.15)
-	o.LS = V3(arm * enter - tremble, 0.15 * c, 0.15)
-	o.RE = V3(0.5 + c * 0.8, 0, 0)
-	o.LE = V3(0.5 + c * 0.8, 0, 0)
-	o.W = V3(0.12 + c * 0.38, -0.25 - c * 0.45, 0.05 * c)
-	o.N = V3(-0.05 - c * 0.15, 0.25 + c * 0.35, 0)
-	o.RH = V3(-0.15 - c * 0.2, 0, 0)
-	o.LH = V3(0.25 + c * 0.35, 0, 0)
-	o.RK = V3(-0.3 - c * 0.55, 0, 0)
-	o.LK = V3(-0.2 - c * 0.25, 0, 0)
-	o.P = V3(-0.12 - c * 0.3 + tremble * 0.5, 0, 0)
+	-- entrance: a quick "snap back" with overshoot (backOut), not a slow blend
+	local enter = Easing.backOut(clamp(t / 0.28, 0, 1))
+	local cc = c * c * (3 - 2 * c) -- smoothstep: slow start, pulls hard in the middle
+	local full = c >= 0.99
+	local rock = sin(now * (3 + c * 4)) * (0.03 + 0.05 * c)
+	local tremble = if full then sin(now * 61) * 0.07 + sin(now * 37) * 0.04 else sin(now * 22) * 0.015 * c
+	-- fish arm: cocked far behind the head, elbow folded, wrist "loaded"
+	o.RS = V3((2.6 + cc * 1.05) * enter + tremble, -0.25 - 0.45 * cc, 0.25 + 0.35 * cc)
+	o.RE = V3(0.6 + cc * 1.1 + tremble * 0.5, 0, 0)
+	-- off-arm: stretched out toward the target like aiming, rises with the charge
+	o.LS = V3((1.2 + 0.55 * cc) * enter - tremble * 0.6, 0.35 * cc, -0.15 - 0.2 * cc)
+	o.LE = V3(0.15 + 0.1 * sin(now * 5) * c, 0, 0)
+	-- torso: big twist away from the target + lean back + roll over the back hip
+	o.W = V3(0.15 + cc * 0.5 + rock, (-0.35 - cc * 0.8) * enter, 0.1 * cc + tremble * 0.6)
+	-- head stays locked on the target (counter-twist), chin down at full power
+	o.N = V3(-0.05 - cc * 0.18, 0.3 + cc * 0.7, -0.05 * cc)
+	-- legs: sit deep into the back leg, front knee lifted (pitcher's leg kick)
+	o.RH = V3(-0.2 - cc * 0.35, 0, 0)
+	o.RK = V3(-0.35 - cc * 0.85, 0, 0)
+	o.LH = V3(0.3 + cc * 0.9 + rock * 0.5, 0, 0)
+	o.LK = V3(-0.3 - cc * 1.0, 0, 0)
+	o.P = V3(-0.15 - cc * 0.45 + rock * 0.6 + tremble * 0.6, 0, 0)
 	return o
 end
 
--- release: explosive uncoil, arms whip over and down past the body, weight crashes onto the
--- front leg, back leg kicks up, long follow-through, then recover
+-- release (cartoon, 1.6 s): a last tiny snap-back (anticipation), an EXPLOSIVE whip that
+-- overshoots past the body, the back leg flies up behind, the body hangs frozen in the
+-- follow-through for a beat (a held pose, like in cartoons), then a springy hop back to
+-- standing with a little arm wobble. Springs on top add natural overshoot.
 function P.Throw(o, t, now)
 	local fast = Easing.expoOut
-	o.RS = V3(kf(t, { { 0, 3.35 }, { 0.14, 0.2, fast }, { 0.3, -0.25 }, { 0.75, -0.1 }, { 1.2, 0 } }), 0, kf(t, { { 0, 0.15 }, { 0.14, 0.3 }, { 1.2, 0 } }))
-	o.LS = V3(kf(t, { { 0, 3.35 }, { 0.16, 0.5, fast }, { 0.32, 0.1 }, { 1.2, 0 } }), 0, kf(t, { { 0, 0.15 }, { 0.16, 0.35 }, { 1.2, 0 } }))
-	o.RE = V3(kf(t, { { 0, 1.3 }, { 0.1, 0.05, fast }, { 0.5, 0.25 }, { 1.2, 0 } }), 0, 0)
-	o.LE = V3(kf(t, { { 0, 1.3 }, { 0.12, 0.1, fast }, { 0.5, 0.3 }, { 1.2, 0 } }), 0, 0)
-	o.W = V3(kf(t, { { 0, 0.5 }, { 0.14, -0.45, fast }, { 0.45, -0.3 }, { 1.2, 0 } }),
-		kf(t, { { 0, -0.7 }, { 0.14, 0.55, fast }, { 0.45, 0.3 }, { 1.2, 0 } }),
-		kf(t, { { 0, 0.05 }, { 0.14, -0.1 }, { 1.2, 0 } }))
-	o.N = V3(kf(t, { { 0, -0.2 }, { 0.14, 0.15 }, { 0.5, 0.1 }, { 1.2, 0 } }), kf(t, { { 0, 0.6 }, { 0.14, -0.3 }, { 1.2, 0 } }), 0)
-	o.RH = V3(kf(t, { { 0, -0.35 }, { 0.14, -0.55, fast }, { 0.45, -0.4 }, { 1.2, 0 } }), 0, 0)
-	o.RK = V3(kf(t, { { 0, -0.85 }, { 0.14, -0.95 }, { 0.45, -0.5 }, { 1.2, 0 } }), 0, 0)
-	o.LH = V3(kf(t, { { 0, 0.6 }, { 0.14, 0.35 }, { 0.45, 0.3 }, { 1.2, 0 } }), 0, 0)
-	o.LK = V3(kf(t, { { 0, -0.45 }, { 0.14, -0.55 }, { 0.45, -0.3 }, { 1.2, 0 } }), 0, 0)
-	o.P = V3(kf(t, { { 0, -0.42 }, { 0.14, -0.2, fast }, { 0.45, -0.15 }, { 1.2, 0 } }), 0, 0)
+	local snap = Easing.quadIn
+	local back = Easing.backOut
+	-- fish arm: snap back -> whip over the top -> down across the body (overshoot) -> hold -> recover
+	o.RS = V3(
+		kf(t, { { 0, 3.65 }, { 0.06, 3.95, snap }, { 0.17, -0.55, fast }, { 0.32, -0.3 }, { 0.7, -0.38 }, { 0.95, 0.25, back }, { 1.4, 0 } }),
+		kf(t, { { 0, -0.7 }, { 0.17, 0.55, fast }, { 0.7, 0.45 }, { 1.0, -0.1, back }, { 1.4, 0 } }),
+		kf(t, { { 0, 0.6 }, { 0.17, -0.35, fast }, { 0.7, -0.3 }, { 1.0, 0.12 }, { 1.4, 0 } }))
+	o.RE = V3(kf(t, { { 0, 1.7 }, { 0.06, 1.95, snap }, { 0.14, 0.0, fast }, { 0.3, 0.2 }, { 0.7, 0.3 }, { 1.0, 0.6, back }, { 1.4, 0 } }), 0, 0)
+	-- off-arm: yanked back hard to whip the torso around (counter-rotation)
+	o.LS = V3(
+		kf(t, { { 0, 1.75 }, { 0.06, 1.9 }, { 0.17, -0.6, fast }, { 0.7, -0.5 }, { 1.0, 0.35, back }, { 1.4, 0 } }),
+		0,
+		kf(t, { { 0, -0.35 }, { 0.17, 0.75, fast }, { 0.7, 0.6 }, { 1.0, 0.1 }, { 1.4, 0 } }))
+	o.LE = V3(kf(t, { { 0, 0.25 }, { 0.17, 1.1, fast }, { 0.7, 0.95 }, { 1.0, 0.4 }, { 1.4, 0 } }), 0, 0)
+	-- torso: wound up -> uncoils PAST the target, folds hard forward -> held -> springs upright
+	o.W = V3(
+		kf(t, { { 0, 0.65 }, { 0.06, 0.75, snap }, { 0.17, -0.7, fast }, { 0.7, -0.6 }, { 1.0, 0.18, back }, { 1.4, 0 } }),
+		kf(t, { { 0, -1.15 }, { 0.06, -1.25, snap }, { 0.17, 0.85, fast }, { 0.7, 0.7 }, { 1.0, -0.12, back }, { 1.4, 0 } }),
+		kf(t, { { 0, 0.1 }, { 0.17, -0.25, fast }, { 0.7, -0.2 }, { 1.0, 0.06 }, { 1.4, 0 } }))
+	-- head: whips round with the body then watches the fish fly away (chin up)
+	o.N = V3(
+		kf(t, { { 0, -0.23 }, { 0.17, 0.05, fast }, { 0.4, 0.3 }, { 0.7, 0.35 }, { 1.0, 0.1 }, { 1.4, 0 } }),
+		kf(t, { { 0, 1.0 }, { 0.17, -0.5, fast }, { 0.7, -0.4 }, { 1.0, 0.1, back }, { 1.4, 0 } }), 0)
+	-- back leg: drives off the ground then FLIES UP behind (heel to the sky), hangs, drops back
+	o.RH = V3(kf(t, { { 0, -0.55 }, { 0.17, -1.15, fast }, { 0.7, -1.0 }, { 1.0, 0.15, back }, { 1.4, 0 } }), 0, 0)
+	o.RK = V3(kf(t, { { 0, -1.2 }, { 0.12, -0.2, fast }, { 0.3, -1.25 }, { 0.7, -1.15 }, { 1.0, -0.3 }, { 1.4, 0 } }), 0, 0)
+	-- front leg: stomps down from the leg kick into a deep lunge
+	o.LH = V3(kf(t, { { 0, 1.2 }, { 0.12, 0.75, fast }, { 0.7, 0.7 }, { 1.0, 0.1, back }, { 1.4, 0 } }), 0, 0)
+	o.LK = V3(kf(t, { { 0, -1.3 }, { 0.12, -0.75, fast }, { 0.7, -0.7 }, { 1.0, -0.15 }, { 1.4, 0 } }), 0, 0)
+	-- pelvis: deep, drops into the lunge, then a springy HOP back to standing
+	o.P = V3(kf(t, { { 0, -0.6 }, { 0.06, -0.66, snap }, { 0.17, -0.45, fast }, { 0.7, -0.5 }, { 0.95, 0.35, Easing.cubicOut }, { 1.15, -0.12, Easing.quadIn }, { 1.4, 0.04 }, { 1.6, 0 } }), 0, 0)
+	-- the held follow-through is never dead: a tiny tremble while frozen
+	if t > 0.3 and t < 0.75 then
+		local k = sin(now * 30) * 0.02
+		o.RS += V3(k, 0, 0)
+		o.W += V3(k * 0.5, 0, 0)
+	end
 	return o
 end
 
@@ -335,6 +371,14 @@ local function trainingFish(char: Model, on: boolean)
 	end
 end
 
+-- spring feel per pose: { speed, damping }. Lower damping = more cartoon overshoot / wobble.
+local SPRING = {
+	default = { 20, 0.62 },
+	Throw = { 30, 0.42 },
+	ThrowCharge = { 17, 0.5 },
+	Lift = { 22, 0.5 },
+}
+
 -- a few poses (legs / pelvis) only make sense standing still
 local LEGS = { Cast = true, Bite = true, Reel = true, Catch = true, ThrowCharge = true, Throw = true, Lift = true, RodIdle = true }
 
@@ -369,7 +413,8 @@ function HumanPose.init()
 			local target = zero()
 			if active then target = P[pose](target, now - poseT, now, char) end
 			for _, ch in CHANNELS do
-				stepSpring(r.springs[ch], target[ch], dt, if ch == "P" or ch == "W" then 16 else 20, 0.62)
+				local sp = SPRING[pose] or SPRING.default
+				stepSpring(r.springs[ch], target[ch], dt, if ch == "P" or ch == "W" then sp[1] * 0.8 else sp[1], sp[2])
 			end
 			local s = r.springs
 			local w = r.w
