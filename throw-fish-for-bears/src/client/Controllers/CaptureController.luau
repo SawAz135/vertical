@@ -378,6 +378,13 @@ local function eatSequence(d)
 		end
 		return front:Lerp(mouth + look * 0.2 * sc, Easing.quadIn((k - 0.6) / 0.4))
 	end
+	local fired = {}
+	local function once(key, fn)
+		if not fired[key] then
+			fired[key] = true
+			fn()
+		end
+	end
 	local ground = fishPosOf(c) + Vector3.new(0, 0.7, 0)
 	local freezeUntil, lastCF, lastFov = 0, nil, 60
 	c.mode = "eat"
