@@ -124,6 +124,23 @@ nav.tabs .on{color:#fff}nav.tabs svg{width:25px;height:25px}
 .tb button:active{transform:scale(.9);background:rgba(18,18,21,.82)}
 .tb svg{width:24px;height:24px}
 .tb .dot{position:absolute;right:6px;top:6px;width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 0 2px rgba(18,18,21,.8)}
+.tb .pill{display:flex;gap:2px;padding:3px;border-radius:14px;background:rgba(18,18,21,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.tb .pill button{width:40px;height:40px;border-radius:11px;background:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.tb .pill button:active,.tb .pill button.on{background:rgba(255,255,255,.16)}
+body:not(.desktop) .pc{display:none!important}
+.hp{position:absolute;top:calc(env(safe-area-inset-top) + 58px);right:max(10px,env(safe-area-inset-right));width:min(42vw,200px);height:10px;border-radius:5px;background:rgba(0,0,0,.55);overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.15)}
+.hp i{display:block;height:100%;width:100%;transition:width .25s,background .25s}
+.lb{top:calc(env(safe-area-inset-top) + 74px)!important}
+.xhair{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px;pointer-events:none;background:radial-gradient(circle,#fff 0 2px,transparent 2.5px),linear-gradient(#fff,#fff) center/2px 8px no-repeat}
+.xhair::before,.xhair::after{content:"";position:absolute;background:#fff;box-shadow:0 0 2px #000}.xhair::before{left:10px;top:0;width:2px;height:7px}.xhair::after{left:10px;bottom:0;width:2px;height:7px}
+.emotes{position:absolute;inset:0;z-index:12;background:radial-gradient(circle,rgba(0,0,0,.35),rgba(0,0,0,.55));animation:fade .2s}
+.wheel{position:absolute;left:50%;top:50%;width:0;height:0}
+.wheel button{position:absolute;width:76px;height:76px;margin:-38px;border-radius:50%;border:0;background:rgba(18,18,21,.78);box-shadow:0 0 0 2px rgba(255,255,255,.18) inset;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;animation:wpop .35s var(--spring) backwards;transition:transform .15s,background .15s}
+.wheel button:hover,.wheel button:active{transform:scale(1.12);background:rgba(255,255,255,.22)}
+.wheel button span{font-size:30px;line-height:1}.wheel button small{font:700 10px var(--ui);color:#ddd}
+.wheel .hub{position:absolute;width:120px;height:120px;margin:-60px;border-radius:50%;background:rgba(18,18,21,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;font:800 16px var(--ui);box-shadow:0 0 0 2px rgba(255,255,255,.12) inset}
+.wheel .hub small{font:700 10.5px var(--ui);color:#aaa;margin-top:3px;text-align:center;padding:0 10px}
+@keyframes wpop{from{transform:scale(.2);opacity:0}}
 /* leaderboard (player list) */
 .lb{position:absolute;top:calc(env(safe-area-inset-top) + 8px);right:max(10px,env(safe-area-inset-right));min-width:150px;max-width:calc(100vw - 186px);border-radius:10px;overflow:hidden;background:rgba(18,18,21,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:13px;transition:transform .3s var(--ease),opacity .3s}
 .lb.min{transform:translateX(calc(100% + 20px));opacity:0}
@@ -206,7 +223,7 @@ body:not(.desktop) .slot{width:56px;height:56px}
 .chat button{height:36px;border:0;border-radius:8px;padding:0 12px;background:rgba(255,255,255,.18);font-weight:800}
 body.chatoff .chat{opacity:0;pointer-events:none}
 body.chatoff .counters{top:calc(env(safe-area-inset-top) + 62px)}
-body:not(.chatoff) .counters{opacity:.25;pointer-events:none}
+body:not(.chatoff) .counters{top:calc(env(safe-area-inset-top) + 262px)}
 /* escape menu */
 .esc{position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;flex-direction:column;align-items:center;padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 14px);font-family:var(--ui);animation:fade .25s}
 @keyframes fade{from{opacity:0}}
@@ -303,10 +320,14 @@ body:not(.chatoff) .counters{opacity:.25;pointer-events:none}
     <div class="stickzone" id="stickzone"></div><div class="stick" id="stick"><i id="knob"></i></div>
     <button class="jump" id="jumpBtn" aria-label="Sauter"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 14.5L12 8l6.5 6.5"/></svg></button>
     <div class="hotbar" id="hotbar"></div>
-    <div class="chat" id="chat"><div class="log" id="chatLog"></div><form id="chatForm"><input id="chatIn" maxlength="120" autocomplete="off" placeholder="Appuie ici pour discuter" enterkeyhint="send"><button>Envoyer</button></form></div>
-    <div class="tb"><button id="menuBtn" aria-label="Menu"><svg viewBox="0 0 24 24"><rect x="4.2" y="4.2" width="15.6" height="15.6" rx="2.2" fill="none" stroke="#fff" stroke-width="2.6" transform="rotate(14 12 12)"/><rect x="10" y="10" width="4" height="4" fill="#fff" transform="rotate(14 12 12)"/></svg></button>
-      <button id="chatBtn" aria-label="Discussion"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linejoin="round"><path d="M4 5.5h16v10H10l-4.5 3.5V15.5H4z"/></svg><span class="dot" id="chatDot" hidden></span></button>
-      <button id="emoteBtn" aria-label="Emotes"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14c1 1.4 2.1 2 3.5 2s2.5-.6 3.5-2"/><circle cx="9" cy="10" r=".6" fill="#fff"/><circle cx="15" cy="10" r=".6" fill="#fff"/></svg></button></div>
+    <div class="chat" id="chat"><div class="log" id="chatLog"></div><form id="chatForm"><input id="chatIn" maxlength="120" autocomplete="off" placeholder="Pour discuter, appuie ici ou sur la touche « / »" enterkeyhint="send"><button>Envoyer</button></form></div>
+    <div class="tb"><div class="pill"><button id="menuBtn" aria-label="Menu"><svg viewBox="0 0 24 24"><rect x="4.6" y="4.6" width="14.8" height="14.8" rx="2.4" fill="none" stroke="#fff" stroke-width="2.6" transform="rotate(14 12 12)"/><rect x="10.2" y="10.2" width="3.6" height="3.6" fill="#fff" transform="rotate(14 12 12)"/></svg></button></div>
+      <div class="pill"><button id="chatBtn" aria-label="Discussion"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linejoin="round"><path d="M4 5.5h16v10H10l-4.5 3.5V15.5H4z"/></svg><span class="dot" id="chatDot" hidden></span></button>
+      <button id="emoteBtn" aria-label="Emotes"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14c1 1.4 2.1 2 3.5 2s2.5-.6 3.5-2"/><circle cx="9" cy="10" r=".6" fill="#fff"/><circle cx="15" cy="10" r=".6" fill="#fff"/></svg></button>
+      <button id="lbBtn" aria-label="Classement"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><path d="M15.5 6.2a3 3 0 010 5.6M17.5 14.4c1.6.7 2.7 2.3 3 4.6"/></svg></button>
+      <button id="slBtn" class="pc" aria-label="Shift Lock"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><rect x="6" y="10.5" width="12" height="9" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/><circle cx="12" cy="15" r="1.2" fill="#fff"/></svg></button></div></div>
+    <div class="hp" id="hp" hidden><i></i></div>
+    <div class="xhair" id="xhair" hidden></div>
     <div class="lb" id="lb"></div>
     <div class="vign" id="vign"></div><div class="flash" id="flash"></div><div class="respawn" id="respawnT">Réapparition…</div><div class="fps" id="fps" hidden></div>
   </div>

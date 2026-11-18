@@ -222,7 +222,7 @@ export class World {
     const ang = ((day - 6) / 12) * Math.PI, dir = new THREE.Vector3(Math.cos(ang) * 0.6, Math.sin(ang), -0.55).normalize(), isDay = dir.y > -0.05;
     this.sunDir = isDay ? dir.clone() : new THREE.Vector3(-dir.x, 0.75, -dir.z).normalize();
     this.sun.intensity = isDay ? L.Brightness * 0.95 : 0.7 * L.Brightness; this.sun.color.set(isDay ? (dir.y < 0.3 ? '#ffc58f' : '#fff6e8') : '#9fb4ff');
-    this.hemi.color.set(L.OutdoorAmbient).lerp(new THREE.Color(L.sky[0]), 0.35); this.hemi.groundColor.set(L.Ambient); this.hemi.intensity = (0.55 + L.Brightness * 0.22) * (isDay ? 1 : 1.6);
+    this.hemi.color.set(L.OutdoorAmbient).lerp(new THREE.Color(L.sky[0]), 0.35); this.hemi.groundColor.set(L.Ambient); this.hemi.intensity = (0.55 + L.Brightness * 0.22) * (isDay ? 1 : 2.1);
     this.skyMat.uniforms.top.value.set(L.sky[0]); this.skyMat.uniforms.bottom.value.set(L.sky[1]); this.skyMat.uniforms.sunDir.value.copy(dir); this.skyMat.uniforms.stars.value = isDay ? 0 : 1;
     const fogD = 0.00025 + L.atmo.Density * 0.0016 + L.atmo.Haze * 0.00012;
     this.scene.fog = new THREE.FogExp2(new THREE.Color(L.atmo.Color).lerp(new THREE.Color(L.sky[1]), 0.4), fogD);
