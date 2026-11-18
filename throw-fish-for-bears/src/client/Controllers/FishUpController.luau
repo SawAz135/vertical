@@ -94,56 +94,93 @@ local function stationPos(): Vector3?
 	return b and Layout.trainPos(b)
 end
 
-local function makeAura(root: BasePart, col: Color3)
-	local att = Instance.new("Attachment")
-	att.Name = "TFBTrainAura"
-	att.Position = Vector3.new(0, -2.6, 0)
-	att.Parent = root
-	local pe = Instance.new("ParticleEmitter")
-	pe.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-	pe.Color = ColorSequence.new(col, Color3.new(1, 1, 1))
-	pe.LightEmission = 1
-	pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.3, 0.55), NumberSequenceKeypoint.new(1, 0) })
-	pe.Lifetime = NumberRange.new(0.8, 1.4)
-	pe.Speed = NumberRange.new(3, 6)
-	pe.SpreadAngle = Vector2.new(12, 12)
-	pe.EmissionDirection = Enum.NormalId.Top
-	pe.Shape = Enum.ParticleEmitterShape.Disc
-	pe.ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface
-	pe.Rate = 4
-	pe.Parent = att
-	local light = Instance.new("PointLight")
-	light.Color = col
-	light.Range = 10
-	light.Brightness = 0.4
-	light.Shadows = false
-	light.Parent = att
-	return { att = att, pe = pe, light = light }
+-- the rep counter: text only (no panel), chunky outline, pops on every rep
+local counter = nil
+local function buildCounter()
+	if counter then return counter end
+	local g = Instance.new("ScreenGui")
+	g.Name = "TFBRepCounter"
+	g.ResetOnSpawn = false
+	g.IgnoreGuiInset = true
+	g.DisplayOrder = 9
+	g.Enabled = false
+	g.Parent = player:WaitForChild("PlayerGui")
+	local function label(size: UDim2, pos: UDim2, max: number, stroke: number)
+		local t = Instance.new("TextLabel")
+		t.BackgroundTransparency = 1
+		t.AnchorPoint = Vector2.new(0.5, 0.5)
+		t.Size = size
+		t.Position = pos
+		t.Font = Enum.Font.FredokaOne
+		t.TextScaled = true
+		t.TextColor3 = Color3.new(1, 1, 1)
+		local c = Instance.new("UITextSizeConstraint")
+		c.MaxTextSize = max
+		c.Parent = t
+		local st = Instance.new("UIStroke")
+		st.Thickness = stroke
+		st.LineJoinMode = Enum.LineJoinMode.Round
+		st.Parent = t
+		t.Parent = g
+		return t
+	end
+	local title = label(UDim2.fromScale(0.5, 0.05), UDim2.fromScale(0.5, 0.15), 30, 3)
+	title.Text = "R E P S"
+	local num = label(UDim2.fromScale(0.5, 0.13), UDim2.fromScale(0.5, 0.23), 96, 6)
+	local grad = Instance.new("UIGradient")
+	grad.Rotation = 90
+	grad.Parent = num
+	local sub = label(UDim2.fromScale(0.5, 0.045), UDim2.fromScale(0.5, 0.31), 30, 3)
+	local sc = Instance.new("UIScale")
+	sc.Parent = num
+	counter = { gui = g, num = num, grad = grad, sub = sub, scale = sc, title = title }
+	return counter
+end
+
+local function showCounter(on: boolean)
+	local c = buildCounter()
+	c.gui.Enabled = on
+	if on then
+		c.num.Text = "0"
+		c.sub.Text = ("+%d 💪 PER LIFT"):format(Data.values.strengthGain or 1)
+	end
+end
+
+-- TRAINING CAMERA: a slow, low orbit around you that tightens as the streak grows
+local function trainingCamera(root: BasePart)
+	local look = root.CFrame.LookVector
+	CameraController.run(function(t)
+		if not training.on or not root.Parent then return nil, 60 end
+		local heat = math.clamp(training.streak / 40, 0, 1)
+		local ang = -0.9 + t * 0.12
+		local dir = CFrame.Angles(0, ang, 0):VectorToWorldSpace(look)
+		local dist = 9.5 - 2.5 * heat
+		local p = root.Position + dir * dist + Vector3.new(0, 1.2 - 0.6 * heat + math.sin(t * 0.5) * 0.4, 0)
+		return CFrame.lookAt(p, root.Position + Vector3.new(0, 1.6, 0)), 54 - 10 * heat
+	end, 3600, { smooth = 5, blendIn = 0.5 })
 end
 
 local function introCinematic(root: BasePart)
-	if CameraController.isBusy() or os.clock() - training.lastIntro < 25 then return end
-	training.lastIntro = os.clock()
 	local col = tierColor()
 	local pos = stationPos() or root.Position
 	Cine.letterbox(true)
-	Fx.dust(pos + Vector3.new(0, 0.5, 0), 1.2)
+	Fx.dust(pos + Vector3.new(0, 0.3, 0), 1.2)
 	CameraController.shake(0.5, 0.3)
 	Cine.banner("FISH-UP!", col, ("+%d 💪 PER LIFT"):format(Data.values.strengthGain or 1))
 	Sound.play("Transform", { volume = 0.7 })
 	local look = root.CFrame.LookVector
+	-- low hero angle in front, sweeping up and around... then the training orbit takes over
 	CameraController.run(function(t)
 		local r = root.Parent and root or nil
 		if not r then return nil, 60 end
-		-- low hero angle in front, sweeping up and around to a proud 3/4 high shot
 		local k = Easing.cubicInOut(math.clamp(t / 1.7, 0, 1))
 		local dir = CFrame.Angles(0, -0.9 + k * 1.6, 0):VectorToWorldSpace(look)
 		local p = r.Position + dir * (6 + 4 * k) + Vector3.new(0, -1.5 + 6 * k, 0)
 		return CFrame.lookAt(p, r.Position + Vector3.new(0, 1 + k * 0.5, 0)), 48 + 16 * k
 	end, 1.8, { smooth = 9, blendIn = 0.3 })
 	task.delay(1.8, function()
-		CameraController.stop()
 		Cine.letterbox(false)
+		if training.on then trainingCamera(root) end
 	end)
 end
 
@@ -154,20 +191,21 @@ local function startTraining()
 	training.on = true
 	training.streak = 0
 	training.gained = 0
-	if training.aura then training.aura.att:Destroy() end
-	training.aura = makeAura(root, tierColor())
-	introCinematic(root)
+	showCounter(true)
+	if os.clock() - training.lastIntro > 25 and not CameraController.isBusy() then
+		training.lastIntro = os.clock()
+		introCinematic(root)
+	else
+		trainingCamera(root)
+	end
 end
 
 local function stopTraining()
 	if not training.on then return end
 	training.on = false
-	if training.aura then
-		local a = training.aura
-		training.aura = nil
-		a.pe.Enabled = false
-		task.delay(1.5, function() a.att:Destroy() end)
-	end
+	showCounter(false)
+	CameraController.stop()
+	Cine.dark(0)
 	if training.streak >= 5 then
 		Cine.banner(("%d REPS!"):format(training.streak), tierColor(), ("+%s 💪 STRENGTH"):format(tostring(training.gained)))
 		Sound.play("Reward")
@@ -183,29 +221,35 @@ local function onRep(amount: number)
 	training.gained += amount
 	local n = training.streak
 	local col = tierColor()
-	-- the number pops out of the lift, bigger and hotter as the streak grows
 	local hot = math.clamp(n / 40, 0, 1)
-	Cine.pop(head or root, ("+%d 💪"):format(amount), Color3.fromRGB(255, 230, 80):Lerp(Color3.fromRGB(255, 70, 50), hot), 100 + math.min(60, n), 1)
-	-- ring wave on the mat, sweat drops, punch
-	local feet = (stationPos() or root.Position) + Vector3.new(0, 0.5, 0)
-	Fx.ring(feet, col, 1.5, 5 + math.min(4, n * 0.1), 0.45)
+	-- the counter: number slams in, hotter and bigger with the streak
+	local c = buildCounter()
+	c.num.Text = tostring(n)
+	local hotCol = Color3.fromRGB(255, 230, 80):Lerp(Color3.fromRGB(255, 70, 50), hot)
+	c.grad.Color = ColorSequence.new(Color3.new(1, 1, 1), hotCol)
+	c.scale.Scale = 1.45 + hot * 0.3
+	tween(c.scale, 0.28, { Scale = 1 + hot * 0.15 }, Enum.EasingStyle.Back)
+	c.num.Rotation = (if n % 2 == 0 then 1 else -1) * (4 + hot * 4)
+	tween(c.num, 0.3, { Rotation = 0 }, Enum.EasingStyle.Back)
+	c.sub.Text = ("+%s 💪  ·  TOTAL +%s"):format(tostring(amount), tostring(training.gained))
+	Cine.pop(head or root, ("+%d 💪"):format(amount), hotCol, 100 + math.min(60, n), 1)
+	-- the effort hits the ground: dust and clods fly off the circle, sweat drops
+	local feet = (stationPos() or root.Position) + Vector3.new(0, 0.3, 0)
+	Fx.blocks(feet, Color3.fromRGB(150, 120, 80), 6 + math.floor(hot * 10), 9 + hot * 8, 0.22, { life = 0.7, up = 1.2, spread = 2.4, gravity = 50,
+		colors = { Color3.fromRGB(150, 120, 80), Color3.fromRGB(110, 150, 70), Color3.fromRGB(120, 95, 60) } })
 	if head then
-		Fx.blocks(head.Position + Vector3.new(0, 0.5, 0), Color3.fromRGB(150, 220, 255), 3, 6, 0.18, { life = 0.6, up = 1.2, spread = 2, gravity = 30 })
+		Fx.blocks(head.Position + Vector3.new(0, 0.5, 0), Color3.fromRGB(150, 220, 255), 3 + math.floor(hot * 4), 6, 0.16, { life = 0.6, up = 1.2, spread = 2, gravity = 30 })
 	end
-	CameraController.punch(-1.5 - hot * 2)
-	if n % 3 == 0 then CameraController.shake(0.12 + hot * 0.2, 0.12) end
-	Sound.play("Lift", { volume = 0.45 })
-	-- the aura grows with the streak
-	if training.aura then
-		training.aura.pe.Rate = 4 + math.min(40, n * 0.8)
-		training.aura.light.Brightness = 0.4 + math.min(2.2, n * 0.05)
-		training.aura.light.Range = 10 + math.min(10, n * 0.2)
-	end
+	CameraController.punch(-2 - hot * 3)
+	CameraController.shake(0.15 + hot * 0.45, 0.18)
+	Sound.play("Lift", { volume = 0.5, pitch = 1 + hot * 0.15 })
+	if hot > 0.3 then Sound.play("Heartbeat", { pitch = 0.9 + hot * 0.5, volume = 0.3 + hot * 0.4 }) end
+	Cine.dark(hot * 0.35)
 	if MILESTONES[n] then
 		Cine.banner(("x%d STREAK!"):format(n), col, "KEEP LIFTING!")
-		Fx.dust(feet, 1)
-		CameraController.shake(0.6, 0.3)
-		CameraController.punch(-6)
+		Fx.dust(feet, 1.4)
+		CameraController.shake(0.8, 0.35)
+		CameraController.punch(-8)
 		Sound.play("Reward")
 	end
 end

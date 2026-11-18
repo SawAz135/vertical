@@ -30,13 +30,14 @@ M.BLUR, M.FOV_PLUS = 18, 8
 
 -- Default sound set (ids from the reference game). Use M.CreateSounds(gui.Sons) to populate a "Sons" folder.
 M.SOUNDS = {
-	Survol = { "rbxassetid://6895079853", 0.5, 1 }, -- hover tick
-	Clic = { "rbxassetid://103866342467024", 0.5, 1 }, -- press
-	Ouverture = { "rbxassetid://109359226723492", 0.6, 1 }, -- window open (pop)
-	Fermeture = { "rbxassetid://117813075686953", 0.45, 0.82 }, -- window close (pitched down)
-	Achat = { "rbxassetid://1319346243", 0.55, 1 }, -- purchase success / reward banner
-	Carte = { "rbxassetid://109359226723492", 0.18, 1.6 }, -- card pop (quiet, high pitch)
-	Refus = { "rbxasset://sounds/clickfast.wav", 0.4, 1 }, -- refusal
+	-- COZY set: same sounds, much softer and warmer (lower volume + slower playback)
+	Survol = { "rbxassetid://6895079853", 0.14, 0.82 }, -- hover tick
+	Clic = { "rbxassetid://103866342467024", 0.24, 0.8 }, -- press
+	Ouverture = { "rbxassetid://109359226723492", 0.28, 0.78 }, -- window open (soft pop)
+	Fermeture = { "rbxassetid://117813075686953", 0.2, 0.68 }, -- window close (pitched down)
+	Achat = { "rbxassetid://1319346243", 0.3, 0.9 }, -- purchase success / reward banner
+	Carte = { "rbxassetid://109359226723492", 0.07, 1.25 }, -- card pop (very quiet)
+	Refus = { "rbxasset://sounds/button.wav", 0.18, 0.5 }, -- refusal (soft low tap)
 }
 
 function M.CreateSounds(folder: Instance)

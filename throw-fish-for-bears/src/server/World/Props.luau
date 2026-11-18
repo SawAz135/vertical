@@ -568,102 +568,59 @@ local function accent(m, name, size, cf, color, minTier, opts)
 	return p
 end
 
+-- FISH-UP training spot: just a DOTTED CIRCLE on the ground + a small studded FISH-UP
+-- sign on a post. Both change with the tier (wood -> bronze -> silver -> gold -> diamond
+-- -> cosmic): colours, metal bolts, trims, a crown, gems and a little trophy fish on top.
 function Props.fishUp(parent: Instance, pos: Vector3, side: number, ownerColor: Color3, _buildFish)
 	local m = model(parent, "FishUp")
 	m:SetAttribute("Side", side)
 	m:SetAttribute("Origin", pos)
 	local r = 3.6
-	-- octagon platform, only 0.4 stud high: you simply walk on and off
-	Studs.static(m, "Plinth", V3(11, 0.25, 11), CF(pos + V3(0, 0.125, 0)), C(150, 150, 158))
-	Studs.static(m, "Plinth2", V3(11, 0.25, 11), CF(pos + V3(0, 0.125, 0)) * ANG(0, math.pi / 4, 0), C(142, 142, 150))
-	Studs.static(m, "Mat", V3(9.4, 0.15, 9.4), CF(pos + V3(0, 0.325, 0)), C(60, 62, 70))
-	Studs.static(m, "Mat2", V3(9.4, 0.15, 9.4), CF(pos + V3(0, 0.325, 0)) * ANG(0, math.pi / 4, 0), C(56, 58, 66))
-	for i = 0, 7 do
-		local a = i * math.pi / 4 + math.pi / 8
-		Studs.static(m, "Trim", V3(4.4, 0.12, 0.5), CF(pos + V3(math.cos(a) * 5.05, 0.31, math.sin(a) * 5.05)) * ANG(0, -a + math.pi / 2, 0), ownerColor, { noCollide = true, smooth = true })
+	-- the dotted circle (24 dashes lying on the ground)
+	local N = 24
+	for i = 0, N - 1 do
+		local a = i / N * math.pi * 2
+		local dash = Studs.static(m, "Dash", V3(0.8, 0.08, 0.34), CF(pos + V3(math.cos(a) * r, 0.04, math.sin(a) * r)) * ANG(0, -a + math.pi / 2, 0),
+			C(250, 250, 250), { noCollide = true, smooth = true })
+		dash.CanQuery = false
+		dash.CastShadow = false
 	end
-	local ring = Studs.static(m, "TrainRing", V3(0.06, r * 2, r * 2), CF(pos + V3(0, 0.42, 0)) * ANG(0, 0, math.pi / 2), C(250, 250, 250), { shape = Enum.PartType.Cylinder, noCollide = true, smooth = true })
-	ring.CanQuery = false
-	local inner = Studs.static(m, "TrainInner", V3(0.07, r * 2 - 0.9, r * 2 - 0.9), CF(pos + V3(0, 0.425, 0)) * ANG(0, 0, math.pi / 2), C(70, 72, 82), { shape = Enum.PartType.Cylinder, noCollide = true, smooth = true })
-	inner.CanQuery = false
-	Studs.static(m, "EmblemBody", V3(2.2, 0.05, 1), CF(pos + V3(0, 0.47, 0)), ownerColor, { noCollide = true, smooth = true })
-	Studs.static(m, "EmblemTail", V3(0.8, 0.05, 1.4), CF(pos + V3(1.5, 0.47, 0)), ownerColor, { noCollide = true, smooth = true })
-
-	-- dumbbell rack on the outer side
-	local rack = pos + V3(side * 7.2, 0, 0)
-	for _, dz in { -2.4, 2.4 } do
-		Studs.static(m, "RackPost", V3(0.8, 4.2, 0.8), CF(rack + V3(0, 2.1, dz)), Props.WOOD_DARK)
-	end
-	Studs.static(m, "RackFoot", V3(2.4, 0.4, 6.4), CF(rack + V3(0, 0.2, 0)), Props.WOOD_DARK)
-	for k, y in { 1.6, 3.2 } do
-		Studs.static(m, "RackBar", V3(1.6, 0.3, 5.6), CF(rack + V3(0, y, 0)), Props.WOOD)
-		for j, dz in { -1.6, 1.6 } do
-			local plate = Studs.static(m, if (k + j) % 2 == 0 then "PlateA" else "PlateB", V3(0.5, 1.2 + k * 0.2, 1.2 + k * 0.2), CF(rack + V3(0, y + 0.75 + k * 0.1, dz)) * ANG(0, math.pi / 2, 0),
-				if (k + j) % 2 == 0 then C(220, 50, 50) else C(40, 40, 46), { shape = Enum.PartType.Cylinder })
-			plate.CanCollide = false
+	-- the small sign (inner back corner)
+	local post = pos + V3(-side * 5.2, 0, 3.6)
+	Studs.static(m, "Post", V3(0.6, 4.4, 0.6), CF(post + V3(0, 2.2, 0)), Props.WOOD_DARK)
+	local board = Studs.static(m, "Board", V3(3.8, 1.5, 0.35), CF(post + V3(0, 4.5, -0.5)), Props.WOOD)
+	Studs.static(m, "BoardFrame", V3(4.2, 1.9, 0.22), CF(post + V3(0, 4.5, -0.3)), Props.WOOD_DARK)
+	Props.signText(board, "FISH-UP", Enum.NormalId.Front, C(255, 220, 60))
+	-- tier details on the sign
+	for _, sx in { -1, 1 } do
+		for _, sy in { -1, 1 } do
+			accent(m, "Bolt", V3(0.2, 0.2, 0.1), CF(post + V3(sx * 1.8, 4.5 + sy * 0.62, -0.72)), C(190, 190, 200), 2, { smooth = true })
+			accent(m, "Gem", V3(0.34, 0.34, 0.16), CF(post + V3(sx * 2.05, 4.5 + sy * 0.85, -0.5)) * ANG(0, 0, math.pi / 4), C(150, 230, 255), 5,
+				{ material = Enum.Material.Glass, transparency = 0.1, smooth = true })
 		end
 	end
-
-	-- wooden post + sign (inner back corner)
-	local post = pos + V3(-side * 5.6, 0, 4)
-	Studs.static(m, "PostBase", V3(2, 0.8, 2), CF(post + V3(0, 0.4, 0)), C(150, 150, 158))
-	Studs.static(m, "Post", V3(1.1, 9, 1.1), CF(post + V3(0, 4.9, 0)), Props.WOOD_DARK)
-	local board = Studs.static(m, "Board", V3(5.4, 2.2, 0.5), CF(post + V3(0, 7.6, -0.8)), Props.WOOD)
-	Studs.static(m, "BoardFrame", V3(5.9, 2.7, 0.3), CF(post + V3(0, 7.6, -0.5)), Props.WOOD_DARK)
-	Props.signText(board, "FISH-UP", Enum.NormalId.Front, C(255, 220, 60))
-	local anchor = Studs.static(m, "FishUpAnchor", V3(0.2, 0.2, 0.2), CF(pos + V3(0, 13, 0)), C(0, 0, 0), { transparency = 1, noCollide = true, noQuery = true, noShadow = true })
-
-	-- tier accents ------------------------------------------------------------------
-	-- 2+ : 4 corner pillars with caps
-	for i = 0, 3 do
-		local a = i * math.pi / 2 + math.pi / 4
-		local c = pos + V3(math.cos(a) * 5.6, 0, math.sin(a) * 5.6)
-		accent(m, "Pillar", V3(0.9, 3.2, 0.9), CF(c + V3(0, 1.6, 0)), C(150, 150, 158), 2)
-		accent(m, "PillarCap", V3(1.3, 0.4, 1.3), CF(c + V3(0, 3.4, 0)), C(150, 150, 158), 2)
-		-- 4+ : torch flames on the pillars
-		local flame = accent(m, "Flame", V3(0.6, 0.8, 0.6), CF(c + V3(0, 4, 0)) * ANG(0, math.pi / 4, 0), C(255, 170, 40), 4, { material = Enum.Material.Neon })
-		local fl = Instance.new("PointLight")
-		fl.Name = "TierLight"
-		fl.Range = 10
-		fl.Brightness = 1.2
-		fl.Color = C(255, 170, 60)
-		fl.Enabled = false
-		fl.Parent = flame
-		-- 5+ : crystals on the caps
-		accent(m, "Crystal", V3(0.5, 1.1, 0.5), CF(c + V3(0, 4.4, 0)) * ANG(0, math.pi / 4, 0.2), C(170, 235, 255), 5, { material = Enum.Material.Glass, transparency = 0.15 })
+	accent(m, "TrimTop", V3(4.3, 0.16, 0.28), CF(post + V3(0, 5.45, -0.42)), C(225, 230, 240), 3, { smooth = true })
+	accent(m, "TrimBottom", V3(4.3, 0.16, 0.28), CF(post + V3(0, 3.55, -0.42)), C(225, 230, 240), 3, { smooth = true })
+	for i = -1, 1 do
+		accent(m, "Crown", V3(0.36, 0.5 + (if i == 0 then 0.25 else 0), 0.2), CF(post + V3(i * 0.5, 5.75 + (if i == 0 then 0.12 else 0), -0.42)), C(255, 210, 60), 4, { smooth = true })
 	end
-	-- 3+ : metal plate under the ring
-	accent(m, "RingPlate", V3(0.05, r * 2 + 0.6, r * 2 + 0.6), CF(pos + V3(0, 0.405, 0)) * ANG(0, 0, math.pi / 2), C(190, 190, 200), 3, { shape = Enum.PartType.Cylinder, smooth = true, reflectance = 0.2 })
-	-- 6 : cosmic glow ring + rising sparkles
-	local glow = accent(m, "GlowRing", V3(0.08, r * 2 + 0.3, r * 2 + 0.3), CF(pos + V3(0, 0.412, 0)) * ANG(0, 0, math.pi / 2), C(200, 140, 255), 6, { shape = Enum.PartType.Cylinder, smooth = true, material = Enum.Material.Neon, transparency = 0.3 })
-	local pe = Instance.new("ParticleEmitter")
-	pe.Name = "TierAura"
-	pe.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-	pe.Color = ColorSequence.new(C(210, 160, 255), C(130, 230, 255))
-	pe.LightEmission = 1
-	pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.4, 0.5), NumberSequenceKeypoint.new(1, 0) })
-	pe.Lifetime = NumberRange.new(1.2, 2)
-	pe.Speed = NumberRange.new(2, 4)
-	pe.Rate = 6
-	pe.EmissionDirection = Enum.NormalId.Right -- cylinder axis is vertical after the rotation
-	pe.Enabled = false
-	pe.Parent = glow
-
+	accent(m, "CosmicStar", V3(0.5, 0.5, 0.12), CF(post + V3(-1.5, 5.6, -0.42)) * ANG(0, 0, math.pi / 4), C(200, 140, 255), 6, { smooth = true })
+	accent(m, "CosmicStar2", V3(0.36, 0.36, 0.12), CF(post + V3(1.55, 5.55, -0.42)) * ANG(0, 0, math.pi / 4), C(130, 230, 255), 6, { smooth = true })
+	-- the floating FISH-UP billboard sits above the circle
+	local anchor = Studs.static(m, "FishUpAnchor", V3(0.2, 0.2, 0.2), CF(pos + V3(0, 8.5, 0)), C(0, 0, 0), { transparency = 1, noCollide = true, noQuery = true, noShadow = true })
+	m:SetAttribute("SignPos", post)
 	Props.fishUpTier(m, 1)
 	return m, anchor
 end
 
--- re-skin a station for a tier (same shape, new materials + accents)
+-- re-skin a station for a tier (circle + sign colours, sign details, trophy fish)
 function Props.fishUpTier(m: Model, tierIndex: number)
 	local tier = FishUpConfig.get(tierIndex)
 	if m:GetAttribute("Tier") == tierIndex then return end
 	m:SetAttribute("Tier", tierIndex)
 	local MAP = {
-		Plinth = tier.stone, Plinth2 = Studs.shade(tier.stone, 0.94), Mat = tier.mat, Mat2 = Studs.shade(tier.mat, 0.92),
-		PostBase = tier.stone, Pillar = tier.stone, PillarCap = tier.metal, RingPlate = tier.metal,
-		RackPost = Studs.shade(tier.wood, 0.85), RackFoot = Studs.shade(tier.wood, 0.85), RackBar = tier.wood,
-		Post = Studs.shade(tier.wood, 0.85), Board = tier.wood, BoardFrame = Studs.shade(tier.wood, 0.8),
-		PlateA = tier.plateA, PlateB = tier.plateB,
+		Post = Studs.shade(tier.wood, 0.85), Board = tier.wood, BoardFrame = Studs.shade(tier.wood, 0.75),
+		Dash = tier.color, Bolt = tier.metal, TrimTop = tier.metal, TrimBottom = tier.metal,
 	}
 	local shiny = tierIndex >= 3
 	for _, p in m:GetChildren() do
@@ -671,35 +628,27 @@ function Props.fishUpTier(m: Model, tierIndex: number)
 			local col = MAP[p.Name]
 			if col then
 				p.Color = Studs.vivid(col)
-				if p.Name == "PillarCap" or p.Name == "RingPlate" or p.Name:sub(1, 5) == "Plate" then
-					p.Reflectance = if shiny then 0.18 else 0
+				if p.Name == "Bolt" or p.Name:sub(1, 4) == "Trim" or p.Name == "BoardFrame" then
+					p.Reflectance = if shiny then 0.15 else 0
 				end
 			end
 			local minTier = p:GetAttribute("MinTier")
 			if minTier then
-				local on = tierIndex >= minTier
-				p.Transparency = if on then (p:GetAttribute("BaseTransparency") or 0) else 1
-				for _, d in p:GetChildren() do
-					if d:IsA("PointLight") or d:IsA("ParticleEmitter") then d.Enabled = on end
-				end
+				p.Transparency = if tierIndex >= minTier then (p:GetAttribute("BaseTransparency") or 0) else 1
 			end
 		end
 	end
-	-- the dumbbell and the trophy follow the tier (golden / diamond / rainbow fish)
-	local pos = m:GetAttribute("Origin") :: Vector3
-	local side = m:GetAttribute("Side") :: number
-	local old = m:FindFirstChild("FishDumbbell")
-	if old then old:Destroy() end
-	local bell = DumbbellBuilder.build(tierIndex, 1.05)
-	bell:PivotTo(CF(pos + V3(side * 7.2, 4.6, 0)) * ANG(0, math.pi / 2, 0))
-	bell.Parent = m
+	-- little trophy fish on top of the sign (golden / diamond / rainbow with the tier)
 	local oldT = m:FindFirstChild("Trophy")
 	if oldT then oldT:Destroy() end
-	local trophy = decorFish("Salmon", 2.2 + (tierIndex - 1) * 0.08, tier.fish)
-	trophy.Name = "Trophy"
-	local postPos = pos + V3(-side * 5.6, 0, 4)
-	trophy:PivotTo(CF(postPos + V3(0, 11.2, 0)) * ANG(0, side * math.pi / 2, 0) * ANG(0.5, 0, 0))
-	trophy.Parent = m
+	local side = m:GetAttribute("Side") :: number
+	local post = m:GetAttribute("SignPos") :: Vector3
+	if post then
+		local trophy = decorFish("Salmon", 1.0 + (tierIndex - 1) * 0.06, tier.fish)
+		trophy.Name = "Trophy"
+		trophy:PivotTo(CF(post + V3(0, 6.5, -0.4)) * ANG(0, side * math.pi / 2, 0) * ANG(0.35, 0, 0))
+		trophy.Parent = m
+	end
 end
 
 return Props
