@@ -326,7 +326,11 @@ STATES.Eat = function(p, e, t, s)
 	local G = GameConfig.Capture
 	local A, C, W = G.tossApex, G.chompAt, G.swallowAt
 	local dive = Easing.cubicOut(clamp(t / 0.28, 0, 1))
-	local toss = Easing.backOut(clamp((t - 0.33) / 0.18, 0, 1))
+	-- realistic snatch: the jaws close on the fish and the head LIFTS it (held a moment),
+	-- then a sharp FLICK of the head throws it up
+	local lift = Easing.cubicOut(clamp((t - 0.33) / 0.38, 0, 1))
+	local flick = Easing.backOut(clamp((t - ((G.tossAt or 0.8) - 0.04)) / 0.16, 0, 1))
+	local toss = 0.4 * lift + 0.6 * flick
 	local waitK = Easing.sineInOut(clamp((t - A) / math.max(0.1, C - 0.15 - A), 0, 1)) -- follows the falling fish down a bit
 	local chomp = Easing.expoOut(clamp((t - (C - 0.06)) / 0.1, 0, 1))
 	local settle = Easing.cubicInOut(clamp((t - (C + 0.08)) / 0.35, 0, 1))
@@ -341,7 +345,8 @@ STATES.Eat = function(p, e, t, s)
 	pos(p, "BodyJoint", 0, (0.32 * toss - 0.08 * waitK - 0.4 * chomp + 0.16 * settle) * s, 0)
 	rot(p, "LegFL", -0.45 * toss + 0.1 * waitK + 0.35 * chomp) rot(p, "LegFR", -0.45 * toss + 0.1 * waitK + 0.35 * chomp)
 	-- jaw: gaping, WIDE open to the sky while the fish falls, shut hard on the chomp
-	local open = (0.9 * dive * (1 - toss) + 1.5 * toss) * (1 - chomp)
+	-- open to grab, CLOSED while holding the fish, then WIDE open after the flick
+	local open = (0.9 * dive * (1 - lift) + 0.08 * lift * (1 - flick) + 1.5 * flick) * (1 - chomp)
 	local chewing = t > C + 0.06 and t < W
 	local ct = t - (C + 0.06)
 	local shake = if ct > 0 and ct < 0.22 then sin(ct * 70) * (1 - ct / 0.22) else 0

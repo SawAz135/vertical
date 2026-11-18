@@ -62,6 +62,22 @@ local function rarityOf(bear: Model?)
 	return RarityConfig.get(bear and bear:GetAttribute("Rarity") or "Common")
 end
 
+-- AMBIANCE: the music melts away during the capture cinematic, comes back after
+local function duckMusic(on: boolean)
+	local m = game:GetService("SoundService"):FindFirstChild("TFB_Music")
+	if not m or not m:IsA("Sound") then return end
+	if on then
+		if m:GetAttribute("TFBVol") == nil then m:SetAttribute("TFBVol", m.Volume) end
+		TweenService:Create(m, TweenInfo.new(1.2), { Volume = (m:GetAttribute("TFBVol") or 0.2) * 0.12 }):Play()
+	else
+		local v = m:GetAttribute("TFBVol")
+		if v then
+			TweenService:Create(m, TweenInfo.new(1.5), { Volume = v }):Play()
+			m:SetAttribute("TFBVol", nil)
+		end
+	end
+end
+
 local function bearPitch(bear: Model): number
 	return Sound.BearPitch[bear:GetAttribute("Species") or ""] or 1
 end
@@ -192,7 +208,8 @@ local function povStart()
 	local c = current
 	c.mode = "pov"
 	c.panic = 0.15
-	c.rv = prepareReveal(c.bear) -- black silhouette colours + rarity effects off, for later
+	c.rv = prepareReveal(c.bear) -- rarity effects off until the end of the reveal
+	duckMusic(true)
 	setBearHidden(c.bear, true)
 	if c.fish then setPartsHidden(bearParts(c.fish), true) end -- the camera is inside the fish
 	Cine.speedLines(false)
@@ -263,10 +280,19 @@ local function povStart()
 		local speed = 0.7 + panic * 3
 		local target = Vector2.new(math.noise(t * speed, 1.3), math.noise(t * speed, 7.7)) * (0.35 + panic * 1.1)
 		glance = glance:Lerp(target, math.min(1, dt * (3 + panic * 8)))
-		local look = toDen * 6 + side * glance.X * 5 + Vector3.new(0, 4.5 + glance.Y * 2.5, 0)
-		if snapTo then look = (snapTo - eye).Unit * 6 + Vector3.new(0, 1.5, 0) end
+		-- before the growl the fish looks AWAY from where the bear comes from (it is never
+		-- seen popping in); once it growls, the fish locks onto it and watches it charge
+		local look = -toDen * 6 + side * glance.X * 5 + Vector3.new(0, 4.5 + glance.Y * 2.5, 0)
+		if c.trackBear and r then
+			local hb = headOf(c.bear)
+			local at = if hb then hb.Position else r.Position
+			c.trackLook = (c.trackLook or look):Lerp((at - eye) + Vector3.new(0, 0.6, 0) + side * glance.X * 0.6, math.min(1, dt * 5))
+			look = c.trackLook
+		elseif snapTo then
+			look = (snapTo - eye).Unit * 6 + Vector3.new(0, 1.5, 0)
+		end
 		-- trembling (the fish shivers) + breathing gills
-		local tremble = Vector3.new(math.noise(t * 25, 0, 2), math.noise(t * 25, 3, 0), math.noise(0, t * 25, 5)) * (0.02 + panic * 0.09)
+		local tremble = Vector3.new(math.noise(t * 4, 0, 2), math.noise(t * 4, 3, 0), math.noise(0, t * 4, 5)) * (0.04 + panic * 0.12) -- slow handheld sway
 		local breathe = Vector3.new(0, math.sin(t * (3 + panic * 6)) * 0.04, 0)
 		return CFrame.lookAt(eye + tremble + breathe, eye + look), 74 - panic * 20 + math.sin(t * 2) * 1.5
 	end, 120, { smooth = 0, blendIn = 0.25 })
@@ -276,9 +302,15 @@ local function povAlert()
 	local c = current
 	local r = rootOf(c.bear)
 	c.panic = math.max(c.panic or 0, 0.5)
+	-- it was standing far away all along: from now on the fish SEES it, and watches it come
+	setBearHidden(c.bear, false)
+	for _, d in c.bear:GetDescendants() do
+		if d:IsA("BillboardGui") or d:IsA("SurfaceGui") then d.Enabled = false end
+	end
+	c.trackBear = true
 	if r then
 		Sound.play("Growl", { at = r.Position, pitch = bearPitch(c.bear), volume = 1.2 })
-		if c.snapLook then c.snapLook(r.Position + Vector3.new(0, 2, 0)) end -- the fish looks toward the noise... nothing there
+		-- (the POV now tracks the bear itself)
 	end
 	CameraController.shake(0.5, 0.35)
 	CameraController.punch(-8)
@@ -345,13 +377,13 @@ local function eatSequence(d)
 	local tChomp = tl.eat + G.chompAt
 	local tPick = tl.eat + G.pickupAt
 	local tApex = tl.eat + G.tossApex
-	-- the TOSS is played locally on a copy of the fish (smooth, frame-exact): the server fish
-	-- (welded in the mouth) is hidden for us
-	local toss = nil -- { model, start, apex, spin }
+	local tToss = tl.eat + (G.tossAt or 0.8)
+	-- the camera IS the fish: the server fish (welded in the mouth) stays hidden for us
+	local toss = nil -- { start, apex }
 	local function tossPos(now: number, mouth: Vector3, look: Vector3, sc: number): Vector3?
 		if not toss then return nil end
 		if now < tApex then
-			local k = Easing.quadOut(math.clamp((now - tPick) / (tApex - tPick), 0, 1))
+			local k = Easing.quadOut(math.clamp((now - tToss) / (tApex - tToss), 0, 1))
 			return toss.start:Lerp(toss.apex, k)
 		end
 		-- falls back down to a point IN FRONT of the open jaws (on the mouth's axis), then
@@ -444,57 +476,76 @@ local function eatSequence(d)
 		local body = r.Position
 		local feet = Vector3.new(body.X, ground.Y - 0.2, body.Z)
 		local cf, fov
+		-- the lens must NEVER go inside the bear's head / snout (it used to clip on the jabs)
+		local function keepOut(eye: Vector3): Vector3
+			for _, part in { h, c.muzzle } do
+				if part and part.Parent then
+					local pp = (part :: BasePart)
+					local rad = math.max(pp.Size.X, pp.Size.Y, pp.Size.Z) * 0.62 + 0.35 * sc
+					local v = eye - pp.Position
+					if v.Magnitude < rad then
+						eye = pp.Position + (if v.Magnitude > 1e-3 then v.Unit else -baseFwd) * rad
+					end
+				end
+			end
+			return eye
+		end
+		if c.muzzle == nil then c.muzzle = c.bear:FindFirstChild("Muzzle", true) or false end
+		-- the fish's eye on the ground: a little back from where the snout lands
+		local towardBear = Vector3.new(eye0dir(ground, mouth).X, 0, eye0dir(ground, mouth).Z)
+		local groundEye = ground + Vector3.new(0, 0.05, 0) - towardBear * 0.9 * sc
 		if now < tl.sniff then
-			-- S0: THE FISH'S EYES on the ground. The black bear WALKS UP TO US, step by step,
-			-- head low, growing in the frame (wide lens so we see the whole silhouette)
-			local eye = ground + Vector3.new(0, 0.1, 0)
+			-- S0: THE FISH'S EYES on the ground: the bear WALKS UP TO US, step by step
 			local look = h.Position:Lerp(body, 0.35)
-			-- every heavy step THUMPS through the ground into the fish's eyes, heavier as it nears
 			local near = math.clamp(now / math.max(0.1, tl.sniff), 0, 1)
 			c.stepAt = c.stepAt or 0
 			if os.clock() - c.stepAt > 0.4 - 0.08 * near then
 				c.stepAt = os.clock()
-				c.stepSide = -(c.stepSide or 1)
-				CameraController.shake(0.35 + 0.6 * near * sc, 0.16)
+				CameraController.shake(0.3 + 0.45 * near * sc, 0.16)
 				Sound.play("Footstep", { at = body, pitch = 0.55 / math.max(0.8, sc ^ 0.5), volume = 1.2 })
 				Sound.play("Heartbeat", { pitch = 0.4, volume = 0.5 + 0.4 * near })
 			end
-			cf = CFrame.lookAt(eye + tremble, look)
-			fov = 78
+			cf = CFrame.lookAt(keepOut(groundEye) + tremble, look)
+			fov = 72
 		elseif now < tl.eat then
-			-- S1: still the fish's eyes: the snout comes down sniffing at us... BOOP, BOOP:
-			-- each nose jab knocks the view back and rolls it
-			local away = Vector3.new(eye0dir(ground, mouth).X, 0, eye0dir(ground, mouth).Z)
-			local eye = ground + Vector3.new(0, 0.1, 0) - away * boopKick * 0.5 * sc
-			cf = CFrame.lookAt(eye + tremble, mouth:Lerp(h.Position, 0.35)) * CFrame.Angles(0, 0, boopKick * 0.25)
-			fov = 82
+			-- S1: the snout comes down sniffing at us... BOOP, BOOP: each nose jab knocks the
+			-- view back a little and rolls it
+			local eye = keepOut(groundEye - towardBear * boopKick * 0.45 * sc)
+			cf = CFrame.lookAt(eye + tremble, mouth:Lerp(h.Position, 0.35)) * CFrame.Angles(0, 0, boopKick * 0.2)
+			fov = 70
 		elseif now < tPick then
-			-- S2: THE BITE, from the fish's eyes on the ground: the jaws open WIDE and come
-			-- down at the lens (fangs, tongue, red mouth filling the screen)
+			-- S2: THE BITE: the jaws open WIDE and come down at us (fangs, tongue, red mouth)
 			local k = Easing.sineIn(math.clamp((now - tl.eat) / (tPick - tl.eat), 0, 1))
 			once("dive", function()
-				CameraController.shake(0.8, 0.3)
-				CameraController.punch(-6)
+				CameraController.shake(0.7, 0.3)
 				Sound.play("Growl", { at = mouth, pitch = bearPitch(c.bear) * 0.7, volume = 1.4 })
 			end)
-			local eye = ground + Vector3.new(0, 0.1, 0)
-			-- look up into the mouth (slightly under the mouth point: the jaw opens downward)
 			local aim = mouth - h.CFrame.UpVector * 0.3 * sc
-			cf = CFrame.lookAt(eye + tremble, aim)
-			fov = 80 + 6 * k
-		elseif now < tChomp then
-			-- S3 + S4: WE are snatched and FLUNG into the sky. The view spins once, smoothly,
-			-- always on the bear below (head up, jaws open, waiting)... the slow fall... and
-			-- we drop straight into the open jaws, between the fangs... CHOMP
-			once("toss", function()
+			cf = CFrame.lookAt(keepOut(groundEye) + tremble, aim)
+			fov = 72 + 4 * k
+		elseif now < tToss then
+			-- S3: CAUGHT. We are held in the jaws: the view hangs from the bear's mouth, the
+			-- ground drops away as the head LIFTS us, swaying with its head
+			once("grab", function()
 				Sound.play("Chomp", { at = mouth, pitch = bearPitch(c.bear) * 1.2, volume = 0.9 })
+				CameraController.shake(0.8, 0.25)
+			end)
+			local look = h.CFrame.LookVector
+			local eye = mouth + look * 0.5 * sc
+			local dir = look - h.CFrame.UpVector * 0.45
+			cf = CFrame.lookAt(eye, eye + dir, h.CFrame.UpVector)
+			fov = 70
+		elseif now < tChomp then
+			-- S4: the FLICK: flung into the sky, one smooth roll, the bear below with its jaws
+			-- open, waiting... the slow fall... straight into the jaws, between the fangs
+			once("toss", function()
 				Sound.play("Throw", { pitch = 0.75, volume = 1 })
-				CameraController.shake(1.0, 0.3)
-				toss = { start = mouth, apex = mouth + UP * (5 + 3 * sc) + baseFwd * 1.4 * sc }
+				CameraController.shake(0.9, 0.3)
+				toss = { start = mouth + h.CFrame.LookVector * 0.5 * sc, apex = mouth + UP * (5 + 3 * sc) + baseFwd * 1.4 * sc }
 			end)
 			local look = h.CFrame.LookVector
 			local fp = tossPos(now, mouth, look, sc) or mouth
-			local w = math.clamp((now - tPick) / (tChomp - tPick), 0, 1)
+			local w = math.clamp((now - tToss) / (tChomp - tToss), 0, 1)
 			if now >= tApex then
 				once("pov", function()
 					Sound.play("Throw", { pitch = 0.32, volume = 1 }) -- stretched slow-motion whoosh
@@ -506,15 +557,12 @@ local function eatSequence(d)
 					Sound.play("Heartbeat", { pitch = 0.5, volume = 0.9 })
 				end
 			end
-			-- going up we look DOWN at the bear; falling we look straight into the mouth
 			local aim = mouth - h.CFrame.UpVector * 0.25 * sc
-			local upK = math.clamp((now - tPick) / (tApex - tPick), 0, 1)
-			local headAim = h.Position:Lerp(aim, upK)
-			local target = if now < tApex then headAim else aim
-			-- one smooth full roll across the whole flight (the fish tumbles)
+			local upK = math.clamp((now - tToss) / (tApex - tToss), 0, 1)
+			local target = if now < tApex then h.Position:Lerp(aim, upK) else aim
 			local roll = Easing.sineInOut(w) * math.pi * 2
 			cf = CFrame.lookAt(fp, target) * CFrame.Angles(0, 0, roll)
-			fov = 72 + 6 * w
+			fov = 70 + 4 * w
 			local enter = math.clamp((w - 0.9) / 0.1, 0, 1)
 			Cine.dark(0.3 + 0.45 * enter)
 			Cine.setLids(1)
@@ -553,29 +601,52 @@ local function luckText(v: number): string
 end
 
 ------------------------------------------------------------------------------------------
--- STAGE UI (stud style): one big card for the stage being played (title + rolling value);
--- when a stage lands, its value STAMPS, then the card shrinks into a chip in the result row
--- at the top (RARITY · MUTATION · LUCK · KG). One UIScale per object (inner frames).
+-- STAGE UI: NO panels, NO backgrounds. Pure typography over the cinematic:
+--   a small spaced-out stage title with a thin accent line that draws itself, and a HUGE
+--   value (thick black outline, white -> stage colour gradient) that pops on every tick.
+--   When a stage lands, the value SLAMS (big -> settle, a shine sweeps through it), then
+--   flies up into the results line at the top (small outlined texts with separators).
 ------------------------------------------------------------------------------------------
+local function spaced(text: string): string
+	-- letter-spaced title (UTF-8 safe)
+	local out = {}
+	for _, cp in utf8.codes(text) do table.insert(out, utf8.char(cp)) end
+	return table.concat(out, " ")
+end
+
 local function buildStageUi()
 	local g = Sim.new("ScreenGui", { Name = "TFBRevealStages", ResetOnSpawn = false, DisplayOrder = 13, IgnoreGuiInset = true,
 		ScreenInsets = Enum.ScreenInsets.None, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
-	local root = Sim.root(g, "Stages", Vector2.new(560, 250), UDim2.new(0.5, 0, 0.11, 6), Vector2.new(0.5, 0))
+	local root = Sim.root(g, "Stages", Vector2.new(640, 260), UDim2.new(0.5, 0, 0.11, 4), Vector2.new(0.5, 0))
 	local inner = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, root)
 	local innerScale = Sim.new("UIScale", { Scale = 1 }, inner)
-	local row = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(560, 44) }, inner)
+	-- results line (text only)
+	local row = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(640, 34) }, inner)
 	Sim.new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, row)
-	local cardHolder = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(420, 118), Position = UDim2.fromOffset(70, 56) }, inner)
-	local cardScale = Sim.new("UIScale", { Scale = 0 }, cardHolder)
-	local card = Sim.panel(cardHolder, { Size = UDim2.fromScale(1, 1), Gradient = Sim.G.purple, Stroke = 4, ZIndex = 4, Studs = false })
-	local grad = card:FindFirstChildOfClass("UIGradient")
-	local title = Sim.text(card, "", { Size = UDim2.fromOffset(400, 28), Position = UDim2.fromOffset(210, 20), Max = 26, ZIndex = 7 })
-	local value = Sim.text(card, "", { Size = UDim2.fromOffset(400, 64), Position = UDim2.fromOffset(210, 76), Max = 58, Stroke = 5, ZIndex = 7 })
-	local vHolder = value -- the value text pops with its own UIScale
-	local vScale = Sim.new("UIScale", {}, vHolder)
-	local stamp = Sim.text(inner, "", { Size = UDim2.fromOffset(460, 50), Position = UDim2.fromOffset(280, 206), Max = 44, Stroke = 5, ZIndex = 9,
-		Gradient = { Color3.fromRGB(255, 255, 200), Color3.fromRGB(255, 190, 20) } })
+		VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 14), SortOrder = Enum.SortOrder.LayoutOrder }, row)
+	-- the stage block
+	local block = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(640, 170), Position = UDim2.fromOffset(0, 44) }, inner)
+	local blockScale = Sim.new("UIScale", { Scale = 0 }, block)
+	local title = Sim.text(block, "", { Size = UDim2.fromOffset(560, 30), Position = UDim2.fromOffset(320, 16), Max = 26, Stroke = 3.5, ZIndex = 7 })
+	local tGrad = Sim.gradient(title, { Color3.new(1, 1, 1), Color3.new(1, 1, 1) }, 90)
+	-- accent line under the title (draws itself from the centre)
+	local line = Sim.new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromOffset(0, 3),
+		Position = UDim2.fromOffset(320, 36), AnchorPoint = Vector2.new(0.5, 0), ZIndex = 6 }, block)
+	local lGrad = Sim.new("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(1, 1) }) }, line)
+	local _ = lGrad
+	local value = Sim.text(block, "", { Size = UDim2.fromOffset(620, 100), Position = UDim2.fromOffset(320, 98), Max = 92, Stroke = 7, ZIndex = 8 })
+	local vGrad = Sim.gradient(value, { Color3.new(1, 1, 1), Color3.new(1, 1, 1) }, 90)
+	local vScale = Sim.new("UIScale", {}, value)
+	-- shine: a second gradient pass on a copy of the value, swept across on the slam
+	local shine = Sim.text(block, "", { Size = UDim2.fromOffset(620, 100), Position = UDim2.fromOffset(320, 98), Max = 92, Stroke = 0, ZIndex = 9 })
+	local shineStroke = shine:FindFirstChildOfClass("UIStroke")
+	if shineStroke then shineStroke.Enabled = false end
+	shine.TextColor3 = Color3.new(1, 1, 1)
+	local sGrad = Sim.new("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.42, 1),
+		NumberSequenceKeypoint.new(0.5, 0.25), NumberSequenceKeypoint.new(0.58, 1), NumberSequenceKeypoint.new(1, 1) }), Rotation = 20, Offset = Vector2.new(-1, 0) }, shine)
+	local sScale = Sim.new("UIScale", {}, shine)
+	local stamp = Sim.text(inner, "", { Size = UDim2.fromOffset(520, 46), Position = UDim2.fromOffset(320, 232), Max = 40, Stroke = 5, ZIndex = 9,
+		Gradient = { Color3.fromRGB(255, 255, 210), Color3.fromRGB(255, 186, 20) } })
 	local ss = Sim.new("UIScale", { Scale = 0 }, stamp)
 	local function tw(o, t, goal, style, dir)
 		TweenService:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), goal):Play()
@@ -583,43 +654,72 @@ local function buildStageUi()
 	local ui = {}
 	local order = 0
 	local ver = 0
+	local tiltSign = 1
+	local accent = Color3.new(1, 1, 1)
 	function ui.stage(name: string, pair)
 		ver += 1
-		title.Text = name
+		accent = pair[2]
+		title.Text = spaced(name)
+		tGrad.Color = ColorSequence.new(pair[1]:Lerp(Color3.new(1, 1, 1), 0.4), pair[1])
+		line.BackgroundColor3 = pair[1]
+		line.Size = UDim2.fromOffset(0, 3)
+		tw(line, 0.5, { Size = UDim2.fromOffset(300, 3) }, Enum.EasingStyle.Quint)
 		value.Text = ""
-		value.TextColor3 = Color3.new(1, 1, 1)
-		if grad then grad.Color = ColorSequence.new(pair[1], pair[2]) end
-		cardScale.Scale = 0.4
-		tw(cardScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+		shine.Text = ""
+		value.Rotation = 0
+		block.Position = UDim2.fromOffset(0, 60)
+		blockScale.Scale = 0.6
+		tw(blockScale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
+		tw(block, 0.4, { Position = UDim2.fromOffset(0, 44) }, Enum.EasingStyle.Quint)
 	end
+	-- color: the value's main colour; pop: a tick (small pop + alternating tilt)
 	function ui.value(text: string, color: Color3?, pop: boolean?)
 		value.Text = text
-		value.TextColor3 = color or Color3.new(1, 1, 1)
+		shine.Text = text
+		local col = color or Color3.new(1, 1, 1)
+		vGrad.Color = ColorSequence.new(col:Lerp(Color3.new(1, 1, 1), 0.55), col)
 		if pop then
-			vScale.Scale = 1.25
-			tw(vScale, 0.18, { Scale = 1 }, Enum.EasingStyle.Back)
+			tiltSign = -tiltSign
+			vScale.Scale = 1.22
+			value.Rotation = 4 * tiltSign
+			tw(vScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
+			tw(value, 0.25, { Rotation = 0 }, Enum.EasingStyle.Back)
 		end
 	end
 	function ui.done(chipText: string, chipColor: Color3)
-		vScale.Scale = 1.6
-		tw(vScale, 0.3, { Scale = 1.08 }, Enum.EasingStyle.Back)
+		-- SLAM: big -> settle, with a shine sweeping through
+		vScale.Scale = 1.9
+		value.Rotation = -6
+		tw(vScale, 0.35, { Scale = 1.06 }, Enum.EasingStyle.Back)
+		tw(value, 0.35, { Rotation = 0 }, Enum.EasingStyle.Back)
+		sScale.Scale = 1.06
+		sGrad.Offset = Vector2.new(-1, 0)
+		tw(sGrad, 0.55, { Offset = Vector2.new(1, 0) }, Enum.EasingStyle.Sine)
 		local myVer = ver
-		task.delay(0.4, function()
+		task.delay(0.42, function()
 			if not g.Parent then return end
-			-- a new stage may already be on the card: only fold the card if it is still ours
-			if ver == myVer then tw(cardScale, 0.22, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In) end
+			if ver == myVer then
+				-- fly up and shrink away into the results line
+				tw(blockScale, 0.25, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+				tw(block, 0.25, { Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			end
 			order += 1
-			local chipHolder = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(128, 40), LayoutOrder = order }, row)
+			if order > 1 then
+				local sep = Sim.text(row, "•", { Size = UDim2.fromOffset(14, 30), Max = 22, Stroke = 3, ZIndex = 6, LayoutOrder = order * 2 - 1 })
+				sep.TextColor3 = Color3.fromRGB(220, 220, 230)
+			end
+			local chipHolder = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(140, 34), LayoutOrder = order * 2 }, row)
 			local cs = Sim.new("UIScale", { Scale = 0 }, chipHolder)
-			local chip = Sim.panel(chipHolder, { Size = UDim2.fromScale(1, 1), Color = chipColor:Lerp(Color3.new(0, 0, 0), 0.55), Stroke = 3, ZIndex = 4, Studs = false })
-			Sim.text(chip, chipText, { Size = UDim2.new(1, -10, 1, -6), Max = 24, ZIndex = 6, Color = chipColor:Lerp(Color3.new(1, 1, 1), 0.25) })
-			tw(cs, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+			Sim.text(chipHolder, chipText, { Size = UDim2.fromScale(1, 1), Max = 28, Stroke = 3.5, ZIndex = 6,
+				Gradient = { chipColor:Lerp(Color3.new(1, 1, 1), 0.5), chipColor } })
+			tw(cs, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 		end)
 	end
 	function ui.shake(a: number)
 		local t = os.clock()
 		local k = math.clamp(a, 0, 1) * 3
-		cardHolder.Position = UDim2.fromOffset(70 + math.noise(t * 16, 1) * k, 56 + math.noise(t * 16, 2) * k)
+		value.Position = UDim2.fromOffset(320 + math.noise(t * 14, 1) * k, 98 + math.noise(t * 14, 2) * k)
+		shine.Position = value.Position
 	end
 	function ui.stamp(text: string)
 		stamp.Text = text
@@ -630,11 +730,13 @@ local function buildStageUi()
 	function ui.close()
 		if closed then return end
 		closed = true
-		tw(innerScale, 0.25, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-		task.delay(0.3, function() g:Destroy() end)
+		tw(innerScale, 0.3, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+		task.delay(0.35, function() g:Destroy() end)
 	end
+	local _ = accent
 	return ui
 end
+
 
 ------------------------------------------------------------------------------------------
 -- 3) THE REVEAL, IN STAGES. The bear is in full colour. A LOCAL copy plays it (so it can
@@ -878,7 +980,7 @@ local function revealSequence(d)
 			elseif tt < e3 then
 				if stage ~= "luck" then
 					stage = "luck"
-					ui.stage("🍀 LUCK", Sim.G.green)
+					ui.stage("LUCK", Sim.G.green)
 				end
 				local p = math.clamp((tt - e2) / math.max(0.1, st.luck - 0.6), 0, 1)
 				local ease = p ^ 1.7
@@ -903,7 +1005,7 @@ local function revealSequence(d)
 			else
 				if stage ~= "kg" then
 					stage = "kg"
-					ui.stage("⚖️ SIZE", Sim.G.blue)
+					ui.stage("SIZE", Sim.G.blue)
 				end
 				local q = math.clamp((tt - e3) / st.kg, 0, 1)
 				local p = math.clamp((tt - e3) / math.max(0.1, st.kg - 0.3), 0, 1)
@@ -1166,6 +1268,7 @@ local function onFx(phase: string, d)
 		Cine.resetAll()
 		Cine.resetEaten()
 		Cine.letterbox(false)
+		duckMusic(false)
 		if d.from then
 			Fx.puff(d.from + Vector3.new(0, 3, 0), Color3.new(1, 1, 1), 22, 5)
 		end
@@ -1190,6 +1293,7 @@ local function onFx(phase: string, d)
 			end
 		end)
 	elseif phase == "Failed" then
+		duckMusic(false)
 		Cine.resetAll()
 		Cine.resetEaten()
 		if current and current.bear then setBearHidden(current.bear, false) end

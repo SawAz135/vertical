@@ -130,14 +130,14 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 	fm.Parent = R.MapService.fxFolder
 	c.fishModel = fm
 
-	-- pick the den: nearest one at least 22 studs away from the fish
+	-- pick the den: nearest one at least 34 studs away from the fish (the fish SEES it come)
 	local dens = Layout.zoneDens(zone)
 	table.sort(dens, function(a, b)
 		return (a - landing).Magnitude < (b - landing).Magnitude
 	end)
 	local den = dens[1]
 	for _, d in dens do
-		if (d - landing).Magnitude >= 22 then den = d break end
+		if (d - landing).Magnitude >= 34 then den = d break end
 	end
 	local agent = R.BearAI.spawn({
 		species = outcome.s, weight = outcome.w, variant = outcome.v, rarity = outcome.r,
