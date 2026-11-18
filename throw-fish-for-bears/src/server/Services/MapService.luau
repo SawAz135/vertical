@@ -124,7 +124,7 @@ local function buildCompound(map, rand)
 	local ta = Layout.THROW_AREA
 	-- the throw zone floor: a darker grass so it stands out from the rest of the front
 	local tz0 = c.minZ
-	local tzf = Studs.static(map, "ThrowFloor", V3(ta.maxX - ta.minX, 0.08, ta.maxZ - tz0), CF((ta.minX + ta.maxX) / 2, 0.04, (ta.maxZ + tz0) / 2), C(48, 128, 34))
+	local tzf = Studs.static(map, "ThrowFloor", V3(ta.maxX - ta.minX, 0.08, ta.maxZ - tz0), CF((ta.minX + ta.maxX) / 2, 0.04, (ta.maxZ + tz0) / 2), C(30, 92, 22))
 	tzf.CanCollide = false
 	line(ta.maxZ, ta.minX, ta.maxX)
 	for _, x in { ta.minX, ta.maxX } do
