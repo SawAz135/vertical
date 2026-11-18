@@ -381,30 +381,7 @@ local function buildSky(map, rand)
 	bloom.Parent = Lighting
 end
 
--- the place was made from a Roblox TEMPLATE: its baseplate, grass terrain, spawn, scenery,
--- sky and lighting effects show up behind / under the map. Remove everything that isn't ours.
-local function cleanTemplate()
-	local Players = game:GetService("Players")
-	for _, d in workspace:GetChildren() do
-		if d:IsA("Camera") or d:IsA("Terrain") then continue end
-		if d:IsA("Model") and Players:GetPlayerFromCharacter(d) then continue end
-		if d.Name == "Map" or d.Name == "Bears" or d.Name == "WorldFx" then continue end
-		pcall(function() d:Destroy() end)
-	end
-	local terrain = workspace:FindFirstChildOfClass("Terrain")
-	if terrain then
-		pcall(function() terrain:Clear() end) -- template grass / hills / water
-		for _, d in terrain:GetChildren() do pcall(function() d:Destroy() end) end -- Clouds...
-	end
-	for _, d in Lighting:GetChildren() do
-		if d:IsA("Sky") or d:IsA("Atmosphere") or d:IsA("PostEffect") or d:IsA("Clouds") then
-			pcall(function() d:Destroy() end)
-		end
-	end
-end
-
 function MapService.build()
-	pcall(cleanTemplate)
 	local map = Instance.new("Folder")
 	map.Name = "Map"
 	local rand = Random.new(1337)
