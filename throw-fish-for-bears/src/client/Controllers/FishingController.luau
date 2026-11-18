@@ -26,6 +26,7 @@ local Actions = require(script.Parent.Actions)
 local CameraController = require(script.Parent.CameraController)
 local HumanPose = require(script.Parent.HumanPose)
 local Clock = require(script.Parent.Clock)
+local Cine = require(script.Parent.CinematicFx)
 
 local Fishing = {}
 local sessions = {} -- [player] = session
@@ -101,6 +102,163 @@ local function setBobber(s, p: Vector3, tilt: number?)
 	s.bobPos = p
 end
 
+------------------------------------------------------------------------------------
+-- LOCAL CINEMATICS (only for your own fishing)
+------------------------------------------------------------------------------------
+local function myRoot(): BasePart?
+	local char = localPlayer.Character
+	return char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+end
+
+local function flat(v: Vector3): Vector3
+	local f = Vector3.new(v.X, 0, v.Z)
+	return if f.Magnitude > 1e-3 then f.Unit else Vector3.new(0, 0, 1)
+end
+
+-- CAST: over the shoulder -> the camera chases the bobber in flight from the side -> low
+-- on the water for the PLOP, then hands back to the normal camera
+local function castCamera(s)
+	local root = myRoot()
+	if not root then return end
+	local plopped = false
+	CameraController.run(function(t)
+		local r = myRoot()
+		if not r or s.dead then return nil, 70 end
+		local dir = flat(s.target - r.Position)
+		local side = Vector3.new(-dir.Z, 0, dir.X)
+		local up = Vector3.new(0, 1, 0)
+		if s.phase == "Windup" then
+			-- tight over the shoulder, the rod going back
+			local k = Easing.cubicOut(math.clamp(s.t / 0.42, 0, 1))
+			local p = r.Position - dir * (5.5 - 1 * k) + side * 2.2 + up * (2.6 + 0.6 * k)
+			return CFrame.lookAt(p, r.Position + dir * 6 + up * 1.5), 62 - 6 * k
+		elseif s.phase == "Flying" then
+			-- chase: alongside the bobber, slightly behind and above
+			local b = s.bobPos or s.target
+			local k = math.clamp(s.t / 0.6, 0, 1)
+			local p = b - dir * (4.5 - 1.5 * k) + side * (3.2 + 1.5 * k) + up * (1.6 - 0.6 * k)
+			return CFrame.lookAt(p, b + dir * 2), 58 + 10 * k
+		end
+		-- PLOP: low over the water next to the bobber, then back out
+		if not plopped then
+			plopped = true
+			CameraController.shake(0.35, 0.2)
+			CameraController.punch(-4)
+		end
+		local b = s.target
+		return CFrame.lookAt(b - dir * 3.4 + side * 2.4 + up * 0.9, b + up * 0.2), 54
+	end, 1.55, { smooth = 9, blendIn = 0.15 })
+end
+
+-- BITE: snap zoom on the bobber going under + a huge "!" over it
+local function biteCamera(s, at: Vector3)
+	local r = myRoot()
+	if not r then return end
+	local dir = flat(at - r.Position)
+	local side = Vector3.new(-dir.Z, 0, dir.X)
+	CameraController.run(function(t)
+		local k = Easing.expoOut(math.clamp(t / 0.18, 0, 1))
+		local b = s.bobPos or at
+		local p = b - dir * (6 - 3 * k) + side * 1.6 + Vector3.new(0, 1.4 - 0.6 * k, 0)
+		return CFrame.lookAt(p, b), 64 - 18 * k
+	end, 0.75, { smooth = 14, blendIn = 0.08 })
+	CameraController.shake(0.9, 0.3)
+	-- the big "!" (outlined text only)
+	local bb = Instance.new("BillboardGui")
+	bb.Size = UDim2.fromOffset(160, 160)
+	bb.StudsOffsetWorldSpace = Vector3.new(0, 3, 0)
+	bb.AlwaysOnTop = true
+	bb.Adornee = s.bobber and s.bobber.PrimaryPart
+	local tl = Instance.new("TextLabel")
+	tl.BackgroundTransparency = 1
+	tl.Size = UDim2.fromScale(1, 1)
+	tl.Font = Enum.Font.FredokaOne
+	tl.TextScaled = true
+	tl.Text = "!"
+	tl.TextColor3 = Color3.fromRGB(255, 70, 60)
+	local st = Instance.new("UIStroke")
+	st.Thickness = 6
+	st.Parent = tl
+	local sc = Instance.new("UIScale")
+	sc.Scale = 0
+	sc.Parent = tl
+	tl.Parent = bb
+	bb.Parent = Fx.folder
+	local t0 = os.clock()
+	local conn
+	conn = RunService.RenderStepped:Connect(function()
+		local t = os.clock() - t0
+		sc.Scale = if t < 0.15 then Easing.backOut(t / 0.15) * 1.3 else 1 + math.abs(math.sin(t * 16)) * 0.12
+		tl.Rotation = math.sin(t * 30) * 8 * math.max(0, 1 - t)
+		if t > 0.9 then
+			tl.TextTransparency = (t - 0.9) / 0.25
+			st.Transparency = tl.TextTransparency
+		end
+		if t > 1.15 then
+			conn:Disconnect()
+			bb:Destroy()
+		end
+	end)
+end
+
+-- REEL: a living camera during the fight: you + the fight in frame, swaying with the
+-- tension, tightening as you win; the fish breaks the surface now and then
+local function reelCamera(s)
+	CameraController.run(function(t, dt)
+		local r = myRoot()
+		if not r or s.dead then return nil, 70 end
+		local b = s.bobPos or s.target
+		local dir = flat(b - r.Position)
+		local side = Vector3.new(-dir.Z, 0, dir.X)
+		local prog = if Fishing.reel then Fishing.reel.progress else 0.5
+		local tension = s.tension or 0.5
+		local dist = (b - r.Position).Magnitude
+		local mid = r.Position:Lerp(b, 0.55)
+		local tn = os.clock()
+		local sway = Vector3.new(math.noise(tn * 1.3, 1), math.noise(tn * 1.3, 2) * 0.5, math.noise(tn * 1.3, 3)) * (0.4 + tension * 1.2)
+		local p = mid + side * (dist * 0.55 + 4 - prog * 2) - dir * (dist * 0.2) + Vector3.new(0, 4.2 - prog * 1.2, 0) + sway
+		return CFrame.lookAt(p, mid - Vector3.new(0, 0.8, 0)), 60 - prog * 12 - tension * 4
+	end, 90, { smooth = 6, blendIn = 0.35 })
+end
+
+-- a dark fish silhouette breaking the surface during the fight (species still a mystery)
+local function fightJump(s)
+	local b = s.bobPos or s.target
+	local m = FishBuilder.build("Salmon", { scale = 0.9 + (s.difficulty or 1) * 0.15 })
+	for _, d in m:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = false
+			d.CanCollide = false
+			d.CanQuery = false
+			d.Color = Color3.fromRGB(16, 30, 48)
+			d.Material = Enum.Material.SmoothPlastic
+		end
+	end
+	m.PrimaryPart.Anchored = true
+	m:SetAttribute("Anim", "Leap")
+	m.Parent = Fx.folder
+	local from = Vector3.new(b.X, Layout.WATER_Y, b.Z)
+	local to = from + Vector3.new(math.random(-3, 3), 0, math.random(-3, 3))
+	Fx.splash(from, 0.9)
+	Sound.play("Splash", { at = from, volume = 0.8 })
+	CameraController.shake(0.4, 0.2)
+	local t0 = os.clock()
+	local last = from
+	local conn
+	conn = RunService.RenderStepped:Connect(function()
+		local u = math.clamp((os.clock() - t0) / 0.75, 0, 1)
+		local p = from:Lerp(to, u) + Vector3.new(0, math.sin(u * math.pi) * (2.6 + (s.difficulty or 1) * 0.3), 0)
+		local vel = p - last
+		last = p
+		if vel.Magnitude > 1e-3 then m:PivotTo(CFrame.lookAt(p, p + vel) * CFrame.Angles(0, 0, u * math.pi)) end
+		if u >= 1 or s.dead then
+			conn:Disconnect()
+			if not s.dead then Fx.splash(to, 0.8) end
+			m:Destroy()
+		end
+	end)
+end
+
 -- fish leaps from the water into the player's arms
 local function leap(player: Player, from: Vector3, fish, isLocal: boolean)
 	local char = player.Character
@@ -121,18 +279,33 @@ local function leap(player: Player, from: Vector3, fish, isLocal: boolean)
 	local apex = 8 + tier.index * 0.8
 	local t0 = os.clock()
 	local conn
-	if isLocal and tier.index >= 3 then
-		-- quick cinematic focus on the leaping fish (slow push-in, a beat of hang time)
-		local lastP = from
-		CameraController.run(function(t)
-			local u = math.clamp(t / dur, 0, 1)
-			local pp = model.Parent and model.PrimaryPart
-			if pp then lastP = pp.Position end
-			local p = lastP
-			local side = (root.CFrame.RightVector * (7 - 2 * u) + Vector3.new(0, 1.5 + u, 0))
-			return CFrame.lookAt(p + side + (root.Position - p).Unit * 4, p), 52 - u * 10
-		end, dur + 0.25, { smooth = 10, blendIn = 0.25 })
-		CameraController.punch(-6)
+	-- the leap cinematic grows with the rarity: commons get a quick look, rare fish a slow,
+	-- low, circling shot, the top tiers letterboxed with a hit of stillness at the apex
+	if isLocal then
+		local ti = tier.index
+		if ti <= 1 then
+			CameraController.stop()
+		else
+			dur = 0.9 + ti * 0.14
+			apex = 7 + ti * 1.0
+			local lastP = from
+			local big = ti >= 5
+			if big then
+				Cine.letterbox(true)
+				task.delay(dur + 0.5, function() Cine.letterbox(false) end)
+			end
+			CameraController.run(function(t)
+				local u = math.clamp(t / dur, 0, 1)
+				local pp = model.Parent and model.PrimaryPart
+				if pp then lastP = pp.Position end
+				local p = lastP
+				local orbit = CFrame.Angles(0, (u - 0.5) * (0.4 + ti * 0.12), 0):VectorToWorldSpace(root.CFrame.RightVector)
+				local cam = p + orbit * (7 - 2 * u) + Vector3.new(0, 1.2 + u * (0.5 + ti * 0.15), 0) + (root.Position - p).Unit * 3
+				return CFrame.lookAt(cam, p), 54 - u * (6 + ti * 1.5)
+			end, dur + 0.3, { smooth = 10, blendIn = 0.2 })
+			CameraController.punch(-4 - ti)
+			if big then CameraController.shake(0.5 + ti * 0.08, 0.4) end
+		end
 	end
 	local dropAcc = 0
 	local lastP = from
@@ -140,6 +313,11 @@ local function leap(player: Player, from: Vector3, fish, isLocal: boolean)
 		-- eased: bursts out, hangs at the top, then drops into the hands
 		local raw = math.clamp((os.clock() - t0) / dur, 0, 1)
 		local u = Easing.sineInOut(raw)
+		if tier.index >= 4 then
+			-- a beat of slow motion at the top of the leap
+			u = raw + (0.5 - raw) * 0.35 * math.sin(raw * math.pi)
+			u = Easing.sineInOut(math.clamp(u, 0, 1))
+		end
 		local to = root.Position + root.CFrame.LookVector * 1.6 + Vector3.new(0, 0.6, 0)
 		local p = from:Lerp(to, u) + Vector3.new(0, 4 * apex * u * (1 - u), 0)
 		local vel = p - lastP
@@ -175,6 +353,7 @@ local function onFx(player: Player, phase: string, data)
 		local s = newSession(player, data.bobber, data.rod)
 		s.phase = "Windup"
 		s.t = 0
+		if isLocal then castCamera(s) end
 	elseif phase == "Bite" then
 		local s = sessions[player]
 		if not s then return end
@@ -184,7 +363,8 @@ local function onFx(player: Player, phase: string, data)
 		Fx.bubbles(data.bobber, 10)
 		if isLocal then
 			Sound.play("Bite")
-			CameraController.shake(0.6, 0.25)
+			Sound.play("BigSplash", { at = data.bobber, volume = 0.6 })
+			biteCamera(s, data.bobber)
 			-- the mini-game starts by itself (no HOOK button)
 			task.delay(0.35, function()
 				Net.event("Hook"):FireServer()
@@ -210,7 +390,11 @@ local function onFx(player: Player, phase: string, data)
 		sh.Material = Enum.Material.SmoothPlastic
 		sh.Parent = Fx.folder
 		s.shadow = sh
-		if isLocal then Fishing.startReel(data.difficulty) end
+		if isLocal then
+			Fishing.startReel(data.difficulty)
+			reelCamera(s)
+			s.jumpAt = os.clock() + 1.4 + math.random()
+		end
 	elseif phase == "Catch" then
 		local s = sessions[player]
 		local from = (s and s.bobPos) or data.bobber
@@ -225,6 +409,7 @@ local function onFx(player: Player, phase: string, data)
 		sessions[player] = nil
 		if isLocal then
 			Fishing.stopReel()
+			CameraController.stop()
 			if phase == "Snap" then
 				Sound.play("Snap")
 				CameraController.shake(1, 0.3)
@@ -233,7 +418,10 @@ local function onFx(player: Player, phase: string, data)
 	elseif phase == "Reset" then
 		cleanup(sessions[player])
 		sessions[player] = nil
-		if isLocal then Fishing.stopReel() end
+		if isLocal then
+			Fishing.stopReel()
+			CameraController.stop()
+		end
 	end
 end
 
@@ -305,6 +493,14 @@ local function step(dt: number)
 				s.ripT = 0
 				Fx.ripple(bp, 0.5 + tension * 0.6)
 				if tension > 0.6 then Fx.bubbles(bp, 2) end
+				-- heavy thrashing: water flying off the line
+				if tension > 0.45 then
+					Fx.blocks(bp + Vector3.new(0, 0.3, 0), Color3.fromRGB(150, 210, 255), 3, 7 + tension * 6, 0.16, { life = 0.5, up = 2, spread = 1.4, gravity = 45 })
+				end
+			end
+			if player == localPlayer and s.jumpAt and now >= s.jumpAt then
+				s.jumpAt = now + 2.2 + math.random() * 1.6
+				fightJump(s)
 			end
 		end
 		-- rod bend (tension) on every client
