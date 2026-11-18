@@ -99,6 +99,7 @@ Capture.Flash = Notify.flash
 Capture.init()
 Ambience.init()
 require(Controllers.FishUpController).init(require(UI.Sim))
+require(Controllers.FisherController).init(HUD)
 local Announce = require(UI.Announce)
 Announce.mount(hudGui)
 require(Controllers.TutorialController).init(hudGui, require(UI.Sim), HUD, Menus)

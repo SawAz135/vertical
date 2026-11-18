@@ -58,6 +58,7 @@ local function template()
 		bestThrow = 0, -- longest successful throw (studs)
 		tutorial = 0, -- tutorial step reached (TUTORIAL_DONE = finished)
 		tutorialPaid = false,
+		fishers = { n = 0, lv = { 1, 1 }, bucket = 1, stored = {} }, -- hired fishermen + their bucket
 		nextId = 1,
 	}
 end
@@ -96,6 +97,22 @@ local function sanitize(d)
 		end
 	end
 	d.fish = fish
+	-- fishermen + bucket
+	local fd = d.fishers
+	fd.n = math.clamp(math.floor(tonumber(fd.n) or 0), 0, 2)
+	if type(fd.lv) ~= "table" then fd.lv = { 1, 1 } end
+	for i = 1, 2 do fd.lv[i] = math.clamp(math.floor(tonumber(fd.lv[i]) or 1), 1, 10) end
+	fd.bucket = math.clamp(math.floor(tonumber(fd.bucket) or 1), 1, 5)
+	local stored = {}
+	if type(fd.stored) == "table" then
+		for _, f in fd.stored do
+			if type(f) == "table" and FishConfig.get(f.s) and type(f.id) == "string" and type(f.w) == "number" then
+				f.v = if RarityConfig.Variants[f.v] then f.v else "Normal"
+				table.insert(stored, f)
+			end
+		end
+	end
+	fd.stored = stored
 	for id, b in d.bears do
 		if type(b) ~= "table" or not BearConfig.get(b.s) or not RarityConfig.Tiers[b.r] or type(b.w) ~= "number" then
 			d.bears[id] = nil

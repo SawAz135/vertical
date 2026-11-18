@@ -15,7 +15,7 @@ Net.ClientToServer = {
 }
 
 Net.ServerToClient = {
-	"Data", "Notify", "State", "FishingFx", "CatchReveal", "ThrowFx", "CaptureFx", "WorkoutFx", "Sfx", "Announce",
+	"Data", "Notify", "State", "FishingFx", "CatchReveal", "ThrowFx", "CaptureFx", "WorkoutFx", "Sfx", "Announce", "FisherFx",
 }
 
 local folder

@@ -50,9 +50,9 @@ function FishingService.luck(player: Player): number
 	return luck
 end
 
-function FishingService.rollFish(player: Player)
+function FishingService.rollFish(player: Player, luckMult: number?)
 	local data = R.PlayerData.get(player)
-	local luck = FishingService.luck(player)
+	local luck = FishingService.luck(player) * (luckMult or 1)
 	local species = Rng.pickMap(rand, FishingService.speciesWeights(luck))
 	local spec = FishConfig.get(species)
 	local w = Rng.skewed(rand, spec.weight.min, spec.weight.max, 2.6)

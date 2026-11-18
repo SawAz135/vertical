@@ -33,6 +33,7 @@ R.UpgradeService = require(S.UpgradeService)
 R.IndexService = require(S.IndexService)
 R.RewardService = require(S.RewardService)
 R.Announce = require(S.AnnounceService)
+R.FisherService = require(S.FisherService)
 
 function R.Notify(player: Player, text: string, kind: string?)
 	Net.event("Notify"):FireClient(player, text, kind or "info")
@@ -100,6 +101,11 @@ local function onPlayer(player: Player)
 	if not data or not player.Parent then return end
 	R.RewardService.onJoin(player)
 	R.MapService.setFishUpTier(base, require(Shared.Config.FishUpConfig).tierFor(data.strengthGain))
+	-- hired fishermen + their bucket on this player's dock
+	task.spawn(function()
+		local ok, err = pcall(R.FisherService.setup, player)
+		if not ok then warn("[TFB] fishers", err) end
+	end)
 	R.BearBase.loadPlayer(player)
 	R.State.set(player, "Idle", true)
 	player:SetAttribute("DataReady", true)
@@ -218,6 +224,7 @@ on("SetSetting", { "string", "boolean" }, function(player, name, value)
 end)
 
 ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
+	if R.FisherService.onPrompt(prompt, player) then return end
 	if prompt:GetAttribute("TFBPrompt") == "PickupBear" then
 		local id = prompt:GetAttribute("BearId")
 		if type(id) == "string" and prompt:GetAttribute("Owner") == player.UserId then
