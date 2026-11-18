@@ -17,6 +17,7 @@ local Format = require(Shared.Util.Format)
 local E = require(Shared.Config.EconomyConfig)
 local F = require(Shared.Config.FisherConfig)
 local FishConfig = require(Shared.Config.FishConfig)
+local RarityConfig = require(Shared.Config.RarityConfig)
 local FisherBuilder = require(Shared.Models.FisherBuilder)
 local BucketBuilder = require(Shared.Models.BucketBuilder)
 local R = require(script.Parent.Parent.Registry)
@@ -178,7 +179,6 @@ end
 local function runFisher(player: Player, slot: number)
 	local st = per[player]
 	local s = st.slots[slot]
-	local T = F.Timing
 	local function alive(): boolean
 		return per[player] == st and st.alive and s.model ~= nil and s.model.Parent ~= nil
 	end
@@ -194,9 +194,11 @@ local function runFisher(player: Player, slot: number)
 		if not fd then return end
 		local lv = fd.lv[slot] or 1
 		s.model:SetAttribute("Seed", math.random(1, 1e6)) -- new bobber spot every cast
-		if not phase("Cast", T.cast) then return end
+		local pt = function(n) return F.phaseTime(n, lv) end
+		if not phase("Bait", pt("bait")) then return end
+		if not phase("Cast", pt("cast")) then return end
 		if not phase("Wait", F.waitTime(lv)) then return end
-		if not phase("Reel", T.reel) then return end
+		if not phase("Reel", pt("reel")) then return end
 		-- the catch: a real roll with the player's luck x the fisherman's luck
 		local ok, fish = pcall(R.FishingService.rollFish, player, F.luck(lv))
 		if not ok or type(fish) ~= "table" then
@@ -207,9 +209,14 @@ local function runFisher(player: Player, slot: number)
 			s.model:SetAttribute("CarryFish", fish.s)
 			s.model:SetAttribute("CarryW", fish.w)
 			s.model:SetAttribute("CarryV", fish.v)
+			-- a "big one" (heavy for its species or rare): he celebrates; a small one: shrug
+			local spec = FishConfig.get(fish.s)
+			local rel = if spec then (fish.w - spec.weight.min) / math.max(0.01, spec.weight.max - spec.weight.min) else 0.5
+			local rar = if spec then RarityConfig.get(spec.rarity).index else 1
+			s.model:SetAttribute("CarryBig", rel > 0.55 or rar >= 4)
 		end
-		if not phase("Catch", T.catch) then return end
-		if not phase("Unhook", T.unhook) then return end
+		if not phase("Catch", pt("catch")) then return end
+		if not phase("Unhook", pt("unhook")) then return end
 		local walk = F.walkTime(lv)
 		if not phase("ToBucket", walk) then return end
 		s.model:PivotTo(CFrame.lookAt(F.bucketStand(st.base, slot), F.bucketPos(st.base) * Vector3.new(1, 0, 1) + Vector3.new(0, F.bucketStand(st.base, slot).Y, 0)))
@@ -219,8 +226,9 @@ local function runFisher(player: Player, slot: number)
 			task.wait(0.5)
 		end
 		if not alive() then return end
-		setPhase(s.model, "Drop", T.drop)
-		task.wait(T.drop * 0.55)
+		local dropT = F.phaseTime("drop", lv)
+		setPhase(s.model, "Drop", dropT)
+		task.wait(dropT * 0.4)
 		if not alive() then return end
 		local fd2 = dataOf(player)
 		if fish and fd2 and #fd2.stored < bucketCap(fd2) then
@@ -228,7 +236,7 @@ local function runFisher(player: Player, slot: number)
 			refreshBucket(player)
 			Net.event("FisherFx"):FireClient(player, "Dropped", { base = st.base, slot = slot, count = #fd2.stored, cap = bucketCap(fd2) })
 		end
-		task.wait(T.drop * 0.45)
+		task.wait(dropT * 0.6)
 		s.model:SetAttribute("CarryFish", nil)
 		if not phase("Back", walk) then return end
 		s.model:PivotTo(F.spotCF(st.base, slot))

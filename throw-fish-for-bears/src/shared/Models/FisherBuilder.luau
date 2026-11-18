@@ -66,21 +66,33 @@ function FisherBuilder.build(slot: number, tier: number, opts: any?): Model
 	root.Anchored = true
 	model.PrimaryPart = root
 
-	-- LEGS --------------------------------------------------------------------------
+	-- LEGS: thigh -> (knee) -> shin + boot shaft -> (ankle) -> foot --------------------
 	for _, side in { -1, 1 } do
 		local x = side * 0.5
-		local leg = bone(if side < 0 then "LegL" else "LegR", CF(x, 2, 0))
-		local parts = {
-			piece("Leg", V3(0.9, 1.45, 0.9), CF(x, 1.3, 0), st.pants),
-			piece("Boot", V3(0.98, 0.7, 1.05), CF(x, 0.35, 0), st.boots, "boots"),
-			piece("Toe", V3(0.98, 0.42, 0.4), CF(x, 0.21, -0.68), st.boots, "boots"),
-			piece("BootTop", V3(1.04, 0.16, 1.1), CF(x, 0.74, 0), Studs.shade(st.boots, 1.25), "boots", { smooth = true }),
-			piece("BootBuckle", V3(0.3, 0.22, 0.08), CF(x, 0.5, -0.54), GOLD, "metal", { smooth = true }),
-			piece("Cuff", V3(0.96, 0.2, 0.96), CF(x, 0.95, 0), Studs.shade(st.pants, 1.2), "outfit"),
-			piece("Knee", V3(0.5, 0.4, 0.06), CF(x, 1.45, -0.46), Studs.shade(st.pants, 0.85), "outfit"),
-		}
-		Studs.weldAll(leg, parts)
-		Studs.motor(if side < 0 then "HipL" else "HipR", root, leg, CF(x, 2, 0))
+		local L = if side < 0 then "L" else "R"
+		local upper = bone("UpperLeg" .. L, CF(x, 2, 0))
+		Studs.weldAll(upper, {
+			piece("Thigh", V3(0.9, 1.0, 0.9), CF(x, 1.5, 0), st.pants),
+			piece("ThighSeam", V3(0.06, 0.9, 0.92), CF(x + side * 0.42, 1.5, 0), Studs.shade(st.pants, 0.85), "outfit", { smooth = true }),
+		})
+		Studs.motor("Hip" .. L, root, upper, CF(x, 2, 0))
+		local lower = bone("LowerLeg" .. L, CF(x, 1.0, 0))
+		Studs.weldAll(lower, {
+			piece("Shin", V3(0.86, 0.45, 0.86), CF(x, 0.98, 0), st.pants),
+			piece("Knee", V3(0.5, 0.36, 0.06), CF(x, 1.0, -0.45), Studs.shade(st.pants, 0.85), "outfit"),
+			piece("Cuff", V3(0.96, 0.2, 0.96), CF(x, 0.8, 0), Studs.shade(st.pants, 1.2), "outfit"),
+			piece("BootShaft", V3(0.98, 0.5, 1.0), CF(x, 0.5, 0), st.boots, "boots"),
+			piece("BootTop", V3(1.04, 0.14, 1.06), CF(x, 0.72, 0), Studs.shade(st.boots, 1.25), "boots", { smooth = true }),
+			piece("BootBuckle", V3(0.3, 0.22, 0.08), CF(x, 0.5, -0.52), GOLD, "metal", { smooth = true }),
+		})
+		Studs.motor("Knee" .. L, upper, lower, CF(x, 1.0, 0))
+		local foot = bone("Foot" .. L, CF(x, 0.28, 0))
+		Studs.weldAll(foot, {
+			piece("Boot", V3(0.98, 0.3, 1.25), CF(x, 0.15, -0.12), st.boots, "boots"),
+			piece("Toe", V3(0.98, 0.34, 0.4), CF(x, 0.2, -0.66), Studs.shade(st.boots, 1.05), "boots"),
+			piece("Sole", V3(1.0, 0.08, 1.3), CF(x, 0.04, -0.12), RGB(30, 30, 32), "boots", { smooth = true }),
+		})
+		Studs.motor("Ankle" .. L, lower, foot, CF(x, 0.28, 0))
 	end
 
 	-- TORSO -------------------------------------------------------------------------
@@ -243,32 +255,43 @@ function FisherBuilder.build(slot: number, tier: number, opts: any?): Model
 	Studs.weldAll(head, hparts)
 	Studs.motor("Neck", torso, head, CF(0, 4.05, 0))
 
-	-- ARMS ------------------------------------------------------------------------------
-	local hands = {}
+	-- ARMS: upper arm -> (elbow) -> forearm -> (wrist) -> hand --------------------------
+	local gloveCol = if st.trims or st.buttons then RGB(240, 240, 240) else SKIN
+	local handBones = {}
 	for _, side in { -1, 1 } do
 		local x = side * 1.36
-		local arm = bone(if side < 0 then "ArmL" else "ArmR", CF(x, 3.75, 0))
-		local aparts = {
-			piece("Sleeve", V3(0.74, 1.35, 0.78), CF(x, 3.2, 0), st.coat),
-			piece("Cuff", V3(0.8, 0.22, 0.84), CF(x, 2.5, 0), Studs.shade(st.coat, 0.8)),
-			piece("Glove", V3(0.66, 0.5, 0.68), CF(x, 2.15, 0), if st.trims or st.buttons then RGB(240, 240, 240) else SKIN, "hand"),
+		local L = if side < 0 then "L" else "R"
+		local upper = bone("UpperArm" .. L, CF(x, 3.75, 0))
+		local up = {
+			piece("Sleeve", V3(0.74, 0.85, 0.78), CF(x, 3.35, 0), st.coat),
 		}
 		if st.epaulettes then
-			table.insert(aparts, piece("Epaulette", V3(0.85, 0.16, 0.85), CF(x, 3.9, 0), GOLD, "metal", { smooth = true }))
-			table.insert(aparts, piece("Fringe", V3(0.85, 0.2, 0.06), CF(x, 3.76, -0.42), GOLD, "metal", { smooth = true }))
+			table.insert(up, piece("Epaulette", V3(0.85, 0.16, 0.85), CF(x, 3.9, 0), GOLD, "metal", { smooth = true }))
+			table.insert(up, piece("Fringe", V3(0.85, 0.2, 0.06), CF(x, 3.76, -0.42), GOLD, "metal", { smooth = true }))
 		end
-		Studs.weldAll(arm, aparts)
-		Studs.motor(if side < 0 then "ShoulderL" else "ShoulderR", torso, arm, CF(x, 3.75, 0))
-		local hand = Instance.new("Attachment")
-		hand.Name = if side < 0 then "HandL" else "HandR"
-		hand.Parent = aparts[3]
-		hand.Position = V3(0, -0.2, 0)
-		hands[side] = { arm = arm, glove = aparts[3] }
+		Studs.weldAll(upper, up)
+		Studs.motor("Shoulder" .. L, torso, upper, CF(x, 3.75, 0))
+		local fore = bone("ForeArm" .. L, CF(x, 2.95, 0))
+		Studs.weldAll(fore, {
+			piece("ForeSleeve", V3(0.7, 0.62, 0.74), CF(x, 2.68, 0), Studs.shade(st.coat, 0.96)),
+			piece("Cuff", V3(0.78, 0.2, 0.82), CF(x, 2.4, 0), Studs.shade(st.coat, 0.8)),
+		})
+		Studs.motor("Elbow" .. L, upper, fore, CF(x, 2.95, 0))
+		local hand = bone("Hand" .. L, CF(x, 2.3, 0))
+		local glove = piece("Glove", V3(0.6, 0.46, 0.64), CF(x, 2.08, 0), gloveCol, "hand")
+		local thumb = piece("Thumb", V3(0.18, 0.28, 0.2), CF(x - side * 0.32, 2.16, -0.18), gloveCol, "hand", { smooth = true })
+		Studs.weldAll(hand, { glove, thumb })
+		Studs.motor("Wrist" .. L, fore, hand, CF(x, 2.3, 0))
+		local att = Instance.new("Attachment")
+		att.Name = "Hand" .. L
+		att.Position = V3(0, -0.15, -0.05)
+		att.Parent = glove
+		handBones[side] = hand
 	end
 
-	-- THE ROD (in the right hand, pointing forward and up) --------------------------------
-	local armR = hands[1].arm
-	local grip = CF(1.36, 2.15, 0) * ANG(math.rad(35), 0, 0)
+	-- THE ROD (in the right hand): handle + reel on the hand, then 3 bending segments --------
+	local handR = handBones[1]
+	local grip = CF(1.36, 2.08, 0) * ANG(math.rad(35), 0, 0)
 	local rodCol, blankCol, reelCol, rodMat = RGB(120, 76, 40), RGB(150, 100, 56), RGB(150, 150, 160), Enum.Material.Plastic
 	if st.rod == "bamboo" then
 		blankCol = RGB(206, 186, 110)
@@ -279,26 +302,63 @@ function FisherBuilder.build(slot: number, tier: number, opts: any?): Model
 	elseif st.rod == "crystal" then
 		rodCol, blankCol, reelCol, rodMat = RGB(40, 30, 60), RGB(140, 230, 255), GOLD, Enum.Material.Glass
 	end
-	local rparts = {
+	Studs.weldAll(handR, {
 		piece("RodHandle", V3(0.26, 0.26, 1.3), grip * CF(0, 0, -0.1), rodCol, "rod"),
-		piece("RodReel", V3(0.4, 0.4, 0.3), grip * CF(0, -0.3, -0.55), reelCol, "rod", { smooth = true }),
-		piece("RodReelArm", V3(0.06, 0.06, 0.3), grip * CF(0.22, -0.3, -0.55), reelCol, "rod", { smooth = true }),
-		piece("RodBlank", V3(0.14, 0.14, 3.0), grip * CF(0, 0, -2.2), blankCol, "rod", { smooth = true, material = rodMat }),
-		piece("RodTipPart", V3(0.09, 0.09, 1.8), grip * CF(0, 0, -4.6), blankCol, "rod", { smooth = true, material = rodMat }),
-	}
-	for i = 0, 2 do
-		table.insert(rparts, piece("Guide", V3(0.2, 0.2, 0.06), grip * CF(0, -0.12, -1.6 - i * 1.3), WHITE, "rod", { smooth = true }))
-	end
-	if st.rod == "bamboo" then
-		for i = 0, 2 do
-			table.insert(rparts, piece("Node", V3(0.18, 0.18, 0.1), grip * CF(0, 0, -1.2 - i * 1.0), RGB(150, 120, 60), "rod", { smooth = true }))
+		piece("RodButt", V3(0.32, 0.32, 0.2), grip * CF(0, 0, 0.6), Studs.shade(rodCol, 0.7), "rod", { smooth = true }),
+		piece("RodReel", V3(0.42, 0.42, 0.32), grip * CF(0, -0.32, -0.55), reelCol, "rod", { smooth = true, shape = Enum.PartType.Cylinder }),
+		piece("ReelFoot", V3(0.1, 0.22, 0.3), grip * CF(0, -0.16, -0.55), reelCol, "rod", { smooth = true }),
+		piece("RodBlank0", V3(0.15, 0.15, 0.9), grip * CF(0, 0, -1.15), blankCol, "rod", { smooth = true, material = rodMat }),
+	})
+	-- reel crank (turns when he reels in)
+	local crank = bone("Crank", grip * CF(0.26, -0.32, -0.55))
+	Studs.weldAll(crank, {
+		piece("CrankArm", V3(0.06, 0.34, 0.08), grip * CF(0.28, -0.46, -0.55), reelCol, "rod", { smooth = true }),
+		piece("CrankKnob", V3(0.16, 0.12, 0.12), grip * CF(0.36, -0.6, -0.55), RGB(30, 30, 34), "rod", { smooth = true }),
+	})
+	Studs.motor("Crank", handR, crank, grip * CF(0.26, -0.32, -0.55))
+	-- 3 bending segments
+	local prev = handR
+	local z0 = -1.6
+	local lens = { 1.4, 1.3, 1.2 }
+	local widths = { 0.13, 0.1, 0.075 }
+	local tipPart
+	for i = 1, 3 do
+		local pivot = grip * CF(0, 0, z0)
+		local seg = bone("RodSeg" .. i, pivot)
+		local blank = piece("RodBlank" .. i, V3(widths[i], widths[i], lens[i] + 0.04), pivot * CF(0, 0, -lens[i] / 2), blankCol, "rod", { smooth = true, material = rodMat })
+		local guide = piece("Guide", V3(0.18 - i * 0.03, 0.18 - i * 0.03, 0.05), pivot * CF(0, -0.1, -lens[i] * 0.7), WHITE, "rod", { smooth = true })
+		local parts = { blank, guide }
+		if st.rod == "bamboo" then
+			table.insert(parts, piece("Node", V3(widths[i] + 0.05, widths[i] + 0.05, 0.08), pivot * CF(0, 0, -lens[i] * 0.4), RGB(150, 120, 60), "rod", { smooth = true }))
 		end
+		Studs.weldAll(seg, parts)
+		Studs.motor("Rod" .. i, prev, seg, pivot)
+		prev = seg
+		z0 -= lens[i]
+		tipPart = blank
 	end
-	Studs.weldAll(armR, rparts)
 	local tip = Instance.new("Attachment")
 	tip.Name = "RodTip"
-	tip.Parent = rparts[5]
-	tip.Position = V3(0, 0, -0.9)
+	tip.Parent = tipPart
+	tip.Position = V3(0, 0, -lens[3] / 2)
+
+	-- PROPS in the left hand (shown by the client only when used) ------------------------
+	local handL = handBones[-1]
+	local hl = CF(-1.36, 2.0, -0.2)
+	local thermos = {
+		piece("Thermos", V3(0.36, 0.8, 0.36), hl * CF(0, 0.15, 0), RGB(40, 120, 70), "prop", { shape = Enum.PartType.Cylinder }),
+		piece("ThermosCap", V3(0.4, 0.2, 0.4), hl * CF(0, 0.6, 0), RGB(200, 200, 205), "prop", { smooth = true }),
+	}
+	thermos[1].CFrame = hl * CF(0, 0.15, 0) * ANG(0, 0, math.pi / 2)
+	for _, p in thermos do p:SetAttribute("Prop", "Thermos") end
+	local worm = {}
+	for i = 0, 3 do
+		local w = piece("Worm", V3(0.12, 0.12, 0.14), hl * CF(0, -0.15 - i * 0.1, -0.1), RGB(220, 120, 130), "prop", { smooth = true })
+		w:SetAttribute("Prop", "Worm")
+		table.insert(worm, w)
+	end
+	Studs.weldAll(handL, thermos)
+	Studs.weldAll(handL, worm)
 
 	model:SetAttribute("Fisher", true)
 	model:SetAttribute("Slot", slot)

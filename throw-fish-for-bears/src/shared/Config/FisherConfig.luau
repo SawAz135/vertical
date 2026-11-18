@@ -19,7 +19,7 @@ function F.levelCost(slot: number, lv: number): number
 end
 
 -- seconds per fish (the whole loop: cast, wait, fight, walk to the bucket and back)
-F.BaseInterval = 20
+F.BaseInterval = 30
 function F.interval(lv: number): number
 	return F.BaseInterval * 0.9 ^ (lv - 1)
 end
@@ -49,14 +49,23 @@ F.Bucket = {
 }
 
 -- the loop timings (seconds); the waiting time fills the rest of the interval
--- unhook: he kneels on the dock and takes the hook out while the fish thrashes
-F.Timing = { cast = 1.4, reel = 2.6, catch = 1.0, unhook = 2.0, drop = 1.3 }
+-- nominal timings (level 1). bait: worm from the creel onto the hook. unhook: he kneels,
+-- pins the fish, takes the hook out, then shows it off. Higher levels play the same
+-- animations faster (pace), so every gesture always fits.
+F.Timing = { bait = 2.4, cast = 1.6, reel = 3.6, catch = 1.2, unhook = 3.4, drop = 2.0 }
+function F.pace(lv: number): number
+	return math.clamp(F.interval(lv) / F.BaseInterval, 0.55, 1)
+end
+function F.phaseTime(name: string, lv: number): number
+	return F.Timing[name] * F.pace(lv)
+end
 function F.walkTime(lv: number): number
-	return math.max(2.2, F.interval(lv) * 0.24)
+	return math.max(2.6, 5.2 * F.pace(lv))
 end
 function F.waitTime(lv: number): number
-	local T = F.Timing
-	return math.max(1.2, F.interval(lv) - (T.cast + T.reel + T.catch + T.unhook + T.drop + 2 * F.walkTime(lv)))
+	local busy = 0
+	for name in F.Timing do busy += F.phaseTime(name, lv) end
+	return math.max(1.5, F.interval(lv) - busy - 2 * F.walkTime(lv))
 end
 
 -- places (feet positions) ---------------------------------------------------------------
