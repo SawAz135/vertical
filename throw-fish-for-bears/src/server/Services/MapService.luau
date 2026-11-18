@@ -9,6 +9,7 @@ local Studs = require(ReplicatedStorage.Shared.Models.Studs)
 local Layout = require(ReplicatedStorage.Shared.Layout)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local Props = require(script.Parent.Parent.World.Props)
+local Backdrop = require(ReplicatedStorage.Shared.Models.Backdrop)
 local FishBuilder = require(ReplicatedStorage.Shared.Models.FishBuilder)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 
@@ -210,9 +211,9 @@ end
 local function buildCorridor(map, rand)
 	local x = Layout.CORRIDOR_HALF + 2
 	local z0, z1 = Layout.CORRIDOR_START_Z, Layout.CORRIDOR_END_Z
-	Props.brickWall(map, V3(-x, 0, z0), V3(-x, 0, z1), Layout.WALL_HEIGHT, 4)
-	Props.brickWall(map, V3(x, 0, z0), V3(x, 0, z1), Layout.WALL_HEIGHT, 4)
-	Props.brickWall(map, V3(-x, 0, z1 - 2), V3(x, 0, z1 - 2), Layout.WALL_HEIGHT, 4)
+	-- the corridor walls are built PER ZONE in the zone's style (below); the end wall here
+	local lastZone = ZoneConfig.get(Layout.ZONE_COUNT)
+	Props.brickWall(map, V3(-x, 0, z1 - 2), V3(x, 0, z1 - 2), Layout.WALL_HEIGHT, 4, Props.WALL_STYLES[lastZone.theme])
 
 	local decor = Instance.new("Folder")
 	decor.Name = "Decor"
@@ -236,6 +237,16 @@ local function buildCorridor(map, rand)
 		end
 		local path = Studs.static(map, "Path", V3(14, 0.24, a - b), CF(0, 0.12, (a + b) / 2), zone.path)
 		path.CanCollide = false
+		-- walls in the zone's style + ground details + the mountains behind the walls
+		local style = Props.WALL_STYLES[zone.theme]
+		local wx = Layout.CORRIDOR_HALF + 2
+		Props.brickWall(folder, V3(-wx, 0, a), V3(-wx, 0, b), Layout.WALL_HEIGHT, 4, style)
+		Props.brickWall(folder, V3(wx, 0, a), V3(wx, 0, b), Layout.WALL_HEIGHT, 4, style)
+		pcall(Props.groundDetails, folder, zone.theme, a, b, Layout.CORRIDOR_HALF, rand)
+		for _, side in { -1, 1 } do
+			local ok, err = pcall(Backdrop.build, folder, zone.theme, a, b, side, wx + 2, i * 7919 + (if side > 0 then 13 else 0), Layout.WALL_HEIGHT)
+			if not ok then warn("[TFB] backdrop", err) end
+		end
 		-- soft transition strip at the zone border (blends both grounds)
 		if i > 1 then
 			local prev = ZoneConfig.get(i - 1)

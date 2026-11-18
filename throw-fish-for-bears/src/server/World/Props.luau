@@ -138,7 +138,21 @@ function Props.fence(parent: Instance, a: Vector3, b: Vector3, gap: number?)
 end
 
 -- checker brick wall (reference: brown studded blocks), returns the model
-function Props.brickWall(parent: Instance, a: Vector3, b: Vector3, height: number, thick: number)
+-- wall looks per zone theme: brick tones, top cap, inner-face details
+Props.WALL_STYLES = {
+	forest = { a = C(128, 124, 112), b = C(110, 106, 96), cap = C(80, 170, 60), moss = true },
+	pine = { a = C(118, 92, 66), b = C(98, 76, 54), cap = C(66, 128, 50), moss = true },
+	lake = { a = C(130, 140, 150), b = C(110, 120, 132), cap = C(84, 160, 70), moss = true },
+	snow = { a = C(140, 148, 162), b = C(120, 128, 142), cap = C(244, 248, 255), snow = true },
+	ice = { a = C(172, 212, 236), b = C(150, 196, 226), cap = C(244, 250, 255), snow = true },
+	bamboo = { a = C(176, 150, 110), b = C(156, 130, 92), cap = C(96, 152, 60), moss = true },
+	river = { a = C(140, 140, 128), b = C(120, 120, 110), cap = C(80, 160, 60), moss = true },
+	rocky = { a = C(172, 112, 82), b = C(146, 92, 66), cap = C(160, 146, 86) },
+	deep = { a = C(84, 94, 82), b = C(68, 78, 66), cap = C(52, 104, 42), moss = true },
+	beach = { a = C(232, 202, 142), b = C(212, 180, 122), cap = C(242, 224, 164) },
+}
+
+function Props.brickWall(parent: Instance, a: Vector3, b: Vector3, height: number, thick: number, style: any?)
 	local m = model(parent, "Wall")
 	local d = b - a
 	local len = d.Magnitude
@@ -152,7 +166,7 @@ function Props.brickWall(parent: Instance, a: Vector3, b: Vector3, height: numbe
 		for r = 0, rows - 1 do
 			local p = a + u * (tl * (i + 0.5))
 			local cf = CFrame.lookAt(p, p + u) + V3(0, th * (r + 0.5), 0)
-			local col = if (i + r) % 2 == 0 then Props.BRICK_A else Props.BRICK_B
+			local col = if (i + r) % 2 == 0 then (style and style.a or Props.BRICK_A) else (style and style.b or Props.BRICK_B)
 			Studs.static(m, "Brick", V3(thick, th, tl), cf, col, { allStuds = true })
 		end
 	end
@@ -162,7 +176,34 @@ function Props.brickWall(parent: Instance, a: Vector3, b: Vector3, height: numbe
 	local sl = len / segs
 	for i = 0, segs - 1 do
 		local mid = a + u * (sl * (i + 0.5))
-		Studs.static(m, "Cap", V3(thick + 0.4, 0.8, sl + 0.02), CFrame.lookAt(mid, mid + u) + V3(0, height + 0.4, 0), C(80, 170, 60))
+		Studs.static(m, "Cap", V3(thick + 0.4, 0.8, sl + 0.02), CFrame.lookAt(mid, mid + u) + V3(0, height + 0.4, 0), style and style.cap or C(80, 170, 60))
+	end
+	-- details on both faces: hanging moss / vines, or snow drips + icicles
+	if style and (style.moss or style.snow) then
+		local rnd = Random.new(math.floor(a.Z * 7 + a.X * 3))
+		local side = u:Cross(Vector3.yAxis).Unit
+		local zcount = math.floor(len / 9)
+		for k = 1, zcount do
+			local along = a + u * (k * 9 + rnd:NextNumber() * 5 - 2.5)
+			for _, sgn in { -1, 1 } do
+				if rnd:NextNumber() < 0.55 then
+					local face = along + side * sgn * (thick / 2 + 0.15)
+					if style.snow then
+						local l = 1 + rnd:NextNumber() * 2.6
+						Studs.static(m, "Icicle", V3(0.5, l, 0.5), CFrame.new(face + V3(0, height - l / 2, 0)), C(220, 240, 255), { noCollide = true, smooth = true, noShadow = true })
+						Studs.static(m, "SnowDrip", V3(0.4, 0.7, 2 + rnd:NextNumber() * 2), CFrame.lookAt(face, face + u) + V3(0, height - 0.3, 0), style.cap, { noCollide = true, noShadow = true })
+					else
+						local l = 2 + rnd:NextNumber() * 7
+						Studs.static(m, "Vine", V3(0.35, l, 0.5 + rnd:NextNumber() * 0.8), CFrame.lookAt(face, face + u) + V3(0, height - l / 2, 0), Studs.shade(style.cap, 0.85 + rnd:NextNumber() * 0.3),
+							{ noCollide = true, noShadow = true })
+						if rnd:NextNumber() < 0.4 then
+							Studs.static(m, "MossPatch", V3(0.3, 1.6 + rnd:NextNumber() * 2, 2 + rnd:NextNumber() * 3), CFrame.lookAt(face, face + u) + V3(0, 1 + rnd:NextNumber() * 4, 0),
+								Studs.shade(style.cap, 0.8), { noCollide = true, noShadow = true })
+						end
+					end
+				end
+			end
+		end
 	end
 	return m
 end
@@ -280,6 +321,46 @@ function Props.dock(parent: Instance, x: number, z0: number, z1: number, width: 
 			Studs.static(m, "Pile", V3(1.6, 7, 1.6), CF(x + side * (width / 2 + 0.3), topY - 2.6, z), Props.PLANK_DARK)
 			Studs.static(m, "PileCap", V3(1.8, 0.6, 1.8), CF(x + side * (width / 2 + 0.3), topY + 1.2, z), C(230, 200, 160))
 		end
+	end
+	return m
+end
+
+-- small details scattered on a zone's ground (never on the path, never colliding)
+function Props.groundDetails(parent: Instance, theme: string, a: number, b: number, half: number, rand: Random)
+	local m = model(parent, "GroundDetails")
+	local function spot(): Vector3
+		local x = (9 + rand:NextNumber() * (half - 12)) * (if rand:NextNumber() < 0.5 then -1 else 1)
+		return V3(x, 0, a - 6 - rand:NextNumber() * (a - b - 12))
+	end
+	local function flat(name, size: Vector3, pos: Vector3, col: Color3, y: number?)
+		local p = Studs.static(m, name, size, CF(pos + V3(0, y or (0.22 + size.Y / 2), 0)) * CFrame.Angles(0, rand:NextNumber() * 3.14, 0), col, { noCollide = true, noShadow = true })
+		p.CanQuery = false
+		return p
+	end
+	local green = theme == "forest" or theme == "pine" or theme == "lake" or theme == "river" or theme == "deep" or theme == "bamboo"
+	if green then
+		for _ = 1, 14 do flat("Dirt", V3(3 + rand:NextNumber() * 6, 0.12, 2 + rand:NextNumber() * 5), spot(), C(120, 90, 58)) end
+		for _ = 1, 26 do
+			local p = spot()
+			for k = 1, 3 do
+				flat("Tuft", V3(0.3, 0.6 + rand:NextNumber() * 0.6, 0.3), p + V3((k - 2) * 0.35, 0, rand:NextNumber() * 0.3), Studs.shade(C(70, 150, 50), 0.9 + rand:NextNumber() * 0.3))
+			end
+		end
+		for _ = 1, 16 do flat("Leaf", V3(0.9, 0.06, 0.6), spot(), ({ C(214, 160, 50), C(196, 100, 40), C(160, 120, 60) })[rand:NextInteger(1, 3)]) end
+	elseif theme == "snow" or theme == "ice" then
+		for _ = 1, 16 do flat("SnowMound", V3(3 + rand:NextNumber() * 4, 0.5 + rand:NextNumber() * 0.6, 2 + rand:NextNumber() * 3), spot(), C(250, 252, 255)) end
+		for _ = 1, 10 do flat("IcePatch", V3(4 + rand:NextNumber() * 5, 0.1, 3 + rand:NextNumber() * 4), spot(), C(190, 228, 248)) end
+	elseif theme == "rocky" then
+		for _ = 1, 14 do flat("Gravel", V3(4 + rand:NextNumber() * 5, 0.12, 3 + rand:NextNumber() * 4), spot(), C(150, 120, 96)) end
+		for _ = 1, 14 do flat("GroundCrack", V3(0.25, 0.05, 3 + rand:NextNumber() * 4), spot(), C(90, 66, 50)) end
+	elseif theme == "beach" then
+		for _ = 1, 24 do flat("Ripple", V3(0.35, 0.06, 4 + rand:NextNumber() * 5), spot(), C(250, 236, 190)) end
+		for _ = 1, 8 do flat("Seaweed", V3(1.2, 0.08, 2 + rand:NextNumber()), spot(), C(70, 120, 60)) end
+	end
+	-- pebbles everywhere
+	for _ = 1, 22 do
+		local s = 0.4 + rand:NextNumber() * 0.8
+		flat("Pebble", V3(s, s * 0.6, s * 0.9), spot(), Studs.shade(C(140, 140, 146), 0.8 + rand:NextNumber() * 0.4))
 	end
 	return m
 end
