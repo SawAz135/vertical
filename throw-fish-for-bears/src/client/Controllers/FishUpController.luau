@@ -138,7 +138,6 @@ local function buildCounter()
 end
 
 local function showCounter(on: boolean)
-	if on then return end -- no rep counter at the top of the screen any more
 	local c = buildCounter()
 	c.gui.Enabled = on
 	if on then
@@ -297,7 +296,7 @@ function FishUp.init(Sim)
 			if near ~= s.shown then
 				s.shown = near
 				if near then
-					s.bb.Enabled = true
+					s.bb.Enabled = false -- the floating FISH-UP sign is removed
 					s.scale.Scale = 0
 					tween(s.scale, 0.45, { Scale = 1 }, Enum.EasingStyle.Back)
 					s.info.Text.Text = infoText(s)
