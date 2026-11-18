@@ -251,7 +251,7 @@ local function registerBucket(m: Model)
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "BucketSign"
 	bb.Size = UDim2.fromOffset(200, 80)
-	bb.StudsOffsetWorldSpace = V3(0, 2.2, 0)
+	bb.StudsOffsetWorldSpace = V3(0, 1.6, 0)
 	bb.MaxDistance = 80
 	bb.Adornee = anchor
 	bb.Parent = m

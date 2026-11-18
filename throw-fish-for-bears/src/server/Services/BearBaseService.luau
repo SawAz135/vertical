@@ -225,6 +225,12 @@ function BearBase.takeFromStorage(player: Player, id: string)
 	local data = R.PlayerData.get(player)
 	local bear = data and data.bears[id]
 	if not bear or bear.placed then return end
+	-- already carrying a bear: the same one = put it away; another one = swap
+	if R.State.is(player, "CarryingCapturedBear") then
+		local held = carried(player)
+		BearBase.store(player)
+		if held and held.id == id then return end
+	end
 	if not canTakeBear(player) then
 		R.Notify(player, "Go inside your base to place a bear.", "warn")
 		return
@@ -272,6 +278,104 @@ function BearBase.placeBest(player: Player)
 		R.Notify(player, ("Placed %d bear%s!"):format(placed, if placed > 1 then "s" else ""), "good")
 	else
 		R.Notify(player, if #stored == 0 then "No stored bears." else "Base full! Upgrade capacity in the SHOP.", "warn")
+	end
+end
+
+-- put a stored bear into the base at a free random spot (no carrying)
+local function autoPlace(player: Player, b): boolean
+	local base = R.BaseService.get(player)
+	if not base then return false end
+	local c = Layout.BASE_CENTERS[base]
+	for _ = 1, 40 do
+		local pos = Vector3.new(c.X + (rand:NextNumber() - 0.5) * (Layout.BASE_SIZE - 16), 0, c.Z + (rand:NextNumber() - 0.5) * (Layout.BASE_SIZE - 16))
+		if spacingOk(player, pos) then
+			b.placed = true
+			b.x = math.floor((pos.X - c.X) * 10) / 10
+			b.z = math.floor((pos.Z - c.Z) * 10) / 10
+			local agent = spawnAgent(player, b)
+			if agent then
+				agent:setAnim("Happy")
+				agent.timer = 1.4
+				agent.state = "Idle"
+			end
+			return true
+		end
+	end
+	return false
+end
+
+-- the bear in your hands goes back to the collection first
+local function dropHeld(player: Player, id: string?)
+	local char = player.Character
+	if char and char:GetAttribute("Holding") == "Bear" and (id == nil or char:GetAttribute("HeldId") == id) then
+		R.EquipService.clear(player)
+		if R.State.is(player, "CarryingCapturedBear") then R.State.set(player, "Idle", true) end
+	end
+end
+
+-- EQUIP: a stored bear goes straight into the base (earns money)
+function BearBase.equip(player: Player, id: string)
+	local data = R.PlayerData.get(player)
+	local bear = data and data.bears[id]
+	if not bear or bear.placed then return end
+	if R.State.is(player, "ControllingBear", "WatchingEatingCinematic") then return end
+	local cap = Formulas.capacity(data.capacity)
+	if BearBase.placedCount(player) >= cap then
+		R.Notify(player, ("Base full (%d/%d)! Unequip a bear or upgrade capacity in the SHOP."):format(cap, cap), "warn")
+		return
+	end
+	dropHeld(player, id)
+	if autoPlace(player, bear) then
+		R.PlayerData.push(player, "bears")
+		R.EconomyService.recompute(player)
+		R.Sfx(player, "Place")
+	end
+end
+
+-- UNEQUIP: a bear in the base goes back to the collection (stops earning)
+function BearBase.unequip(player: Player, id: string)
+	local data = R.PlayerData.get(player)
+	local bear = data and data.bears[id]
+	if not bear or not bear.placed then return end
+	despawn(player, id)
+	bear.placed = false
+	R.PlayerData.push(player, "bears")
+	R.EconomyService.recompute(player)
+	R.Sfx(player, "Close")
+end
+
+-- EQUIP BEST: the base holds exactly your best earners (weaker ones swapped out)
+function BearBase.equipBest(player: Player)
+	local data = R.PlayerData.get(player)
+	if not data or not R.BaseService.get(player) then return end
+	if R.State.is(player, "ControllingBear", "WatchingEatingCinematic") then return end
+	dropHeld(player, nil)
+	local cap = Formulas.capacity(data.capacity)
+	local all = {}
+	for _, b in data.bears do table.insert(all, b) end
+	table.sort(all, function(a, b) return Formulas.bearIncome(a) > Formulas.bearIncome(b) end)
+	local best = {}
+	for i = 1, math.min(cap, #all) do best[all[i].id] = true end
+	local changed = 0
+	for _, b in all do
+		if b.placed and not best[b.id] then
+			despawn(player, b.id)
+			b.placed = false
+			changed += 1
+		end
+	end
+	for _, b in all do
+		if best[b.id] and not b.placed then
+			if autoPlace(player, b) then changed += 1 end
+		end
+	end
+	R.PlayerData.push(player, "bears")
+	R.EconomyService.recompute(player)
+	if changed > 0 then
+		R.Notify(player, "Your best bears are in the base!", "good")
+		R.Sfx(player, "Place")
+	else
+		R.Notify(player, if #all == 0 then "No bears yet." else "Already your best bears!", "info")
 	end
 end
 

@@ -141,7 +141,7 @@ function BucketBuilder.build(level: number): Model
 	local fill = part("Fill", V3(0.2, (rimR - 0.25) * 2, (rimR - 0.25) * 2), base * CF(0, 0.4, 0) * ANG(0, 0, math.pi / 2), RGB(80, 160, 220),
 		{ shape = Enum.PartType.Cylinder, smooth = true, noCollide = true, raw = true })
 	fill.Transparency = 0.15
-	local anchor = part("Anchor", V3(1, 1, 1), CF(0, lift + h + 1, 0), RGB(255, 255, 255), { noCollide = true, noQuery = true })
+	local anchor = part("Anchor", V3(1, 1, 1), CF(0, lift + h * 0.7, 0), RGB(255, 255, 255), { noCollide = true, noQuery = true })
 	anchor.Transparency = 1
 	m.PrimaryPart = part("Base", V3(r * 2, 0.1, r * 2), CF(0, 0.05, 0), Studs.shade(L.wood, 0.7), { noCollide = true })
 	m.PrimaryPart.Transparency = 1

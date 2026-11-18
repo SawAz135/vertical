@@ -2,7 +2,7 @@
 local E = {}
 
 E.StartMoney = 150
-E.FishBagMax = 40
+E.FishBagMax = math.huge -- the fish bag has no limit
 E.BearStorageMax = 60
 
 E.Strength = {

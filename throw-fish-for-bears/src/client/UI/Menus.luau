@@ -359,7 +359,7 @@ local function fishCards(w, mode)
 		table.sort(fish, function(a, b) return Formulas.fishValue(a) > Formulas.fishValue(b) end)
 		local total = 0
 		for _, f in fish do total += Formulas.fishValue(f) end
-		Sim.section(w.content, if mode == "Sell" then ("%d Fish  ·  %s"):format(#fish, Format.money(total)) else ("%d / %d Fish"):format(#fish, E.FishBagMax),
+		Sim.section(w.content, if mode == "Sell" then ("%d Fish  ·  %s"):format(#fish, Format.money(total)) else ("%d Fish"):format(#fish),
 			{ Position = UDim2.new(0.5, 0, 0, 28) })
 		if #fish == 0 then
 			emptyText(w.content, if mode == "Sell" then "No fish to sell!\nFish at the end of your dock." else "Your bag is empty.\nGo to your dock and CAST!")
@@ -512,7 +512,13 @@ local function bearCards(w)
 		local placed = 0
 		for _, b in list do if b.placed then placed += 1 end end
 		Sim.section(w.content, ("%d/%d In Base  ·  %s"):format(placed, Formulas.capacity(d.capacity or 1), Format.perSec(player:GetAttribute("Income") or 0)),
-			{ Position = UDim2.new(0.5, 0, 0, 28) })
+			{ Position = UDim2.new(0.5, -70, 0, 28) })
+		if #list > 0 then
+			Sim.button(w.content, { Name = "EquipBest", Grad = "green", Size = Vector2.new(160, 40), Position = UDim2.new(1, -90, 0, 28),
+				Text = "Equip Best", Max = 24, ZIndex = 7 }, function()
+				Net.event("EquipBest"):FireServer()
+			end)
+		end
 		if #list == 0 then
 			emptyText(w.content, "No bears yet!\nThrow a fish into the forest and bring the bear home.")
 			return
@@ -525,10 +531,21 @@ local function bearCards(w)
 				Title = (if b.v ~= "Normal" then b.v .. " " else "") .. spec.name, RarityText = tier.name, CenterTop = 72, CenterCut = 190 })
 			Sim.model(centre, { kind = "Bear", id = b.s, variant = b.v, size = UDim2.fromScale(1, 1.15) })
 			Sim.infoBar(card, ('<font color="#7CFF46">%s</font>  %s'):format(Format.perSec(Formulas.bearIncome(b)), Format.kg(b.w)), { Size = UDim2.fromOffset(176, 32), Position = UDim2.fromOffset(98, 196), Max = 20, ZIndex = 6 })
-			Sim.button(card, { Grad = if b.placed then "yellow" else "green", Size = Vector2.new(176, 40), Position = UDim2.fromOffset(98, 234),
-				Text = if b.placed then "Pick Up" else "Place", Max = 26, ZIndex = 7 }, function()
-				if b.placed then Net.event("PickupBear"):FireServer(b.id) else Net.event("TakeFromStorage"):FireServer(b.id) end
-				w.menu.Close()
+			-- the bear you are carrying right now: one click puts it away
+			local char = player.Character
+			local held = char ~= nil and char:GetAttribute("Holding") == "Bear" and char:GetAttribute("HeldId") == b.id
+			-- Equip = into your base (earns money) · Unequip = back to the collection ·
+			-- the bear you carry in your hands: Put Away
+			Sim.button(card, { Grad = if held then "orange" elseif b.placed then "yellow" else "green", Size = Vector2.new(176, 40), Position = UDim2.fromOffset(98, 234),
+				Text = if held then "Put Away" elseif b.placed then "Unequip" else "Equip", Max = 26, ZIndex = 7 }, function()
+				if held then
+					Net.event("StoreBear"):FireServer()
+					w.menu.Close()
+				elseif b.placed then
+					Net.event("UnequipBear"):FireServer(b.id)
+				else
+					Net.event("EquipBear"):FireServer(b.id)
+				end
 			end)
 			Sim.button(card, { Grad = "red", Size = Vector2.new(176, 32), Position = UDim2.fromOffset(98, 272), Text = "Sell " .. Format.money(Formulas.bearSellValue(b)), Max = 20, ZIndex = 7 }, function()
 				Menus.confirm(("Sell %s %s for %s?"):format(tier.name, spec.name, Format.money(Formulas.bearSellValue(b))), function()

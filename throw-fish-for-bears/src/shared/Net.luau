@@ -12,6 +12,7 @@ Net.ClientToServer = {
 	TakeFromStorage = 3, PlaceBest = 2, SellFish = 4, SellBear = 4, BuyRod = 3, EquipRod = 3,
 	UpgradeCapacity = 4, BuyStrength = 6, ClaimDaily = 2, ClaimPlaytime = 4,
 	ClaimIndex = 2, SetSetting = 4, SelectFish = 8, TutorialStep = 4, LeaveTraining = 4, SkipCapture = 2,
+	EquipBear = 8, UnequipBear = 8, EquipBest = 2,
 }
 
 Net.ServerToClient = {

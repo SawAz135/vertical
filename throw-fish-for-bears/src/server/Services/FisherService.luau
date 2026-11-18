@@ -42,8 +42,9 @@ local function prompt(parent: Instance, kind: string, action: string, object: st
 	p.ActionText = action
 	p.ObjectText = object
 	p.KeyboardKeyCode = key or Enum.KeyCode.F
+	p.GamepadKeyCode = if key == Enum.KeyCode.G then Enum.KeyCode.ButtonY else Enum.KeyCode.ButtonX
 	p.HoldDuration = 0
-	p.MaxActivationDistance = 11
+	p.MaxActivationDistance = 12
 	p.RequiresLineOfSight = false
 	p.UIOffset = Vector2.new(0, offsetY or 0)
 	p:SetAttribute("TFBPrompt", kind)

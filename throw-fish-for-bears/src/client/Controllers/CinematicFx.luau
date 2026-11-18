@@ -592,6 +592,15 @@ end
 
 -- "SKIP" button (bottom right) while a cinematic plays
 local skipBtn
+local skipFn = nil
+-- skip from a key / gamepad button (returns true if a skip was possible)
+function Cine.trySkip(): boolean
+	if skipBtn and skipFn then
+		skipFn()
+		return true
+	end
+	return false
+end
 function Cine.skipButton(onSkip)
 	ensure()
 	if skipBtn then skipBtn:Destroy() skipBtn = nil end
@@ -628,6 +637,12 @@ function Cine.skipButton(onSkip)
 		onSkip()
 	end)
 	skipBtn = b
+	skipFn = function()
+		if skipBtn ~= b then return end
+		b:Destroy()
+		skipBtn = nil
+		onSkip()
+	end
 end
 
 -- full black (eaten / cut to black)
