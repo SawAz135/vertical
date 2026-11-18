@@ -217,7 +217,8 @@ end
 -- MAIN ------------------------------------------------------------------------------------------
 -- builds the backdrop of one zone on one side
 --   side = -1 (left wall) / 1 (right wall); wallX = |x| of the wall's outer face
-function Backdrop.build(parent: Instance, theme: string, zA: number, zB: number, side: number, wallX: number, seed: number, wallH: number)
+-- clampStart: nothing may stick out in front of zA (the corridor entrance: shop / sell area)
+function Backdrop.build(parent: Instance, theme: string, zA: number, zB: number, side: number, wallX: number, seed: number, wallH: number, clampStart: boolean?)
 	local T = table.clone(THEMES[theme] or THEMES.forest)
 	T.moss = MOSSY[theme] == true
 	T.earth = not T.snow
@@ -252,6 +253,7 @@ function Backdrop.build(parent: Instance, theme: string, zA: number, zB: number,
 		local H = wallH + 8 + (h0 + 0.5) * 30 + r:NextNumber() * 8 -- always above the wall
 		local W = 24 + r:NextNumber() * 16
 		local D = step + 12 + r:NextNumber() * 12
+		if clampStart then D = math.min(D, math.max(4, (zA - 1 - zc) * 2)) end
 		local x = side * (wallX + 2 + r:NextNumber() * 6 + W * 0.5)
 		local base = V3(x, 0, zc)
 		local roll = r:NextNumber()
@@ -326,7 +328,7 @@ function Backdrop.build(parent: Instance, theme: string, zA: number, zB: number,
 		z -= step * (0.82 + r:NextNumber() * 0.16) -- overlap: no gaps, no rhythm
 	end
 	-- FAR RANGE: big simple peaks further out (depth), snow capped in the cold
-	local zf = zA - r:NextNumber() * 20
+	local zf = zA - r:NextNumber() * 20 - (if clampStart then 40 else 0)
 	while zf > zB do
 		local ph = wallH + 36 + r:NextNumber() * 40
 		local pw = 30 + r:NextNumber() * 30

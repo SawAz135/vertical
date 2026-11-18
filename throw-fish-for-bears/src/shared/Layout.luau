@@ -43,11 +43,11 @@ Layout.FISH_SPOT_RADIUS = 9 -- distance from the dock end where casting is allow
 Layout.COMPOUND = { minX = -212, maxX = 212, minZ = -24, maxZ = 184 } -- front wall closer to the bases
 Layout.FRONT = { minX = -205, maxX = 205, minZ = -20, maxZ = 68 }
 -- throw zone: the whole width between the side walls, from the front wall to the throw line
-Layout.THROW_AREA = { minX = -62, maxX = 62, minZ = -22, maxZ = 0 } -- rectangle in front of the corridor entrance
+Layout.THROW_AREA = { minX = -50, maxX = 50, minZ = -22, maxZ = 0 } -- rectangle in front of the corridor entrance
 Layout.THROW_LINE_Z = -20
 -- SELL and SHOP stand in the corners of the corridor entrance, against the front wall (inner face z = -22), facing the bases
-Layout.SELL_POS = Vector3.new(-72, 0, -18.5)
-Layout.SHOP_POS = Vector3.new(72, 0, -18.5)
+Layout.SELL_POS = Vector3.new(-62, 0, -18.5)
+Layout.SHOP_POS = Vector3.new(62, 0, -18.5)
 Layout.TRAIN_RADIUS = 3.6
 -- one FISH-UP training station per base, at the outer front corner (outside the fence)
 function Layout.trainPos(i: number): Vector3
@@ -63,13 +63,13 @@ end
 Layout.SPAWN_POS = Vector3.new(0, 0, 40)
 
 -- Corridor and zones ------------------------------------------------------
-Layout.CORRIDOR_HALF = 60
+Layout.CORRIDOR_HALF = 48 -- (was 60: a bit narrower, more compact)
 Layout.CORRIDOR_START_Z = -20
 Layout.ZONE_LENGTH = 300
 Layout.ZONE_COUNT = 10 -- Green Forest -> Tropical Beach (ZoneConfig)
 Layout.CORRIDOR_END_Z = Layout.CORRIDOR_START_Z - Layout.ZONE_LENGTH * Layout.ZONE_COUNT
 Layout.WALL_HEIGHT = 32
-Layout.LANDING_HALF = 50 -- landing x is clamped inside this half width
+Layout.LANDING_HALF = Layout.CORRIDOR_HALF - 8 -- landing x is clamped inside this half width
 
 function Layout.zoneRange(i: number): (number, number)
 	local zStart = Layout.CORRIDOR_START_Z - Layout.ZONE_LENGTH * (i - 1)
@@ -153,8 +153,8 @@ function Layout.zoneDens(i: number): { Vector3 }
 	local dens = {}
 	for k = 0, 5 do
 		local z = a - 25 - k * 48
-		table.insert(dens, Vector3.new(-48, 0, z))
-		table.insert(dens, Vector3.new(48, 0, z - 25))
+		table.insert(dens, Vector3.new(-(Layout.CORRIDOR_HALF - 10), 0, z))
+		table.insert(dens, Vector3.new(Layout.CORRIDOR_HALF - 10, 0, z - 25))
 	end
 	return dens
 end
@@ -163,8 +163,8 @@ end
 function Layout.zoneRoamRects(i: number)
 	local a, b = Layout.zoneRange(i)
 	return {
-		{ minX = -54, maxX = -22, minZ = b + 14, maxZ = a - 14 },
-		{ minX = 22, maxX = 54, minZ = b + 14, maxZ = a - 14 },
+		{ minX = -(Layout.CORRIDOR_HALF - 6), maxX = -18, minZ = b + 14, maxZ = a - 14 },
+		{ minX = 18, maxX = Layout.CORRIDOR_HALF - 6, minZ = b + 14, maxZ = a - 14 },
 	}
 end
 

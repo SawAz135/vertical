@@ -208,6 +208,7 @@ local function buildShops(map)
 	spawn.Parent = map
 end
 
+local K = Layout.CORRIDOR_HALF / 60 -- decor positions were authored for a 60 half width
 local function buildCorridor(map, rand)
 	local x = Layout.CORRIDOR_HALF + 2
 	local z0, z1 = Layout.CORRIDOR_START_Z, Layout.CORRIDOR_END_Z
@@ -227,7 +228,7 @@ local function buildCorridor(map, rand)
 		folder.Name = "Zone" .. i .. "_" .. zone.id
 		folder.Parent = decor
 		-- zone ground: checker of two tones, path down the middle
-		local tile = 30
+		local tile = Layout.CORRIDOR_HALF / 2 -- 4 tiles across the corridor
 		for zz = a, b + tile, -tile do
 			for xx = -Layout.CORRIDOR_HALF, Layout.CORRIDOR_HALF - tile, tile do
 				local col = if ((zz - a) / tile + (xx + Layout.CORRIDOR_HALF) / tile) % 2 == 0 then zone.ground else zone.groundAlt
@@ -244,7 +245,7 @@ local function buildCorridor(map, rand)
 		Props.brickWall(folder, V3(wx, 0, a), V3(wx, 0, b), Layout.WALL_HEIGHT, 4, style)
 		pcall(Props.groundDetails, folder, zone.theme, a, b, Layout.CORRIDOR_HALF, rand)
 		for _, side in { -1, 1 } do
-			local ok, err = pcall(Backdrop.build, folder, zone.theme, a, b, side, wx + 2, i * 7919 + (if side > 0 then 13 else 0), Layout.WALL_HEIGHT)
+			local ok, err = pcall(Backdrop.build, folder, zone.theme, a, b, side, wx + 2, i * 7919 + (if side > 0 then 13 else 0), Layout.WALL_HEIGHT, i == 1)
 			if not ok then warn("[TFB] backdrop", err) end
 		end
 		-- soft transition strip at the zone border (blends both grounds)
@@ -266,6 +267,9 @@ local function buildCorridor(map, rand)
 
 		-- decor on both sides (centre lane |x| < 18 kept clear)
 		local function sidePos(minX, maxX)
+			-- authored for a 60-wide half corridor: scaled to the current width (centre lane kept clear)
+			minX = math.max(16, minX * K)
+			maxX = math.max(minX + 2, maxX * K)
 			local sx = if rand:NextNumber() < 0.5 then -1 else 1
 			return V3(sx * (minX + rand:NextNumber() * (maxX - minX)), 0, a - 10 - rand:NextNumber() * (a - b - 20))
 		end
@@ -286,8 +290,8 @@ local function buildCorridor(map, rand)
 			end
 		elseif theme == "lake" then
 			for _, sx in { -1, 1 } do
-				Props.pond(folder, V3(sx * 38, 0, a - 80), 26, 50, rand, true)
-				Props.pond(folder, V3(sx * 40, 0, a - 210), 22, 60, rand, true)
+				Props.pond(folder, V3(sx * 38 * K, 0, a - 80), 26, 50, rand, true)
+				Props.pond(folder, V3(sx * 40 * K, 0, a - 210), 22, 60, rand, true)
 			end
 			for _ = 1, 10 do Props.reeds(folder, sidePos(22, 30), rand) end
 			for _ = 1, 10 do Props.snowPine(folder, sidePos(50, 56), 0.9 + rand:NextNumber() * 0.4, rand, false) end
@@ -299,8 +303,8 @@ local function buildCorridor(map, rand)
 			for _ = 1, 6 do Props.rock(folder, sidePos(24, 56), 0.7, rand) end
 		elseif theme == "ice" then
 			for _, sx in { -1, 1 } do
-				Props.frozenPond(folder, V3(sx * 38, 0, a - 75), 28, 60)
-				Props.frozenPond(folder, V3(sx * 38, 0, a - 220), 28, 70)
+				Props.frozenPond(folder, V3(sx * 38 * K, 0, a - 75), 28, 60)
+				Props.frozenPond(folder, V3(sx * 38 * K, 0, a - 220), 28, 70)
 			end
 			for _ = 1, 12 do Props.iceBlock(folder, sidePos(22, 56), 0.8 + rand:NextNumber() * 0.6, rand) end
 			for _ = 1, 10 do Props.snowPile(folder, sidePos(20, 56), 0.9, rand) end
@@ -316,10 +320,10 @@ local function buildCorridor(map, rand)
 		elseif theme == "river" then
 			-- streams on both sides with a footbridge, trees and reeds along the banks
 			for _, sx in { -1, 1 } do
-				local w = Studs.static(folder, "Stream", V3(14, 0.4, a - b - 20), CF(sx * 38, 0.2, (a + b) / 2), C(50, 140, 230), { smooth = true, noCollide = true })
+				local w = Studs.static(folder, "Stream", V3(14, 0.4, a - b - 20), CF(sx * 38 * K, 0.2, (a + b) / 2), C(50, 140, 230), { smooth = true, noCollide = true })
 				w.Transparency = 0.1
-				Studs.static(folder, "StreamBank", V3(18, 0.3, a - b - 18), CF(sx * 38, 0.12, (a + b) / 2), C(150, 126, 90))
-				Props.bridge(folder, CF(sx * 38, 0, a - 150) * CFrame.Angles(0, math.pi / 2, 0), 20, 6)
+				Studs.static(folder, "StreamBank", V3(18, 0.3, a - b - 18), CF(sx * 38 * K, 0.12, (a + b) / 2), C(150, 126, 90))
+				Props.bridge(folder, CF(sx * 38 * K, 0, a - 150) * CFrame.Angles(0, math.pi / 2, 0), 20, 6)
 			end
 			for _ = 1, 12 do Props.tree(folder, sidePos(48, 56), 0.9 + rand:NextNumber() * 0.4, rand) end
 			for _ = 1, 10 do Props.reeds(folder, sidePos(28, 31), rand) end
