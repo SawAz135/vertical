@@ -230,7 +230,7 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 		})
 		if not wait(c, revealDur) then return end
 		-- 5) happy + orbit, then the bear goes into the player's arms
-		agent:setAnim("Happy")
+		agent:setAnim("Look") -- a calm, proud look around (no jumping for joy)
 		fx(player, "Happy", { start = workspace:GetServerTimeNow(), duration = G.happy + G.transform, bear = agent.model })
 		if not wait(c, G.happy + G.transform) then return end
 		CaptureService.giveToPlayer(player, c)

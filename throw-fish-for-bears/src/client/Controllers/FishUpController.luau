@@ -151,12 +151,10 @@ local function trainingCamera(root: BasePart)
 	local look = root.CFrame.LookVector
 	CameraController.run(function(t)
 		if not training.on or not root.Parent then return nil, 60 end
+		-- FIXED front view: straight in front of you, slightly low; only the lens tightens
 		local heat = math.clamp(training.streak / 40, 0, 1)
-		local ang = -0.9 + t * 0.12
-		local dir = CFrame.Angles(0, ang, 0):VectorToWorldSpace(look)
-		local dist = 9.5 - 2.5 * heat
-		local p = root.Position + dir * dist + Vector3.new(0, 1.2 - 0.6 * heat + math.sin(t * 0.5) * 0.4, 0)
-		return CFrame.lookAt(p, root.Position + Vector3.new(0, 1.6, 0)), 54 - 10 * heat
+		local p = root.Position + look * 10 + Vector3.new(0, 0.8, 0)
+		return CFrame.lookAt(p, root.Position + Vector3.new(0, 1.4, 0)), 56 - 8 * heat
 	end, 3600, { smooth = 5, blendIn = 0.5 })
 end
 
@@ -166,17 +164,17 @@ local function introCinematic(root: BasePart)
 	Cine.letterbox(true)
 	Fx.dust(pos + Vector3.new(0, 0.3, 0), 1.2)
 	CameraController.shake(0.5, 0.3)
-	Cine.banner("FISH-UP!", col, ("+%d 💪 PER LIFT"):format(Data.values.strengthGain or 1))
+	local _ = col
 	Sound.play("Transform", { volume = 0.7 })
 	local look = root.CFrame.LookVector
 	-- low hero angle in front, sweeping up and around... then the training orbit takes over
 	CameraController.run(function(t)
 		local r = root.Parent and root or nil
 		if not r then return nil, 60 end
+		-- push-in from the front to the fixed training view
 		local k = Easing.cubicInOut(math.clamp(t / 1.7, 0, 1))
-		local dir = CFrame.Angles(0, -0.9 + k * 1.6, 0):VectorToWorldSpace(look)
-		local p = r.Position + dir * (6 + 4 * k) + Vector3.new(0, -1.5 + 6 * k, 0)
-		return CFrame.lookAt(p, r.Position + Vector3.new(0, 1 + k * 0.5, 0)), 48 + 16 * k
+		local p = r.Position + look * (16 - 6 * k) + Vector3.new(0, 2.5 - 1.7 * k, 0)
+		return CFrame.lookAt(p, r.Position + Vector3.new(0, 1.4, 0)), 48 + 8 * k
 	end, 1.8, { smooth = 9, blendIn = 0.3 })
 	task.delay(1.8, function()
 		Cine.letterbox(false)
@@ -207,7 +205,6 @@ local function stopTraining()
 	CameraController.stop()
 	Cine.dark(0)
 	if training.streak >= 5 then
-		Cine.banner(("%d REPS!"):format(training.streak), tierColor(), ("+%s 💪 STRENGTH"):format(tostring(training.gained)))
 		Sound.play("Reward")
 	end
 end
@@ -246,7 +243,6 @@ local function onRep(amount: number)
 	if hot > 0.3 then Sound.play("Heartbeat", { pitch = 0.9 + hot * 0.5, volume = 0.3 + hot * 0.4 }) end
 	Cine.dark(hot * 0.35)
 	if MILESTONES[n] then
-		Cine.banner(("x%d STREAK!"):format(n), col, "KEEP LIFTING!")
 		Fx.dust(feet, 1.4)
 		CameraController.shake(0.8, 0.35)
 		CameraController.punch(-8)

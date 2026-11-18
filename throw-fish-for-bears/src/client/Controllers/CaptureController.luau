@@ -617,161 +617,264 @@ end
 local function buildStageUi()
 	local g = Sim.new("ScreenGui", { Name = "TFBRevealStages", ResetOnSpawn = false, DisplayOrder = 13, IgnoreGuiInset = true,
 		ScreenInsets = Enum.ScreenInsets.None, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
-	local root = Sim.root(g, "Stages", Vector2.new(640, 280), UDim2.new(0.5, 0, 0.11, 4), Vector2.new(0.5, 0))
+	local root = Sim.root(g, "Stages", Vector2.new(700, 300), UDim2.new(0.5, 0, 0.11, 4), Vector2.new(0.5, 0))
 	local inner = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, root)
 	local innerScale = Sim.new("UIScale", { Scale = 1 }, inner)
 	-- results line (text only)
-	local row = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(640, 34) }, inner)
+	local row = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(700, 34) }, inner)
 	Sim.new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 14), SortOrder = Enum.SortOrder.LayoutOrder }, row)
 	-- the stage block
 	local BLOCK_Y = 44
-	local block = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(640, 196), Position = UDim2.fromOffset(0, BLOCK_Y) }, inner)
+	local block = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(700, 220), Position = UDim2.fromOffset(0, BLOCK_Y) }, inner)
 	local blockScale = Sim.new("UIScale", { Scale = 0 }, block)
-	local title = Sim.text(block, "", { Size = UDim2.fromOffset(560, 30), Position = UDim2.fromOffset(320, 16), Max = 26, Stroke = 3.5, ZIndex = 7 })
-	local tGrad = Sim.gradient(title, { Color3.new(1, 1, 1), Color3.new(1, 1, 1) }, 90)
+	-- GHOST word: the stage name huge and faint behind everything, drifting
+	local ghost = Sim.text(block, "", { Size = UDim2.fromOffset(900, 170), Position = UDim2.fromOffset(350, 112), Max = 170, Stroke = 4, ZIndex = 3 })
+	ghost.TextTransparency = 0.88
+	local ghostStroke = ghost:FindFirstChildOfClass("UIStroke")
+	if ghostStroke then ghostStroke.Transparency = 0.85 end
+	-- TITLE: letters that drop in one by one
+	local titleRow = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(600, 34), Position = UDim2.fromOffset(50, 2) }, block)
+	Sim.new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, titleRow)
 	local line = Sim.new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromOffset(0, 3),
-		Position = UDim2.fromOffset(320, 36), AnchorPoint = Vector2.new(0.5, 0), ZIndex = 6 }, block)
+		Position = UDim2.fromOffset(350, 40), AnchorPoint = Vector2.new(0.5, 0), ZIndex = 6 }, block)
 	Sim.new("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(1, 1) }) }, line)
-	-- the VALUE: chunky 3D lettering (front face + 5 darker extrusion layers, like a toy block)
-	local VG_Y = 104
-	local vg = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(640, 120), Position = UDim2.fromOffset(320, VG_Y),
-		AnchorPoint = Vector2.new(0.5, 0.5) }, block)
+	-- SPEED LINES behind the value (burst on the slam)
+	local lines = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(10, 10), Position = UDim2.fromOffset(350, 116), AnchorPoint = Vector2.new(0.5, 0.5) }, block)
+	local linesScale = Sim.new("UIScale", { Scale = 0 }, lines)
+	local rays = {}
+	for i = 0, 17 do
+		local ray = Sim.new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, AnchorPoint = Vector2.new(0, 0.5),
+			Size = UDim2.fromOffset(150 + (i % 3) * 40, 5 - (i % 2) * 2), Position = UDim2.fromOffset(5, 5), Rotation = i * 20 + (i % 2) * 7, ZIndex = 4, BackgroundTransparency = 1 }, lines)
+		Sim.new("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.35, 0.1), NumberSequenceKeypoint.new(1, 1) }) }, ray)
+		rays[i + 1] = ray
+	end
+	-- the VALUE: an ODOMETER, one rolling cell per character, chunky 3D lettering
+	local VG_Y = 116
+	local vg = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(680, 120), Position = UDim2.fromOffset(350, VG_Y), AnchorPoint = Vector2.new(0.5, 0.5) }, block)
 	local vScale = Sim.new("UIScale", {}, vg)
-	local DEPTH = 5
-	local layers = {}
-	for i = DEPTH, 1, -1 do
-		local l = Sim.text(vg, "", { Size = UDim2.fromOffset(620, 110), Position = UDim2.new(0.5, 0, 0.5, i * 2.4), Max = 96, Stroke = 6, ZIndex = 7 })
-		layers[i] = l
+	Sim.new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, -2), SortOrder = Enum.SortOrder.LayoutOrder }, vg)
+	local SIZE = 88
+	local cells = {}
+	local valueCol = Color3.new(1, 1, 1)
+	local function widthOf(ch: string): number
+		if ch == " " then return SIZE * 0.28 end
+		if ch == "." or ch == "," then return SIZE * 0.3 end
+		if ch == "M" or ch == "W" then return SIZE * 0.86 end
+		if ch == "I" or ch == "1" then return SIZE * 0.45 end
+		return SIZE * 0.64
 	end
-	local front = Sim.text(vg, "", { Size = UDim2.fromOffset(620, 110), Position = UDim2.fromScale(0.5, 0.5), Max = 96, Stroke = 6, ZIndex = 8 })
-	local baseOff = {}
-	for i, l in layers do baseOff[l] = i * 2.4 end
-	baseOff[front] = 0
-	local fGrad = Sim.gradient(front, { Color3.new(1, 1, 1), Color3.new(1, 1, 1) }, 90)
-	-- shine: a white band swept across the front face on the slam
-	local shine = Sim.text(vg, "", { Size = UDim2.fromOffset(620, 110), Position = UDim2.fromScale(0.5, 0.5), Max = 96, Stroke = 0, ZIndex = 9 })
-	local shSt = shine:FindFirstChildOfClass("UIStroke")
-	if shSt then shSt.Enabled = false end
-	local sGrad = Sim.new("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.42, 1),
-		NumberSequenceKeypoint.new(0.5, 0.2), NumberSequenceKeypoint.new(0.58, 1), NumberSequenceKeypoint.new(1, 1) }), Rotation = 20, Offset = Vector2.new(-1, 0) }, shine)
-	baseOff[shine] = 0
-	local stamp = Sim.text(inner, "", { Size = UDim2.fromOffset(520, 46), Position = UDim2.fromOffset(320, 256), Max = 40, Stroke = 5, ZIndex = 9,
-		Gradient = { Color3.fromRGB(255, 255, 210), Color3.fromRGB(255, 186, 20) } })
-	local ss = Sim.new("UIScale", { Scale = 0 }, stamp)
+	local function glyph(parent: Instance, ch: string, yOff: number): Frame
+		-- one character: 2 dark extrusion layers + the gradient front face
+		local holder = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Position = UDim2.fromScale(0, yOff) }, parent)
+		for k = 2, 1, -1 do
+			local l = Sim.new("TextLabel", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, k * 3), Font = Sim.FONT,
+				Text = ch, TextSize = SIZE, TextColor3 = valueCol:Lerp(Color3.new(0, 0, 0), 0.5 + k * 0.12), ZIndex = 6 }, holder)
+			Sim.new("UIStroke", { Thickness = 6, Color = Color3.new(0, 0, 0), LineJoinMode = Enum.LineJoinMode.Round }, l)
+		end
+		local f = Sim.new("TextLabel", { Name = "Face", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Font = Sim.FONT, Text = ch, TextSize = SIZE,
+			TextColor3 = Color3.new(1, 1, 1), ZIndex = 8 }, holder)
+		Sim.new("UIStroke", { Thickness = 6, Color = Color3.new(0, 0, 0), LineJoinMode = Enum.LineJoinMode.Round }, f)
+		Sim.new("UIGradient", { Name = "Grad", Rotation = 90, Color = ColorSequence.new(valueCol:Lerp(Color3.new(1, 1, 1), 0.6), valueCol) }, f)
+		return holder
+	end
 	local function tw(o, t, goal, style, dir)
-		TweenService:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), goal):Play()
+		local x = TweenService:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), goal)
+		x:Play()
+		return x
 	end
-	local ui = {}
-	local order, ver, tilt = 0, 0, 1
-	local suspense = 0
-	local hit = 0 -- decaying shake after a slam
-	local baseScale = 1
+	-- sets the odometer text; changed characters ROLL (old one falls out, new one drops in)
+	local function setValue(text: string, roll: boolean)
+		local chars = {}
+		for _, cp in utf8.codes(text) do table.insert(chars, utf8.char(cp)) end
+		for i, ch in chars do
+			local cell = cells[i]
+			if not cell then
+				local frame = Sim.new("Frame", { BackgroundTransparency = 1, ClipsDescendants = true, Size = UDim2.fromOffset(widthOf(ch), SIZE * 1.25), LayoutOrder = i }, vg)
+				cell = { frame = frame, ch = nil, glyph = nil }
+				cells[i] = cell
+			end
+			if cell.ch ~= ch then
+				cell.frame.Size = UDim2.fromOffset(widthOf(ch), SIZE * 1.25)
+				local old = cell.glyph
+				local nextG = glyph(cell.frame, ch, if roll and old then -1 else 0)
+				if roll and old then
+					tw(nextG, 0.12, { Position = UDim2.fromScale(0, 0) }, Enum.EasingStyle.Quad)
+					tw(old, 0.12, { Position = UDim2.fromScale(0, 1) }, Enum.EasingStyle.Quad).Completed:Connect(function() old:Destroy() end)
+				elseif old then
+					old:Destroy()
+				end
+				cell.glyph = nextG
+				cell.ch = ch
+			end
+		end
+		for i = #chars + 1, #cells do
+			if cells[i].glyph then cells[i].glyph:Destroy() end
+			cells[i].frame:Destroy()
+			cells[i] = nil
+		end
+	end
+	local function recolor(col: Color3)
+		valueCol = col
+		for _, cell in cells do
+			if cell.glyph then
+				for _, d in cell.glyph:GetChildren() do
+					if d:IsA("TextLabel") then
+						if d.Name == "Face" then
+							local gr = d:FindFirstChild("Grad")
+							if gr then gr.Color = ColorSequence.new(col:Lerp(Color3.new(1, 1, 1), 0.6), col) end
+						else
+							d.TextColor3 = col:Lerp(Color3.new(0, 0, 0), 0.62)
+						end
+					end
+				end
+			end
+		end
+	end
 	-- stud chips flying out of the value (UI, no glow)
 	local function burst(color: Color3)
-		for _ = 1, 16 do
-			local sz = math.random(10, 18)
+		for _ = 1, 22 do
+			local sz = math.random(10, 20)
 			local f = Sim.new("Frame", { BackgroundColor3 = if math.random() < 0.35 then Color3.new(1, 1, 1) else color, BorderSizePixel = 0,
-				Size = UDim2.fromOffset(sz, sz), Position = UDim2.fromOffset(320 + math.random(-90, 90), VG_Y + math.random(-20, 20)),
+				Size = UDim2.fromOffset(sz, sz), Position = UDim2.fromOffset(350 + math.random(-120, 120), VG_Y + math.random(-24, 24)),
 				AnchorPoint = Vector2.new(0.5, 0.5), Rotation = math.random(0, 90), ZIndex = 10 }, block)
 			Sim.corner(f, 3)
 			Sim.stroke(f, 2)
 			local ang = math.random() * math.pi * 2
-			local dist = math.random(120, 260)
-			local dur = 0.55 + math.random() * 0.3
-			tw(f, dur, { Position = UDim2.fromOffset(320 + math.cos(ang) * dist, VG_Y + math.sin(ang) * dist * 0.55 + 30),
-				Rotation = f.Rotation + math.random(-260, 260), BackgroundTransparency = 1 }, Enum.EasingStyle.Quart)
+			local dist = math.random(140, 320)
+			local dur = 0.55 + math.random() * 0.35
+			tw(f, dur, { Position = UDim2.fromOffset(350 + math.cos(ang) * dist, VG_Y + math.sin(ang) * dist * 0.55 + 40),
+				Rotation = f.Rotation + math.random(-300, 300), BackgroundTransparency = 1 }, Enum.EasingStyle.Quart)
 			local st2 = f:FindFirstChildOfClass("UIStroke")
 			if st2 then tw(st2, dur, { Transparency = 1 }) end
 			task.delay(dur + 0.05, function() f:Destroy() end)
 		end
 	end
-	local function paint(text: string, col: Color3)
-		front.Text = text
-		shine.Text = text
-		fGrad.Color = ColorSequence.new(col:Lerp(Color3.new(1, 1, 1), 0.6), col)
-		for i, l in layers do
-			l.Text = text
-			l.TextColor3 = col:Lerp(Color3.new(0, 0, 0), 0.45 + i * 0.07)
+	local function speedLines(color: Color3)
+		linesScale.Scale = 0.35
+		for _, ray in rays do
+			ray.BackgroundColor3 = if math.random() < 0.5 then Color3.new(1, 1, 1) else color
+			ray.BackgroundTransparency = 0
+			tw(ray, 0.5, { BackgroundTransparency = 1 })
 		end
+		tw(linesScale, 0.45, { Scale = 1.5 }, Enum.EasingStyle.Quart)
 	end
-	-- per-frame life: suspense pulse (heartbeat), tremble, decaying slam shake
+	local ui = {}
+	local order, ver, tilt = 0, 0, 1
+	local suspense = 0
+	local hit = 0
+	local baseScale = 1
+	local pending, lastRoll = nil, 0
 	local conn = RunService.RenderStepped:Connect(function(dt)
 		local t = os.clock()
+		-- the odometer rolls at most ~16 times a second (fast counters stay readable + cheap)
+		if pending and t - lastRoll > 0.06 then
+			setValue(pending, true)
+			recolor(valueCol)
+			pending = nil
+			lastRoll = t
+		end
 		hit = math.max(0, hit - dt * 3)
 		local beat = math.abs(math.sin(t * (3 + suspense * 7)))
-		local s = baseScale * (1 + suspense * 0.08 * beat ^ 6)
-		vScale.Scale = s
-		local j = suspense * 5 + hit * 14
-		vg.Position = UDim2.fromOffset(320 + math.noise(t * 22, 1) * j, VG_Y + math.noise(t * 22, 2) * j)
+		vScale.Scale = baseScale * (1 + suspense * 0.09 * beat ^ 6)
+		-- each character trembles on its own while the result hangs
+		for i, cell in cells do
+			if cell.glyph then
+				local j = suspense * 4 + hit * 8
+				cell.glyph.Rotation = math.noise(t * 9, i * 3.1) * j * 2
+			end
+		end
+		vg.Position = UDim2.fromOffset(350 + math.noise(t * 22, 1) * hit * 10, VG_Y + math.noise(t * 22, 2) * hit * 10)
 		inner.Position = UDim2.fromOffset(math.noise(t * 18, 7) * hit * 6, math.noise(t * 18, 9) * hit * 6)
+		ghost.Position = UDim2.fromOffset(350 + math.sin(t * 0.6) * 30, 112)
+		if suspense > 0 then
+			recolor(valueCol:Lerp(Color3.fromRGB(255, 70, 50), suspense * 0.02))
+		end
 	end)
 	function ui.stage(name: string, pair)
 		ver += 1
 		suspense = 0
-		-- typewriter title (letter-spaced)
-		local full = spaced(name)
 		local myVer = ver
-		task.spawn(function()
-			local chars = {}
-			for _, cp in utf8.codes(full) do table.insert(chars, utf8.char(cp)) end
-			for i = 1, #chars do
-				if ver ~= myVer or not g.Parent then return end
-				title.Text = table.concat(chars, "", 1, i)
-				if chars[i] ~= " " then Sound.play("Tick", { pitch = 1.6 + i * 0.03, volume = 0.25 }) end
-				task.wait(0.025)
-			end
-		end)
-		tGrad.Color = ColorSequence.new(pair[1]:Lerp(Color3.new(1, 1, 1), 0.4), pair[1])
+		-- title letters drop in one by one, bouncing
+		for _, c in titleRow:GetChildren() do
+			if c:IsA("GuiObject") then c:Destroy() end
+		end
+		local i = 0
+		for _, cp in utf8.codes(name) do
+			i += 1
+			local ch = utf8.char(cp)
+			local holder = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(if ch == " " then 12 else 24, 34), LayoutOrder = i }, titleRow)
+			local l = Sim.text(holder, ch, { Size = UDim2.fromScale(1, 1), Max = 28, Stroke = 3.5, ZIndex = 7 })
+			Sim.gradient(l, { pair[1]:Lerp(Color3.new(1, 1, 1), 0.45), pair[1] }, 90)
+			l.Position = UDim2.new(0.5, 0, 0.5, -40)
+			l.TextTransparency = 1
+			local delayT = i * 0.035
+			task.delay(delayT, function()
+				if ver ~= myVer or not l.Parent then return end
+				l.TextTransparency = 0
+				tw(l, 0.35, { Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Bounce)
+				if ch ~= " " then Sound.play("Tick", { pitch = 1.6 + i * 0.04, volume = 0.22 }) end
+			end)
+		end
+		ghost.Text = name
+		ghost.TextColor3 = pair[1]
 		line.BackgroundColor3 = pair[1]
 		line.Size = UDim2.fromOffset(0, 3)
-		tw(line, 0.5, { Size = UDim2.fromOffset(320, 3) }, Enum.EasingStyle.Quint)
-		paint("", Color3.new(1, 1, 1))
-		vg.Rotation = 0
+		tw(line, 0.5, { Size = UDim2.fromOffset(360, 3) }, Enum.EasingStyle.Quint)
+		valueCol = Color3.new(1, 1, 1)
+		setValue("", false)
 		baseScale = 1
-		block.Position = UDim2.fromOffset(0, BLOCK_Y + 24)
+		block.Position = UDim2.fromOffset(0, BLOCK_Y + 30)
 		blockScale.Scale = 0.5
-		tw(blockScale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
-		tw(block, 0.4, { Position = UDim2.fromOffset(0, BLOCK_Y) }, Enum.EasingStyle.Quint)
+		tw(blockScale, 0.42, { Scale = 1 }, Enum.EasingStyle.Back)
+		tw(block, 0.42, { Position = UDim2.fromOffset(0, BLOCK_Y) }, Enum.EasingStyle.Quint)
 	end
-	-- a tick: the value ROLLS in from above like a slot reel, with a small alternating tilt
+	-- a tick: the changed digits ROLL; pop = a little punch + alternating tilt
 	function ui.value(text: string, color: Color3?, pop: boolean?)
-		paint(text, color or Color3.new(1, 1, 1))
+		local col = color or Color3.new(1, 1, 1)
+		valueCol = col
+		if pop then
+			setValue(text, true)
+			recolor(col)
+			pending = nil
+			lastRoll = os.clock()
+		else
+			pending = text
+		end
 		if pop then
 			tilt = -tilt
-			vg.Rotation = 5 * tilt
+			vg.Rotation = 4 * tilt
 			tw(vg, 0.22, { Rotation = 0 }, Enum.EasingStyle.Back)
-			for l, y in baseOff do
-				l.Position = UDim2.new(0.5, 0, 0.5, y - 26)
-				tw(l, 0.14, { Position = UDim2.new(0.5, 0, 0.5, y) }, Enum.EasingStyle.Quad)
-			end
+			baseScale = 1.16
+			task.delay(0.09, function() baseScale = 1 end)
 		end
 	end
-	-- suspense 0..1: the value breathes with a racing heartbeat and trembles
 	function ui.suspense(k: number)
 		suspense = math.clamp(k, 0, 1)
 	end
 	function ui.done(chipText: string, chipColor: Color3)
 		suspense = 0
 		hit = 1
-		-- SLAM: huge -> settle, tilt snaps straight, shine, stud chips burst out
-		baseScale = 2.2
-		vg.Rotation = -9
+		recolor(chipColor)
+		speedLines(chipColor)
+		burst(chipColor)
+		-- SLAM: huge -> settle (spring), tilt snaps straight
+		baseScale = 2.3
+		vg.Rotation = -10
 		task.spawn(function()
 			local t0 = os.clock()
-			while os.clock() - t0 < 0.35 do
-				local k = Easing.backOut(math.clamp((os.clock() - t0) / 0.35, 0, 1))
-				baseScale = 2.2 + (1.08 - 2.2) * k
+			while os.clock() - t0 < 0.4 do
+				local k = Easing.backOut(math.clamp((os.clock() - t0) / 0.4, 0, 1))
+				baseScale = 2.3 + (1.08 - 2.3) * k
 				task.wait()
 			end
 			baseScale = 1.08
 		end)
-		tw(vg, 0.35, { Rotation = 0 }, Enum.EasingStyle.Back)
-		sGrad.Offset = Vector2.new(-1, 0)
-		tw(sGrad, 0.55, { Offset = Vector2.new(1, 0) }, Enum.EasingStyle.Sine)
-		burst(chipColor)
+		tw(vg, 0.4, { Rotation = 0 }, Enum.EasingStyle.Back)
 		local myVer = ver
-		task.delay(0.55, function()
+		task.delay(0.6, function()
 			if not g.Parent then return end
 			if ver == myVer then
 				tw(blockScale, 0.25, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
@@ -782,18 +885,23 @@ local function buildStageUi()
 				local sep = Sim.text(row, "•", { Size = UDim2.fromOffset(14, 30), Max = 22, Stroke = 3, ZIndex = 6, LayoutOrder = order * 2 - 1 })
 				sep.TextColor3 = Color3.fromRGB(220, 220, 230)
 			end
-			local chipHolder = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(140, 34), LayoutOrder = order * 2 }, row)
+			local chipHolder = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(150, 34), LayoutOrder = order * 2 }, row)
 			local cs = Sim.new("UIScale", { Scale = 0 }, chipHolder)
-			Sim.text(chipHolder, chipText, { Size = UDim2.fromScale(1, 1), Max = 28, Stroke = 3.5, ZIndex = 6,
+			local chip = Sim.text(chipHolder, chipText, { Size = UDim2.fromScale(1, 1), Max = 28, Stroke = 3.5, ZIndex = 6,
 				Gradient = { chipColor:Lerp(Color3.new(1, 1, 1), 0.5), chipColor } })
-			tw(cs, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+			chip.Rotation = -200
+			tw(cs, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
+			tw(chip, 0.45, { Rotation = 0 }, Enum.EasingStyle.Back)
 		end)
 	end
 	function ui.shake(_a: number) end
 	function ui.stamp(text: string)
-		stamp.Text = text
-		ss.Scale = 2.5
+		local st = Sim.text(inner, text, { Size = UDim2.fromOffset(560, 48), Position = UDim2.fromOffset(350, 274), Max = 42, Stroke = 5, ZIndex = 9,
+			Gradient = { Color3.fromRGB(255, 255, 210), Color3.fromRGB(255, 186, 20) } })
+		local ss = Sim.new("UIScale", { Scale = 2.6 }, st)
+		st.Rotation = -8
 		tw(ss, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+		tw(st, 0.3, { Rotation = 0 }, Enum.EasingStyle.Back)
 		hit = math.max(hit, 0.7)
 	end
 	local closed = false
@@ -1221,7 +1329,7 @@ local function revealSequence(d)
 			if current == c then ui.close() end
 		end)
 		task.delay(0.85, function()
-			if current == c then Cine.banner((vname .. spec.name):upper(), tcol, tier.name:upper()) end
+			local _ = vname -- (no name banner: the Bear Unlocked screen shows it)
 		end)
 		-- crash back down from the roar: ground STOMP, earth flying
 		task.delay(1.11, function()
@@ -1258,8 +1366,7 @@ local function happyShot(d)
 		if t < tHappy then
 			if not happy then
 				happy = true
-				Sound.play("Happy", { at = h.Position, pitch = bearPitch(c.bear) })
-				Cine.hearts(h.Position + up * 1.5, 6)
+				-- calm, proud ending (no jumping for joy, no hearts)
 			end
 			local k = Easing.cubicOut(math.clamp(t / tHappy, 0, 1))
 			local p = r.Position + fwd * (8 + 6 * k) * sc + up * (1.5 + 3.5 * k) * sc + r.CFrame.RightVector * 2.5 * sc
