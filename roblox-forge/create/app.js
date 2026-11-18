@@ -138,6 +138,7 @@ $('dl').onclick = async () => { const blob = await packBlob(), a = document.crea
 $('toMap').onclick = () => { try { localStorage.setItem('forgemap.map', JSON.stringify(map)); } catch { return toast('Carte trop grosse pour être ouverte dans Map Studio'); } location.href = '../map/'; };
 $('reroll').onclick = async () => { busy(true, 'Nouvelle carte…'); await tick(); seed = Math.floor(Math.random() * 1e6); map = buildMap(spec, seed); spec.theme = map.theme; busy(false); save(); render(); toast('🎲 Nouvelle carte'); };
 $('reset').onclick = () => { if (!confirm('Commencer un nouveau jeu ?')) return; spec = null; map = null; lastDone = []; save(); render(); $('q').focus(); scrollTo({ top: 0, behavior: 'smooth' }); };
+$('playNow').onclick = () => { if (!spec) return toast('Crée d\u2019abord ton jeu'); save(); location.href = '../play/#play=local-create'; };
 $('go').onclick = create; $('apply').onclick = applyEdit;
 $('edit').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); applyEdit(); } });
 $('q').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) create(); });
