@@ -283,7 +283,7 @@ function FisherBuilder.build(slot: number, tier: number, opts: any?): Model
 		Studs.weldAll(hand, { glove, thumb })
 		Studs.motor("Wrist" .. L, fore, hand, CF(x, 2.3, 0))
 		local att = Instance.new("Attachment")
-		att.Name = "Hand" .. L
+		att.Name = "Grip" .. L -- (not "HandL": that's the bone's name)
 		att.Position = V3(0, -0.15, -0.05)
 		att.Parent = glove
 		handBones[side] = hand

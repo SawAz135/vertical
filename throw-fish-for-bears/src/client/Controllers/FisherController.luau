@@ -32,6 +32,7 @@ local Format = require(Shared.Util.Format)
 local F = require(Shared.Config.FisherConfig)
 local Layout = require(Shared.Layout)
 local FishBuilder = require(Shared.Models.FishBuilder)
+local FishConfig = require(Shared.Config.FishConfig)
 local Fx = require(script.Parent.Fx)
 local Sound = require(script.Parent.Sound)
 local Clock = require(script.Parent.Clock)
@@ -102,6 +103,14 @@ local function makeFish(id: string, w: number?, v: string?): Model?
 	return m
 end
 
+-- the MOUTH attachment of a fish (a Part is also called "Mouth": look for the Attachment)
+local function fishMouth(f: Model): Attachment?
+	for _, d in f:GetDescendants() do
+		if d:IsA("Attachment") and d.Name == "Mouth" then return d end
+	end
+	return nil
+end
+
 local function part(size: Vector3, color: Color3, shape: Enum.PartType?): Part
 	local p = Instance.new("Part")
 	p.Size = size
@@ -136,6 +145,26 @@ local function makeTackle(): Model
 	att.Name = "Line"
 	att.Position = V3(0, 0.2, 0)
 	att.Parent = bob
+	-- the leader: a thin line from under the bobber down to the hook (visible when the fish hangs on it)
+	local la = Instance.new("Attachment")
+	la.Name = "LeaderTop"
+	la.Position = V3(0, -0.2, 0)
+	la.Parent = bob
+	local lb = Instance.new("Attachment")
+	lb.Name = "LeaderEnd"
+	lb.Position = V3(0, 0.13, 0)
+	lb.Parent = hook
+	local leader = Instance.new("Beam")
+	leader.Attachment0 = la
+	leader.Attachment1 = lb
+	leader.Width0 = 0.06
+	leader.Width1 = 0.05
+	leader.Color = ColorSequence.new(Color3.fromRGB(225, 225, 225))
+	leader.LightEmission = 0
+	leader.Transparency = NumberSequence.new(0.25)
+	leader.FaceCamera = true
+	leader.Segments = 4
+	leader.Parent = bob
 	m.PrimaryPart = bob
 	m.Parent = Fx.folder
 	return m
@@ -145,8 +174,8 @@ local function makeLine(a0: Attachment, a1: Attachment): Beam
 	local b = Instance.new("Beam")
 	b.Attachment0 = a0
 	b.Attachment1 = a1
-	b.Width0 = 0.035
-	b.Width1 = 0.035
+	b.Width0 = 0.09 -- visible from the beach
+	b.Width1 = 0.07
 	b.Color = ColorSequence.new(Color3.fromRGB(235, 235, 235))
 	b.LightEmission = 0
 	b.Transparency = NumberSequence.new(0.2)
@@ -184,11 +213,19 @@ local function registerFisher(m: Model)
 		model = m, root = m.PrimaryPart, motors = motors, base = base, slot = slot,
 		path = path, lens = lens, total = total, cur = cur, vel = {}, yaw = nil,
 		tipAtt = m:FindFirstChild("RodTip", true), pipe = m:FindFirstChild("PipeSmoke", true),
-		handL = m:FindFirstChild("HandL", true), handR = m:FindFirstChild("HandR", true),
+		handL = nil, handR = nil, -- the grip ATTACHMENTS (found below, by class)
 		props = props, seed = (m:GetAttribute("Seed") or 1) % 1000, lastPhase = nil,
 		splashT = 0, smokeT = 0, dripT = 0, crank = 0, walkPh = 0, waveT = -99, near = false,
 	}
 	for _, j in JOINTS do e.vel[j] = ZERO end
+	-- grip attachments (the hand BONES are also called HandL / HandR: look for Attachments)
+	for _, d in m:GetDescendants() do
+		if d:IsA("Attachment") then
+			if d.Name == "GripL" or d.Name == "HandL" then e.handL = d end
+			if d.Name == "GripR" or d.Name == "HandR" then e.handR = d end
+			if d.Name == "RodTip" then e.tipAtt = d end
+		end
+	end
 	fishers[m] = e
 	m.Destroying:Connect(function()
 		fishers[m] = nil
@@ -608,15 +645,34 @@ local function setFish(e, on: boolean)
 	local m = e.model
 	if on and not e.fish then
 		local id = m:GetAttribute("CarryFish")
-		if id then e.fish = makeFish(id, m:GetAttribute("CarryW"), m:GetAttribute("CarryV")) end
+		if id then
+			e.fish = makeFish(id, m:GetAttribute("CarryW"), m:GetAttribute("CarryV"))
+				or makeFish(FishConfig.Order[1], nil, nil) -- never an invisible catch
+			e.mouth = if e.fish then fishMouth(e.fish) else nil
+		end
 	elseif not on and e.fish then
 		e.fish:Destroy()
 		e.fish = nil
+		e.mouth = nil
+		e.mouthPos = nil
 	end
 end
 
 local function setProp(e, name: string, on: boolean)
 	for _, d in e.props[name] do d.LocalTransparencyModifier = if on then 0 else 1 end
+end
+
+-- runs one part of the animation; an error there is reported ONCE and can't stop the rest
+local function guard(e, fn)
+	local ok, err = pcall(fn)
+	if not ok then
+		e.errs = e.errs or {}
+		local key = tostring(err)
+		if not e.errs[key] then
+			e.errs[key] = true
+			warn("[TFB] fisher anim", key)
+		end
+	end
 end
 
 local NOMINAL = F.Timing
@@ -637,7 +693,7 @@ local function updateFisher(e, dt: number, now: number)
 	else
 		e.entered = false
 	end
-	local near = (e.root.Position - camera.CFrame.Position).Magnitude < 75
+	local near = (e.root.Position - camera.CFrame.Position).Magnitude < 190 -- seen from the base too
 	e.near = near
 
 	-- where he stands / walks ----------------------------------------------------------------
@@ -746,8 +802,8 @@ local function updateFisher(e, dt: number, now: number)
 	local seed = m:GetAttribute("Seed") or 1
 	local target = F.bobber(e.base, e.slot, seed)
 	local water = Layout.WATER_Y + 0.05
-	local tackleOn = near and e.tipAtt and (phase == "Bait" or phase == "Cast" or phase == "Wait" or phase == "Reel")
-	if tackleOn then
+	local tackleOn = near and e.tipAtt ~= nil
+	if tackleOn then guard(e, function()
 		if not e.tackle then
 			e.tackle = makeTackle()
 			e.line = makeLine(e.tipAtt, e.tackle.PrimaryPart:FindFirstChild("Line"))
@@ -756,7 +812,24 @@ local function updateFisher(e, dt: number, now: number)
 		local tip = e.tipAtt.WorldPosition
 		local bobPos, showBobber, hookPos, wormOn = nil, true, nil, false
 		local curve0 = 0
-		if phase == "Bait" then
+		-- the hook still in the fish's mouth (caught, then until it's popped out while unhooking)
+		local hooked = e.mouthPos ~= nil and (phase == "Catch" or (phase == "Unhook" and x < 1.85))
+		-- just popped out: pinched in the right hand, then let go to dangle again
+		local inHand = phase == "Unhook" and x >= 1.85 and x < 2.6 and e.handR ~= nil
+		if hooked or inHand then
+			hookPos = if hooked then e.mouthPos else e.handR.WorldPosition
+			-- the bobber rides up the line, a bit above the hook
+			local up = tip - hookPos
+			bobPos = hookPos + (if up.Magnitude > 0.01 then up.Unit else V3(0, 1, 0)) * math.min(1.3, up.Magnitude * 0.5)
+			wormOn = false
+			curve0 = if hooked and phase == "Catch" then sin(t * 30) * 0.1 else 0
+		elseif phase ~= "Bait" and phase ~= "Cast" and phase ~= "Wait" and phase ~= "Reel" then
+			-- walking / carrying: the empty hook dangles under the rod tip, swaying with the steps
+			local swing = V3(sin(t * 3.1) * 0.3, 0, cos(t * 2.6) * 0.25)
+			hookPos = tip - V3(0, 1.5, 0) + swing
+			hookPos = V3(hookPos.X, math.max(hookPos.Y, Layout.DOCK_TOP_Y + 0.25), hookPos.Z) -- never through the planks
+			bobPos = hookPos + V3(0, 0.75, 0)
+		elseif phase == "Bait" then
 			-- the hook hangs from the tip, then is held between the hands while threading
 			local swing = V3(sin(t * 2.2) * 0.25, 0, cos(t * 1.7) * 0.2)
 			local hang = tip - V3(0, 1.6, 0) + swing
@@ -771,6 +844,7 @@ local function updateFisher(e, dt: number, now: number)
 			local k2 = clamp((x - 0.8) / 0.62, 0, 1)
 			if k2 <= 0 then
 				hookPos = tip - V3(0, 1.4, 0)
+				hookPos = V3(hookPos.X, math.max(hookPos.Y, Layout.DOCK_TOP_Y + 0.25), hookPos.Z) -- never through the planks
 				bobPos = hookPos + V3(0, 0.7, 0)
 			else
 				bobPos = tip:Lerp(target, Easing.quadOut(k2)) + V3(0, sin(k2 * PI) * 3.6, 0)
@@ -822,7 +896,14 @@ local function updateFisher(e, dt: number, now: number)
 			e.line.CurveSize0 = curve0
 			e.line.CurveSize1 = curve0 * 0.3
 		end
-	elseif e.tackle then
+		-- hook glints at the mouth corner / in the fingers
+		if hooked then hook.CFrame = CF(hookPos) * CFrame.Angles(0, t * 0.5, 0.6) end
+		if inHand and not e.hookShown then
+			e.hookShown = true
+			Fx.blocks(hookPos, Color3.fromRGB(200, 200, 210), 2, 4, 0.08, { life = 0.35, up = 1.2, gravity = 30 })
+		end
+		if not inHand then e.hookShown = false end
+	end) elseif e.tackle then
 		e.tackle:Destroy()
 		e.tackle = nil
 		e.line = nil
@@ -830,8 +911,8 @@ local function updateFisher(e, dt: number, now: number)
 
 	-- the fish ----------------------------------------------------------------------------------
 	local carryPhase = phase == "Catch" or phase == "Unhook" or phase == "ToBucket" or phase == "Full" or phase == "Drop"
-	if near then setFish(e, carryPhase) end
-	if e.fish and e.fish.PrimaryPart then
+	if near then setFish(e, carryPhase) elseif e.fish then setFish(e, false) end
+	if e.fish and e.fish.PrimaryPart then guard(e, function()
 		local f = e.fish
 		local len = f:GetAttribute("Len") or 1.5
 		local hl = if e.handL then e.handL.WorldCFrame else rootCF * CF(-1.3, -0.2, -0.6)
@@ -917,7 +998,8 @@ local function updateFisher(e, dt: number, now: number)
 			e.dripT = 0.18
 			Fx.blocks(fcf.Position - V3(0, 0.3, 0), Color3.fromRGB(170, 215, 255), 1, 1, 0.08, { life = 0.6, up = -0.5, spread = 0.2, gravity = 40 })
 		end
-	end
+		e.mouthPos = if e.mouth then e.mouth.WorldPosition else fcf.Position
+	end) end
 	if phase ~= "Drop" then e.landed = false end
 
 	-- pipe smoke (old salts)
@@ -1059,9 +1141,13 @@ function FisherController.init(hud)
 					end
 				end
 				local ok, err = pcall(updateFisher, e, dt, now)
-				if not ok and not e.warned then
-					e.warned = true
-					warn("[TFB] fisher anim", err)
+				if not ok then
+					e.errs = e.errs or {}
+					local key = tostring(err)
+					if not e.errs[key] then
+						e.errs[key] = true
+						warn("[TFB] fisher anim", key)
+					end
 				end
 			end
 		end
