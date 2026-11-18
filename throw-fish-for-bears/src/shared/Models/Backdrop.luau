@@ -243,7 +243,9 @@ function Backdrop.build(parent: Instance, theme: string, zA: number, zB: number,
 		end
 	end
 	local length = math.abs(zA - zB)
-	local z = zA - r:NextNumber() * 6
+	-- at the corridor entrance the first cliffs start well behind the front wall: nothing
+	-- towers right behind the SELL / SHOP stalls
+	local z = zA - r:NextNumber() * 6 - (if clampStart then 36 else 0)
 	local waterfallAt = zA - length * (0.2 + r:NextNumber() * 0.6)
 	local didFall = false
 	while z > zB do

@@ -105,7 +105,7 @@ function Index.claimSection(player: Player, key: string)
 	R.Sfx(player, "Reward")
 	Net.event("IndexReward"):FireClient(player, {
 		key = key, title = s.title, variant = s.variant, money = rw.money, luck = rw.luck,
-		fish = fish and fish.s, fishRarity = rw.fish, rod = rodName,
+		fish = fish and fish.s, fishRarity = rw.fish, rod = rodName, rodId = rw.rod,
 	})
 	local _ = RarityConfig
 end

@@ -62,20 +62,27 @@ local function buildGround(map)
 	-- the grass stops where the lake starts (it used to cover the water = green lake)
 	local minZ = Layout.CORRIDOR_END_Z - 120
 	local maxZ = Layout.LAKE.minZ
-	-- Roblox parts are capped at 2048 studs: the 3000+ stud world plate is laid in chunks
+	-- the ground stops at the walls: no empty grass plain outside the map
+	-- compound plate (inside the outer walls, up to the lake)
+	local cp = Layout.COMPOUND
+	local cw = (cp.maxX + 3) * 2
+	local cz0 = cp.minZ - 3
+	Studs.static(map, "Ground", V3(cw, 4, maxZ - cz0), CF(0, -2, (cz0 + maxZ) / 2), GRASS)
+	-- corridor plate: as wide as the corridor + its mountain backdrop (chunks: parts <= 2048)
+	local corW = (Layout.CORRIDOR_HALF + 100) * 2
 	local CHUNK = 1000
 	local z0 = minZ
-	while z0 < maxZ - 0.01 do
-		local z1 = math.min(maxZ, z0 + CHUNK)
-		Studs.static(map, "Ground", V3(760, 4, z1 - z0), CF(0, -2, (z0 + z1) / 2), GRASS)
+	while z0 < cz0 - 0.01 do
+		local z1 = math.min(cz0, z0 + CHUNK)
+		Studs.static(map, "Ground", V3(corW, 4, z1 - z0), CF(0, -2, (z0 + z1) / 2), GRASS)
 		z0 = z1
 	end
+	-- thin grass banks framing the lake
 	local l0 = Layout.LAKE
-	local sideW = 380 - l0.maxX
 	for _, sx in { -1, 1 } do
-		Studs.static(map, "GroundSide", V3(sideW, 4, l0.maxZ - l0.minZ + 40), CF(sx * (l0.maxX + sideW / 2), -2, (l0.minZ + l0.maxZ + 40) / 2), GRASS)
+		Studs.static(map, "GroundSide", V3(6, 4, l0.maxZ - l0.minZ + 6), CF(sx * (l0.maxX + 3), -2, (l0.minZ + l0.maxZ + 6) / 2), GRASS)
 	end
-	Studs.static(map, "GroundBack", V3(760, 4, 40), CF(0, -2, l0.maxZ + 20), GRASS)
+	Studs.static(map, "GroundBack", V3((l0.maxX + 6) * 2, 4, 6), CF(0, -2, l0.maxZ + 3), GRASS)
 	-- lake shore wall (sand coloured bank under the edge of the grass)
 	Studs.static(map, "Shore", V3(l0.maxX - l0.minX, 9, 2), CF(0, -4.5, l0.minZ + 1), C(200, 168, 110))
 	-- subtle darker tiles in the compound so the floor reads like the reference baseplate
@@ -141,17 +148,6 @@ local function buildCompound(map, rand)
 		Props.rock(map, V3(sx * (90 + rand:NextNumber() * 60), 0, c.minZ + 22 + rand:NextNumber() * 60), 0.7, rand)
 	end
 
-	-- outside scenery trees like the reference horizon
-	for i = 1, 26 do
-		local side = if i % 2 == 0 then 1 else -1
-		local x = side * (rand:NextNumber() * 120 + 236)
-		local z = rand:NextNumber() * (Layout.LAKE.minZ - Layout.CORRIDOR_END_Z) + Layout.CORRIDOR_END_Z
-		Props.tree(map, V3(x, 0, z), 1 + rand:NextNumber() * 0.7, rand)
-	end
-	for i = 1, 10 do
-		local side = if i % 2 == 0 then 1 else -1
-		Props.tree(map, V3(side * (rand:NextNumber() * 80 + 90), 0, Layout.CORRIDOR_START_Z - 30 - rand:NextNumber() * 200), 0.9 + rand:NextNumber() * 0.6, rand)
-	end
 end
 
 local function buildBases(map)

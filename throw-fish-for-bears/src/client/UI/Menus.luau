@@ -447,9 +447,35 @@ local function rewardText(rw): string
 	return table.concat(parts, "  ·  ")
 end
 
+-- a small dark reward "chip": icon (image or mini 3D model) + coloured text
+local function rewardChip(parent, width: number, text: string, icon: string?, model)
+	local chip = new("Frame", { Name = "Chip", BackgroundColor3 = RGB(30, 30, 34), BorderSizePixel = 0, Size = UDim2.fromOffset(width, 34), ZIndex = 7 }, parent)
+	Sim.corner(chip, 4)
+	Sim.stroke(chip, 2.5, RGB(14, 14, 16))
+	Sim.studs(chip, { dark = true, tile = 18, transparency = 0.55, z = 7 })
+	if icon then
+		new("ImageLabel", { BackgroundTransparency = 1, Image = icon, ScaleType = Enum.ScaleType.Fit, Size = UDim2.fromOffset(30, 30),
+			Position = UDim2.fromOffset(18, 17), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = -8, ZIndex = 9 }, chip)
+	elseif model then
+		local holder = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(36, 34), Position = UDim2.fromOffset(2, 0), ZIndex = 8 }, chip)
+		Sim.model(holder, { kind = model.kind, id = model.id, alive = false, size = UDim2.fromScale(1.2, 1.2), zindex = 9 })
+	end
+	Sim.text(chip, text, { Size = UDim2.new(1, -42, 0.7, 0), Position = UDim2.new(0, 38, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5),
+		AlignX = Enum.TextXAlignment.Left, Max = 17, Stroke = 2.5, Rich = true, ZIndex = 9 })
+	return chip
+end
+
+-- the first fish species of a rarity (picture of a "guaranteed <rarity> fish" reward)
+local function fishOfRarity(r: string): string?
+	for _, id in FishConfig.Order do
+		if FishConfig.get(id).rarity == r then return id end
+	end
+	return nil
+end
+
 local function buildIndex()
-	local w = makeWindow("Index", { title = "Index", grad = "pink", size = Vector2.new(820, 480) })
-	-- RIGHT: the collection (Fish / Bears)
+	local w = makeWindow("Index", { title = "Index", grad = "pink", size = Vector2.new(960, 540), factor = 0.84 }) -- wide: pills + tabs outside
+	-- RIGHT (outside the window): Fish / Bears
 	local tabs = {}
 	for i, cat in { "Fish", "Bears" } do
 		tabs[cat] = Sim.button(w.frame, { Name = "Tab" .. cat, Grad = if cat == "Fish" then "blue" else "orange", Size = Vector2.new(170, 62),
@@ -459,11 +485,11 @@ local function buildIndex()
 			renderers.Index(true)
 		end)
 	end
-	-- LEFT: the mutation index pills (tap again to go back to the normal index)
+	-- LEFT (outside the window): the mutation index pills (tap again: back to the normal index)
 	local vtabs = {}
 	for i, v in IndexConfig.Variants do
 		local b = Sim.button(w.frame, { Name = "Var" .. v, Grad = "light", Size = Vector2.new(176, 58),
-			Position = UDim2.fromOffset(-104, 78 + (i - 1) * 70), Text = v:upper(), Max = 28 }, function()
+			Position = UDim2.fromOffset(-104, 92 + (i - 1) * 70), Text = v:upper(), Max = 28 }, function()
 			indexVar = if indexVar == v then nil else v
 			indexSel = nil
 			renderers.Index(true)
@@ -484,6 +510,8 @@ local function buildIndex()
 		end
 	end)
 
+	local CW = 952 -- content width
+	local LISTW = 664
 	renderers.Index = function(animate)
 		clear(w.content)
 		for cat, b in tabs do
@@ -502,64 +530,136 @@ local function buildIndex()
 		local isFish = indexCat == "Fish"
 		local book = if isFish then (index.fish or {}) else (index.bears or {})
 		local sections = IndexConfig.sections(indexCat, indexVar)
-		local left = Sim.panel(w.content, { Size = UDim2.fromOffset(520, 370), Position = UDim2.fromOffset(12, 12), Color = RGB(36, 36, 40), DarkStuds = true, ZIndex = 3 })
-		-- overall progress + the per-discovery money (old reward) in the header line
+		local accent = if indexVar then VAR_LOOK[indexVar] else (if isFish then { RGB(150, 230, 255), RGB(40, 140, 240) } else { RGB(255, 214, 120), RGB(240, 130, 30) })
+
+		-- TOP BAR: title · overall progress · pending discovery money ---------------------------
 		local all, got = 0, 0
 		for _, s in sections do
 			local n, total = IndexConfig.progress(index, s)
 			got += n
 			all += total
 		end
-		local head = Sim.text(left, ("%s%s  ·  %d/%d"):format(if indexVar then indexVar:upper() .. " " else "", indexCat:upper(), got, all),
-			{ Size = UDim2.fromOffset(300, 30), Position = UDim2.fromOffset(160, 22), Max = 26, ZIndex = 6,
-				Gradient = if indexVar then VAR_LOOK[indexVar] else { RGB(255, 255, 255), RGB(255, 220, 120) } })
-		local _ = head
+		Sim.text(w.content, ("%s%s INDEX"):format(if indexVar then indexVar:upper() .. " " else "", indexCat:upper()),
+			{ Size = UDim2.fromOffset(300, 40), Position = UDim2.fromOffset(18, 34), AnchorPoint = Vector2.new(0, 0.5), AlignX = Enum.TextXAlignment.Left,
+				Max = 34, Stroke = 3.5, Gradient = accent, ZIndex = 6 })
+		local pct = got / math.max(1, all)
+		local tb = new("Frame", { Name = "Total", BackgroundColor3 = RGB(26, 26, 30), BorderSizePixel = 0, Size = UDim2.fromOffset(330, 30),
+			Position = UDim2.fromOffset(328, 19), ZIndex = 5, ClipsDescendants = true }, w.content)
+		Sim.corner(tb, 5)
+		Sim.stroke(tb, 3)
+		local tf = new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromScale(if animate then 0 else pct, 1), ZIndex = 6 }, tb)
+		Sim.corner(tf, 5)
+		Sim.gradient(tf, if pct >= 1 then Sim.G.green else accent, 90)
+		Sim.studs(tf, { tile = 16, transparency = 0.7, z = 6 })
+		if animate then
+			game:GetService("TweenService"):Create(tf, TweenInfo.new(0.8, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Size = UDim2.fromScale(pct, 1) }):Play()
+		end
+		Sim.text(tb, ("%d / %d  ·  %d%%"):format(got, all, math.floor(pct * 100 + 0.5)), { Size = UDim2.new(1, -10, 0.78, 0), Max = 20, Stroke = 2.5, ZIndex = 8 })
 		local pending = d.indexPending and d.indexPending[indexCat] or 0
-		local claim = Sim.button(left, { Grad = if pending > 0 then "blue" else "grey", Size = Vector2.new(170, 38), Position = UDim2.fromOffset(420, 24),
-			Text = if pending > 0 then "Claim " .. Format.money(pending) else "Claim", Max = 20, ZIndex = 6 }, function()
+		local claim = Sim.button(w.content, { Grad = if pending > 0 then "green" else "grey", Size = Vector2.new(250, 40), Position = UDim2.fromOffset(810, 34),
+			Text = if pending > 0 then "Collect " .. Format.money(pending) else "Discoveries collected", Max = 20, Icon = K.Icons.Cash, IconSize = 0.8, ZIndex = 6 }, function()
 			Net.event("ClaimIndex"):FireServer(indexCat)
 		end)
 		if pending > 0 then K.shine(claim, 1.8) end
-		-- the sections (zones / rarities), each with its reward + CLAIM
-		local list = new("ScrollingFrame", { BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromOffset(508, 316), Position = UDim2.fromOffset(6, 48), ZIndex = 4,
+
+		-- SECTIONS ----------------------------------------------------------------------------
+		local list = new("ScrollingFrame", { BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromOffset(LISTW, 380), Position = UDim2.fromOffset(6, 64), ZIndex = 4,
 			CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 8,
-			ScrollBarImageColor3 = RGB(230, 230, 230) }, left)
-		new("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 10), PaddingRight = UDim.new(0, 10), PaddingLeft = UDim.new(0, 2) }, list)
-		new("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder }, list)
+			ScrollBarImageColor3 = RGB(230, 230, 230) }, w.content)
+		new("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 12), PaddingRight = UDim.new(0, 14), PaddingLeft = UDim.new(0, 6) }, list)
+		new("UIListLayout", { Padding = UDim.new(0, 18), SortOrder = Enum.SortOrder.LayoutOrder }, list)
 		local scrollKey = indexCat .. (indexVar or "")
 		if indexScroll[scrollKey] then
 			task.defer(function() if list.Parent then list.CanvasPosition = indexScroll[scrollKey] end end)
 		end
 		list:GetPropertyChangedSignal("CanvasPosition"):Connect(function() indexScroll[scrollKey] = list.CanvasPosition end)
+		local SW = LISTW - 22 -- section width
 		local firstId = nil
 		for si, s in sections do
 			local n, total = IndexConfig.progress(index, s)
 			local done = n >= total
 			local claimed = claims[s.key] == true
-			local sec = new("Frame", { Name = "Section" .. si, BackgroundTransparency = 1, Size = UDim2.fromOffset(494, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = si }, list)
-			new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, sec)
-			-- header plate: zone / rarity colour
+			local rw = s.reward
+			local sec = new("Frame", { Name = "Section" .. si, BackgroundTransparency = 1, Size = UDim2.fromOffset(SW, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = si }, list)
+			new("UIListLayout", { Padding = UDim.new(0, 0), SortOrder = Enum.SortOrder.LayoutOrder }, sec)
 			local col = s.color or RGB(120, 120, 130)
-			local hp = Sim.panel(sec, { Size = UDim2.fromOffset(494, 66), Gradient = { col:Lerp(Color3.new(1, 1, 1), 0.25), col:Lerp(Color3.new(0, 0, 0), 0.35) }, Stroke = 3, ZIndex = 5, LayoutOrder = 1 })
-			Sim.text(hp, s.title, { Size = UDim2.fromOffset(300, 26), Position = UDim2.fromOffset(160, 17), Max = 22, ZIndex = 7, AlignX = Enum.TextXAlignment.Left })
-			-- progress bar
-			local bar = new("Frame", { BackgroundColor3 = RGB(30, 30, 34), Size = UDim2.fromOffset(150, 14), Position = UDim2.fromOffset(12, 36), ZIndex = 6, BorderSizePixel = 0 }, hp)
+			-- 1 · header plate in the zone / rarity colour
+			local hp = Sim.panel(sec, { Size = UDim2.fromOffset(SW, 58), Gradient = { col:Lerp(Color3.new(1, 1, 1), 0.3), col:Lerp(Color3.new(0, 0, 0), 0.3) }, Stroke = 3, ZIndex = 5, LayoutOrder = 1 })
+			Sim.bands(hp, 0.7, 5)
+			hp.ClipsDescendants = true
+			Sim.text(hp, s.title, { Size = UDim2.fromOffset(360, 26), Position = UDim2.fromOffset(14, 19), AnchorPoint = Vector2.new(0, 0.5), Max = 24, Stroke = 3, ZIndex = 7,
+				AlignX = Enum.TextXAlignment.Left })
+			local bar = new("Frame", { BackgroundColor3 = RGB(26, 26, 30), Size = UDim2.fromOffset(220, 14), Position = UDim2.fromOffset(14, 36), ZIndex = 6, BorderSizePixel = 0, ClipsDescendants = true }, hp)
 			Sim.corner(bar, 4)
 			Sim.stroke(bar, 2)
 			local fill = new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromScale(math.clamp(n / math.max(1, total), 0, 1), 1), ZIndex = 7 }, bar)
 			Sim.corner(fill, 4)
 			Sim.gradient(fill, if done then Sim.G.green else Sim.G.yellow, 90)
-			Sim.text(hp, ("%d/%d"):format(n, total), { Size = UDim2.fromOffset(60, 20), Position = UDim2.fromOffset(196, 43), Max = 18, ZIndex = 7 })
-			Sim.text(hp, rewardText(s.reward), { Size = UDim2.fromOffset(250, 18), Position = UDim2.fromOffset(352, 44), Max = 14, ZIndex = 7, Rich = true })
-			local cb = Sim.button(hp, { Grad = if claimed then "grey" elseif done then "green" else "dark", Size = Vector2.new(118, 34), Position = UDim2.fromOffset(426, 20),
-				Text = if claimed then "CLAIMED" elseif done then "CLAIM!" else "LOCKED", Max = 20, ZIndex = 8 }, function()
+			Sim.text(hp, ("%d/%d"):format(n, total), { Size = UDim2.fromOffset(70, 20), Position = UDim2.fromOffset(244, 43), AnchorPoint = Vector2.new(0, 0.5),
+				AlignX = Enum.TextXAlignment.Left, Max = 18, Stroke = 2.5, ZIndex = 7, Color = if done then RGB(140, 255, 80) else Color3.new(1, 1, 1) })
+			local cb = Sim.button(hp, { Grad = if claimed then "grey" elseif done then "green" else "dark", Size = Vector2.new(140, 40), Position = UDim2.fromOffset(SW - 82, 29),
+				Text = if claimed then "CLAIMED" elseif done then "CLAIM!" else "LOCKED", Icon = if claimed then K.Icons.Check elseif done then nil else K.Icons.Lock,
+				IconSize = 0.7, Max = 20, ZIndex = 8 }, function()
 				if done and not claimed then Net.event("ClaimIndexSection"):FireServer(s.key) end
 			end)
 			if done and not claimed then K.shine(cb, 1.4) end
-			-- the tiles: background = the RARITY colour (dim while not found)
-			local grid = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(494, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2 }, sec)
-			new("UIGridLayout", { CellSize = UDim2.fromOffset(112, 118), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder,
-				HorizontalAlignment = Enum.HorizontalAlignment.Center }, grid)
+			-- 2 · the reward strip (chips + the 3D showcase of an exclusive rod)
+			local hasRod = rw.rod ~= nil and RodConfig.get(rw.rod) ~= nil
+			local strip = new("Frame", { Name = "Reward", BackgroundColor3 = RGB(44, 44, 50), BorderSizePixel = 0, Size = UDim2.fromOffset(SW, if hasRod then 128 else 62),
+				ZIndex = 5, LayoutOrder = 2 }, sec)
+			Sim.stroke(strip, 3)
+			Sim.studs(strip, { dark = true, tile = 24, transparency = 0.5, z = 5 })
+			Sim.text(strip, if claimed then "REWARD  ·  CLAIMED" else "REWARD", { Size = UDim2.fromOffset(200, 16), Position = UDim2.fromOffset(12, 11), AnchorPoint = Vector2.new(0, 0.5),
+				AlignX = Enum.TextXAlignment.Left, Max = 14, Stroke = 2, Color = RGB(200, 200, 210), ZIndex = 7 })
+			local chips = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(if hasRod then SW - 250 else SW - 20, 34), Position = UDim2.fromOffset(10, 22), ZIndex = 6 }, strip)
+			new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder,
+				VerticalAlignment = Enum.VerticalAlignment.Center }, chips)
+			rewardChip(chips, 120, ('<font color="#7CFF46">%s</font>'):format(Format.money(rw.money)), K.Icons.Cash).LayoutOrder = 1
+			rewardChip(chips, 128, ('<font color="#FFD23F">+%.1f%%</font> Luck'):format(rw.luck * 100), K.Icons.Clover).LayoutOrder = 2
+			if rw.fish then
+				local fid = fishOfRarity(rw.fish)
+				local tc = Sim.RARITY_TEXT[rw.fish] or Color3.new(1, 1, 1)
+				rewardChip(chips, 128, ('<font color="#%s">%s</font> Fish'):format(tc:ToHex(), RarityConfig.get(rw.fish).name), nil,
+					if fid then { kind = "Fish", id = fid } else nil).LayoutOrder = 3
+			end
+			if hasRod then
+				local rod = RodConfig.get(rw.rod)
+				-- the rod's stats under the chips
+				Sim.text(strip, ('EXCLUSIVE ROD: <font color="#FF9CF0">%s</font>'):format(rod.name), { Size = UDim2.fromOffset(SW - 270, 22), Position = UDim2.fromOffset(12, 76),
+					AnchorPoint = Vector2.new(0, 0.5), AlignX = Enum.TextXAlignment.Left, Max = 20, Stroke = 2.5, Rich = true, ZIndex = 7 })
+				Sim.text(strip, ('<font color="#3CB4FF">x%.2f</font> Speed   <font color="#7CFF46">x%.2f</font> Luck   <font color="#C8C8D2">never sold</font>'):format(rod.speed, rod.luck),
+					{ Size = UDim2.fromOffset(SW - 270, 18), Position = UDim2.fromOffset(12, 102), AnchorPoint = Vector2.new(0, 0.5), AlignX = Enum.TextXAlignment.Left,
+						Max = 16, Stroke = 2, Rich = true, ZIndex = 7 })
+				-- the SHOWCASE: a studded display case, the real 3D rod floating, turning, flourishing
+				local case = new("ImageButton", { Name = "RodCase", AutoButtonColor = false, Image = "", BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
+					Size = UDim2.fromOffset(232, 114), Position = UDim2.fromOffset(SW - 240, 7), ZIndex = 6, ClipsDescendants = true }, strip)
+				Sim.gradient(case, if claimed then { RGB(120, 120, 128), RGB(60, 60, 68) } else accent, 90)
+				Sim.corner(case, 4)
+				Sim.stroke(case, 3, if indexSel == "rod:" .. rw.rod then Color3.new(1, 1, 1) else nil)
+				Sim.studs(case, { tile = 22, transparency = 0.7, z = 6 })
+				Sim.bands(case, 0.55, 6)
+				-- a stud pedestal at the bottom of the case
+				local ped = new("Frame", { BackgroundColor3 = RGB(36, 36, 40), BorderSizePixel = 0, Size = UDim2.fromOffset(120, 12), Position = UDim2.new(0.5, 0, 1, -8),
+					AnchorPoint = Vector2.new(0.5, 1), ZIndex = 7 }, case)
+				Sim.corner(ped, 3)
+				Sim.stroke(ped, 2)
+				Sim.model(case, { kind = "Rod", id = rw.rod, showcase = true, tilt = 0.55, zoom = 0.62, size = UDim2.fromOffset(150, 150),
+					position = UDim2.new(0.5, 0, 0.5, -2), zindex = 8 })
+				Sim.text(case, if claimed then "OWNED" else "EXCLUSIVE", { Size = UDim2.fromOffset(110, 18), Position = UDim2.fromOffset(8, 12), AnchorPoint = Vector2.new(0, 0.5),
+					AlignX = Enum.TextXAlignment.Left, Max = 16, Stroke = 2.5, ZIndex = 9, Gradient = { RGB(255, 255, 255), RGB(255, 200, 60) } })
+				if not claimed then K.shine(case, 2.6) end
+				new("UIScale", { Name = "ButtonScale" }, case)
+				Motion.BindButton(case, 1.04, Sim.sounds, function()
+					indexSel = "rod:" .. rw.rod
+					renderers.Index(false)
+				end)
+			end
+			-- 3 · the tiles (background = the RARITY colour, dim while not found)
+			local gridHolder = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(SW, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 3 }, sec)
+			new("UIPadding", { PaddingTop = UDim.new(0, 8) }, gridHolder)
+			local grid = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(SW, 0), AutomaticSize = Enum.AutomaticSize.Y }, gridHolder)
+			new("UIGridLayout", { CellSize = UDim2.fromOffset(98, 112), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder,
+				HorizontalAlignment = Enum.HorizontalAlignment.Left }, grid)
 			for ti, id in s.ids do
 				firstId = firstId or id
 				local entry = book[id]
@@ -570,14 +670,21 @@ local function buildIndex()
 				if not found then
 					pair = { pair[1]:Lerp(RGB(40, 40, 46), 0.62), pair[2]:Lerp(RGB(24, 24, 28), 0.62) }
 				end
-				local tile = new("ImageButton", { Name = id, AutoButtonColor = false, Image = "", BackgroundColor3 = Color3.new(1, 1, 1), LayoutOrder = ti, ZIndex = 5 }, grid)
+				local sel = indexSel == id
+				local tile = new("ImageButton", { Name = id, AutoButtonColor = false, Image = "", BackgroundColor3 = Color3.new(1, 1, 1), LayoutOrder = ti, ZIndex = 5,
+					ClipsDescendants = true }, grid)
 				Sim.gradient(tile, pair, 90)
 				Sim.corner(tile, 4)
-				Sim.stroke(tile, if indexSel == id then 4 else 3, if indexSel == id then Color3.new(1, 1, 1) elseif indexVar and found then VAR_LOOK[indexVar][2] else nil)
-				Sim.studs(tile, { tile = 22, transparency = 0.75, z = 5 })
+				Sim.stroke(tile, if sel then 4 else 3, if sel then Color3.new(1, 1, 1) elseif indexVar and found then VAR_LOOK[indexVar][2] else nil)
+				Sim.studs(tile, { tile = 20, transparency = 0.75, z = 5 })
 				Sim.model(tile, { kind = if isFish then "Fish" else "Bear", id = id, variant = if indexVar and found then indexVar else nil, silhouette = not found,
-					size = UDim2.fromScale(0.95, 0.8), position = UDim2.fromScale(0.5, 0.55) })
-				Sim.text(tile, if found or entry then spec.name else "???", { Size = UDim2.new(1, -6, 0, 22), Position = UDim2.new(0.5, 0, 0, 14), Max = 18, ZIndex = 9 })
+					size = UDim2.fromScale(1.0, 0.86), position = UDim2.new(0.5, 0, 0.44, 0) })
+				-- name plate along the bottom
+				local plate = new("Frame", { BackgroundColor3 = RGB(26, 26, 30), BackgroundTransparency = 0.15, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 24),
+					Position = UDim2.new(0, 0, 1, -24), ZIndex = 9 }, tile)
+				Sim.text(plate, if found or entry then spec.name else "???", { Size = UDim2.new(1, -8, 0.8, 0), Max = 15, Stroke = 2, ZIndex = 10,
+					Color = if found then (Sim.RARITY_TEXT[rar] or Color3.new(1, 1, 1)) else RGB(170, 170, 180) })
+				if rar == "Secret" and found then plate.BackgroundColor3 = RGB(220, 220, 228) end
 				new("UIScale", { Name = "ButtonScale" }, tile)
 				Motion.BindButton(tile, 1.06, Sim.sounds, function()
 					indexSel = id
@@ -585,32 +692,45 @@ local function buildIndex()
 				end)
 			end
 		end
-		-- detail panel (right)
-		local id = indexSel or firstId
-		if id then
+
+		-- DETAIL CARD (right) -----------------------------------------------------------------
+		local sel = indexSel or firstId
+		local rodSel = if type(sel) == "string" and string.sub(sel, 1, 4) == "rod:" then string.sub(sel, 5) else nil
+		if rodSel and RodConfig.get(rodSel) then
+			local rod = RodConfig.get(rodSel)
+			local card, centre = Sim.card(w.content, { Size = Vector2.new(268, 380), Rarity = "Legendary", Title = rod.name, RarityText = "EXCLUSIVE ROD", CenterTop = 76, CenterCut = 196 })
+			card.Position = UDim2.fromOffset(CW - 268 - 8, 64)
+			Sim.model(centre, { kind = "Rod", id = rodSel, showcase = true, tilt = 0.4, zoom = 0.6, size = UDim2.fromScale(1.15, 1.15) })
+			K.shine(card, 3)
+			Sim.infoBar(card, ('<font color="#3CB4FF">x%.2f</font> Speed'):format(rod.speed), { Size = UDim2.fromOffset(244, 32), Position = UDim2.fromOffset(134, 278), ZIndex = 6 })
+			Sim.infoBar(card, ('<font color="#7CFF46">x%.2f</font> Luck'):format(rod.luck), { Size = UDim2.fromOffset(244, 32), Position = UDim2.fromOffset(134, 314), ZIndex = 6 })
+			Sim.infoBar(card, rod.desc or "Index reward", { Size = UDim2.fromOffset(244, 30), Position = UDim2.fromOffset(134, 350), Max = 16, ZIndex = 6 })
+		elseif sel then
+			local id = sel
 			local entry = book[id]
 			local found = IndexConfig.found(index, indexCat, id, indexVar)
 			local spec = if isFish then FishConfig.get(id) else BearConfig.get(id)
-			local rar = if isFish then spec.rarity else (spec.fixedRarity or bestRarity(entry) or "Common")
-			local card, centre = Sim.card(w.content, { Size = Vector2.new(250, 370), Rarity = if found then rar else "Secret", Title = if found or entry then spec.name else "???",
-				RarityText = if isFish or entry then RarityConfig.get(rar).name else "Bear", CenterTop = 76, CenterCut = 180 })
-			card.Position = UDim2.fromOffset(548, 12)
-			Sim.model(centre, { kind = if isFish then "Fish" else "Bear", id = id, variant = if indexVar and found then indexVar else nil, silhouette = not found, spin = found,
-				size = UDim2.fromScale(1, 1.1) })
-			local info = if entry then ("Caught %d"):format(entry.n) else "Not found"
-			Sim.infoBar(card, info, { Size = UDim2.fromOffset(226, 34), Position = UDim2.fromOffset(125, 272), ZIndex = 6 })
-			Sim.infoBar(card, if entry then ('Best <font color="#FFD23F">%s</font>'):format(Format.kg(entry.best)) else "???", { Size = UDim2.fromOffset(226, 34), Position = UDim2.fromOffset(125, 310), ZIndex = 6 })
-			-- mutations found for this species
-			local mut = {}
-			if entry and entry.v then
-				for _, v in IndexConfig.Variants do
-					if entry.v[v] then table.insert(mut, v) end
+			if spec then
+				local rar = if isFish then spec.rarity else (spec.fixedRarity or bestRarity(entry) or "Common")
+				local card, centre = Sim.card(w.content, { Size = Vector2.new(268, 380), Rarity = if found then rar else "Secret", Title = if found or entry then spec.name else "???",
+					RarityText = if isFish or entry then RarityConfig.get(rar).name else "Bear", CenterTop = 76, CenterCut = 196 })
+				card.Position = UDim2.fromOffset(CW - 268 - 8, 64)
+				Sim.model(centre, { kind = if isFish then "Fish" else "Bear", id = id, variant = if indexVar and found then indexVar else nil, silhouette = not found, spin = found,
+					size = UDim2.fromScale(1, 1.1) })
+				Sim.infoBar(card, if entry then ("Caught %d"):format(entry.n) else "Not found", { Size = UDim2.fromOffset(244, 32), Position = UDim2.fromOffset(134, 278), ZIndex = 6 })
+				Sim.infoBar(card, if entry then ('Best <font color="#FFD23F">%s</font>'):format(Format.kg(entry.best)) else "???", { Size = UDim2.fromOffset(244, 32), Position = UDim2.fromOffset(134, 314), ZIndex = 6 })
+				local mut = {}
+				if entry and entry.v then
+					for _, v in IndexConfig.Variants do
+						if entry.v[v] then table.insert(mut, v) end
+					end
 				end
+				Sim.infoBar(card, if #mut > 0 then table.concat(mut, " · ") else "No mutation yet", { Size = UDim2.fromOffset(244, 30), Position = UDim2.fromOffset(134, 350), Max = 16, ZIndex = 6 })
 			end
-			Sim.infoBar(card, if #mut > 0 then table.concat(mut, " · ") else "No mutation yet", { Size = UDim2.fromOffset(226, 30), Position = UDim2.fromOffset(125, 346), Max = 16, ZIndex = 6 })
 		end
 		if animate then K.cascade(list, 0.04) end
 	end
+
 	-- a section reward was claimed: celebration
 	Net.event("IndexReward").OnClientEvent:Connect(function(rw)
 		local ok, Cine = pcall(require, script.Parent.Parent.Controllers.CinematicFx)
@@ -621,7 +741,91 @@ local function buildIndex()
 			Cine.banner(rw.title .. " COMPLETE!", if rw.variant then VAR_LOOK[rw.variant][1] else RGB(255, 220, 90), sub)
 		end
 		if w.menu.IsOpen then renderers.Index(false) end
+		if rw.rodId and RodConfig.get(rw.rodId) then
+			Menus.rodReveal(rw.rodId)
+		end
 	end)
+end
+
+-- EXCLUSIVE ROD unlocked: a full-screen trophy reveal (the real 3D rod in a studded display
+-- case: pops in, flourish spins, stud confetti, stats slide in; tap or wait to close)
+function Menus.rodReveal(rodId: string)
+	local TweenService = game:GetService("TweenService")
+	local rod = RodConfig.get(rodId)
+	local gui = new("ScreenGui", { Name = "RodReveal", ResetOnSpawn = false, DisplayOrder = 40, IgnoreGuiInset = true, ZIndexBehavior = Enum.ZIndexBehavior.Sibling },
+		player:WaitForChild("PlayerGui"))
+	local function tw(o, t, goal, style, dir)
+		local x = TweenService:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Quint, dir or Enum.EasingDirection.Out), goal)
+		x:Play()
+		return x
+	end
+	local shade = new("TextButton", { Text = "", AutoButtonColor = false, BackgroundColor3 = RGB(8, 8, 12), BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 1 }, gui)
+	tw(shade, 0.4, { BackgroundTransparency = 0.35 })
+	local root = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(520, 560), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 2 }, gui)
+	local rs = new("UIScale", {}, root)
+	Motion.BindResponsive(rs, 0.95)
+	local pop = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 2 }, root)
+	local ps = new("UIScale", { Scale = 0.2 }, pop)
+	-- title
+	local title = Sim.text(pop, "EXCLUSIVE ROD UNLOCKED!", { Size = UDim2.fromOffset(520, 50), Position = UDim2.fromOffset(260, 30), Max = 44, Stroke = 4,
+		Gradient = { RGB(255, 250, 200), RGB(255, 170, 30) }, ZIndex = 8 })
+	-- the display case
+	local case = Sim.panel(pop, { Size = UDim2.fromOffset(380, 380), Position = UDim2.fromOffset(70, 70), Gradient = { RGB(255, 226, 120), RGB(214, 120, 20) }, Stroke = 5, ZIndex = 3, Tile = 34 })
+	case.ClipsDescendants = true
+	Sim.bands(case, 0.6, 3)
+	local inner = Sim.panel(case, { Size = UDim2.new(1, -24, 1, -24), Position = UDim2.fromOffset(12, 12), Color = RGB(40, 34, 44), DarkStuds = true, Stroke = 3, ZIndex = 4 })
+	local ped = Sim.panel(inner, { Size = UDim2.fromOffset(200, 26), Position = UDim2.new(0.5, 0, 1, -14), AnchorPoint = Vector2.new(0.5, 1), Gradient = Sim.G.gold, Stroke = 3, ZIndex = 5 })
+	local _ = ped
+	Sim.model(inner, { kind = "Rod", id = rodId, showcase = true, tilt = 0.5, zoom = 0.56, size = UDim2.fromScale(1.1, 1.1), position = UDim2.fromScale(0.5, 0.48), zindex = 6 })
+	K.shine(case, 1.6)
+	-- name + stats
+	local name = Sim.text(pop, rod.name, { Size = UDim2.fromOffset(480, 46), Position = UDim2.fromOffset(260, 482), Max = 42, Stroke = 4, ZIndex = 8,
+		Gradient = { RGB(255, 200, 250), RGB(220, 90, 255) } })
+	local stats = Sim.infoBar(pop, ('<font color="#3CB4FF">x%.2f</font> Speed    <font color="#7CFF46">x%.2f</font> Luck'):format(rod.speed, rod.luck),
+		{ Size = UDim2.fromOffset(340, 40), Position = UDim2.fromOffset(260, 534), Max = 26, ZIndex = 8 })
+	-- choreography: case slams in (overshoot), title drops, name and stats slide up
+	tw(ps, 0.55, { Scale = 1 }, Enum.EasingStyle.Back)
+	title.Position = UDim2.fromOffset(260, -30)
+	tw(title, 0.6, { Position = UDim2.fromOffset(260, 30) }, Enum.EasingStyle.Back)
+	for i, o in { name, stats } do
+		local y = o.Position.Y.Offset
+		o.Position = UDim2.fromOffset(260, y + 60)
+		task.delay(0.25 + i * 0.12, function()
+			if o.Parent then tw(o, 0.45, { Position = UDim2.fromOffset(260, y) }, Enum.EasingStyle.Back) end
+		end)
+	end
+	-- stud confetti bursting out of the case
+	local colors = { RGB(255, 210, 60), RGB(255, 120, 200), RGB(120, 220, 255), RGB(140, 255, 90), RGB(255, 255, 255) }
+	for i = 1, 46 do
+		local sz = math.random(10, 18)
+		local bit = new("Frame", { BackgroundColor3 = colors[(i % #colors) + 1], BorderSizePixel = 0, Size = UDim2.fromOffset(sz, sz), Position = UDim2.fromOffset(260, 260),
+			AnchorPoint = Vector2.new(0.5, 0.5), Rotation = math.random(0, 90), ZIndex = 9 }, root)
+		Sim.corner(bit, 3)
+		Sim.stroke(bit, 2)
+		local a = math.random() * math.pi * 2
+		local dist = 220 + math.random() * 200
+		local tx, ty = 260 + math.cos(a) * dist, 260 + math.sin(a) * dist * 0.8
+		task.delay(0.1 + math.random() * 0.15, function()
+			if not bit.Parent then return end
+			tw(bit, 0.9, { Position = UDim2.fromOffset(tx, ty), Rotation = bit.Rotation + math.random(-360, 360) }, Enum.EasingStyle.Quart)
+			task.delay(0.9, function()
+				if bit.Parent then
+					tw(bit, 0.8, { Position = UDim2.fromOffset(tx, ty + 160), BackgroundTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+					task.delay(0.85, function() bit:Destroy() end)
+				end
+			end)
+		end)
+	end
+	local closed = false
+	local function close()
+		if closed then return end
+		closed = true
+		tw(ps, 0.3, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+		tw(shade, 0.35, { BackgroundTransparency = 1 })
+		task.delay(0.4, function() gui:Destroy() end)
+	end
+	shade.Activated:Connect(close)
+	task.delay(6, close)
 end
 
 ------------------------------------------------------------------------------------------

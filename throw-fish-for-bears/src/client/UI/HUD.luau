@@ -91,8 +91,8 @@ local function buildLeft()
 end
 
 local function buildRight()
-	local root = Sim.root(gui, "Right", Vector2.new(420, 340), UDim2.new(1, -12, 0.45, 0), Vector2.new(1, 0.5))
-	local tiles = new("Frame", { Name = "Tiles", BackgroundTransparency = 1, Size = UDim2.fromOffset(100, 330), Position = UDim2.fromOffset(318, 5) }, root)
+	local root = Sim.root(gui, "Right", Vector2.new(492, 340), UDim2.new(1, -12, 0.45, 0), Vector2.new(1, 0.5))
+	local tiles = new("Frame", { Name = "Tiles", BackgroundTransparency = 1, Size = UDim2.fromOffset(100, 330), Position = UDim2.fromOffset(390, 5) }, root)
 	local function tile(name, grad, icon, y, open)
 		local b = Sim.button(tiles, { Name = name, Grad = grad, Size = Vector2.new(84, 84), Position = UDim2.fromOffset(50, y), Hover = 1.07 },
 			function()
@@ -115,17 +115,20 @@ local function buildRight()
 
 	local tab = Sim.button(root, { Name = "PanelTab", Grad = "red", Size = Vector2.new(46, 64), Position = UDim2.fromOffset(34, 164), Text = "<", Max = 40 })
 	tab.Visible = false -- the red arrow only exists while the Bears panel is open
-	local panel = new("Frame", { Name = "BearsPanel", BackgroundColor3 = RGB(52, 52, 56), Size = UDim2.fromOffset(350, 300),
+	local panel = new("Frame", { Name = "BearsPanel", BackgroundColor3 = RGB(52, 52, 56), Size = UDim2.fromOffset(420, 300),
 		Position = UDim2.fromOffset(66, 6), Visible = false, ZIndex = 3 }, root)
 	Sim.corner(panel, 4)
 	Sim.stroke(panel, 4)
 	Sim.studs(panel, { dark = true, tile = 26, z = 3 })
-	local head = Sim.panel(panel, { Size = UDim2.fromOffset(338, 50), Position = UDim2.fromOffset(6, 6), Gradient = Sim.G.yellow, ZIndex = 4 })
-	refs.panelTitle = Sim.text(head, "0/5 Active", { Size = UDim2.fromOffset(160, 38), Position = UDim2.fromOffset(12, 25), AnchorPoint = Vector2.new(0, 0.5),
+	local head = Sim.panel(panel, { Size = UDim2.fromOffset(408, 50), Position = UDim2.fromOffset(6, 6), Gradient = Sim.G.yellow, ZIndex = 4 })
+	refs.panelTitle = Sim.text(head, "0/5 Active", { Size = UDim2.fromOffset(122, 38), Position = UDim2.fromOffset(12, 25), AnchorPoint = Vector2.new(0, 0.5),
 		AlignX = Enum.TextXAlignment.Left, Max = 30, ZIndex = 6 })
-	refs.slotButton = Sim.button(head, { Name = "Slot", Grad = "green", Size = Vector2.new(150, 38), Position = UDim2.fromOffset(256, 25), Text = "+1 Slot", Max = 20, ZIndex = 6 },
+	refs.slotButton = Sim.button(head, { Name = "Slot", Grad = "green", Size = Vector2.new(140, 38), Position = UDim2.fromOffset(206, 25), Text = "+1 Slot", Max = 20, ZIndex = 6 },
 		function() Net.event("UpgradeCapacity"):FireServer() end)
-	local list = new("ScrollingFrame", { BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromOffset(338, 232), Position = UDim2.fromOffset(6, 62),
+	-- top right: put your best bears in the base in one click
+	Sim.button(head, { Name = "EquipBest", Grad = "green", Size = Vector2.new(118, 38), Position = UDim2.fromOffset(343, 25), Text = "Equip Best", Max = 18, ZIndex = 6 },
+		function() Net.event("EquipBest"):FireServer() end)
+	local list = new("ScrollingFrame", { BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromOffset(408, 232), Position = UDim2.fromOffset(6, 62),
 		CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6, ZIndex = 4 }, panel)
 	new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, list)
 	refs.panelList = list
@@ -158,15 +161,15 @@ function HUD.renderPanel()
 	end
 	table.sort(bears, function(a, b) return Formulas.bearIncome(a) > Formulas.bearIncome(b) end)
 	for i, b in bears do
-		local row = Sim.panel(list, { Name = "Row" .. i, Size = UDim2.fromOffset(326, 66), Gradient = Sim.G.gold, LayoutOrder = i, ZIndex = 5 })
+		local row = Sim.panel(list, { Name = "Row" .. i, Size = UDim2.fromOffset(396, 66), Gradient = Sim.G.gold, LayoutOrder = i, ZIndex = 5 })
 		local pic = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(60, 60), Position = UDim2.fromOffset(4, 3), ZIndex = 6 }, row)
 		Sim.model(pic, { kind = "Bear", id = b.s, variant = b.v, size = UDim2.fromScale(1, 1) })
-		Sim.text(row, BearConfig.get(b.s).name, { Size = UDim2.fromOffset(150, 26), Position = UDim2.fromOffset(68, 20), AnchorPoint = Vector2.new(0, 0.5),
+		Sim.text(row, BearConfig.get(b.s).name, { Size = UDim2.fromOffset(200, 26), Position = UDim2.fromOffset(68, 20), AnchorPoint = Vector2.new(0, 0.5),
 			AlignX = Enum.TextXAlignment.Left, Max = 22, Color = Sim.RARITY_TEXT[b.r] or Color3.new(1, 1, 1), ZIndex = 8 })
 		Sim.text(row, "(" .. Format.perSec(Formulas.bearIncome(b)) .. ")", { Size = UDim2.fromOffset(150, 24), Position = UDim2.fromOffset(68, 46), AnchorPoint = Vector2.new(0, 0.5),
 			AlignX = Enum.TextXAlignment.Left, Max = 20, Color = RGB(120, 255, 70), ZIndex = 8 })
-		Sim.button(row, { Name = "Pick", Grad = "red", Size = Vector2.new(100, 42), Position = UDim2.fromOffset(268, 33), Text = "Pick Up", Max = 20, ZIndex = 7 },
-			function() Net.event("PickupBear"):FireServer(b.id) end)
+		Sim.button(row, { Name = "Unequip", Grad = "yellow", Size = Vector2.new(112, 42), Position = UDim2.fromOffset(330, 33), Text = "Unequip", Max = 20, ZIndex = 7 },
+			function() Net.event("UnequipBear"):FireServer(b.id) end)
 	end
 	K.cascade(list, 0.03)
 end

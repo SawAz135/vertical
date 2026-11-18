@@ -31,7 +31,7 @@ Layout.BASE_GATE_WIDTH = 16 -- openings in the front and rear fences
 
 -- Lake / docks ------------------------------------------------------------
 Layout.SAND = { minX = -198, maxX = 198, minZ = 160, maxZ = 184 }
-Layout.LAKE = { minX = -300, maxX = 300, minZ = 184, maxZ = 360 }
+Layout.LAKE = { minX = -203, maxX = 203, minZ = 184, maxZ = 360 }
 Layout.WATER_Y = -1.2
 Layout.DOCK_START_Z = 180
 Layout.DOCK_END_Z = 238

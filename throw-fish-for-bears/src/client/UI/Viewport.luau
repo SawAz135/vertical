@@ -96,6 +96,19 @@ function Viewport.create(parent: GuiObject, opts)
 	vp.Parent = parent
 	if alive then
 		Animator.trackUI(model, vp, opts.kind, opts.id)
+	elseif opts.showcase then
+		-- SHOWCASE (index rewards): the model floats on a fixed frame, tilted like a trophy,
+		-- turns slowly, sways and bobs, and every few seconds does a fast full flourish spin
+		if opts.kind == "Rod" then
+			-- stand the rod up (its axis is -Z): a trophy, tip to the sky
+			model:PivotTo(CFrame.Angles(math.pi / 2, 0, 0) * model:GetPivot())
+			yaw = opts.yaw or 0
+		end
+		local cf, size = model:GetBoundingBox()
+		local entry = { vp = vp, model = model, showcase = true, t = math.random() * 3, yaw = yaw, pitch = pitch, zoom = zoom,
+			center = cf.Position, radius = size.Magnitude / 2, rest = model:GetPivot(), tilt = opts.tilt or 0 }
+		spinning[vp] = entry
+		vp.Destroying:Connect(function() spinning[vp] = nil end)
 	elseif opts.spin then
 		local entry = { vp = vp, model = model, yaw = yaw, pitch = pitch, zoom = zoom, speed = opts.spinSpeed or 0.8 }
 		spinning[vp] = entry
@@ -112,7 +125,31 @@ end
 
 RunService.RenderStepped:Connect(function(dt)
 	for vp, e in spinning do
-		if vp.Parent and vp.Visible and vp.AbsoluteSize.X > 1 then
+		if e.showcase then
+			if vp.Parent and vp.Visible and vp.AbsoluteSize.X > 1 then
+				e.t += dt
+				local t = e.t
+				local PERIOD = 5.5
+				local k = (t % PERIOD) - (PERIOD - 1.1) -- the last 1.1 s of each cycle: flourish
+				local flourish = 0
+				if k > 0 then
+					local u = k / 1.1
+					flourish = (if u < 0.5 then 4 * u * u * u else 1 - (-2 * u + 2) ^ 3 / 2) * math.pi * 2
+				end
+				local spin = t * 0.55 + flourish
+				local bob = math.sin(t * 1.7) * e.radius * 0.05
+				local sway = math.sin(t * 1.1) * 0.14
+				-- the model turns around its own centre (tilted diagonally), the camera stays still
+				local c = e.center
+				e.model:PivotTo(CFrame.new(c + Vector3.new(0, bob, 0)) * CFrame.Angles(0, 0, e.tilt + sway) * CFrame.Angles(0, spin, 0)
+					* CFrame.new(-c) * e.rest)
+				local cam = vp.CurrentCamera
+				local fov = math.rad(cam.FieldOfView)
+				local dist = e.radius / math.sin(fov / 2) * e.zoom
+				local rot = CFrame.Angles(0, e.yaw, 0) * CFrame.Angles(-(e.pitch + math.sin(t * 0.8) * 0.06), 0, 0)
+				cam.CFrame = CFrame.lookAt(c + rot:VectorToWorldSpace(Vector3.new(0, 0, -dist)), c)
+			end
+		elseif vp.Parent and vp.Visible and vp.AbsoluteSize.X > 1 then
 			e.yaw += dt * e.speed
 			fit(vp, e.model, e.yaw, e.pitch, e.zoom)
 		end

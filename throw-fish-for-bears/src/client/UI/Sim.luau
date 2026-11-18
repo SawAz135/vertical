@@ -333,7 +333,7 @@ function Sim.window(opts)
 	Sim.stroke(body, 2, RGB(20, 20, 22))
 	Sim.studs(body, { dark = true, tile = 30, transparency = 0.45, z = 2 })
 	local content = new("Frame", { Name = "Content", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 3 }, body)
-	local menu = Motion.Window(gui, frame, { Keep = { Overlay = true, ReturnHUD = true }, OnOpen = opts.onOpen })
+	local menu = Motion.Window(gui, frame, { Keep = { Overlay = true, ReturnHUD = true }, OnOpen = opts.onOpen, Size = opts.factor })
 	-- Motion.Window binds the close button it finds named "Fermer" (ours) and plays the sounds
 	local _ = close
 	return { gui = gui, frame = frame, header = header, titleRoot = titleRoot, body = body, content = content, menu = menu, W = W, H = H, HH = HH }
