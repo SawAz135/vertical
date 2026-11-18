@@ -72,8 +72,8 @@ function BearAI.spawn(params)
 	ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
 	ao.Attachment0 = att
 	ao.MaxTorque = 1e7
-	ao.MaxAngularVelocity = 6
-	ao.Responsiveness = 14
+	ao.MaxAngularVelocity = 4
+	ao.Responsiveness = 9
 	ao.CFrame = root.CFrame.Rotation
 	ao.Parent = root
 
@@ -113,6 +113,7 @@ end
 -- walk (or run) along waypoints; onArrive(agent) when done
 function Agent:moveTo(points: { Vector3 }, speed: number, gaitAnim: string, onArrive)
 	self.path = points
+	self.heading = nil
 	self.maxSpeed = speed * math.max(0.75, self.scale ^ 0.5)
 	self.onArrive = onArrive
 	self.state = "Move"
@@ -249,15 +250,41 @@ function Agent:tick(dt: number)
 			end
 			target = self.path[1]
 		end
-		-- accelerate toward max speed
-		self.speed = math.min(self.maxSpeed, self.speed + self.maxSpeed * dt * 1.8)
-		-- slow down near the final waypoint
-		if #self.path == 1 then
-			self.speed = math.min(self.speed, math.max(2.5, dist * 2.2))
+		-- NATURAL STEERING (no more robot lines): the bear has a heading that turns toward
+		-- the path at a limited rate (slower when running -> it ARCS through turns), it cuts
+		-- corners toward the next waypoint, slows down for sharp turns and eases its speed
+		local hd = self.heading
+		if not hd then
+			local lv = self.root.CFrame.LookVector
+			hd = Vector3.new(lv.X, 0, lv.Z)
+			hd = if hd.Magnitude > 0.05 then hd.Unit else flat.Unit
 		end
+		local aim = target
+		if #self.path >= 2 and dist < 4 + self.speed * 0.35 then
+			aim = target:Lerp(self.path[2], 0.5) -- corner cutting
+		end
+		local want = Vector3.new(aim.X - pos.X, 0, aim.Z - pos.Z)
+		want = if want.Magnitude > 0.05 then want.Unit else hd
+		local ang = math.atan2(hd:Cross(want).Y, hd:Dot(want)) -- signed turn needed
+		local turnRate = 4.2 / (1 + self.speed / 16)
+		local stepA = math.clamp(ang, -turnRate * dt, turnRate * dt)
+		hd = CFrame.Angles(0, stepA, 0):VectorToWorldSpace(hd)
+		self.heading = hd
+		-- speed: ease toward the max, slower in sharp turns, soft arrival
+		local turnSlow = 1 - 0.6 * math.clamp(math.abs(ang) / 1.6, 0, 1)
+		local wantSpeed = self.maxSpeed * turnSlow
+		if #self.path == 1 then wantSpeed = math.min(wantSpeed, math.max(2.2, dist * 1.9)) end
+		local rate = if wantSpeed > self.speed then self.maxSpeed * 1.3 else self.maxSpeed * 2.6
+		self.speed += math.clamp(wantSpeed - self.speed, -rate * dt, rate * dt)
+		self.speed = math.max(self.speed, 1.5)
 		self.ap.MaxVelocity = self.speed
-		self.ap.Position = self:ground(target)
-		self:face(target)
+		if dist < 2.2 or math.abs(ang) > 2.6 and dist < 5 then
+			-- very close (or the target is right behind): go straight to it, no orbiting
+			self.ap.Position = self:ground(target)
+		else
+			self.ap.Position = self:ground(pos + hd * math.max(1.5, self.speed * 0.4))
+		end
+		self.ao.CFrame = CFrame.lookAt(Vector3.zero, hd)
 		-- stuck detection
 		if dist > self.lastDist - 0.05 * dt * 10 then
 			self.stuck += dt
@@ -336,7 +363,7 @@ end
 local acc = 0
 RunService.Heartbeat:Connect(function(dt)
 	acc += dt
-	if acc < 0.1 then return end
+	if acc < 0.05 then return end
 	local step = acc
 	acc = 0
 	for a in agents do

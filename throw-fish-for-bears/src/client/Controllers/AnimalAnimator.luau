@@ -606,6 +606,26 @@ local function updateBear(e, dt, now)
 	local animT = now - (model:GetAttribute("AnimT") or 0)
 	local p = newPose()
 	local moving = locomotion(p, e, t, s, e.speed, dt)
+	-- NATURAL BODY ACTING while moving: lean INTO turns, head turns ahead into the turn,
+	-- sit back when braking, push forward when accelerating
+	if dt > 0 then
+		local lv = root.CFrame.LookVector
+		local yaw = math.atan2(-lv.X, -lv.Z)
+		if e.lastYaw then
+			local dy = (yaw - e.lastYaw + math.pi) % TAU - math.pi
+			e.yawRate = (e.yawRate or 0) + (dy / dt - (e.yawRate or 0)) * Easing.damp(6, dt)
+		end
+		e.lastYaw = yaw
+		local acc = (e.speed - (e.lastSpeed or e.speed)) / dt
+		e.lastSpeed = e.speed
+		e.accel = (e.accel or 0) + (acc - (e.accel or 0)) * Easing.damp(5, dt)
+		if moving > 0.05 then
+			local yr = clamp(e.yawRate or 0, -3, 3)
+			rot(p, "BodyJoint", -clamp(e.accel * 0.006, -0.1, 0.1) * moving, 0, clamp(yr * 0.07, -0.18, 0.18) * moving)
+			rot(p, "Neck", 0, clamp(yr * 0.22, -0.45, 0.45) * moving, clamp(yr * 0.04, -0.1, 0.1) * moving)
+			rot(p, "Tail", 0, -clamp(yr * 0.2, -0.5, 0.5) * moving)
+		end
+	end
 	local stateFn = STATES[anim]
 	e.eyesClosed = false
 	if stateFn and moving < 0.6 then

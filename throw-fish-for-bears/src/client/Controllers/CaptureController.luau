@@ -617,7 +617,7 @@ end
 local function buildStageUi()
 	local g = Sim.new("ScreenGui", { Name = "TFBRevealStages", ResetOnSpawn = false, DisplayOrder = 13, IgnoreGuiInset = true,
 		ScreenInsets = Enum.ScreenInsets.None, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
-	local root = Sim.root(g, "Stages", Vector2.new(640, 260), UDim2.new(0.5, 0, 0.11, 4), Vector2.new(0.5, 0))
+	local root = Sim.root(g, "Stages", Vector2.new(640, 280), UDim2.new(0.5, 0, 0.11, 4), Vector2.new(0.5, 0))
 	local inner = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, root)
 	local innerScale = Sim.new("UIScale", { Scale = 1 }, inner)
 	-- results line (text only)
@@ -625,81 +625,155 @@ local function buildStageUi()
 	Sim.new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 14), SortOrder = Enum.SortOrder.LayoutOrder }, row)
 	-- the stage block
-	local block = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(640, 170), Position = UDim2.fromOffset(0, 44) }, inner)
+	local BLOCK_Y = 44
+	local block = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(640, 196), Position = UDim2.fromOffset(0, BLOCK_Y) }, inner)
 	local blockScale = Sim.new("UIScale", { Scale = 0 }, block)
 	local title = Sim.text(block, "", { Size = UDim2.fromOffset(560, 30), Position = UDim2.fromOffset(320, 16), Max = 26, Stroke = 3.5, ZIndex = 7 })
 	local tGrad = Sim.gradient(title, { Color3.new(1, 1, 1), Color3.new(1, 1, 1) }, 90)
-	-- accent line under the title (draws itself from the centre)
 	local line = Sim.new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromOffset(0, 3),
 		Position = UDim2.fromOffset(320, 36), AnchorPoint = Vector2.new(0.5, 0), ZIndex = 6 }, block)
-	local lGrad = Sim.new("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(1, 1) }) }, line)
-	local _ = lGrad
-	local value = Sim.text(block, "", { Size = UDim2.fromOffset(620, 100), Position = UDim2.fromOffset(320, 98), Max = 92, Stroke = 7, ZIndex = 8 })
-	local vGrad = Sim.gradient(value, { Color3.new(1, 1, 1), Color3.new(1, 1, 1) }, 90)
-	local vScale = Sim.new("UIScale", {}, value)
-	-- shine: a second gradient pass on a copy of the value, swept across on the slam
-	local shine = Sim.text(block, "", { Size = UDim2.fromOffset(620, 100), Position = UDim2.fromOffset(320, 98), Max = 92, Stroke = 0, ZIndex = 9 })
-	local shineStroke = shine:FindFirstChildOfClass("UIStroke")
-	if shineStroke then shineStroke.Enabled = false end
-	shine.TextColor3 = Color3.new(1, 1, 1)
+	Sim.new("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(1, 1) }) }, line)
+	-- the VALUE: chunky 3D lettering (front face + 5 darker extrusion layers, like a toy block)
+	local VG_Y = 104
+	local vg = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(640, 120), Position = UDim2.fromOffset(320, VG_Y),
+		AnchorPoint = Vector2.new(0.5, 0.5) }, block)
+	local vScale = Sim.new("UIScale", {}, vg)
+	local DEPTH = 5
+	local layers = {}
+	for i = DEPTH, 1, -1 do
+		local l = Sim.text(vg, "", { Size = UDim2.fromOffset(620, 110), Position = UDim2.new(0.5, 0, 0.5, i * 2.4), Max = 96, Stroke = 6, ZIndex = 7 })
+		layers[i] = l
+	end
+	local front = Sim.text(vg, "", { Size = UDim2.fromOffset(620, 110), Position = UDim2.fromScale(0.5, 0.5), Max = 96, Stroke = 6, ZIndex = 8 })
+	local baseOff = {}
+	for i, l in layers do baseOff[l] = i * 2.4 end
+	baseOff[front] = 0
+	local fGrad = Sim.gradient(front, { Color3.new(1, 1, 1), Color3.new(1, 1, 1) }, 90)
+	-- shine: a white band swept across the front face on the slam
+	local shine = Sim.text(vg, "", { Size = UDim2.fromOffset(620, 110), Position = UDim2.fromScale(0.5, 0.5), Max = 96, Stroke = 0, ZIndex = 9 })
+	local shSt = shine:FindFirstChildOfClass("UIStroke")
+	if shSt then shSt.Enabled = false end
 	local sGrad = Sim.new("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.42, 1),
-		NumberSequenceKeypoint.new(0.5, 0.25), NumberSequenceKeypoint.new(0.58, 1), NumberSequenceKeypoint.new(1, 1) }), Rotation = 20, Offset = Vector2.new(-1, 0) }, shine)
-	local sScale = Sim.new("UIScale", {}, shine)
-	local stamp = Sim.text(inner, "", { Size = UDim2.fromOffset(520, 46), Position = UDim2.fromOffset(320, 232), Max = 40, Stroke = 5, ZIndex = 9,
+		NumberSequenceKeypoint.new(0.5, 0.2), NumberSequenceKeypoint.new(0.58, 1), NumberSequenceKeypoint.new(1, 1) }), Rotation = 20, Offset = Vector2.new(-1, 0) }, shine)
+	baseOff[shine] = 0
+	local stamp = Sim.text(inner, "", { Size = UDim2.fromOffset(520, 46), Position = UDim2.fromOffset(320, 256), Max = 40, Stroke = 5, ZIndex = 9,
 		Gradient = { Color3.fromRGB(255, 255, 210), Color3.fromRGB(255, 186, 20) } })
 	local ss = Sim.new("UIScale", { Scale = 0 }, stamp)
 	local function tw(o, t, goal, style, dir)
 		TweenService:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), goal):Play()
 	end
 	local ui = {}
-	local order = 0
-	local ver = 0
-	local tiltSign = 1
-	local accent = Color3.new(1, 1, 1)
+	local order, ver, tilt = 0, 0, 1
+	local suspense = 0
+	local hit = 0 -- decaying shake after a slam
+	local baseScale = 1
+	-- stud chips flying out of the value (UI, no glow)
+	local function burst(color: Color3)
+		for _ = 1, 16 do
+			local sz = math.random(10, 18)
+			local f = Sim.new("Frame", { BackgroundColor3 = if math.random() < 0.35 then Color3.new(1, 1, 1) else color, BorderSizePixel = 0,
+				Size = UDim2.fromOffset(sz, sz), Position = UDim2.fromOffset(320 + math.random(-90, 90), VG_Y + math.random(-20, 20)),
+				AnchorPoint = Vector2.new(0.5, 0.5), Rotation = math.random(0, 90), ZIndex = 10 }, block)
+			Sim.corner(f, 3)
+			Sim.stroke(f, 2)
+			local ang = math.random() * math.pi * 2
+			local dist = math.random(120, 260)
+			local dur = 0.55 + math.random() * 0.3
+			tw(f, dur, { Position = UDim2.fromOffset(320 + math.cos(ang) * dist, VG_Y + math.sin(ang) * dist * 0.55 + 30),
+				Rotation = f.Rotation + math.random(-260, 260), BackgroundTransparency = 1 }, Enum.EasingStyle.Quart)
+			local st2 = f:FindFirstChildOfClass("UIStroke")
+			if st2 then tw(st2, dur, { Transparency = 1 }) end
+			task.delay(dur + 0.05, function() f:Destroy() end)
+		end
+	end
+	local function paint(text: string, col: Color3)
+		front.Text = text
+		shine.Text = text
+		fGrad.Color = ColorSequence.new(col:Lerp(Color3.new(1, 1, 1), 0.6), col)
+		for i, l in layers do
+			l.Text = text
+			l.TextColor3 = col:Lerp(Color3.new(0, 0, 0), 0.45 + i * 0.07)
+		end
+	end
+	-- per-frame life: suspense pulse (heartbeat), tremble, decaying slam shake
+	local conn = RunService.RenderStepped:Connect(function(dt)
+		local t = os.clock()
+		hit = math.max(0, hit - dt * 3)
+		local beat = math.abs(math.sin(t * (3 + suspense * 7)))
+		local s = baseScale * (1 + suspense * 0.08 * beat ^ 6)
+		vScale.Scale = s
+		local j = suspense * 5 + hit * 14
+		vg.Position = UDim2.fromOffset(320 + math.noise(t * 22, 1) * j, VG_Y + math.noise(t * 22, 2) * j)
+		inner.Position = UDim2.fromOffset(math.noise(t * 18, 7) * hit * 6, math.noise(t * 18, 9) * hit * 6)
+	end)
 	function ui.stage(name: string, pair)
 		ver += 1
-		accent = pair[2]
-		title.Text = spaced(name)
+		suspense = 0
+		-- typewriter title (letter-spaced)
+		local full = spaced(name)
+		local myVer = ver
+		task.spawn(function()
+			local chars = {}
+			for _, cp in utf8.codes(full) do table.insert(chars, utf8.char(cp)) end
+			for i = 1, #chars do
+				if ver ~= myVer or not g.Parent then return end
+				title.Text = table.concat(chars, "", 1, i)
+				if chars[i] ~= " " then Sound.play("Tick", { pitch = 1.6 + i * 0.03, volume = 0.25 }) end
+				task.wait(0.025)
+			end
+		end)
 		tGrad.Color = ColorSequence.new(pair[1]:Lerp(Color3.new(1, 1, 1), 0.4), pair[1])
 		line.BackgroundColor3 = pair[1]
 		line.Size = UDim2.fromOffset(0, 3)
-		tw(line, 0.5, { Size = UDim2.fromOffset(300, 3) }, Enum.EasingStyle.Quint)
-		value.Text = ""
-		shine.Text = ""
-		value.Rotation = 0
-		block.Position = UDim2.fromOffset(0, 60)
-		blockScale.Scale = 0.6
+		tw(line, 0.5, { Size = UDim2.fromOffset(320, 3) }, Enum.EasingStyle.Quint)
+		paint("", Color3.new(1, 1, 1))
+		vg.Rotation = 0
+		baseScale = 1
+		block.Position = UDim2.fromOffset(0, BLOCK_Y + 24)
+		blockScale.Scale = 0.5
 		tw(blockScale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
-		tw(block, 0.4, { Position = UDim2.fromOffset(0, 44) }, Enum.EasingStyle.Quint)
+		tw(block, 0.4, { Position = UDim2.fromOffset(0, BLOCK_Y) }, Enum.EasingStyle.Quint)
 	end
-	-- color: the value's main colour; pop: a tick (small pop + alternating tilt)
+	-- a tick: the value ROLLS in from above like a slot reel, with a small alternating tilt
 	function ui.value(text: string, color: Color3?, pop: boolean?)
-		value.Text = text
-		shine.Text = text
-		local col = color or Color3.new(1, 1, 1)
-		vGrad.Color = ColorSequence.new(col:Lerp(Color3.new(1, 1, 1), 0.55), col)
+		paint(text, color or Color3.new(1, 1, 1))
 		if pop then
-			tiltSign = -tiltSign
-			vScale.Scale = 1.22
-			value.Rotation = 4 * tiltSign
-			tw(vScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
-			tw(value, 0.25, { Rotation = 0 }, Enum.EasingStyle.Back)
+			tilt = -tilt
+			vg.Rotation = 5 * tilt
+			tw(vg, 0.22, { Rotation = 0 }, Enum.EasingStyle.Back)
+			for l, y in baseOff do
+				l.Position = UDim2.new(0.5, 0, 0.5, y - 26)
+				tw(l, 0.14, { Position = UDim2.new(0.5, 0, 0.5, y) }, Enum.EasingStyle.Quad)
+			end
 		end
 	end
+	-- suspense 0..1: the value breathes with a racing heartbeat and trembles
+	function ui.suspense(k: number)
+		suspense = math.clamp(k, 0, 1)
+	end
 	function ui.done(chipText: string, chipColor: Color3)
-		-- SLAM: big -> settle, with a shine sweeping through
-		vScale.Scale = 1.9
-		value.Rotation = -6
-		tw(vScale, 0.35, { Scale = 1.06 }, Enum.EasingStyle.Back)
-		tw(value, 0.35, { Rotation = 0 }, Enum.EasingStyle.Back)
-		sScale.Scale = 1.06
+		suspense = 0
+		hit = 1
+		-- SLAM: huge -> settle, tilt snaps straight, shine, stud chips burst out
+		baseScale = 2.2
+		vg.Rotation = -9
+		task.spawn(function()
+			local t0 = os.clock()
+			while os.clock() - t0 < 0.35 do
+				local k = Easing.backOut(math.clamp((os.clock() - t0) / 0.35, 0, 1))
+				baseScale = 2.2 + (1.08 - 2.2) * k
+				task.wait()
+			end
+			baseScale = 1.08
+		end)
+		tw(vg, 0.35, { Rotation = 0 }, Enum.EasingStyle.Back)
 		sGrad.Offset = Vector2.new(-1, 0)
 		tw(sGrad, 0.55, { Offset = Vector2.new(1, 0) }, Enum.EasingStyle.Sine)
+		burst(chipColor)
 		local myVer = ver
-		task.delay(0.42, function()
+		task.delay(0.55, function()
 			if not g.Parent then return end
 			if ver == myVer then
-				-- fly up and shrink away into the results line
 				tw(blockScale, 0.25, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 				tw(block, 0.25, { Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 			end
@@ -715,28 +789,25 @@ local function buildStageUi()
 			tw(cs, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 		end)
 	end
-	function ui.shake(a: number)
-		local t = os.clock()
-		local k = math.clamp(a, 0, 1) * 3
-		value.Position = UDim2.fromOffset(320 + math.noise(t * 14, 1) * k, 98 + math.noise(t * 14, 2) * k)
-		shine.Position = value.Position
-	end
+	function ui.shake(_a: number) end
 	function ui.stamp(text: string)
 		stamp.Text = text
 		ss.Scale = 2.5
 		tw(ss, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+		hit = math.max(hit, 0.7)
 	end
 	local closed = false
 	function ui.close()
 		if closed then return end
 		closed = true
 		tw(innerScale, 0.3, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-		task.delay(0.35, function() g:Destroy() end)
+		task.delay(0.35, function()
+			conn:Disconnect()
+			g:Destroy()
+		end)
 	end
-	local _ = accent
 	return ui
 end
-
 
 ------------------------------------------------------------------------------------------
 -- 3) THE REVEAL, IN STAGES. The bear is in full colour. A LOCAL copy plays it (so it can
@@ -868,6 +939,7 @@ local function revealSequence(d)
 	local ui = buildStageUi()
 
 	local tt = 0 -- stage clock (synced with the bear's animation)
+	local tension = 0 -- 0..1 while a result hangs: the lens slowly tightens
 	local slam = nil
 	-- ONE continuous slow orbit through all the stages; distance follows the bear's size
 	CameraController.run(function(t, dt)
@@ -906,7 +978,7 @@ local function revealSequence(d)
 		local dist = (bl * 1.45 + 4.2 * sc) * (1 - 0.1 * Easing.sineInOut(math.clamp(tt / e1, 0, 1)))
 		local p = center + dirv * dist + UP * height
 		p = Vector3.new(p.X, math.max(p.Y, groundY + 0.5), p.Z)
-		return CFrame.lookAt(p, center + UP * 0.15 * sc), 52
+		return CFrame.lookAt(p, center + UP * 0.15 * sc), 52 - 9 * tension
 	end, d.duration + 0.8, { smooth = 6, blendIn = 0.35 })
 
 	task.spawn(function()
@@ -917,20 +989,43 @@ local function revealSequence(d)
 		local landedR, landedM, landedL, landedK = false, false, false, false
 		local wave = nil -- os.clock() when the mutation wave starts
 		local lastPulse = -1
-		local tickT = 0
+		local tickT, beatT, riseT = 0, 0, 0
 		while current == c and sb.Parent do
 			tt = Clock.now() - d.start
 			if tt >= e4 then break end
-			local dt = 1 / 60
-			-- 1) RARITY -----------------------------------------------------------------
+			local nowC = os.clock()
+			local dt = math.clamp(nowC - (c.revealLastT or nowC), 0, 0.1)
+			c.revealLastT = nowC
+			-- suspense helpers: racing heartbeat + a rising whoosh while a result hangs
+			local function hold(k: number)
+				ui.suspense(k)
+				tension = k
+				beatT -= dt
+				if beatT <= 0 then
+					beatT = 0.55 - 0.35 * k
+					Sound.play("Heartbeat", { pitch = 0.8 + 0.5 * k, volume = 0.7 + 0.4 * k })
+				end
+				riseT -= dt
+				if riseT <= 0 then
+					riseT = 0.28
+					Sound.play("Charge", { pitch = 0.6 + 1.3 * k, volume = 0.35 + 0.45 * k })
+				end
+			end
+			local function released()
+				ui.suspense(0)
+				tension = 0
+			end
+			-- 1) RARITY: the tiers fly past... then it HANGS on the last one... SLAM -------
 			if tt < e1 then
 				if stage ~= "rarity" then
 					stage = "rarity"
 					ui.stage("RARITY", Sim.G.purple)
 				end
-				local p = math.clamp(tt / math.max(0.1, e1 - 0.6), 0, 1)
-				local want = math.clamp(1 + math.floor((finalIdx - 1) * p ^ 1.5 + 1e-4), 1, finalIdx)
-				if p < 1 then want = math.min(want, math.max(1, finalIdx - 1)) end -- the last tier waits
+				local landAt = e1 - 0.55
+				local climbEnd = landAt * 0.55
+				local p = math.clamp(tt / climbEnd, 0, 1)
+				local cap = math.max(1, finalIdx - 1)
+				local want = math.clamp(1 + math.floor((finalIdx - 1) * p ^ 1.2 + 1e-4), 1, cap)
 				if want > rarNow then
 					rarNow = want
 					local tr = RarityConfig.get(RarityConfig.Order[rarNow])
@@ -938,15 +1033,18 @@ local function revealSequence(d)
 					Sound.play("Tick", { pitch = 0.9 + rarNow * 0.12, volume = 0.9 })
 					CameraController.shake(0.15 + rarNow * 0.04, 0.2)
 				end
-				ui.shake(p * p)
-				if tt >= e1 - 0.55 and not landedR then
+				if tt > climbEnd and not landedR then
+					hold(math.clamp((tt - climbEnd) / (landAt - climbEnd), 0, 1))
+				end
+				if tt >= landAt and not landedR then
 					landedR = true
+					released()
 					ui.value(tier.name:upper(), tcol, true)
 					ui.done(tier.name:upper(), tcol)
 					Sound.play("Reveal" .. math.max(1, tier.reveal))
 					Sound.play("Growl", { pitch = bearPitch(sb), volume = 1.2 })
-					CameraController.shake(0.6 + tier.index * 0.08, 0.4)
-					CameraController.punch(-5)
+					CameraController.shake(0.7 + tier.index * 0.08, 0.4)
+					CameraController.punch(-6)
 					Cine.grade({ tint = Color3.new(1, 1, 1):Lerp(tier.color, 0.1), saturation = 0.12 + tier.index * 0.02, contrast = 0.18, brightness = 0.01 }, 0.4)
 				end
 			-- 2) MUTATION ---------------------------------------------------------------
@@ -955,9 +1053,12 @@ local function revealSequence(d)
 					stage = "mutation"
 					ui.stage("MUTATION", Sim.G.pink)
 				end
-				local p = math.clamp((tt - e1) / math.max(0.1, st.mutation - 0.55), 0, 1)
-				local want = math.clamp(1 + math.floor((vIdx - 1) * p ^ 1.3 + 1e-4), 1, vIdx)
-				if p < 1 then want = math.min(want, math.max(1, vIdx - 1)) end
+				local landAt = st.mutation - 0.55
+				local climbEnd = landAt * 0.5
+				local u = tt - e1
+				local p = math.clamp(u / climbEnd, 0, 1)
+				local cap = math.max(1, vIdx - 1)
+				local want = math.clamp(1 + math.floor((vIdx - 1) * p ^ 1.2 + 1e-4), 1, cap)
 				if want > mutNow then
 					mutNow = want
 					local vid = RarityConfig.VariantOrder[mutNow]
@@ -965,9 +1066,12 @@ local function revealSequence(d)
 					ui.value(vid:upper(), vd.color, true)
 					Sound.play("Tick", { pitch = 1.1 + mutNow * 0.15, volume = 0.9 })
 				end
-				ui.shake(p)
-				if tt >= e2 - 0.55 and not landedM then
+				if u > climbEnd and not landedM then
+					hold(math.clamp((u - climbEnd) / (landAt - climbEnd), 0, 1))
+				end
+				if u >= landAt and not landedM then
 					landedM = true
+					released()
 					local vd = RarityConfig.Variants[variant]
 					ui.value(variant:upper(), vd.color, true)
 					ui.done(variant:upper(), vd.color)
@@ -976,48 +1080,73 @@ local function revealSequence(d)
 					CameraController.punch(-6)
 					wave = os.clock()
 				end
-			-- 3) LUCK -------------------------------------------------------------------
+			-- 3) LUCK: races up... then CRAWLS the last digits... SLAM --------------------
 			elseif tt < e3 then
 				if stage ~= "luck" then
 					stage = "luck"
 					ui.stage("LUCK", Sim.G.green)
 				end
-				local p = math.clamp((tt - e2) / math.max(0.1, st.luck - 0.6), 0, 1)
-				local ease = p ^ 1.7
-				local target = 1 + (luck - 1) * ease
-				shownL = math.min(luck, math.max(shownL, shownL + (target - shownL) * rng:NextNumber(0.1, 0.6)))
-				ui.value(luckText(shownL), Color3.new(1, 1, 1):Lerp(Color3.fromRGB(255, 214, 60), p), false)
-				ui.shake(p * 0.7)
-				growth = S0 + (0.72 - S0) * Easing.sineInOut(math.clamp((tt - e2) / st.luck, 0, 1))
-				tickT -= dt
-				if tickT <= 0 then
-					tickT = 0.1 - 0.05 * p
-					Sound.play("Tick", { pitch = 0.8 + p, volume = 0.5 })
+				local u = tt - e2
+				local landAt = st.luck - 0.6
+				local fastEnd = landAt * 0.55
+				local frac
+				if u < fastEnd then
+					frac = 0.9 * Easing.cubicOut(math.clamp(u / fastEnd, 0, 1))
+				else
+					local k = math.clamp((u - fastEnd) / (landAt - fastEnd), 0, 1)
+					frac = 0.9 + 0.1 * k * k
+					if not landedL then hold(k) end
 				end
-				if p >= 1 and not landedL then
+				local target = 1 + (luck - 1) * frac
+				shownL = math.min(luck, math.max(shownL, shownL + (target - shownL) * rng:NextNumber(0.25, 0.7)))
+				growth = S0 + (0.72 - S0) * Easing.sineInOut(math.clamp(u / st.luck, 0, 1))
+				tickT -= dt
+				local tick = false
+				if tickT <= 0 then
+					tickT = if u < fastEnd then 0.06 else 0.2
+					tick = true
+					Sound.play("Tick", { pitch = 0.8 + frac, volume = 0.5 })
+				end
+				if not landedL then
+					ui.value(luckText(shownL), Color3.new(1, 1, 1):Lerp(Color3.fromRGB(255, 214, 60), frac), tick and u >= fastEnd)
+				end
+				if u >= landAt and not landedL then
 					landedL = true
+					released()
 					ui.value(luckText(luck), Color3.fromRGB(255, 214, 60), true)
 					ui.done(luckText(luck), Color3.fromRGB(150, 255, 90))
-					Sound.play("Reveal2", { volume = 0.8 })
+					Sound.play("Reveal2", { volume = 0.9 })
+					CameraController.shake(0.6, 0.3)
 					if d.mult then ui.stamp(("LUCK x%d!"):format(d.mult)) end
 				end
-			-- 4) KG ---------------------------------------------------------------------
+			-- 4) KG: the weight climbs in heavy stomps (the bear grows)... crawl... SLAM ---
 			else
 				if stage ~= "kg" then
 					stage = "kg"
 					ui.stage("SIZE", Sim.G.blue)
 				end
-				local q = math.clamp((tt - e3) / st.kg, 0, 1)
-				local p = math.clamp((tt - e3) / math.max(0.1, st.kg - 0.3), 0, 1)
-				local target = kg * p ^ 1.5
-				shownK = math.min(kg, math.max(shownK, shownK + (target - shownK) * rng:NextNumber(0.1, 0.6)))
-				ui.value(Format.kg(shownK), Color3.new(1, 1, 1):Lerp(Color3.fromRGB(255, 214, 60), p), false)
+				local u = tt - e3
+				local q = math.clamp(u / st.kg, 0, 1)
+				local landAt = st.kg - 0.3
+				local fastEnd = landAt * 0.6
+				local frac
+				if u < fastEnd then
+					frac = 0.9 * Easing.cubicOut(math.clamp(u / fastEnd, 0, 1))
+				else
+					local k = math.clamp((u - fastEnd) / (landAt - fastEnd), 0, 1)
+					frac = 0.9 + 0.1 * k * k
+					if not landedK then hold(k) end
+				end
+				shownK = math.min(kg, math.max(shownK, shownK + (kg * frac - shownK) * rng:NextNumber(0.25, 0.7)))
+				if not landedK then
+					ui.value(Format.kg(shownK), Color3.new(1, 1, 1):Lerp(Color3.fromRGB(255, 214, 60), frac), false)
+				end
 				-- growth in heavy STOMPS (one every 0.4 s, synced with the bear's stomps)
 				local n = math.max(1, math.floor(st.kg / 0.4))
 				local step = q * n
 				local idx = math.floor(step)
-				local frac = step - idx
-				local stair = (math.min(idx, n) + (if idx < n then Easing.sineOut(math.clamp(frac / 0.35, 0, 1)) else 0)) / n
+				local fr = step - idx
+				local stair = (math.min(idx, n) + (if idx < n then Easing.sineOut(math.clamp(fr / 0.35, 0, 1)) else 0)) / n
 				growth = 0.72 + (1 - 0.72) * math.clamp(stair, 0, 1)
 				if idx ~= lastPulse and idx < n then
 					lastPulse = idx
@@ -1025,13 +1154,17 @@ local function revealSequence(d)
 					CameraController.punch(-1.5)
 					Sound.play("Land", { pitch = 0.5 - 0.1 * q, volume = 1.1 })
 					Sound.play("Lift", { pitch = 0.45, volume = 0.6 })
+					ui.value(Format.kg(shownK), Color3.new(1, 1, 1):Lerp(Color3.fromRGB(255, 214, 60), frac), true)
 				end
-				if p >= 1 and not landedK then
+				if u >= landAt and not landedK then
 					landedK = true
+					released()
 					ui.value(Format.kg(kg), Color3.fromRGB(255, 214, 60), true)
 					ui.done(Format.kg(kg), Color3.fromRGB(110, 210, 255))
+					Sound.play("Reveal2", { pitch = 0.8, volume = 0.9 })
 				end
 			end
+			Cine.dark(0.25 + 0.4 * tension)
 			-- the MUTATION WAVE: the variant copy replaces the normal one, bottom -> top
 			if wave and normal and mutant then
 				local k = math.clamp((os.clock() - wave) / 0.8, 0, 1)
