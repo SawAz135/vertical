@@ -71,9 +71,9 @@ local function play(bear, income: number, isNew: boolean?)
 		task.delay(0.5, function() tween(bs, 0.35, { Scale = 1 }, Enum.EasingStyle.Back) end)
 	end
 
-	-- the living bear: NO card / white background any more, the bear floats on the screen and is turned the other way
+	-- the living bear: NO card / white background, the bear floats on the screen, 3/4 FRONT view
 	local stage = new("Frame", { Name = "BearStage", BackgroundTransparency = 1, Size = UDim2.fromOffset(460, 310), Position = UDim2.fromOffset(90, 84), ZIndex = 4 }, root)
-	Sim.model(stage, { kind = "Bear", id = bear.s, variant = bear.v, size = UDim2.fromScale(1.05, 1.1), position = UDim2.fromScale(0.5, 0.52), yaw = math.rad(150), pitch = math.rad(10) })
+	Sim.model(stage, { kind = "Bear", id = bear.s, variant = bear.v, size = UDim2.fromScale(1.05, 1.1), position = UDim2.fromScale(0.5, 0.52), yaw = math.rad(-28), pitch = math.rad(10) })
 	local ss = new("UIScale", { Scale = 0.2 }, stage)
 	task.delay(0.15, function() tween(ss, 0.55, { Scale = 1 }, Enum.EasingStyle.Elastic) end)
 

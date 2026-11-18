@@ -21,6 +21,51 @@ local function tween(o, t, goal, style, dir)
 	return tw
 end
 
+-- CINEMATIC MODE: every other interface disappears (HUD, menus, notifications, Roblox
+-- chat / leaderboard / backpack, mobile joystick + jump) and comes back afterwards.
+-- The cinematic's own screens stay (letterbox, skip, reveal stages, bear unlocked).
+local KEEP_GUI = { TFBCinematic = true, TFBRevealStages = true, TFBRevealCounters = true, BearUnlock = true, TFBEyelids = true }
+local hudHidden = false
+local hiddenGuis = {}
+local hudConn = nil
+function Cine.hideHud(on: boolean)
+	if on == hudHidden then return end
+	hudHidden = on
+	local pg = player:FindFirstChild("PlayerGui")
+	local StarterGui = game:GetService("StarterGui")
+	local GuiService = game:GetService("GuiService")
+	local function hide(g: Instance)
+		if g:IsA("ScreenGui") and g.Enabled and not KEEP_GUI[g.Name] and not g.Name:find("^TFBCine") then
+			hiddenGuis[g] = true
+			g.Enabled = false
+		end
+	end
+	if on then
+		if pg then
+			for _, g in pg:GetChildren() do hide(g) end
+			-- anything opened during the cinematic (a notification...) stays hidden too
+			hudConn = pg.ChildAdded:Connect(function(g)
+				task.defer(function()
+					if hudHidden and g.Parent then hide(g) end
+				end)
+			end)
+		end
+		pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false) end)
+		pcall(function() GuiService.TouchControlsEnabled = false end)
+	else
+		if hudConn then
+			hudConn:Disconnect()
+			hudConn = nil
+		end
+		for g in hiddenGuis do
+			if g.Parent then g.Enabled = true end
+		end
+		hiddenGuis = {}
+		pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true) end)
+		pcall(function() GuiService.TouchControlsEnabled = true end)
+	end
+end
+
 local function ensure()
 	if gui then return end
 	gui = Instance.new("ScreenGui")

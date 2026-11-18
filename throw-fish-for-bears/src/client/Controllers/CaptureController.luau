@@ -1365,6 +1365,7 @@ end
 local function onFx(phase: string, d)
 	if phase == "Spawned" then
 		current = { bear = d.bear, fish = d.fish, landing = d.landing, den = d.den }
+		Cine.hideHud(true) -- the capture is pure cinema: no interface at all
 		povStart()
 		if d.canSkip then
 			Cine.skipButton(function() Net.event("SkipCapture"):FireServer() end)
@@ -1402,6 +1403,7 @@ local function onFx(phase: string, d)
 		Cine.resetEaten()
 		Cine.letterbox(false)
 		duckMusic(false)
+		Cine.hideHud(false)
 		if d.from then
 			Fx.puff(d.from + Vector3.new(0, 3, 0), Color3.new(1, 1, 1), 22, 5)
 		end
@@ -1427,6 +1429,7 @@ local function onFx(phase: string, d)
 		end)
 	elseif phase == "Failed" then
 		duckMusic(false)
+		Cine.hideHud(false)
 		Cine.resetAll()
 		Cine.resetEaten()
 		if current and current.bear then setBearHidden(current.bear, false) end

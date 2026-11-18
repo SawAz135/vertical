@@ -88,7 +88,8 @@ function Viewport.create(parent: GuiObject, opts)
 	else
 		model.Parent = vp
 	end
-	local yaw = opts.yaw or (if opts.kind == "Fish" then math.rad(-70) elseif opts.kind == "Rod" then math.rad(-80) elseif opts.kind == "Dumbbell" then math.rad(-20) else math.rad(-145))
+	-- the camera sits on the -Z side (the models face -Z): small yaws = a 3/4 FRONT view
+	local yaw = opts.yaw or (if opts.kind == "Fish" then math.rad(-55) elseif opts.kind == "Rod" then math.rad(-80) elseif opts.kind == "Dumbbell" then math.rad(-20) else math.rad(-32))
 	local pitch = opts.pitch or math.rad(if opts.kind == "Bear" then 12 else 18)
 	local zoom = opts.zoom or 1
 	fit(vp, model, yaw, pitch, zoom)
