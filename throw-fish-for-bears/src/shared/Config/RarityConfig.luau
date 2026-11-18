@@ -80,13 +80,17 @@ RarityConfig.Tiers = {
 
 }
 
-RarityConfig.VariantOrder = { "Normal", "Golden", "Diamond", "Rainbow" }
+RarityConfig.VariantOrder = { "Normal", "Golden", "Diamond", "Ancient", "Rainbow", "Clockwork" }
 
 RarityConfig.Variants = {
 	Normal = { name = "Normal", odds = 1, luckExp = 0, income = 1, value = 1, color = Color3.fromRGB(230, 230, 230), fishToBearLuck = 1 },
 	Golden = { name = "Golden", odds = 50, luckExp = 0.5, income = 2.5, value = 3, color = Color3.fromRGB(255, 205, 50), fishToBearLuck = 1.5 },
 	Diamond = { name = "Diamond", odds = 250, luckExp = 0.6, income = 6, value = 8, color = Color3.fromRGB(110, 230, 255), fishToBearLuck = 2.2 },
+	-- ANCIENT: a mossy stone statue come to life (flowers + mushrooms growing on it)
+	Ancient = { name = "Ancient", odds = 700, luckExp = 0.65, income = 10, value = 13, color = Color3.fromRGB(120, 170, 90), fishToBearLuck = 2.8 },
 	Rainbow = { name = "Rainbow", odds = 1_500, luckExp = 0.7, income = 15, value = 20, color = Color3.fromRGB(255, 120, 220), fishToBearLuck = 3.5 },
+	-- CLOCKWORK: the rarest: a brass machine with turning gears, a wind-up key and a steam chimney
+	Clockwork = { name = "Clockwork", odds = 8_000, luckExp = 0.8, income = 40, value = 55, color = Color3.fromRGB(214, 160, 70), fishToBearLuck = 5 },
 }
 
 function RarityConfig.get(id: string)

@@ -108,8 +108,66 @@ local function registerFish(model: Model, into: any?)
 	return into[model]
 end
 
+-- MUTATION DETAILS that move: Clockwork gears + wind-up key + steam, Ancient flowers sway
+local mutants = {} -- [model] = { gears = {}, keys = {}, sways = {}, steam = {}, ui = bool }
+local function registerMutant(model: Model, ui: boolean?)
+	if mutants[model] then return end
+	local e = { gears = {}, keys = {}, sways = {}, steam = {}, ui = ui == true, steamT = math.random() }
+	for _, d in model:GetDescendants() do
+		if d:IsA("Motor6D") then
+			if d.Name == "Gear" then table.insert(e.gears, d)
+			elseif d.Name == "Key" then table.insert(e.keys, d)
+			elseif d.Name == "Sway" then table.insert(e.sways, d) end
+		elseif d:IsA("Attachment") and d.Name == "Steam" then
+			table.insert(e.steam, d)
+		end
+	end
+	if #e.gears + #e.keys + #e.sways + #e.steam == 0 then return end
+	mutants[model] = e
+	model.Destroying:Connect(function() mutants[model] = nil end)
+end
+
+local function updateMutants(dt: number, now: number)
+	local camPos = camera.CFrame.Position
+	for model, e in mutants do
+		if not model.Parent then
+			mutants[model] = nil
+			continue
+		end
+		local root = model.PrimaryPart
+		if not e.ui and (not root or (root.Position - camPos).Magnitude > 110) then continue end
+		for _, m in e.gears do
+			local dir = m:GetAttribute("Dir") or 1
+			local sp = m:GetAttribute("Speed") or 1
+			m.Transform = CFrame.Angles(now * 1.6 * sp * dir, 0, 0)
+		end
+		for _, m in e.keys do
+			-- the wind-up key turns in little clicks
+			local k = now * 0.9
+			local stepK = math.floor(k) + Easing.backOut(math.clamp((k % 1) / 0.35, 0, 1))
+			m.Transform = CFrame.Angles(0, stepK * math.pi / 2, 0)
+		end
+		for _, m in e.sways do
+			local ph = m:GetAttribute("Phase") or 0
+			m.Transform = CFrame.Angles(sin(now * 1.9 + ph) * 0.16, 0, cos(now * 1.5 + ph) * 0.13)
+		end
+		if not e.ui and #e.steam > 0 then
+			e.steamT -= dt
+			if e.steamT <= 0 then
+				e.steamT = 0.7 + math.random() * 0.6
+				for _, a in e.steam do
+					Fx.puff(a.WorldPosition, Color3.fromRGB(225, 225, 230), 3, 0.3)
+				end
+			end
+		end
+	end
+end
+
 local function register(inst: Instance)
 	if not inst:IsA("Model") then return end
+	if inst:GetAttribute("Clockwork") or inst:GetAttribute("Ancient") then
+		task.defer(registerMutant, inst)
+	end
 	local kind = inst:GetAttribute("Kind")
 	if kind == "Bear" then
 		task.defer(registerBear, inst)
@@ -798,6 +856,7 @@ local IDLE_UI = {
 }
 
 function Animator.trackUI(model: Model, vp: ViewportFrame, kind: string, id: string?)
+	if model:GetAttribute("Clockwork") or model:GetAttribute("Ancient") then registerMutant(model, true) end
 	if kind == "Bear" then
 		local e = registerBear(model, uiBears)
 		if not e then return end
@@ -924,6 +983,7 @@ function Animator.init()
 			end
 		end
 		updateUI(dt, now)
+		updateMutants(dt, now)
 		rainbowAcc += dt
 		if rainbowAcc > 0.08 then
 			rainbowAcc = 0

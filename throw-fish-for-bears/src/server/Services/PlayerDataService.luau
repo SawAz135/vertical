@@ -59,6 +59,8 @@ local function template()
 		tutorial = 0, -- tutorial step reached (TUTORIAL_DONE = finished)
 		tutorialPaid = false,
 		fishers = { n = 0, lv = { 1, 1 }, bucket = 1, stored = {} }, -- hired fishermen + their bucket
+		indexClaims = {}, -- [section key] = true (Index completion rewards taken)
+		indexLuck = 0, -- permanent fishing luck bonus from Index rewards (+0.05 = +5%)
 		nextId = 1,
 	}
 end

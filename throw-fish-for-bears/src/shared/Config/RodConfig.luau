@@ -10,6 +10,8 @@ local RED, GOLD, PURPLE, BLUE, GREEN, ORANGE, YELLOW = C(214, 40, 40), C(232, 17
 RodConfig.Order = {
 	"Starter", "Oak", "Twilight", "River", "Camo", "Night",
 	"Lake", "Royal", "Arctic", "Jungle", "Storm", "Master",
+	-- EXCLUSIVE rods: only from completing Index sections (never sold)
+	"Coral", "Forest", "Gilded", "Glacier", "Prism", "Abyss", "Mossback", "Phantom", "Spectrum", "Legend", "Gearwork",
 }
 
 RodConfig.Rods = {
@@ -37,6 +39,29 @@ RodConfig.Rods = {
 		colors = { handle = GRAY, shaft = GRAY, band = BLUE, reel = BLUE, bobber = ORANGE } },
 	Master = { name = "Master Rod", price = 150_000_000, speed = 3.5, luck = 6.5, desc = "The best rod on the lake.",
 		colors = { handle = TAN, shaft = TAN, band = RED, reel = RED, bobber = YELLOW } },
+	-- index rewards ------------------------------------------------------------------
+	Coral = { name = "Coral Rod", exclusive = true, price = 0, speed = 1.5, luck = 1.7, desc = "Index: all Rare fish.",
+		colors = { handle = C(250, 120, 110), shaft = C(255, 160, 140), band = WHITE, reel = WHITE, bobber = C(250, 120, 110) } },
+	Forest = { name = "Forest Rod", exclusive = true, price = 0, speed = 1.6, luck = 1.9, desc = "Index: Zone 3 bears.",
+		colors = { handle = BROWN, shaft = C(80, 130, 60), band = GREEN, reel = GREEN, bobber = YELLOW } },
+	Gilded = { name = "Gilded Rod", exclusive = true, price = 0, speed = 2.1, luck = 2.8, desc = "Index: Golden Zone 5 bears.",
+		colors = { handle = GOLD, shaft = GOLD, band = WHITE, reel = WHITE, bobber = GOLD } },
+	Glacier = { name = "Glacier Rod", exclusive = true, price = 0, speed = 2.2, luck = 3.0, desc = "Index: Zone 6 bears.",
+		colors = { handle = WHITE, shaft = C(160, 220, 255), band = BLUE, reel = BLUE, bobber = WHITE } },
+	Prism = { name = "Prism Rod", exclusive = true, price = 0, speed = 2.6, luck = 3.8, desc = "Index: Diamond Zone 5 bears.",
+		colors = { handle = C(140, 230, 255), shaft = C(200, 245, 255), band = BLUE, reel = WHITE, bobber = C(140, 230, 255) } },
+	Abyss = { name = "Abyss Rod", exclusive = true, price = 0, speed = 2.7, luck = 4.0, desc = "Index: all Legendary fish.",
+		colors = { handle = BLACK, shaft = C(20, 40, 80), band = C(60, 200, 220), reel = C(60, 200, 220), bobber = BLACK } },
+	Mossback = { name = "Mossback Rod", exclusive = true, price = 0, speed = 3.0, luck = 5.0, desc = "Index: Ancient Zone 5 bears.",
+		colors = { handle = C(120, 120, 112), shaft = C(96, 140, 70), band = C(150, 150, 140), reel = C(80, 120, 60), bobber = C(230, 120, 160) } },
+	Phantom = { name = "Phantom Rod", exclusive = true, price = 0, speed = 3.3, luck = 6.0, desc = "Index: all Secret fish.",
+		colors = { handle = BLACK, shaft = C(220, 220, 230), band = PURPLE, reel = PURPLE, bobber = WHITE } },
+	Spectrum = { name = "Spectrum Rod", exclusive = true, price = 0, speed = 3.6, luck = 7.0, desc = "Index: Rainbow Zone 5 bears.",
+		colors = { handle = PURPLE, shaft = C(255, 140, 220), band = YELLOW, reel = BLUE, bobber = GREEN } },
+	Legend = { name = "Legend Rod", exclusive = true, price = 0, speed = 3.8, luck = 7.5, desc = "Index: Zone 10 bears.",
+		colors = { handle = BLACK, shaft = GOLD, band = RED, reel = GOLD, bobber = RED } },
+	Gearwork = { name = "Gearwork Rod", exclusive = true, price = 0, speed = 4.2, luck = 9.0, desc = "Index: Clockwork Zone 5 bears.",
+		colors = { handle = C(110, 70, 40), shaft = C(200, 150, 70), band = C(184, 115, 51), reel = C(200, 150, 70), bobber = C(184, 115, 51) } },
 }
 
 function RodConfig.get(id: string)

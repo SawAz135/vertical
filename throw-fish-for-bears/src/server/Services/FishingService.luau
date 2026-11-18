@@ -45,7 +45,7 @@ end
 function FishingService.luck(player: Player): number
 	local data = R.PlayerData.get(player)
 	local rod = RodConfig.get(data.rods.equipped)
-	local luck = rod.luck
+	local luck = rod.luck * (1 + math.max(0, data.indexLuck or 0)) -- + the permanent Index bonus
 	if R.RewardService.isLucky() then luck *= E.Lucky.fishLuck end
 	return luck
 end

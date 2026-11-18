@@ -12,7 +12,7 @@ local FishConfig = require(Shared.Config.FishConfig)
 local Announce = {}
 Announce.MIN_TIER = 5
 
-local VARIANT_BONUS = { Normal = 0, Golden = 0, Diamond = 1, Rainbow = 1 }
+local VARIANT_BONUS = { Normal = 0, Golden = 0, Diamond = 1, Ancient = 1, Rainbow = 1, Clockwork = 2 }
 
 local function level(rarity: string, variant: string?): number
 	return RarityConfig.get(rarity).index + (VARIANT_BONUS[variant or "Normal"] or 0)

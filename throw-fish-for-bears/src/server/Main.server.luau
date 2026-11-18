@@ -186,6 +186,7 @@ on("PlaceBest", {}, R.BearBase.placeBest)
 on("EquipBear", { "string" }, R.BearBase.equip)
 on("UnequipBear", { "string" }, R.BearBase.unequip)
 on("EquipBest", {}, R.BearBase.equipBest)
+on("ClaimIndexSection", { "string" }, R.IndexService.claimSection)
 on("SellFish", { "table", "boolean" }, function(player, ids, confirm)
 	local list = R.Security.idList(ids, 60)
 	if list then R.ShopService.sellFish(player, list, confirm) end

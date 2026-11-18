@@ -15,7 +15,7 @@ local Shop = {}
 function Shop.buyRod(player: Player, id: string)
 	local data = R.PlayerData.get(player)
 	local rod = RodConfig.Rods[id]
-	if not data or not rod or data.rods.owned[id] then return end
+	if not data or not rod or data.rods.owned[id] or rod.exclusive then return end
 	if not R.EconomyService.spend(player, rod.price) then
 		R.Notify(player, "Not enough money!", "warn")
 		return

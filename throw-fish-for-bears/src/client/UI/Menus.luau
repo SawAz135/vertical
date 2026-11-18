@@ -124,7 +124,7 @@ local function buildShop()
 			local rod = RodConfig.get(id)
 			local owned = d.rods and d.rods.owned[id]
 			local equipped = d.rods and d.rods.equipped == id
-			local rar = ROD_RARITY[i] or "Common"
+			local rar = if rod.exclusive then "Secret" else (ROD_RARITY[i] or "Common")
 			local card, centre = Sim.card(list, { Name = "Rod" .. i, LayoutOrder = i, Size = Vector2.new(250, 344), Rarity = rar, Title = rod.name,
 				RarityText = RarityConfig.get(rar).name, CenterTop = 74, CenterCut = 196 })
 			Sim.model(centre, { kind = "Rod", id = id, spin = true, spinSpeed = 0.7, zoom = 0.72, size = UDim2.fromScale(1.05, 1.15) })
@@ -137,6 +137,10 @@ local function buildShop()
 			elseif owned then
 				bp.Grad = "green"; bp.Text = "Equip"
 				Sim.button(card, bp, function() Net.event("EquipRod"):FireServer(id) end)
+			elseif rod.exclusive then
+				-- index-only rod: shows where it comes from
+				bp.Grad = "dark"; bp.Text = "INDEX REWARD"; bp.Max = 26
+				Sim.button(card, bp)
 			else
 				local can = (d.money or 0) >= rod.price
 				bp.Grad = if can then "green" else "light"; bp.Text = Format.money(rod.price); bp.Icon = K.Icons.Cash; bp.IconSize = 0.9
@@ -411,10 +415,41 @@ end
 -- Index
 ------------------------------------------------------------------------------------------
 local indexCat = "Fish"
+local indexVar = nil -- nil = normal index, else a mutation ("Golden", "Diamond", ...)
 local indexSel = nil
 local indexScroll = {}
+local IndexConfig = require(Shared.Config.IndexConfig)
+
+-- mutation pill looks (left side of the window)
+local VAR_LOOK = {
+	Golden = { RGB(255, 236, 130), RGB(222, 150, 20) },
+	Diamond = { RGB(190, 245, 255), RGB(40, 140, 235) },
+	Ancient = { RGB(170, 176, 150), RGB(70, 120, 60) },
+	Rainbow = { RGB(255, 120, 200), RGB(120, 120, 255) },
+	Clockwork = { RGB(232, 190, 110), RGB(150, 84, 36) },
+}
+
+-- the best rarity a bear species was caught in
+local function bestRarity(entry): string?
+	if not entry or not entry.r then return nil end
+	local best, bi = nil, 0
+	for r in entry.r do
+		local t = RarityConfig.Tiers[r]
+		if t and t.index > bi then best, bi = r, t.index end
+	end
+	return best
+end
+
+local function rewardText(rw): string
+	local parts = { ('<font color="#7CFF46">%s</font>'):format(Format.money(rw.money)), ('<font color="#FFD23F">+%.1f%% luck</font>'):format(rw.luck * 100) }
+	if rw.fish then table.insert(parts, ('<font color="#7CD4FF">%s fish</font>'):format(RarityConfig.get(rw.fish).name)) end
+	if rw.rod then table.insert(parts, ('<font color="#FF9CF0">%s</font>'):format(RodConfig.get(rw.rod).name)) end
+	return table.concat(parts, "  ·  ")
+end
+
 local function buildIndex()
 	local w = makeWindow("Index", { title = "Index", grad = "pink", size = Vector2.new(820, 480) })
+	-- RIGHT: the collection (Fish / Bears)
 	local tabs = {}
 	for i, cat in { "Fish", "Bears" } do
 		tabs[cat] = Sim.button(w.frame, { Name = "Tab" .. cat, Grad = if cat == "Fish" then "blue" else "orange", Size = Vector2.new(170, 62),
@@ -424,6 +459,31 @@ local function buildIndex()
 			renderers.Index(true)
 		end)
 	end
+	-- LEFT: the mutation index pills (tap again to go back to the normal index)
+	local vtabs = {}
+	for i, v in IndexConfig.Variants do
+		local b = Sim.button(w.frame, { Name = "Var" .. v, Grad = "light", Size = Vector2.new(176, 58),
+			Position = UDim2.fromOffset(-104, 78 + (i - 1) * 70), Text = v:upper(), Max = 28 }, function()
+			indexVar = if indexVar == v then nil else v
+			indexSel = nil
+			renderers.Index(true)
+		end)
+		local g = b:FindFirstChildOfClass("UIGradient")
+		if g then g.Color = ColorSequence.new(VAR_LOOK[v][1], VAR_LOOK[v][2]) end
+		vtabs[v] = { b = b, g = g }
+	end
+	-- the rainbow pill really cycles its colours
+	task.spawn(function()
+		while w.frame.Parent do
+			local rb = vtabs.Rainbow
+			if rb and rb.g and w.menu.IsOpen then
+				local h = (os.clock() * 0.25) % 1
+				rb.g.Color = ColorSequence.new(Color3.fromHSV(h, 0.55, 1), Color3.fromHSV((h + 0.35) % 1, 0.75, 1))
+			end
+			task.wait(0.05)
+		end
+	end)
+
 	renderers.Index = function(animate)
 		clear(w.content)
 		for cat, b in tabs do
@@ -431,69 +491,137 @@ local function buildIndex()
 			local st = b:FindFirstChildOfClass("UIStroke")
 			if st then st.Color = if cat == indexCat then Color3.new(1, 1, 1) else Color3.new(0, 0, 0) end
 		end
+		for v, t in vtabs do
+			t.b.Position = UDim2.fromOffset(if v == indexVar then -116 else -104, t.b.Position.Y.Offset)
+			local st = t.b:FindFirstChildOfClass("UIStroke")
+			if st then st.Color = if v == indexVar then Color3.new(1, 1, 1) else Color3.new(0, 0, 0) end
+		end
 		local d = Data.values
-		local order = if indexCat == "Fish" then FishConfig.Order else BearConfig.Order
-		local found = if indexCat == "Fish" then (d.index and d.index.fish or {}) else (d.index and d.index.bears or {})
+		local index = d.index or { fish = {}, bears = {} }
+		local claims = d.indexClaims or {}
+		local isFish = indexCat == "Fish"
+		local book = if isFish then (index.fish or {}) else (index.bears or {})
+		local sections = IndexConfig.sections(indexCat, indexVar)
 		local left = Sim.panel(w.content, { Size = UDim2.fromOffset(520, 370), Position = UDim2.fromOffset(12, 12), Color = RGB(36, 36, 40), DarkStuds = true, ZIndex = 3 })
-		-- scrolling grid (43 fish / 75 bears)
-		local grid = new("ScrollingFrame", { BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromOffset(508, 282), Position = UDim2.fromOffset(6, 8), ZIndex = 4,
-			CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 8,
-			ScrollBarImageColor3 = RGB(230, 230, 230) }, left)
-		new("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 8), PaddingRight = UDim.new(0, 10) }, grid)
-		new("UIGridLayout", { CellSize = UDim2.fromOffset(112, 118), CellPadding = UDim2.fromOffset(10, 12), SortOrder = Enum.SortOrder.LayoutOrder,
-			HorizontalAlignment = Enum.HorizontalAlignment.Center }, grid)
-		if indexScroll[indexCat] then
-			task.defer(function() if grid.Parent then grid.CanvasPosition = indexScroll[indexCat] end end)
+		-- overall progress + the per-discovery money (old reward) in the header line
+		local all, got = 0, 0
+		for _, s in sections do
+			local n, total = IndexConfig.progress(index, s)
+			got += n
+			all += total
 		end
-		grid:GetPropertyChangedSignal("CanvasPosition"):Connect(function() indexScroll[indexCat] = grid.CanvasPosition end)
-		local n = 0
-		for i, id in order do
-			local entry = found[id]
-			if entry then n += 1 end
-			local spec = if indexCat == "Fish" then FishConfig.get(id) else BearConfig.get(id)
-			local rar = if indexCat == "Fish" then spec.rarity else (spec.fixedRarity or "Common")
-			local tile = new("ImageButton", { Name = id, AutoButtonColor = false, Image = "", BackgroundColor3 = Color3.new(1, 1, 1), LayoutOrder = i, ZIndex = 5 }, grid)
-			Sim.gradient(tile, if entry then Sim.RARITY_CARD[rar] else { RGB(80, 80, 86), RGB(46, 46, 52) }, 90)
-			Sim.corner(tile, 4)
-			Sim.stroke(tile, if indexSel == id then 4 else 3, if indexSel == id then Color3.new(1, 1, 1) else nil)
-			Sim.studs(tile, { tile = 22, transparency = 0.75, z = 5 })
-			Sim.model(tile, { kind = if indexCat == "Fish" then "Fish" else "Bear", id = id, silhouette = entry == nil, size = UDim2.fromScale(0.95, 0.8), position = UDim2.fromScale(0.5, 0.55) })
-			Sim.text(tile, if entry then spec.name else "???", { Size = UDim2.new(1, -6, 0, 22), Position = UDim2.new(0.5, 0, 0, 14), Max = 18, ZIndex = 9 })
-			new("UIScale", { Name = "ButtonScale" }, tile)
-			Motion.BindButton(tile, 1.06, Sim.sounds, function()
-				indexSel = id
-				renderers.Index(false)
-			end)
-		end
-		-- progress bar
-		local bar = new("Frame", { BackgroundColor3 = RGB(30, 30, 34), Size = UDim2.fromOffset(330, 50), Position = UDim2.fromOffset(12, 306), ZIndex = 5, ClipsDescendants = true }, left)
-		Sim.corner(bar, 4)
-		Sim.stroke(bar, 3)
-		local fill = new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromScale(n / #order, 1), ZIndex = 6 }, bar)
-		Sim.gradient(fill, Sim.G.green, 90)
-		Sim.studs(fill, { tile = 22, z = 6 })
-		Sim.text(bar, ("%d/%d"):format(n, #order), { Size = UDim2.fromScale(0.9, 0.8), Max = 36, ZIndex = 8 })
+		local head = Sim.text(left, ("%s%s  ·  %d/%d"):format(if indexVar then indexVar:upper() .. " " else "", indexCat:upper(), got, all),
+			{ Size = UDim2.fromOffset(300, 30), Position = UDim2.fromOffset(160, 22), Max = 26, ZIndex = 6,
+				Gradient = if indexVar then VAR_LOOK[indexVar] else { RGB(255, 255, 255), RGB(255, 220, 120) } })
+		local _ = head
 		local pending = d.indexPending and d.indexPending[indexCat] or 0
-		local claim = Sim.button(left, { Grad = if pending > 0 then "blue" else "grey", Size = Vector2.new(160, 50), Position = UDim2.fromOffset(432, 331),
-			Text = if pending > 0 then "Claim " .. Format.money(pending) else "Claim", Max = 24 }, function()
+		local claim = Sim.button(left, { Grad = if pending > 0 then "blue" else "grey", Size = Vector2.new(170, 38), Position = UDim2.fromOffset(420, 24),
+			Text = if pending > 0 then "Claim " .. Format.money(pending) else "Claim", Max = 20, ZIndex = 6 }, function()
 			Net.event("ClaimIndex"):FireServer(indexCat)
 		end)
 		if pending > 0 then K.shine(claim, 1.8) end
-		-- detail panel
-		local id = indexSel or order[1]
-		local entry = found[id]
-		local spec = if indexCat == "Fish" then FishConfig.get(id) else BearConfig.get(id)
-		local rar = if indexCat == "Fish" then spec.rarity else (spec.fixedRarity or "Common")
-		local card, centre = Sim.card(w.content, { Size = Vector2.new(250, 370), Rarity = if entry then rar else "Secret", Title = if entry then spec.name else "???",
-			RarityText = if indexCat == "Fish" then RarityConfig.get(rar).name else "Bear", CenterTop = 76, CenterCut = 180 })
-		card.Position = UDim2.fromOffset(548, 12)
-		Sim.model(centre, { kind = if indexCat == "Fish" then "Fish" else "Bear", id = id, silhouette = entry == nil, spin = entry ~= nil, size = UDim2.fromScale(1, 1.1) })
-		local info = if entry then ("Caught %d"):format(entry.n) else "Not found"
-		Sim.infoBar(card, info, { Size = UDim2.fromOffset(226, 34), Position = UDim2.fromOffset(125, 272), ZIndex = 6 })
-		Sim.infoBar(card, if entry then ('Best <font color="#FFD23F">%s</font>'):format(Format.kg(entry.best)) else "???", { Size = UDim2.fromOffset(226, 34), Position = UDim2.fromOffset(125, 310), ZIndex = 6 })
-		Sim.infoBar(card, ('Reward <font color="#7CFF46">%s</font>'):format(Format.money(E.IndexReward[indexCat])), { Size = UDim2.fromOffset(226, 30), Position = UDim2.fromOffset(125, 346), Max = 20, ZIndex = 6 })
-		if animate then K.cascade(grid, 0.04) end
+		-- the sections (zones / rarities), each with its reward + CLAIM
+		local list = new("ScrollingFrame", { BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromOffset(508, 316), Position = UDim2.fromOffset(6, 48), ZIndex = 4,
+			CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 8,
+			ScrollBarImageColor3 = RGB(230, 230, 230) }, left)
+		new("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 10), PaddingRight = UDim.new(0, 10), PaddingLeft = UDim.new(0, 2) }, list)
+		new("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder }, list)
+		local scrollKey = indexCat .. (indexVar or "")
+		if indexScroll[scrollKey] then
+			task.defer(function() if list.Parent then list.CanvasPosition = indexScroll[scrollKey] end end)
+		end
+		list:GetPropertyChangedSignal("CanvasPosition"):Connect(function() indexScroll[scrollKey] = list.CanvasPosition end)
+		local firstId = nil
+		for si, s in sections do
+			local n, total = IndexConfig.progress(index, s)
+			local done = n >= total
+			local claimed = claims[s.key] == true
+			local sec = new("Frame", { Name = "Section" .. si, BackgroundTransparency = 1, Size = UDim2.fromOffset(494, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = si }, list)
+			new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, sec)
+			-- header plate: zone / rarity colour
+			local col = s.color or RGB(120, 120, 130)
+			local hp = Sim.panel(sec, { Size = UDim2.fromOffset(494, 66), Gradient = { col:Lerp(Color3.new(1, 1, 1), 0.25), col:Lerp(Color3.new(0, 0, 0), 0.35) }, Stroke = 3, ZIndex = 5, LayoutOrder = 1 })
+			Sim.text(hp, s.title, { Size = UDim2.fromOffset(300, 26), Position = UDim2.fromOffset(160, 17), Max = 22, ZIndex = 7, AlignX = Enum.TextXAlignment.Left })
+			-- progress bar
+			local bar = new("Frame", { BackgroundColor3 = RGB(30, 30, 34), Size = UDim2.fromOffset(150, 14), Position = UDim2.fromOffset(12, 36), ZIndex = 6, BorderSizePixel = 0 }, hp)
+			Sim.corner(bar, 4)
+			Sim.stroke(bar, 2)
+			local fill = new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromScale(math.clamp(n / math.max(1, total), 0, 1), 1), ZIndex = 7 }, bar)
+			Sim.corner(fill, 4)
+			Sim.gradient(fill, if done then Sim.G.green else Sim.G.yellow, 90)
+			Sim.text(hp, ("%d/%d"):format(n, total), { Size = UDim2.fromOffset(60, 20), Position = UDim2.fromOffset(196, 43), Max = 18, ZIndex = 7 })
+			Sim.text(hp, rewardText(s.reward), { Size = UDim2.fromOffset(250, 18), Position = UDim2.fromOffset(352, 44), Max = 14, ZIndex = 7, Rich = true })
+			local cb = Sim.button(hp, { Grad = if claimed then "grey" elseif done then "green" else "dark", Size = Vector2.new(118, 34), Position = UDim2.fromOffset(426, 20),
+				Text = if claimed then "CLAIMED" elseif done then "CLAIM!" else "LOCKED", Max = 20, ZIndex = 8 }, function()
+				if done and not claimed then Net.event("ClaimIndexSection"):FireServer(s.key) end
+			end)
+			if done and not claimed then K.shine(cb, 1.4) end
+			-- the tiles: background = the RARITY colour (dim while not found)
+			local grid = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(494, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2 }, sec)
+			new("UIGridLayout", { CellSize = UDim2.fromOffset(112, 118), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder,
+				HorizontalAlignment = Enum.HorizontalAlignment.Center }, grid)
+			for ti, id in s.ids do
+				firstId = firstId or id
+				local entry = book[id]
+				local found = IndexConfig.found(index, indexCat, id, indexVar)
+				local spec = if isFish then FishConfig.get(id) else BearConfig.get(id)
+				local rar = if isFish then spec.rarity else (spec.fixedRarity or bestRarity(entry) or "Common")
+				local pair = Sim.RARITY_CARD[rar] or Sim.RARITY_CARD.Common
+				if not found then
+					pair = { pair[1]:Lerp(RGB(40, 40, 46), 0.62), pair[2]:Lerp(RGB(24, 24, 28), 0.62) }
+				end
+				local tile = new("ImageButton", { Name = id, AutoButtonColor = false, Image = "", BackgroundColor3 = Color3.new(1, 1, 1), LayoutOrder = ti, ZIndex = 5 }, grid)
+				Sim.gradient(tile, pair, 90)
+				Sim.corner(tile, 4)
+				Sim.stroke(tile, if indexSel == id then 4 else 3, if indexSel == id then Color3.new(1, 1, 1) elseif indexVar and found then VAR_LOOK[indexVar][2] else nil)
+				Sim.studs(tile, { tile = 22, transparency = 0.75, z = 5 })
+				Sim.model(tile, { kind = if isFish then "Fish" else "Bear", id = id, variant = if indexVar and found then indexVar else nil, silhouette = not found,
+					size = UDim2.fromScale(0.95, 0.8), position = UDim2.fromScale(0.5, 0.55) })
+				Sim.text(tile, if found or entry then spec.name else "???", { Size = UDim2.new(1, -6, 0, 22), Position = UDim2.new(0.5, 0, 0, 14), Max = 18, ZIndex = 9 })
+				new("UIScale", { Name = "ButtonScale" }, tile)
+				Motion.BindButton(tile, 1.06, Sim.sounds, function()
+					indexSel = id
+					renderers.Index(false)
+				end)
+			end
+		end
+		-- detail panel (right)
+		local id = indexSel or firstId
+		if id then
+			local entry = book[id]
+			local found = IndexConfig.found(index, indexCat, id, indexVar)
+			local spec = if isFish then FishConfig.get(id) else BearConfig.get(id)
+			local rar = if isFish then spec.rarity else (spec.fixedRarity or bestRarity(entry) or "Common")
+			local card, centre = Sim.card(w.content, { Size = Vector2.new(250, 370), Rarity = if found then rar else "Secret", Title = if found or entry then spec.name else "???",
+				RarityText = if isFish or entry then RarityConfig.get(rar).name else "Bear", CenterTop = 76, CenterCut = 180 })
+			card.Position = UDim2.fromOffset(548, 12)
+			Sim.model(centre, { kind = if isFish then "Fish" else "Bear", id = id, variant = if indexVar and found then indexVar else nil, silhouette = not found, spin = found,
+				size = UDim2.fromScale(1, 1.1) })
+			local info = if entry then ("Caught %d"):format(entry.n) else "Not found"
+			Sim.infoBar(card, info, { Size = UDim2.fromOffset(226, 34), Position = UDim2.fromOffset(125, 272), ZIndex = 6 })
+			Sim.infoBar(card, if entry then ('Best <font color="#FFD23F">%s</font>'):format(Format.kg(entry.best)) else "???", { Size = UDim2.fromOffset(226, 34), Position = UDim2.fromOffset(125, 310), ZIndex = 6 })
+			-- mutations found for this species
+			local mut = {}
+			if entry and entry.v then
+				for _, v in IndexConfig.Variants do
+					if entry.v[v] then table.insert(mut, v) end
+				end
+			end
+			Sim.infoBar(card, if #mut > 0 then table.concat(mut, " · ") else "No mutation yet", { Size = UDim2.fromOffset(226, 30), Position = UDim2.fromOffset(125, 346), Max = 16, ZIndex = 6 })
+		end
+		if animate then K.cascade(list, 0.04) end
 	end
+	-- a section reward was claimed: celebration
+	Net.event("IndexReward").OnClientEvent:Connect(function(rw)
+		local ok, Cine = pcall(require, script.Parent.Parent.Controllers.CinematicFx)
+		local sub = ("+%s  ·  +%.1f%% LUCK"):format(Format.money(rw.money), (rw.luck or 0) * 100)
+		if rw.fish then sub ..= "  ·  " .. FishConfig.get(rw.fish).name end
+		if rw.rod then sub ..= "  ·  " .. rw.rod .. "!" end
+		if ok and Cine then
+			Cine.banner(rw.title .. " COMPLETE!", if rw.variant then VAR_LOOK[rw.variant][1] else RGB(255, 220, 90), sub)
+		end
+		if w.menu.IsOpen then renderers.Index(false) end
+	end)
 end
 
 ------------------------------------------------------------------------------------------
@@ -731,7 +859,7 @@ function Menus.mount()
 	local KEYS = {
 		Shop = { rods = true, strength = true, strengthGain = true, capacity = true, money = "throttle" },
 		Sell = { fish = true }, Bag = { fish = true, selectedFish = true },
-		Index = { index = true, indexPending = true }, Bears = { bears = true, capacity = true }, Inventory = { bears = true, capacity = true, fish = true, selectedFish = true }, Daily = { daily = true },
+		Index = { index = true, indexPending = true, indexClaims = true }, Bears = { bears = true, capacity = true }, Inventory = { bears = true, capacity = true, fish = true, selectedFish = true }, Daily = { daily = true },
 	}
 	local lastMoney = 0
 	Data.Changed:Connect(function(key)
