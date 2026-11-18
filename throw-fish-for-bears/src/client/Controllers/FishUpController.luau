@@ -138,6 +138,7 @@ local function buildCounter()
 end
 
 local function showCounter(on: boolean)
+	if on then return end -- no rep counter at the top of the screen any more
 	local c = buildCounter()
 	c.gui.Enabled = on
 	if on then
@@ -153,7 +154,7 @@ local function trainingCamera(root: BasePart)
 		if not training.on or not root.Parent then return nil, 60 end
 		-- FIXED front view: straight in front of you, slightly low; only the lens tightens
 		local heat = math.clamp(training.streak / 40, 0, 1)
-		local p = root.Position + look * 10 + Vector3.new(0, 0.8, 0)
+		local p = root.Position + look * 15 + Vector3.new(0, 1.6, 0)
 		return CFrame.lookAt(p, root.Position + Vector3.new(0, 1.4, 0)), 56 - 8 * heat
 	end, 3600, { smooth = 5, blendIn = 0.5 })
 end
@@ -173,7 +174,7 @@ local function introCinematic(root: BasePart)
 		if not r then return nil, 60 end
 		-- push-in from the front to the fixed training view
 		local k = Easing.cubicInOut(math.clamp(t / 1.7, 0, 1))
-		local p = r.Position + look * (16 - 6 * k) + Vector3.new(0, 2.5 - 1.7 * k, 0)
+		local p = r.Position + look * (21 - 6 * k) + Vector3.new(0, 3.2 - 1.6 * k, 0)
 		return CFrame.lookAt(p, r.Position + Vector3.new(0, 1.4, 0)), 48 + 8 * k
 	end, 1.8, { smooth = 9, blendIn = 0.3 })
 	task.delay(1.8, function()

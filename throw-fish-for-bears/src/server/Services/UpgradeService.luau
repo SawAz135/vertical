@@ -43,6 +43,22 @@ local function stop(player: Player, jumped: boolean?)
 	unlock(player)
 	if jumped then blocked[player] = true end
 	local char = player.Character
+	-- step OUT of the ring (a few studs in front of it), or the player lands back in it and
+	-- the training starts again at once
+	if jumped and char then
+		local base = R.BaseService.get(player)
+		local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if base and root then
+			local c = Layout.trainPos(base)
+			local out = Vector3.new(c.X, root.Position.Y + 0.5, c.Z - (Layout.TRAIN_RADIUS + 6))
+			task.defer(function()
+				if char.Parent then
+					char:PivotTo(CFrame.lookAt(out, out + Vector3.new(0, 0, -1)))
+					root.AssemblyLinearVelocity = Vector3.zero
+				end
+			end)
+		end
+	end
 	if char and char:GetAttribute("Pose") == "Lift" then restPose(char) end
 	player:SetAttribute("Training", false)
 end
@@ -87,7 +103,10 @@ task.spawn(function()
 			local char = player.Character
 			local root = char and char:FindFirstChild("HumanoidRootPart")
 			local inRing = base and root and Layout.isInTraining(base, root.Position)
-			if blocked[player] and not inRing then blocked[player] = nil end
+			if blocked[player] and root and base then
+				local c = Layout.trainPos(base)
+				if Vector3.new(root.Position.X - c.X, 0, root.Position.Z - c.Z).Magnitude > Layout.TRAIN_RADIUS + 2 then blocked[player] = nil end
+			end
 			local ok = inRing and not blocked[player] and not char:GetAttribute("IsBear") and R.State.is(player, "Idle")
 			if ok then
 				local now = os.clock()

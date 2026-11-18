@@ -122,6 +122,10 @@ local function buildCompound(map, rand)
 	end
 	-- throw zone: front line as wide as the corridor + 2 side lines back to the corridor corners
 	local ta = Layout.THROW_AREA
+	-- the throw zone floor: a darker grass so it stands out from the rest of the front
+	local tz0 = c.minZ
+	local tzf = Studs.static(map, "ThrowFloor", V3(ta.maxX - ta.minX, 0.08, ta.maxZ - tz0), CF((ta.minX + ta.maxX) / 2, 0.04, (ta.maxZ + tz0) / 2), C(48, 128, 34))
+	tzf.CanCollide = false
 	line(ta.maxZ, ta.minX, ta.maxX)
 	for _, x in { ta.minX, ta.maxX } do
 		Studs.static(map, "Line", V3(0.8, 0.12, ta.maxZ - c.minZ), CF(x, 0.06, (ta.maxZ + c.minZ) / 2), C(255, 255, 255), { smooth = true, noCollide = true })
