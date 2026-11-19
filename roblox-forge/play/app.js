@@ -19,6 +19,8 @@ import { World, labelSprite, voxMat } from './world.js?v=8';
 import { Avatar, DEFAULT_LOOK, HATS, FACES, petMesh } from './avatar.js?v=8';
 import * as LIB from './library.js?v=8';
 import * as MC from '../map/map-core.js';
+import { online } from './online/online.js?v=8';
+import { RemotePlayers } from './online/remote.js?v=8';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -62,6 +64,7 @@ const PV = (() => {
 })();
 const imgCache = new Map();
 function snap(obj, { w = 256, h = 256, camPos, at } = {}) { const { r, sc, cam } = PV; r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); sc.add(obj); cam.position.copy(camPos); cam.lookAt(at); r.render(sc, cam); const url = r.domElement.toDataURL('image/png'); sc.remove(obj); return url; }
+function headshotOf(lk) { const key = 'h' + JSON.stringify(lk || {}); if (imgCache.has(key)) return imgCache.get(key); const a = new Avatar({ ...DEFAULT_LOOK, ...(lk || {}) }); a.root.rotation.y = Math.PI + 0.35; const u = snap(a.root, { w: 120, h: 120, camPos: new THREE.Vector3(0, 4.7, -5.2), at: new THREE.Vector3(0, 4.3, 0) }); a.dispose(); imgCache.set(key, u); return u; }
 function headshot() { const a = new Avatar(look); a.root.rotation.y = Math.PI + 0.35; const u = snap(a.root, { w: 160, h: 160, camPos: new THREE.Vector3(0, 4.7, -5.2), at: new THREE.Vector3(0, 4.3, 0) }); a.dispose(); return u; }
 function petImage(name) { if (imgCache.has('p' + name)) return imgCache.get('p' + name); const g = petMesh(name, voxMat); g.rotation.y = Math.PI * 0.82; const b = new THREE.Box3().setFromObject(g), s = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3()), d = Math.max(s.x, s.y, s.z);
   const u = snap(g, { w: 200, h: 200, camPos: c.clone().add(new THREE.Vector3(0, d * 0.35, -d * 2.4)), at: c }); imgCache.set('p' + name, u); return u; }
@@ -72,15 +75,21 @@ let meShot = headshot(); $('meImg').src = meShot;
    ===================================================================== */
 let dbGames = [];
 const thumbOf = (id) => Store.get('thumb.' + id, null);
-const allGames = () => [...LIB.localGames(), ...dbGames.sort((a, b) => (b.playedAt || b.createdAt || 0) - (a.playedAt || a.createdAt || 0)), ...LIB.FEATURED.map(LIB.featuredGame)];
+let cloudGames = [], friendsData = { friends: [], incoming: [], outgoing: [] };
+const allGames = () => [...cloudGames, ...LIB.localGames(), ...dbGames.sort((a, b) => (b.playedAt || b.createdAt || 0) - (a.playedAt || a.createdAt || 0)), ...LIB.FEATURED.map(LIB.featuredGame)];
 function findGame(id) { return allGames().find((g) => g.id === id); }
 function tile(g) { const th = thumbOf(g.id), gen = LIB.GENRE_FR[g.genre] || 'Jeu';
-  return `<button class="tile" data-g="${esc(g.id)}"><div class="thumb" style="${th ? '' : LIB.coverStyle(g)}">${th ? `<img src="${th}" alt="">` : `<span class="gl">${LIB.genreEmoji(g.genre)}</span>`}${g.live ? '<span class="badge live">EN COURS</span>' : g.source === 'file' ? '<span class="badge">IMPORTÉ</span>' : ''}</div>
-    <b>${esc(g.title)}</b><small><span>${esc(gen)}</span><span>· ${g.source === 'featured' ? 'Exemple' : g.source === 'file' ? 'Fichier' : 'Forge'}</span></small></button>`; }
+  const img = g.thumb || th; return `<button class="tile" data-g="${esc(g.id)}"><div class="thumb" style="${img ? '' : LIB.coverStyle(g)}">${img ? `<img src="${img}" alt="">` : `<span class="gl">${LIB.genreEmoji(g.genre)}</span>`}${g.live ? '<span class="badge live">EN COURS</span>' : g.source === 'file' ? '<span class="badge">IMPORTÉ</span>' : ''}
+    ${g.cloud || g.source === 'featured' ? `<span class="cnt-on" data-on="${esc(g.gid || g.id)}" ${online.playersIn(g.gid || g.id) ? '' : 'hidden'}>${online.playersIn(g.gid || g.id)}</span>` : ''}</div>
+    <b>${esc(g.title)}</b><small>${g.cloud ? `<span>👁 ${abbrev(g.visits)} visites</span>` : `<span>${esc(gen)}</span><span>· ${g.source === 'featured' ? 'Exemple' : g.source === 'file' ? 'Fichier' : 'Forge'}</span>`}</small></button>`; }
 async function renderHome() {
   dbGames = await LIB.dbAll(); const loc = LIB.localGames(), recent = dbGames.slice().sort((a, b) => (b.playedAt || 0) - (a.playedAt || 0)).filter((g) => g.playedAt).slice(0, 8);
   const F = LIB.FEATURED.map(LIB.featuredGame);
+  if (online.user) { try { cloudGames = (await online.listGames()).map(cloudRec); friendsData = await online.friendships(); } catch (e) { console.warn(e); } }
+  const fr = friendsData.friends.slice().sort((a, b) => (online.presence.has(b.id) ? 1 : 0) - (online.presence.has(a.id) ? 1 : 0));
   $('feed').innerHTML = `
+    ${online.user ? `<div class="sec"><h2>Amis <small>${online.online()} joueur${online.online() > 1 ? 's' : ''} en ligne</small></h2>${fr.length ? `<div class="row">${fr.map(friendChip).join('')}</div>` : '<div class="empty">Ajoute des amis dans l’onglet <b>Amis</b> pour les voir ici et les rejoindre.</div>'}</div>` : `<div class="sec"><button class="drop" id="loginBtn"><span class="di">👤</span><span><b>Crée ton compte</b><small>pour jouer en ligne, publier tes jeux et ajouter des amis</small></span></button></div>`}
+    ${cloudGames.length ? `<div class="sec"><h2>Populaires <small>publiés par les joueurs</small></h2><div class="wide">${cloudGames.map(tile).join('')}</div></div>` : ''}
     ${loc.length ? `<div class="sec"><h2>Tes créations <small>depuis Forge</small></h2><div class="row">${loc.map(tile).join('')}</div></div>` : ''}
     ${recent.length ? `<div class="sec"><h2>Continuer</h2><div class="row">${recent.map(tile).join('')}</div></div>` : ''}
     <div class="sec"><h2>Mes jeux <small>${dbGames.length} jeu${dbGames.length > 1 ? 'x' : ''}</small></h2>${dbGames.length ? `<div class="row">${dbGames.map(tile).join('')}</div>` : '<div class="empty">Aucun jeu ici pour l’instant. Mets le fichier de ton jeu : une place Roblox <b>.rbxl</b> (ou .rbxlx, .rbxm), le pack <b>.zip</b> de « Créer tout » ou de Map Studio, ou une carte <b>.json</b>. Il apparaît ici et tu peux y jouer.</div>'}
@@ -88,7 +97,14 @@ async function renderHome() {
     <div class="sec"><h2>Découvrir <small>faits avec Roblox Forge</small></h2><div class="wide">${F.map(tile).join('')}</div></div>`;
   $('feed').querySelectorAll('[data-g]').forEach((b) => (b.onclick = () => { SFX.click(); openSheet(findGame(b.dataset.g)); }));
   $('dropBtn').onclick = () => $('file').click();
+  $('feed').querySelectorAll('[data-fr]').forEach((b) => (b.onclick = () => friendAction(b.dataset.fr)));
+  if ($('loginBtn')) $('loginBtn').onclick = () => showAuth();
 }
+const cloudRec = (g) => ({ id: 'cloud-' + g.id, gid: g.id, cloud: true, title: g.title, genre: g.genre, thumb: g.thumb, visits: g.visits, owner: g.owner, by: g.profiles ? g.profiles.username : '?', file_path: g.file_path, kind: g.kind, size: g.size_bytes, description: g.description, source: 'cloud' });
+function friendChip(f) { const p = online.presence.get(f.id); return `<button class="friend${p ? (p.gameId ? ' ingame' : ' on') : ''}" data-fr="${f.id}"><div class="fa" style="background-image:url(${headshotOf(f.look)})"></div><b>${esc(f.username)}</b><small>${p ? (p.gameId ? esc(p.title || 'en jeu') : 'En ligne') : 'Hors ligne'}</small></button>`; }
+function friendAction(id) { const f = friendsData.friends.find((x) => x.id === id), p = online.presence.get(id); if (!f) return; if (p && p.gameId) { const g = cloudGames.find((c) => c.gid === p.gameId) || allGames().find((c) => c.id === p.gameId); if (g) { toast('Tu rejoins ' + f.username + '…'); startGame(g, { serverId: p.serverId }); return; } } toast(f.username + (p ? ' est en ligne, mais pas dans un jeu' : ' est hors ligne')); }
+/* live counts on the tiles (presence) */
+online.on((w) => { if (w === 'presence') { document.querySelectorAll('[data-on]').forEach((el) => { const n = online.playersIn(el.dataset.on); el.hidden = !n; el.textContent = n; }); if (!$('friends').hidden) renderFriends(); } if (w === 'auth') { renderHome(); renderFriends(); } });
 $('importBtn').onclick = () => $('file').click();
 $('file').onchange = async () => { const f = $('file').files[0]; $('file').value = ''; if (f) await importIt(f); };
 async function importIt(f) {
@@ -101,16 +117,20 @@ addEventListener('drop', (e) => { e.preventDefault(); document.body.classList.re
 
 /* game page (bottom sheet) */
 function openSheet(g) {
-  if (!g) return; const th = thumbOf(g.id), feats = g.spec ? describeSpec(g.spec) : mapFeatures(g);
+  if (!g) return; const th = g.thumb || thumbOf(g.id), feats = g.cloud ? [g.description || 'Jeu Roblox publié par ' + g.by, `${(g.size / 1024 / 1024).toFixed(1)} Mo`] : g.spec ? describeSpec(g.spec) : mapFeatures(g);
   const saved = Store.get('save.' + g.id, null); if (g.notes) feats.push(...g.notes.map((n) => 'ℹ️ ' + n));
   $('pane').innerHTML = `<div class="hero" style="${th ? '' : LIB.coverStyle(g)}">${th ? `<img src="${th}" alt="">` : `<span class="gl">${LIB.genreEmoji(g.genre)}</span>`}<span class="grab"></span><button class="x" id="shX" aria-label="Fermer">✕</button></div>
-    <div class="info"><h3>${esc(g.title)}</h3><div class="by">par <b>@${esc(look.name)}</b> · ${esc(LIB.GENRE_FR[g.genre] || 'Jeu')}${g.file ? ' · ' + esc(g.file) : ''}</div>
+    <div class="info"><h3>${esc(g.title)}</h3><div class="by">par <b>@${esc(g.cloud ? g.by : online.profile ? online.profile.username : look.name)}</b> · ${esc(LIB.GENRE_FR[g.genre] || 'Jeu')}${g.file ? ' · ' + esc(g.file) : ''}</div>
       <button class="play" id="shPlay"><svg viewBox="0 0 24 24" fill="#fff"><path d="M7 4.5v15l12.5-7.5z"/></svg>${saved ? 'Reprendre' : 'Jouer'}</button>
-      <div class="stats3"><div><b>${saved ? abbrev(saved.playtime / 60) + ' min' : '—'}</b><small>Joué</small></div><div><b>${g.spec ? (g.spec.buttons || []).length : '—'}</b><small>Boutons</small></div><div><b>Solo</b><small>Serveur</small></div></div>
+      <div class="stats3">${g.cloud || g.source === 'featured' ? `<div><b data-on2="${esc(g.gid || g.id)}">${online.playersIn(g.gid || g.id)}</b><small>En ligne</small></div><div><b>${g.cloud ? abbrev(g.visits) : '—'}</b><small>Visites</small></div><div><b>${online.user ? 'En ligne' : 'Solo'}</b><small>Serveur</small></div>` : `<div><b>${saved ? abbrev(saved.playtime / 60) + ' min' : '—'}</b><small>Joué</small></div><div><b>${g.spec ? (g.spec.buttons || []).length : '—'}</b><small>Boutons</small></div><div><b>Solo</b><small>Serveur</small></div>`}</div>
       <ul class="feat">${feats.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>
-      <div class="btnrow">${saved ? '<button class="btn2" id="shReset">Effacer la progression</button>' : ''}${g.source === 'file' || g.source === 'saved' ? '<button class="btn2 red" id="shDel">Supprimer</button>' : ''}</div></div>`;
+      <div class="btnrow">${g.source === 'file' && g.rbxl ? '<button class="btn2" id="shPub" style="background:var(--blue);color:#fff">🌍 Publier pour tout le monde</button>' : ''}${saved ? '<button class="btn2" id="shReset">Effacer la progression</button>' : ''}${g.source === 'file' || g.source === 'saved' ? '<button class="btn2 red" id="shDel">Supprimer</button>' : ''}${g.cloud && online.user && g.owner === online.user.id ? '<button class="btn2 red" id="shUnpub">Retirer du catalogue</button>' : ''}</div></div>`;
   const sh = $('sheet'); sh.classList.add('on'); $('shX').onclick = closeSheet; sh.onclick = (e) => { if (e.target === sh) closeSheet(); };
   $('shPlay').onclick = () => { closeSheet(); startGame(g); };
+  if ($('shPub')) $('shPub').onclick = async () => { if (!online.user) { closeSheet(); return showAuth(); } const b = $('shPub'); b.disabled = true; b.textContent = 'Publication…';
+    try { const rec = (await LIB.dbGet(g.id)) || g; const pub = await online.publish({ title: rec.title, description: (rec.notes || []).join(' · '), genre: rec.genre || 'jeu', kind: 'rbxl', bytes: rec.rbxl, thumb: thumbOf(g.id) }); toast('🌍 « ' + pub.title + ' » est publié : tout le monde peut y jouer'); closeSheet(); renderHome(); }
+    catch (e) { b.disabled = false; b.textContent = '🌍 Publier pour tout le monde'; toast('❌ ' + (e.message || e), 5000); } };
+  if ($('shUnpub')) $('shUnpub').onclick = async () => { await online.remove({ id: g.gid, file_path: g.file_path }); closeSheet(); renderHome(); toast('Jeu retiré du catalogue'); };
   if ($('shReset')) $('shReset').onclick = () => { try { localStorage.removeItem('forgeplay.save.' + g.id); } catch {} toast('Progression effacée'); openSheet(g); };
   if ($('shDel')) $('shDel').onclick = async () => { if ($('shDel').dataset.ok !== '1') { $('shDel').dataset.ok = '1'; $('shDel').textContent = 'Appuie encore pour supprimer'; return; } await LIB.dbDel(g.id); closeSheet(); renderHome(); toast('Jeu supprimé'); };
 }
@@ -124,8 +144,38 @@ function mapFeatures(g) { const m = g.map; if (!m) return ['Carte']; const st = 
   return [`${st.parts.toLocaleString('fr')} pièces`, ...Object.entries(st.roles).map(([k, v]) => `${v} ${R[k] || k}`)]; }
 
 /* tabs */
-document.querySelectorAll('#tabs [data-tab]').forEach((b) => (b.onclick = () => { SFX.click(); const t = b.dataset.tab; if (t === 'import') return $('file').click(); showTab(t); }));
-function showTab(t) { document.querySelectorAll('#tabs [data-tab]').forEach((x) => x.classList.toggle('on', x.dataset.tab === t)); $('home').hidden = t !== 'home'; $('avatar').hidden = t !== 'avatar'; if (t === 'avatar') openAvatar(); else AV.on = false; }
+document.querySelectorAll('#tabs [data-tab]').forEach((b) => (b.onclick = () => { SFX.click(); showTab(b.dataset.tab); }));
+function showTab(t) { document.querySelectorAll('#tabs [data-tab]').forEach((x) => x.classList.toggle('on', x.dataset.tab === t)); $('home').hidden = t !== 'home'; $('avatar').hidden = t !== 'avatar'; $('friends').hidden = t !== 'friends'; $('auth').hidden = true; $('tabs').hidden = false; if (t === 'avatar') openAvatar(); else AV.on = false; if (t === 'friends') renderFriends(); }
+
+/* =====================================================================
+   ACCOUNT (pseudo + mot de passe) and FRIENDS
+   ===================================================================== */
+let authMode = 'up';
+function showAuth() { $('auth').hidden = false; $('home').hidden = true; $('avatar').hidden = true; $('friends').hidden = true; $('tabs').hidden = true; $('auErr').textContent = ''; setTimeout(() => $('auUser').focus(), 50); }
+document.querySelectorAll('[data-auth]').forEach((b) => (b.onclick = () => { authMode = b.dataset.auth; document.querySelectorAll('[data-auth]').forEach((x) => x.classList.toggle('on', x === b)); $('auGo').textContent = authMode === 'up' ? 'Créer mon compte' : 'Me connecter'; $('auPass').autocomplete = authMode === 'up' ? 'new-password' : 'current-password'; $('auErr').textContent = ''; }));
+$('auGo').onclick = async () => { const u = $('auUser').value.trim(), pw = $('auPass').value; $('auErr').textContent = ''; $('auGo').disabled = true; $('auGo').textContent = '…';
+  try { if (authMode === 'up') { look.name = u; saveLook(); await online.signUp(u, pw, look); toast('🎉 Bienvenue ' + u + ' !'); } else { await online.signIn(u, pw); if (online.profile && online.profile.look && online.profile.look.skin) { look = { ...DEFAULT_LOOK, ...online.profile.look }; Store.set('look', look); meShot = headshot(); $('meImg').src = meShot; } toast('👋 Content de te revoir ' + online.profile.username); }
+    Store.set('skipAuth', false); showTab('home'); renderHome(); }
+  catch (e) { $('auErr').textContent = e.message || String(e); } finally { $('auGo').disabled = false; $('auGo').textContent = authMode === 'up' ? 'Créer mon compte' : 'Me connecter'; } };
+$('auPass').onkeydown = (e) => { if (e.key === 'Enter') $('auGo').click(); };
+$('auSkip').onclick = () => { Store.set('skipAuth', true); showTab('home'); };
+async function renderFriends() {
+  const F = $('frFeed'); if (!online.user) { $('frSub').textContent = 'connecte-toi pour ajouter des amis'; F.innerHTML = `<div class="sec"><button class="drop" id="frLogin"><span class="di">👤</span><span><b>Crée ton compte ou connecte-toi</b><small>tes amis te voient en ligne et peuvent te rejoindre</small></span></button></div>`; $('frLogin').onclick = showAuth; return; }
+  friendsData = await online.friendships().catch(() => friendsData); const { friends, incoming, outgoing } = friendsData; $('frBadge').hidden = !incoming.length;
+  $('frSub').textContent = `@${online.profile?.username || ''} · ${friends.length} ami${friends.length > 1 ? 's' : ''}`;
+  const row = (p, btns, sub) => `<div class="frow"><div class="fa" style="background-image:url(${headshotOf(p.look)})"></div><div class="ft"><b>${esc(p.username)}</b><small>${sub}</small></div>${btns}</div>`;
+  const status = (p) => { const pr = online.presence.get(p.id); return pr ? (pr.gameId ? '🟢 Joue à ' + esc(pr.title || 'un jeu') : '🔵 En ligne') : '⚪ Hors ligne'; };
+  F.innerHTML = `<div class="sec"><h2>Ajouter un ami</h2><input class="tinput" id="frQ" placeholder="Cherche un pseudo" autocomplete="off" autocapitalize="off"><div id="frRes" style="margin-top:8px"></div></div>
+    ${incoming.length ? `<div class="sec"><h2>Demandes reçues <small>${incoming.length}</small></h2>${incoming.map((p) => row(p, `<button class="go" data-acc="${p.id}">Accepter</button><button data-dec="${p.id}">Refuser</button>`, 'veut être ton ami')).join('')}</div>` : ''}
+    <div class="sec"><h2>Mes amis <small>${friends.length}</small></h2>${friends.length ? friends.map((p) => { const pr = online.presence.get(p.id); return row(p, `${pr && pr.gameId ? `<button class="go" data-join="${p.id}">Rejoindre</button>` : ''}<button data-rm="${p.id}">Retirer</button>`, status(p)); }).join('') : '<div class="empty">Pas encore d’amis. Cherche le pseudo d’un ami ci-dessus.</div>'}</div>
+    ${outgoing.length ? `<div class="sec"><h2>Demandes envoyées</h2>${outgoing.map((p) => row(p, `<button data-rm="${p.id}">Annuler</button>`, 'en attente')).join('')}</div>` : ''}`;
+  let qt = 0; $('frQ').oninput = () => { clearTimeout(qt); qt = setTimeout(async () => { const q = $('frQ').value.trim(); if (q.length < 2) { $('frRes').innerHTML = ''; return; } const res = await online.searchPlayers(q); const known = new Set([...friends, ...incoming, ...outgoing].map((p) => p.id));
+    $('frRes').innerHTML = res.map((p) => row(p, known.has(p.id) ? '<button disabled>Déjà ajouté</button>' : `<button class="blue" data-add="${p.id}">Ajouter</button>`, status(p))).join('') || '<div class="empty">Aucun joueur avec ce pseudo.</div>';
+    $('frRes').querySelectorAll('[data-add]').forEach((b) => (b.onclick = async () => { b.disabled = true; try { await online.requestFriend(b.dataset.add); toast('✉️ Demande d’ami envoyée'); renderFriends(); } catch (e) { toast('❌ ' + e.message); b.disabled = false; } })); }, 250); };
+  F.querySelectorAll('[data-acc]').forEach((b) => (b.onclick = async () => { await online.acceptFriend(b.dataset.acc); toast('🤝 Vous êtes amis !'); renderFriends(); renderHome(); }));
+  F.querySelectorAll('[data-dec],[data-rm]').forEach((b) => (b.onclick = async () => { await online.removeFriend(b.dataset.dec || b.dataset.rm); renderFriends(); renderHome(); }));
+  F.querySelectorAll('[data-join]').forEach((b) => (b.onclick = () => friendAction(b.dataset.join)));
+}
 $('meBtn').onclick = () => showTab('avatar'); $('avBack').onclick = () => showTab('home');
 
 /* =====================================================================
@@ -154,7 +204,7 @@ function openAvatar() {
     st.addEventListener('pointerdown', (e) => { AV.drag = e.clientX; st.setPointerCapture(e.pointerId); }); st.addEventListener('pointermove', (e) => { if (AV.drag == null) return; AV.yaw += (e.clientX - AV.drag) * 0.012; AV.drag = e.clientX; });
     st.addEventListener('pointerup', () => (AV.drag = null)); st.addEventListener('dblclick', () => AV.av.emote('dance')); }
 }
-function saveLook() { Store.set('look', look); meShot = headshot(); $('meImg').src = meShot; }
+function saveLook() { Store.set('look', look); online.user && online.saveLook(look); meShot = headshot(); $('meImg').src = meShot; }
 
 /* =====================================================================
    GAME RUNTIME
@@ -172,12 +222,14 @@ function resize() { if (!renderer || $('game').hidden) return; const q = quality
 addEventListener('resize', resize);
 
 const loadStep = (t, p) => { $('lText').textContent = t; $('lBar').style.width = Math.round(p * 100) + '%'; return sleep(40); };
-async function startGame(g) {
+async function startGame(g, opts = {}) {
   SFX.unlock(); const th = thumbOf(g.id); const L = $('loading'); L.hidden = false; L.classList.remove('out');
   $('lBg').style.backgroundImage = th ? `url(${th})` : ''; $('lThumb').innerHTML = th ? `<img src="${th}" alt="">` : `<div style="${LIB.coverStyle(g)};width:100%;height:100%;display:grid;place-items:center;font-size:84px">${LIB.genreEmoji(g.genre)}</div>`; $('lTitle').textContent = g.title;
   try {
     await loadStep('Préparation du serveur…', 0.08);
-    const full = g.map ? g : (g.id.startsWith('imp-') || g.source === 'saved' ? (await LIB.dbGet(g.id)) || g : g);
+    let full = g.map ? g : (g.id.startsWith('imp-') || g.source === 'saved' ? (await LIB.dbGet(g.id)) || g : g);
+    if (g.cloud) { const cached = await LIB.dbGet(g.id); if (cached && cached.rbxl && cached.size === g.size) full = { ...g, rbxl: cached.rbxl }; else { await loadStep('Téléchargement du jeu…', 0.1); const bytes = await online.download(g); full = { ...g, rbxl: bytes }; LIB.dbPut({ ...full, createdAt: Date.now() }).catch(() => {}); } online.visit(g.gid).catch(() => {}); }
+    mpGame = { id: g.gid || g.id, title: g.title, serverId: opts.serverId };
     if (full.rbxl) { // a Roblox place with scripts: run it live
       await loadStep('Lecture de la place Roblox…', 0.15); ensureRenderer(); const RB = await import('./rbxl.js?v=8'); const { LiveGame } = await import('./live/game.js?v=8');
       const roots = RB.readRoblox(full.rbxl.buffer.slice(full.rbxl.byteOffset, full.rbxl.byteOffset + full.rbxl.byteLength), full.title).roots;
@@ -185,7 +237,7 @@ async function startGame(g) {
       G = new LiveGame({ renderer, camera, hud: $('game'), record: full, roots, readAttributes: RB.readAttributes, look, quality: quality(), onToast: toast, onLeave: () => leaveGame() });
       await G.load((t, p) => loadStep(t, p)); renderer.compile(G.world.scene, camera);
       const rec = await LIB.dbGet(g.id); if (rec) { rec.playedAt = Date.now(); LIB.dbPut(rec); }
-      L.classList.add('out'); setTimeout(() => (L.hidden = true), 650); G.start(); setTimeout(() => { try { const c = document.createElement('canvas'); c.width = c.height = 320; const src = renderer.domElement, s = Math.min(src.width, src.height); G.frame(0); c.getContext('2d').drawImage(src, (src.width - s) / 2, (src.height - s) / 2, s, s, 0, 0, 320, 320); Store.set('thumb.' + g.id, c.toDataURL('image/jpeg', 0.72)); } catch {} }, 2500);
+      L.classList.add('out'); setTimeout(() => (L.hidden = true), 650); G.start(); startMultiplayer(); setTimeout(() => { try { const c = document.createElement('canvas'); c.width = c.height = 320; const src = renderer.domElement, s = Math.min(src.width, src.height); G.frame(0); c.getContext('2d').drawImage(src, (src.width - s) / 2, (src.height - s) / 2, s, s, 0, 0, 320, 320); Store.set('thumb.' + g.id, c.toDataURL('image/jpeg', 0.72)); } catch {} }, 2500);
       return; }
     await loadStep('Construction de la carte…', 0.2); const map = LIB.mapOf(full);
     await loadStep('Chargement des pièces…', 0.45); ensureRenderer(); $('game').hidden = false; $('home').hidden = true; $('tabs').hidden = true; resize();
@@ -193,10 +245,19 @@ async function startGame(g) {
     await loadStep('Chargement de ton avatar…', 0.92); renderer.compile(G.world.scene, camera); G.render(); await loadStep('C’est parti !', 1);
     if (g.source === 'file' || g.source === 'saved') { const rec = await LIB.dbGet(g.id); if (rec) { rec.playedAt = Date.now(); LIB.dbPut(rec); } }
     else if (g.source !== 'featured') { /* live games: nothing stored */ }
-    L.classList.add('out'); setTimeout(() => (L.hidden = true), 650); G.start();
+    L.classList.add('out'); setTimeout(() => (L.hidden = true), 650); G.start(); startMultiplayer();
   } catch (e) { console.error(e); L.hidden = true; leaveGame(); toast('❌ Impossible de lancer : ' + (e.message || e), 5000); }
 }
-function leaveGame() { if (G) { G.dispose(); G = null; } $('hud').hidden = false; renderer && (renderer.domElement.style.filter = ''); $('game').hidden = true; $('home').hidden = false; $('tabs').hidden = false; showTab('home'); renderHome(); }
+function leaveGame() { stopMultiplayer(); if (G) { G.dispose(); G = null; } $('hud').hidden = false; renderer && (renderer.domElement.style.filter = ''); $('game').hidden = true; $('home').hidden = false; $('tabs').hidden = false; showTab('home'); renderHome(); }
+
+/* ---- multiplayer: other players of the same server, live ---- */
+let mpGame = null, MP = null, mpRaf = 0;
+async function startMultiplayer() {
+  if (!online.user || !mpGame || !G || !G.world) return; const game = G; MP = new RemotePlayers(G.world.scene, { onChat: (m) => game.remoteChat?.(m), onList: (l) => game.remoteList?.(l) });
+  game.myId = online.user.id; const sid = await MP.join(mpGame.id, mpGame.title, mpGame.serverId); if (!sid) return; game.mp = MP; game.sysMsg?.(`Serveur en ligne : ${MP.list ? MP.list.length : 1} joueur(s)`);
+  let last = performance.now(); const tick = (now) => { if (G !== game || !MP) return; mpRaf = requestAnimationFrame(tick); const dt = Math.min(0.1, (now - last) / 1000); last = now; MP.update(dt, game.mpState ? game.mpState() : null); }; mpRaf = requestAnimationFrame(tick);
+}
+function stopMultiplayer() { cancelAnimationFrame(mpRaf); if (MP) { MP.leave(); MP = null; } mpGame = null; }
 
 class Game {
   constructor(g, map) {
@@ -319,6 +380,7 @@ class Game {
   drawLB() { const S = this.spec; this.lbCols = S ? [...S.stats.filter((s) => s.id !== 'Kills' || S.combat).map((s) => s.id), ...S.money.map((m) => m.id), ...(S.rebirth ? ['Rebirths'] : [])].slice(0, innerWidth < 600 ? 2 : 4) : Object.keys(this.V).slice(0, innerWidth < 600 ? 2 : 3);
     const lb = $('lb'); if (!lb) return; lb.innerHTML = `<table><tr><th>${this.lbCols.length ? 'Joueurs' : 'Joueurs'}</th>${this.lbCols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr>
       <tr class="you"><td><i style="background-image:url(${meShot})"></i>${esc(look.name)}</td>${this.lbCols.map((c) => `<td>${abbrev(this.V[c] || 0)}</td>`).join('')}</tr>
+      ${(this.others || []).map((o) => `<tr><td><i style="background-image:url(${headshotOf(o.look)})"></i>${esc(o.username)}</td>${this.lbCols.map(() => '<td>—</td>').join('')}</tr>`).join('')}
       ${this.dummies.length ? this.dummies.map((d) => `<tr><td><i style="background:#888"></i>${esc(d.name)} <small style="color:#999">(PNJ)</small></td>${this.lbCols.map(() => '<td>—</td>').join('')}</tr>`).join('') : ''}</table>`; }
   renderHotbar() { const tools = [this.tool, this.sword].filter(Boolean); this.tools = tools;
     $('hotbar').innerHTML = tools.map((t, i) => `<button class="slot${this.equipped === t ? ' on' : ''}" data-t="${i}"><i>${i + 1}</i>${t.e}<span>${esc(t.name)}</span></button>`).join('');
@@ -464,12 +526,16 @@ class Game {
     m.innerHTML = `<div class="wheel">${E.map(([k, e, l], i) => { const a = (i / E.length) * Math.PI * 2 - Math.PI / 2; return `<button data-e="${k}" style="left:calc(50% + ${Math.cos(a) * 118}px);top:calc(50% + ${Math.sin(a) * 118}px)"><span>${e}</span><small>${l}</small></button>`; }).join('')}<div class="hub">Emotes<small>${TOUCH ? 'touche pour jouer' : 'clique ou tape /e'}</small></div></div>`;
     $('hud').appendChild(m); m.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (e.target === m) m.remove(); });
     m.querySelectorAll('[data-e]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); SFX.click(); this.av.emote(b.dataset.e); m.remove(); })); }
+  mpState() { const P = this.P; return { pos: P.pos, yaw: this.av.root.rotation.y, speed: Math.hypot(P.vel.x, P.vel.z), grounded: P.grounded, vy: P.vel.y, emote: this.av.state.emote || 0, tool: this.equipped ? this.equipped.kind : 0 }; }
+  remoteChat(m) { this.chatLine(`<b style="color:#9fe0a8">${esc(m.name)}:</b> ${esc(m.text)}`); SFX.chat(); }
+  sysMsg(t) { this.sys(t); }
+  remoteList(l) { this.others = l.filter((x) => x.id !== online.user?.id); this.drawLB(); }
   /* chat + bubbles */
   sys(t) { this.chatLine(`<b style="color:#ffd45c">[Système]</b> ${esc(t)}`); }
   chatLine(html) { const log = $('chatLog'), d = document.createElement('div'); d.innerHTML = html; log.appendChild(d); while (log.children.length > 60) log.firstChild.remove(); log.scrollTop = log.scrollHeight; if (document.body.classList.contains('chatoff')) $('chatDot').hidden = false; }
   say(t) { const cmd = t.match(/^\/e\s+(\w+)/i); if (cmd) { const k = { wave: 'wave', saluer: 'wave', dance: 'dance', danse: 'dance', danser: 'dance', dance2: 'dance2', point: 'point', cheer: 'cheer', laugh: 'laugh', sit: 'sit', shrug: 'shrug' }[cmd[1].toLowerCase()]; if (k) this.av.emote(k); return; }
     if (/^\/(reset|r)$/i.test(t)) return this.reset();
-    this.chatLine(`<b style="color:#7fb2ff">${esc(look.name)}:</b> ${esc(t)}`); SFX.chat(); this.bubble(t); }
+    this.chatLine(`<b style="color:#7fb2ff">${esc(look.name)}:</b> ${esc(t)}`); SFX.chat(); this.bubble(t); this.mp?.chat(t); }
   bubble(text) { const c = document.createElement('canvas'), g = c.getContext('2d'); g.font = '600 40px "F-Mont",system-ui,sans-serif'; const words = text.split(/\s+/), lines = []; let cur = '';
     for (const w of words) { const n = cur ? cur + ' ' + w : w; if (g.measureText(n).width > 560 && cur) { lines.push(cur); cur = w; } else cur = n; } lines.push(cur); const L = lines.slice(0, 4), W = Math.min(620, Math.max(...L.map((l) => g.measureText(l).width)) + 56), H = L.length * 48 + 44;
     c.width = 640; c.height = H + 30; g.font = '600 40px "F-Mont",system-ui,sans-serif'; const x0 = (640 - W) / 2; g.fillStyle = '#fff'; g.beginPath(); g.roundRect(x0, 4, W, H, 26); g.fill(); g.beginPath(); g.moveTo(300, H + 2); g.lineTo(320, H + 26); g.lineTo(340, H + 2); g.fill();
@@ -643,6 +709,7 @@ class Game {
 
 /* boot: home + deep links (« ▶ Jouer » from Créer tout / Map Studio opens #play=<id>) */
 (async () => {
+  if (online.init()) { await online.session().catch(() => null); online.onPing((p) => { toast(p.kind === 'friend-request' ? `✉️ ${p.from} veut être ton ami` : `🤝 ${p.from} a accepté ta demande`); $('frBadge').hidden = p.kind !== 'friend-request'; renderHome(); }); if (!online.user && !Store.get('skipAuth', false)) showAuth(); }
   await renderHome(); const m = location.hash.match(/play=([\w-]+)/);
   if (m) { history.replaceState(null, '', location.pathname); const g = findGame(m[1]); if (g) startGame(g); }
   window.__play = { get game() { return G; }, startGame, findGame, LIB }; // used by automated tests

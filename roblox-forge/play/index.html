@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Jouer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://myfywmjifxurhwfnihdx.supabase.co wss://myfywmjifxurhwfnihdx.supabase.co https://thumbnails.roblox.com https://thumbnails.roproxy.com; img-src 'self' data: blob: https://*.rbxcdn.com https://myfywmjifxurhwfnihdx.supabase.co; font-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Jouer · Roblox Forge</title>
 <link rel="icon" href="data:,">
@@ -288,6 +288,25 @@ body:not(.chatoff) .counters{top:calc(env(safe-area-inset-top) + 262px)}
 #toast.on{opacity:1;transform:none}
 @media (min-width:900px){.wide{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}.tile,.thumb{width:180px}.thumb{height:180px}}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;transition-duration:.01s!important}}
+
+/* online: account, friends, counts */
+.auth{flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:calc(env(safe-area-inset-top) + 30px) 18px calc(env(safe-area-inset-bottom) + 30px);background:radial-gradient(90% 60% at 50% 0%,#1e2a52,#111216 70%)}
+.auth-logo{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}.auth-logo .logo{width:64px;height:64px;border-radius:16px}.auth-logo .logo::after{inset:21px}.auth-logo b{font-size:30px;font-weight:800}.auth-logo small{color:var(--muted);font-size:13px}
+.auth-card{width:min(100%,380px);background:var(--bg2);border-radius:16px;padding:16px;box-shadow:0 0 0 1px var(--line) inset;display:flex;flex-direction:column;gap:8px}
+.auth-card label{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:6px}
+.auth-tabs{display:flex;gap:4px;background:var(--card);border-radius:10px;padding:4px}.auth-tabs button{flex:1;height:38px;border:0;border-radius:8px;background:none;font-weight:800;color:var(--muted)}.auth-tabs button.on{background:#fff;color:#111}
+.auth-err{color:#ff8a8a;font-size:13px;min-height:16px}.auth-note{color:var(--faint);font-size:12px;text-align:center;margin:4px 0 0}
+.tbadge{position:absolute;margin:-2px 0 0 22px;min-width:8px;height:8px;border-radius:4px;background:var(--red)}
+nav.tabs button{position:relative}
+.cnt-on{position:absolute;right:7px;bottom:7px;font-size:10.5px;font-weight:800;padding:3px 7px;border-radius:6px;background:rgba(0,0,0,.65);display:flex;gap:4px;align-items:center}.cnt-on::before{content:"";width:7px;height:7px;border-radius:50%;background:#00e083}
+.friend{flex:none;width:76px;border:0;background:none;padding:0;text-align:center;color:inherit}
+.friend .fa{width:68px;height:68px;margin:0 auto;border-radius:50%;background:var(--card) center/cover;position:relative;box-shadow:0 0 0 1px var(--line) inset}
+.friend .fa::after{content:"";position:absolute;right:2px;bottom:2px;width:14px;height:14px;border-radius:50%;background:#6d7079;box-shadow:0 0 0 3px var(--bg)}
+.friend.on .fa::after{background:#00b0ff}.friend.ingame .fa::after{background:#00e083}
+.friend b{display:block;font-size:12px;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.friend small{display:block;font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.frow{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:var(--bg2);box-shadow:0 0 0 1px var(--line) inset;margin-bottom:8px}
+.frow .fa{width:46px;height:46px;border-radius:50%;background:var(--card) center/cover;flex:none}.frow .ft{flex:1;min-width:0}.frow .ft b{display:block}.frow .ft small{color:var(--muted);font-size:12px}
+.frow button{height:36px;border:0;border-radius:9px;padding:0 12px;font-weight:800;font-size:13px;background:var(--card)}.frow button.go{background:var(--green);color:#fff}.frow button.blue{background:var(--blue);color:#fff}
 </style>
 </head>
 <body>
@@ -301,6 +320,23 @@ body:not(.chatoff) .counters{top:calc(env(safe-area-inset-top) + 262px)}
 </section>
 
 <!-- ===== AVATAR ===== -->
+<section class="scr" id="auth" hidden>
+  <div class="auth">
+    <div class="auth-logo"><span class="logo" aria-hidden="true"></span><b>Jouer</b><small>tes jeux Roblox, dans le navigateur, avec tes amis</small></div>
+    <div class="auth-card">
+      <div class="auth-tabs"><button class="on" data-auth="up">Créer un compte</button><button data-auth="in">Se connecter</button></div>
+      <label for="auUser">Pseudo</label><input class="tinput" id="auUser" maxlength="20" autocomplete="username" autocapitalize="off" placeholder="3 à 20 lettres, chiffres ou _">
+      <label for="auPass">Mot de passe</label><input class="tinput" id="auPass" type="password" maxlength="72" autocomplete="new-password" placeholder="au moins 6 caractères">
+      <button class="play" id="auGo">Créer mon compte</button><div class="auth-err" id="auErr"></div>
+      <button class="btn2" id="auSkip">Jouer sans compte</button>
+      <p class="auth-note">Pas besoin d’e-mail ni de GitHub. Ton pseudo est visible par les autres joueurs.</p>
+    </div>
+  </div>
+</section>
+<section class="scr" id="friends" hidden>
+  <header class="top"><h1>Amis<small id="frSub">connecte-toi pour ajouter des amis</small></h1></header>
+  <div class="feed" id="frFeed"></div>
+</section>
 <section class="scr" id="avatar" hidden>
   <header class="top"><button class="ico" id="avBack" aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button><h1>Avatar<small>ton personnage dans tous les jeux</small></h1></header>
   <div class="stage" id="avStage"></div>
@@ -310,7 +346,7 @@ body:not(.chatoff) .counters{top:calc(env(safe-area-inset-top) + 262px)}
 <nav class="tabs" id="tabs">
   <button class="on" data-tab="home"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2l9 7.6v9.2a1 1 0 01-1 1h-5.5v-6h-5v6H4a1 1 0 01-1-1v-9.2z"/></svg>Accueil</button>
   <button data-tab="avatar"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="8" y="2.5" width="8" height="7" rx="2"/><rect x="6.5" y="10.5" width="11" height="6.5" rx="1.5"/><rect x="3" y="10.5" width="3" height="6" rx="1"/><rect x="18" y="10.5" width="3" height="6" rx="1"/><rect x="7.5" y="17.5" width="4" height="4.5" rx="1"/><rect x="12.5" y="17.5" width="4" height="4.5" rx="1"/></svg>Avatar</button>
-  <button data-tab="import"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 005.5 20h13a1.5 1.5 0 001.5-1.5V16"/></svg>Importer</button>
+  <button data-tab="friends"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="8" r="3.6"/><path d="M2.5 19.5c.6-3.6 3.2-5.6 6.5-5.6s5.9 2 6.5 5.6z"/><circle cx="17" cy="9" r="2.8"/><path d="M15.8 13.6c2.9.1 5.2 1.9 5.7 5.2h-4.2c-.2-2-1-3.8-2.4-5.1z"/></svg>Amis<i class="tbadge" id="frBadge" hidden></i></button>
   <a href="../create/"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.2 5.6 5.8 1.8-5.8 1.8L12 17.3l-2.2-5.6L4 9.9l5.8-1.8z"/><path d="M19 15l.9 2.2 2.1.8-2.1.8L19 21l-.9-2.2-2.1-.8 2.1-.8z"/></svg>Créer</a>
 </nav>
 
@@ -342,6 +378,7 @@ body:not(.chatoff) .counters{top:calc(env(safe-area-inset-top) + 262px)}
   </div>
 </section>
 <div id="toast"></div>
+<script src="./vendor/supabase.js"></script>
 <script type="module" src="./app.js?v=8"></script>
 </body>
 </html>
