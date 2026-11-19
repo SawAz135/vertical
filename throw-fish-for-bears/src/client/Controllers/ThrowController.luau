@@ -310,6 +310,42 @@ local function onThrow(player: Player, d)
 			unbind()
 			Fx.dust(d.to, 1.4)
 			Sound.play("Land", { at = d.to })
+			-- IMPACT CRATER: a ring of studded turf chunks bursts up around the spot, tilts and
+			-- settles back down (real parts, removed after a few seconds), + a low dust ring
+			task.spawn(function()
+				local big = 1 + (d.power or 0.5)
+				local chunks = {}
+				local n = 10
+				for i = 1, n do
+					local a = i / n * math.pi * 2 + math.random() * 0.3
+					local r = (1.6 + math.random() * 0.6) * big
+					local c = Instance.new("Part")
+					c.Anchored = true
+					c.CanCollide = false
+					c.CanQuery = false
+					c.CanTouch = false
+					c.Size = Vector3.new(1.2, 0.5, 1) * (0.7 + math.random() * 0.5) * big
+					c.Color = if i % 3 == 0 then Color3.fromRGB(110, 84, 58) else Color3.fromRGB(70, 150, 52)
+					c.Material = Enum.Material.Plastic
+					c.TopSurface = Enum.SurfaceType.Studs
+					c.Parent = Fx.folder
+					table.insert(chunks, { p = c, a = a, r = r, tilt = 0.5 + math.random() * 0.5, h = (0.6 + math.random() * 0.6) * big })
+				end
+				Fx.ring(d.to + Vector3.new(0, 0.2, 0), Color3.fromRGB(200, 180, 150), 0.5, 7 * big, 0.6)
+				local t0 = os.clock()
+				while os.clock() - t0 < 3 do
+					local k = os.clock() - t0
+					for _, ch in chunks do
+						-- pop up fast, hang tilted, then sink back flat into the ground
+						local up = if k < 0.15 then Easing.quadOut(k / 0.15) else math.max(0, 1 - Easing.quadIn(math.clamp((k - 1.6) / 1.2, 0, 1)))
+						local out = ch.r * (0.6 + 0.4 * math.min(1, k / 0.15))
+						local pos = d.to + Vector3.new(math.cos(ch.a) * out, ch.h * 0.35 * up - 0.25 * (1 - up), math.sin(ch.a) * out)
+						ch.p.CFrame = CFrame.lookAt(pos, Vector3.new(d.to.X, pos.Y, d.to.Z)) * CFrame.Angles(ch.tilt * up, 0, 0)
+					end
+					task.wait()
+				end
+				for _, ch in chunks do ch.p:Destroy() end
+			end)
 			if d.ok then
 				task.delay(0.12, function() if model.Parent then model:Destroy() end end)
 			else

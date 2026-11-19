@@ -575,6 +575,25 @@ local function eatSequence(d)
 				Cine.blackout(true, 0.04)
 				Cine.eyelids(false)
 			end)
+			-- CHEWING in the dark: muffled crunches, each one shakes the world, a sliver of
+			-- light flickers between the teeth as the jaws part, then the big GULP
+			local since = now - tChomp
+			for i, at in { 0.28, 0.5, 0.7, 0.88 } do
+				if since >= at then
+					once("chew" .. i, function()
+						Sound.play("Chomp", { pitch = bearPitch(c.bear) * (0.7 + i * 0.06), volume = 0.9 - i * 0.12 })
+						CameraController.shake(0.9 - i * 0.12, 0.18)
+						Cine.blackout(false, 0.05)
+						task.delay(0.07, function() Cine.blackout(true, 0.05) end)
+					end)
+				end
+			end
+			if now >= tl.eat + G.swallowAt then
+				once("gulp", function()
+					Sound.play("Growl", { pitch = bearPitch(c.bear) * 1.3, volume = 0.5 })
+					CameraController.shake(0.5, 0.35)
+				end)
+			end
 			cf, fov = lastCF or CFrame.lookAt(mouth + h.CFrame.LookVector * 0.3, mouth), lastFov
 		end
 		-- DROOL dripping off the fangs while the jaws are open (little drops, natural colour)
@@ -591,7 +610,7 @@ local function eatSequence(d)
 		if pp.Y < ground.Y - 0.5 then cf = CFrame.lookAt(Vector3.new(pp.X, ground.Y - 0.5, pp.Z), pp + cf.LookVector) end
 		lastCF, lastFov = cf, fov
 		return cf, fov
-	end, tl.total + 1, { smooth = 12, blendIn = 0.2 })
+	end, tl.total + 1, { smooth = 7, blendIn = 0.3 }) -- softer follow: fluid POV
 end
 
 local function luckText(v: number): string

@@ -103,6 +103,7 @@ function EquipService.equipFish(player: Player, fishId: string): boolean
 	mount(char, model, t, c0, "FishCarry")
 	-- the fish's weight floats above it (+ HUGE for the giants)
 	local sc = FishConfig.scaleFor(fish.s, fish.w)
+	model:SetAttribute("HeldScale", sc)
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "FishKg"
 	bb.Size = UDim2.fromOffset(150, if sc >= 2.2 then 62 else 34)

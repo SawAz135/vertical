@@ -165,14 +165,30 @@ function P.Catch(o, t, now)
 	return o
 end
 
-function P.HoldFish(o, t, now)
-	local br = sin(now * 1.6)
-	o.RS = V3(1.15 + br * 0.04, 0, -0.38)
-	o.LS = V3(1.15 - br * 0.04, 0, -0.38)
-	o.RE = V3(0.75, 0, 0)
-	o.LE = V3(0.75, 0, 0)
-	o.W = V3(0.06, 0, sin(now * 1.1) * 0.03)
-	o.N = V3(-0.15, 0, 0)
+-- carrying a fish in both arms: the bigger it is, the lower the arms, the more the knees
+-- bend and the heavier the breathing; every few seconds the fish SQUIRMS and the arms
+-- fight to hold it (the carry joint twists, the arms jolt, the head flinches)
+function P.HoldFish(o, t, now, char)
+	local held = char and char:FindFirstChild("TFBHeld")
+	local sc = if held then (held:GetAttribute("HeldScale") or 1) else 1
+	local heavy = clamp((sc - 1) / 2, 0, 1)
+	local seed = if held then (#held:GetFullName() % 7) else 0
+	local burst = math.max(0, sin(now * 0.9 + seed) - 0.78) * 4.5
+	local br = sin(now * (1.6 + heavy * 1.2))
+	local fight = burst * (sin(now * 17) * 0.5 + sin(now * 11.3) * 0.5)
+	o.RS = V3(1.15 - heavy * 0.35 + br * (0.04 + heavy * 0.04) + fight * 0.12, 0, -0.38 - heavy * 0.12)
+	o.LS = V3(1.15 - heavy * 0.35 - br * (0.04 + heavy * 0.04) - fight * 0.12, 0, -0.38 - heavy * 0.12)
+	o.RE = V3(0.75 - heavy * 0.25 + fight * 0.1, 0, 0)
+	o.LE = V3(0.75 - heavy * 0.25 - fight * 0.1, 0, 0)
+	o.W = V3(0.06 - heavy * 0.12, fight * 0.08, sin(now * 1.1) * 0.03 + fight * 0.05)
+	o.N = V3(-0.15 + burst * 0.1, -fight * 0.15, 0)
+	o.RK = V3(-0.25 * heavy, 0, 0)
+	o.LK = V3(-0.25 * heavy, 0, 0)
+	-- the fish itself twists in the arms (carry joint)
+	local joint = char and char:FindFirstChild("FishCarry", true)
+	if joint and joint:IsA("Motor6D") then
+		joint.Transform = CFrame.Angles(sin(now * 19) * 0.22 * burst, sin(now * 7) * 0.05, sin(now * 13) * 0.3 * burst + sin(now * 2.1) * 0.04)
+	end
 	return o
 end
 

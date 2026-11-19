@@ -25,10 +25,12 @@ local IDLE_CHOICES = {
 	{ anim = "Wander", w = 34 }, { anim = "Look", w = 12 }, { anim = "Sniff", w = 12 },
 	{ anim = "Sit", w = 12 }, { anim = "Scratch", w = 7 }, { anim = "Stretch", w = 6 },
 	{ anim = "Sleep", w = 7 }, { anim = "Lie", w = 6 }, { anim = "Trot", w = 4 },
+	{ anim = "Yawn", w = 5 }, { anim = "Fish", w = 6 }, { anim = "Forage", w = 8 }, { anim = "Roar", w = 3 },
 }
 local DURATION = {
 	Look = { 2, 3.5 }, Sniff = { 1.8, 3 }, Sit = { 5, 9 }, Scratch = { 2.4, 3.2 },
 	Stretch = { 2, 2.6 }, Sleep = { 9, 16 }, Lie = { 6, 10 }, Idle = { 1.5, 4 },
+	Yawn = { 3.2, 3.4 }, Fish = { 6, 11 }, Forage = { 4, 7 }, Roar = { 2.5, 2.6 },
 }
 
 local function setNoCollide(model: Model)
@@ -193,7 +195,7 @@ local function idleWeight(self, c): number
 	local lazy = if spec and (spec.traits.panda or spec.body.w / spec.body.l > 0.8) then 1 else 0
 	local w = c.w
 	if c.anim == "Trot" or c.anim == "Look" then w *= 1 + playful * 1.5 - heavy * 0.4 end
-	if c.anim == "Sit" or c.anim == "Lie" or c.anim == "Sleep" then w *= 1 + lazy * 2.5 + heavy * 0.5 - playful * 0.5 end
+	if c.anim == "Sit" or c.anim == "Lie" or c.anim == "Sleep" or c.anim == "Yawn" then w *= 1 + lazy * 2.5 + heavy * 0.5 - playful * 0.5 end
 	if c.anim == "Wander" then w *= 1 + playful * 0.5 - lazy * 0.5 end
 	return math.max(0.1, w)
 end

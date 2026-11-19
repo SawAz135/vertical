@@ -21,6 +21,8 @@ local Animator = {}
 local bears = {}
 local fishes = {}
 local rainbow = {}
+local golden = {} -- [model] = { parts with a sheen }
+local diamonds = {} -- [model] = { orbiting crystal shards }
 local camera = workspace.CurrentCamera
 local frame = 0
 
@@ -178,6 +180,37 @@ local function register(inst: Instance)
 		rainbow[inst] = true
 		inst.Destroying:Connect(function() rainbow[inst] = nil end)
 	end
+	if inst:GetAttribute("GoldSheen") then
+		local list = {}
+		for _, d in inst:GetDescendants() do
+			if d:IsA("BasePart") and d:GetAttribute("SheenT") then table.insert(list, d) end
+		end
+		golden[inst] = list
+		inst.Destroying:Connect(function() golden[inst] = nil end)
+	end
+	if inst:GetAttribute("DiamondOrbit") and inst.PrimaryPart then
+		-- 4 crystal shards orbiting the bear (local parts, clear glass, no glow)
+		local _, bodySize = inst:GetBoundingBox() -- measured BEFORE the shards exist
+		local shards = {}
+		for i = 1, 4 do
+			local sh = Instance.new("Part")
+			sh.Name = "DiamondShard"
+			sh.Size = Vector3.new(0.35, 0.6, 0.35)
+			sh.Material = Enum.Material.Glass
+			sh.Transparency = 0.2
+			sh.Reflectance = 0.3
+			sh.Color = Color3.fromRGB(170, 235, 255)
+			sh.Anchored = true
+			sh.CanCollide = false
+			sh.CanQuery = false
+			sh.CanTouch = false
+			sh.CastShadow = false
+			sh.Parent = inst
+			shards[i] = sh
+		end
+		diamonds[inst] = { shards = shards, size = bodySize, s0 = inst:GetScale() }
+		inst.Destroying:Connect(function() diamonds[inst] = nil end)
+	end
 end
 
 function Animator.track(model: Model)
@@ -323,6 +356,57 @@ STATES.Stretch = function(p, e, t, s)
 	rot(p, "Jaw", -0.5 * Easing.bump(clamp((t - 0.5) / 1.2, 0, 1))) -- big yawn
 	rot(p, "Tail", 0.8 * k)
 	e.eyesClosed = k > 0.7
+end
+
+-- a big lazy YAWN while sitting: head tips back, jaw opens WIDE and slow, eyes shut, a shake
+STATES.Yawn = function(p, e, t, s)
+	local k = Easing.cubicInOut(clamp(t / 0.6, 0, 1))
+	sitPose(p, s, e.legLen, k)
+	local y = Easing.bump(clamp((t - 0.5) / 1.8, 0, 1))
+	rot(p, "Neck", 0.55 * y, 0, sin(t * 2) * 0.05 * y)
+	rot(p, "Jaw", -0.75 * y)
+	rot(p, "EarL", -0.3 * y) rot(p, "EarR", -0.3 * y)
+	local shake = clamp((t - 2.3) / 0.6, 0, 1) * (1 - clamp((t - 2.9) / 0.3, 0, 1))
+	rot(p, "Neck", 0, sin(t * 28) * 0.18 * shake, 0)
+	e.eyesClosed = y > 0.4
+end
+
+-- FISHING on the bank: crouched, staring at the ground, then a lightning paw SWIPE (scoop)
+STATES.Fish = function(p, e, t, s)
+	local k = Easing.cubicInOut(clamp(t / 0.5, 0, 1))
+	pos(p, "BodyJoint", 0, -0.12 * s * k, 0)
+	rot(p, "BodyJoint", 0.12 * k)
+	local cyc = (t % 2.6)
+	local wind = Easing.cubicInOut(clamp((cyc - 1.4) / 0.5, 0, 1))
+	local swipe = clamp((cyc - 1.9) / 0.12, 0, 1)
+	local back = clamp((cyc - 2.1) / 0.4, 0, 1)
+	local paw = (wind * 1.1 - swipe * 1.9) * (1 - back)
+	rot(p, "LegFR", -paw * k, 0, 0.15 * wind * k)
+	rot(p, "Neck", (-0.35 + 0.15 * wind) * k, noise(e.seed, t * 0.6) * 0.25 * k, 0)
+	rot(p, "Tail", 0.4 * wind * k)
+end
+
+-- FORAGING: nose to the ground, front paws dig in turns, head jerks up to chew a find
+STATES.Forage = function(p, e, t, s)
+	local k = Easing.cubicInOut(clamp(t / 0.5, 0, 1))
+	rot(p, "BodyJoint", 0.2 * k)
+	pos(p, "BodyJoint", 0, -0.1 * s * k, 0)
+	local dig = sin(t * 9)
+	rot(p, "LegFL", (0.35 + dig * 0.35) * k) rot(p, "LegFR", (0.35 - dig * 0.35) * k)
+	local chew = math.max(0, sin(t * 0.8 + e.seed) - 0.7) * 3.3
+	rot(p, "Neck", (-0.55 + chew * 0.6) * k, noise(e.seed, t) * 0.2 * k, 0)
+	rot(p, "Jaw", -abs(sin(t * 12)) * 0.25 * chew)
+end
+
+-- ROAR (show of strength / play-fight): rears up on the back legs, paws out, jaws WIDE
+STATES.Roar = function(p, e, t, s)
+	local k = Easing.backOut(clamp(t / 0.5, 0, 1)) * (1 - Easing.cubicInOut(clamp((t - 2.0) / 0.5, 0, 1)))
+	rot(p, "BodyJoint", -0.75 * k)
+	pos(p, "BodyJoint", 0, 0.35 * s * k, 0)
+	rot(p, "LegFL", (-1.0 + sin(t * 8) * 0.25) * k) rot(p, "LegFR", (-1.0 - sin(t * 8) * 0.25) * k)
+	rot(p, "LegBL", 0.6 * k) rot(p, "LegBR", 0.6 * k)
+	rot(p, "Neck", 0.4 * k, sin(t * 6) * 0.15 * k, 0)
+	rot(p, "Jaw", -0.85 * k)
 end
 
 -- joy in 3 beats: rears up roaring and pawing the air -> drops into two bouncy hops
@@ -618,7 +702,8 @@ local function airLayer(p, e, s, vy)
 	rot(p, "Neck", 0.1 * k)
 end
 
-local PLANTED = { Sniff = true, Eat = true, Reveal = true, Happy = true, Transform = true, Alert = true, Arrive = true, Look = true }
+local PLANTED = { Sniff = true, Eat = true, Reveal = true, Happy = true, Transform = true, Alert = true, Arrive = true, Look = true,
+	Yawn = true, Fish = true, Forage = true, Roar = true }
 -- states driven by a bouncy spring: { speed, damping }
 local SPRINGY = { Alert = { 16, 0.78 }, Eat = { 17, 0.8 }, Happy = { 15, 0.74 }, Reveal = { 13, 0.8 }, Transform = { 14, 0.8 }, Sniff = { 15, 0.82 }, Arrive = { 12, 0.9 } }
 local AXES = { "x", "y", "z", "px", "py", "pz" }
@@ -785,8 +870,8 @@ local function updateFish(e, dt, now)
 		speed, amp = 7, 0.32
 	elseif anim == "Held" then
 		-- calm, with an occasional wiggle burst
-		local burst = math.max(0, sin(now * 0.8 + e.phase) - 0.85) * 6.6
-		speed, amp = 4 + burst * 10, 0.12 + burst * 0.35
+		local burst = math.max(0, sin(now * 0.9) - 0.78) * 4.5
+		speed, amp = 5 + burst * 14, 0.16 + burst * 0.45
 	end
 	if e.ui then
 		-- living thumbnail: species tempo / amplitude, small fish dart now and then
@@ -852,7 +937,7 @@ local function swimParams(id: string?)
 end
 
 local IDLE_UI = {
-	{ "Idle", 26 }, { "Look", 22 }, { "Sniff", 12 }, { "Scratch", 8 }, { "Stretch", 7 }, { "Sit", 11 }, { "Happy", 6 }, { "Lie", 5 },
+	{ "Idle", 26 }, { "Look", 22 }, { "Sniff", 12 }, { "Yawn", 5 }, { "Forage", 6 }, { "Scratch", 8 }, { "Stretch", 7 }, { "Sit", 11 }, { "Happy", 6 }, { "Lie", 5 },
 }
 
 function Animator.trackUI(model: Model, vp: ViewportFrame, kind: string, id: string?)
@@ -957,6 +1042,7 @@ function Animator.init()
 	for _, d in workspace:GetDescendants() do register(d) end
 	workspace.DescendantAdded:Connect(register)
 	local rainbowAcc = 0
+	local sheenAcc = 0
 	RunService.PreSimulation:Connect(function(dt)
 		frame += 1
 		dt = math.min(dt, 0.1)
@@ -984,6 +1070,40 @@ function Animator.init()
 		end
 		updateUI(dt, now)
 		updateMutants(dt, now)
+		-- GOLDEN: a soft sheen band travels along the fur every few seconds
+		-- DIAMOND: crystal shards circle the bear, bobbing and tumbling
+		sheenAcc += dt
+		if sheenAcc > 0.05 then
+			sheenAcc = 0
+			local cyc = (now % 3.2) / 1.4 -- 0..1 = the sweep, then a pause
+			for model, list in golden do
+				local pp = model.PrimaryPart
+				if model.Parent and pp and (pp.Position - camPos).Magnitude < 140 and not model:GetAttribute("Silhouette") then
+					for _, d in list do
+						local base = d:GetAttribute("GoldBase")
+						if base then
+							local dist = math.abs((d:GetAttribute("SheenT") or 0) - (cyc * 1.4 - 0.2))
+							local k = if cyc <= 1 then math.max(0, 1 - dist / 0.16) else 0
+							d.Color = base:Lerp(Color3.fromRGB(255, 250, 215), k * 0.75)
+						end
+					end
+				end
+			end
+		end
+		for model, dd in diamonds do
+			local pp = model.PrimaryPart
+			local shards = dd.shards
+			if model.Parent and pp and (pp.Position - camPos).Magnitude < 140 then
+				local size = dd.size * (model:GetScale() / math.max(0.01, dd.s0))
+				local r = math.max(size.X, size.Z) * 0.62
+				local c = pp.Position
+				for i, sh in shards do
+					local a = now * 0.9 + i * math.pi / 2
+					local y = size.Y * (0.15 + 0.12 * math.sin(now * 1.7 + i))
+					sh.CFrame = CFrame.new(c + Vector3.new(math.cos(a) * r, y, math.sin(a) * r)) * CFrame.Angles(now * 1.3 + i, now * 2 + i, math.pi / 4)
+				end
+			end
+		end
 		rainbowAcc += dt
 		if rainbowAcc > 0.08 then
 			rainbowAcc = 0

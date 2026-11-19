@@ -196,8 +196,21 @@ function Variants.apply(model: Model, variant: string)
 				local _, _, v = p.Color:ToHSV()
 				p.Color = Studs.shade(base, 0.82 + v * 0.3)
 				p.Reflectance = 0.18
+				p:SetAttribute("GoldBase", p.Color)
 			end
 		end
+		-- the client sweeps a soft sheen along the body (front -> back), no glow
+		local minZ, maxZ = math.huge, -math.huge
+		for _, p in parts do
+			minZ = math.min(minZ, p.Position.Z)
+			maxZ = math.max(maxZ, p.Position.Z)
+		end
+		for _, p in parts do
+			if p:GetAttribute("GoldBase") then
+				p:SetAttribute("SheenT", (p.Position.Z - minZ) / math.max(0.01, maxZ - minZ))
+			end
+		end
+		model:SetAttribute("GoldSheen", true)
 		if root then sparkles(root, Color3.fromRGB(255, 220, 90), 4) end
 	elseif variant == "Diamond" then
 		for _, p in parts do
@@ -214,6 +227,7 @@ function Variants.apply(model: Model, variant: string)
 			end
 		end
 		if root then sparkles(root, Color3.fromRGB(170, 240, 255), 6) end
+		model:SetAttribute("DiamondOrbit", true) -- the client spins crystal shards around it
 	elseif variant == "Rainbow" then
 		-- hue sweeps from front to back; the client drifts it over time (attribute RainbowHue)
 		local minZ, maxZ = math.huge, -math.huge
