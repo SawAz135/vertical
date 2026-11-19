@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { applyText } from '../create/game-spec.js';
 import { buildMap } from '../create/game-pack.js';
 import * as MC from '../map/map-core.js';
+import { readRoblox } from './rbxl.js';
 
 /* ---------- IndexedDB ---------- */
 const DB = 'forge-play', ST = 'games';
@@ -119,6 +120,13 @@ const specFromConfig = (c) => ({ v: 2, title: c.title || 'Jeu', genre: 'simulato
 /** any Forge file → a game record (not yet saved) */
 export async function importFile(file) {
   const name = file.name.replace(/\.[^.]+$/, ''), buf = await file.arrayBuffer(), u8 = new Uint8Array(buf), dec = new TextDecoder();
+  const head = dec.decode(u8.subarray(0, 64));
+  if (head.startsWith('<roblox!') || /<roblox[\s>]/.test(head) || /\.rbx[lm]x?$/i.test(file.name)) { // Roblox Studio place / model
+    const r = readRoblox(buf, name); let spec = null;
+    if (r.configSrc) { try { spec = specFromConfig(parseLuaTable(r.configSrc)); } catch (e) { console.warn(e); } }
+    const notes = [`${r.stats.parts.toLocaleString('fr')} pièces`]; if (r.stats.meshes) notes.push(`${r.stats.meshes} MeshPart/Union en forme de bloc`); if (r.stats.terrain) notes.push('Terrain non affiché'); if (r.stats.scripts) notes.push(`${r.stats.scripts} scripts Luau non exécutés`); if (r.stats.skipped) notes.push(`${r.stats.skipped} pièces au-delà de la limite`);
+    return { id: 'imp-' + Date.now().toString(36), title: spec?.title || r.map.name, source: 'file', file: file.name, spec, map: r.map, genre: spec ? (spec.train ? 'simulator' : 'jeu') : 'carte', theme: null, notes };
+  }
   if (u8[0] === 0x50 && u8[1] === 0x4b) { // zip pack
     const files = await unzip(buf), names = Object.keys(files);
     const own = names.find((n) => /forge-game\.json$/i.test(n)); if (own) return fromJson(JSON.parse(dec.decode(files[own])), name);
@@ -140,7 +148,7 @@ function fromJson(j, name) {
   if (j && j.spec && j.spec.genre) return { id, title: j.spec.title || name, source: 'file', spec: j.spec, seed: j.seed ?? 7, genre: j.spec.genre, theme: j.spec.theme };
   if (j && j.root && j.v) return { id, title: j.name && j.name !== 'ForgeMap' ? j.name : name, source: 'file', map: j, genre: j.gen?.id || 'carte', theme: j.theme };
   if (j && (j.className || j.children)) return { id, title: name, source: 'file', map: mapFromModel(j, name, null), genre: 'carte', theme: null };
-  throw new Error('fichier non reconnu : il faut un pack .zip Roblox Forge ou une carte .json');
+  throw new Error('fichier non reconnu : il faut un .rbxl / .rbxlx / .rbxm, un pack .zip Roblox Forge ou une carte .json');
 }
 
 /* card art when no screenshot exists yet: theme sky + ground + genre glyph */
