@@ -15,9 +15,9 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { World, labelSprite, voxMat } from './world.js?v=7';
-import { Avatar, DEFAULT_LOOK, HATS, FACES, petMesh } from './avatar.js?v=7';
-import * as LIB from './library.js?v=7';
+import { World, labelSprite, voxMat } from './world.js?v=8';
+import { Avatar, DEFAULT_LOOK, HATS, FACES, petMesh } from './avatar.js?v=8';
+import * as LIB from './library.js?v=8';
 import * as MC from '../map/map-core.js';
 
 const $ = (id) => document.getElementById(id);
@@ -178,6 +178,15 @@ async function startGame(g) {
   try {
     await loadStep('Préparation du serveur…', 0.08);
     const full = g.map ? g : (g.id.startsWith('imp-') || g.source === 'saved' ? (await LIB.dbGet(g.id)) || g : g);
+    if (full.rbxl) { // a Roblox place with scripts: run it live
+      await loadStep('Lecture de la place Roblox…', 0.15); ensureRenderer(); const RB = await import('./rbxl.js?v=8'); const { LiveGame } = await import('./live/game.js?v=8');
+      const roots = RB.readRoblox(full.rbxl.buffer.slice(full.rbxl.byteOffset, full.rbxl.byteOffset + full.rbxl.byteLength), full.title).roots;
+      $('game').hidden = false; $('home').hidden = true; $('tabs').hidden = true; $('hud').hidden = true; resize();
+      G = new LiveGame({ renderer, camera, hud: $('game'), record: full, roots, readAttributes: RB.readAttributes, look, quality: quality(), onToast: toast, onLeave: () => leaveGame() });
+      await G.load((t, p) => loadStep(t, p)); renderer.compile(G.world.scene, camera);
+      const rec = await LIB.dbGet(g.id); if (rec) { rec.playedAt = Date.now(); LIB.dbPut(rec); }
+      L.classList.add('out'); setTimeout(() => (L.hidden = true), 650); G.start(); setTimeout(() => { try { const c = document.createElement('canvas'); c.width = c.height = 320; const src = renderer.domElement, s = Math.min(src.width, src.height); G.frame(0); c.getContext('2d').drawImage(src, (src.width - s) / 2, (src.height - s) / 2, s, s, 0, 0, 320, 320); Store.set('thumb.' + g.id, c.toDataURL('image/jpeg', 0.72)); } catch {} }, 2500);
+      return; }
     await loadStep('Construction de la carte…', 0.2); const map = LIB.mapOf(full);
     await loadStep('Chargement des pièces…', 0.45); ensureRenderer(); $('game').hidden = false; $('home').hidden = true; $('tabs').hidden = true; resize();
     G = new Game(full, map); await G.load((t, p) => loadStep(t, p));
@@ -187,7 +196,7 @@ async function startGame(g) {
     L.classList.add('out'); setTimeout(() => (L.hidden = true), 650); G.start();
   } catch (e) { console.error(e); L.hidden = true; leaveGame(); toast('❌ Impossible de lancer : ' + (e.message || e), 5000); }
 }
-function leaveGame() { if (G) { G.dispose(); G = null; } $('game').hidden = true; $('home').hidden = false; $('tabs').hidden = false; showTab('home'); renderHome(); }
+function leaveGame() { if (G) { G.dispose(); G = null; } $('hud').hidden = false; renderer && (renderer.domElement.style.filter = ''); $('game').hidden = true; $('home').hidden = false; $('tabs').hidden = false; showTab('home'); renderHome(); }
 
 class Game {
   constructor(g, map) {

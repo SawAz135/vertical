@@ -18,7 +18,7 @@ function roundedBox(w, h, d, r = 0.08, seg = 3) {
   g.computeVertexNormals(); return g;
 }
 /* classic head: a rounded cylinder (lathe profile) */
-function headGeo() { const pts = []; const R = 0.62, H = 0.6, r = 0.2;
+export function headGeo() { const pts = []; const R = 0.62, H = 0.6, r = 0.2;
   pts.push(new THREE.Vector2(0, -H)); for (let i = 0; i <= 6; i++) { const a = -Math.PI / 2 + (i / 6) * (Math.PI / 2); pts.push(new THREE.Vector2(R - r + Math.cos(a) * r, -H + r + Math.sin(a) * r)); }
   for (let i = 0; i <= 6; i++) { const a = (i / 6) * (Math.PI / 2); pts.push(new THREE.Vector2(R - r + Math.cos(a) * r, H - r + Math.sin(a) * r)); } pts.push(new THREE.Vector2(0, H));
   const g = new THREE.LatheGeometry(pts, 40); g.computeVertexNormals(); return g; }
@@ -31,7 +31,7 @@ export const FACES = {
   malin: (g) => { g.lineWidth = 16; g.lineCap = 'round'; eyes(g); g.beginPath(); g.moveTo(170, 175); g.lineTo(225, 195); g.moveTo(342, 175); g.lineTo(287, 195); g.stroke(); g.beginPath(); g.moveTo(190, 300); g.quadraticCurveTo(270, 350, 330, 280); g.stroke(); },
 };
 function eyes(g, r = 22) { g.fillStyle = '#1b1b1b'; for (const x of [200, 312]) { g.beginPath(); g.ellipse(x, 215, r * 0.75, r, 0, 0, 7); g.fill(); } g.fillStyle = '#fff'; for (const x of [206, 318]) { g.beginPath(); g.arc(x, 205, r * 0.28, 0, 7); g.fill(); } g.strokeStyle = '#1b1b1b'; }
-function faceTex(kind) { const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d'); g.strokeStyle = '#1b1b1b'; g.fillStyle = '#1b1b1b'; (FACES[kind] || FACES.sourire)(g);
+export function faceTex(kind) { const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d'); g.strokeStyle = '#1b1b1b'; g.fillStyle = '#1b1b1b'; (FACES[kind] || FACES.sourire)(g);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }
 
 export const DEFAULT_LOOK = { name: 'Joueur', skin: '#f5cd9a', shirt: '#2f7de1', pants: '#3a3f4b', shoes: '#22252b', face: 'sourire', hat: 'casquette', hatColor: '#e8423f', hair: '#3b2416' };

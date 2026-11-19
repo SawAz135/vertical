@@ -10,8 +10,8 @@
    4. Workspace's parts (and Lighting) come back as a Forge map.
    Client scripts and the game loop are not run here.
    ===================================================================== */
-import { parse, Interpreter, createGlobals, LuaTable, LuaError, tostr, call } from './luau.js?v=7';
-import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, bounds } from './roblox.js?v=7';
+import { parse, Interpreter, createGlobals, LuaTable, LuaError, tostr, call } from './luau.js?v=8';
+import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, bounds } from './roblox.js?v=8';
 
 const fn = (f) => f;
 const dec = new TextDecoder();
@@ -22,7 +22,7 @@ const SHAPES = ['Ball', 'Block', 'Cylinder', 'Wedge', 'CornerWedge'];
 const SURFACES = ['Smooth', 'Glue', 'Weld', 'Studs', 'Inlet', 'Universal', 'Hinge', 'Motor', 'SteppingMotor', 'Unjoinable', 'SmoothNoOutlines'];
 
 /* ---------------------------------------------------------------- services */
-function installServices(rt) {
+export function installServices(rt) {
   const G = rt.G, CM = rt.classMethods, svc = (n) => rt.service(n);
   const sig = (o, n) => o.sig(n);
   rt.extraMember = (o, k) => { if (o.cls === 'DataModel') { const known = ['Workspace', 'Players', 'Lighting', 'ReplicatedStorage', 'ReplicatedFirst', 'ServerStorage', 'ServerScriptService', 'StarterGui', 'StarterPack', 'StarterPlayer', 'SoundService', 'Teams', 'Chat', 'TextChatService'];
@@ -31,7 +31,7 @@ function installServices(rt) {
     GetService: fn((a) => [svc(String(a[1]))]), FindService: fn((a) => [svc(String(a[1]))]), getService: fn((a) => [svc(String(a[1]))]),
     IsLoaded: fn(() => [true]), BindToClose: fn(() => []), GetObjects: fn(() => [new LuaTable()]), SetPlaceId: fn(() => []), HttpGet: fn(() => ['']),
   };
-  CM.RunService = { IsServer: fn(() => [rt.side !== 'client']), IsClient: fn(() => [rt.side === 'client']), IsStudio: fn(() => [false]), IsRunning: fn(() => [true]), IsRunMode: fn(() => [false]), IsEdit: fn(() => [false]),
+  CM.RunService = { IsServer: fn(() => [rt.I.side !== 'client']), IsClient: fn(() => [rt.I.side === 'client']), IsStudio: fn(() => [false]), IsRunning: fn(() => [true]), IsRunMode: fn(() => [false]), IsEdit: fn(() => [false]),
     BindToRenderStep: fn((a) => { rt.renderSteps.set(a[1], { pri: a[2], f: a[3] }); return []; }), UnbindFromRenderStep: fn((a) => { rt.renderSteps.delete(a[1]); return []; }), Set3dRenderingEnabled: fn(() => []) };
   rt.renderSteps = new Map();
   CM.TweenService = { Create: fn((a) => { const [, inst, info, goal] = a; const tw = new Instance('Tween', rt); tw.props.set('PlaybackState', enumItem('PlaybackState', 'Begin'));
@@ -83,7 +83,7 @@ function installServices(rt) {
   const Lighting = svc('Lighting'); CM.Lighting = { GetMinutesAfterMidnight: fn(() => [(Lighting.props.get('ClockTime') || 14) * 60]), SetMinutesAfterMidnight: fn((a) => { Lighting.props.set('ClockTime', a[1] / 60); return []; }), GetSunDirection: fn(() => [new Vector3(0.3, 0.8, -0.5)]), GetMoonDirection: fn(() => [new Vector3(-0.3, 0.8, 0.5)]) };
   void G; void sig;
 }
-function animTrack(rt) { const t = new Instance('AnimationTrack', rt); t.props.set('IsPlaying', false); t.props.set('Length', 1); t.props.set('Speed', 1); t.props.set('TimePosition', 0); t.props.set('WeightCurrent', 1);
+export function animTrack(rt) { const t = new Instance('AnimationTrack', rt); t.props.set('IsPlaying', false); t.props.set('Length', 1); t.props.set('Speed', 1); t.props.set('TimePosition', 0); t.props.set('WeightCurrent', 1);
   rt.classMethods.AnimationTrack = { Play: fn((a) => { a[0].props.set('IsPlaying', true); return []; }), Stop: fn((a) => { a[0].props.set('IsPlaying', false); return []; }), AdjustSpeed: fn(() => []), AdjustWeight: fn(() => []), GetMarkerReachedSignal: fn((a) => [a[0].sig('Marker')]), GetTimeOfKeyframe: fn(() => [0]) }; return t; }
 const toJS = (v) => { if (v instanceof LuaTable) { if (v.hash.size === 0) return v.arr.map(toJS); const o = {}; v.arr.forEach((x, i) => (o[i + 1] = toJS(x))); for (const [k, x] of v.hash) o[k] = toJS(x); return o; } return v; };
 const fromJS = (v) => (Array.isArray(v) ? LuaTable.from(v.map(fromJS)) : v && typeof v === 'object' ? LuaTable.from(Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fromJS(x)]))) : v === null ? undefined : v);

@@ -75,7 +75,7 @@ let studMatC = null;
 export function studMat() { if (studMatC) return studMatC; const t = new THREE.CanvasTexture(studCanvas()); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
   studMatC = new THREE.MeshStandardMaterial({ map: t, vertexColors: true, roughness: 0.55, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }); return studMatC; }
 /* the top face of a studded part, as its own quad (UVs in studs) */
-function studTop(p, mtx, col) { const [w, h, d] = p.size; const g = new THREE.PlaneGeometry(w, d); g.rotateX(-Math.PI / 2); g.translate(0, h / 2 + 0.002, 0);
+export function studTop(p, mtx, col) { const [w, h, d] = p.size; const g = new THREE.PlaneGeometry(w, d); g.rotateX(-Math.PI / 2); g.translate(0, h / 2 + 0.002, 0);
   const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w, uv.getY(i) * d); g.applyMatrix4(mtx);
   const c = new Float32Array(g.attributes.position.count * 3); for (let i = 0; i < c.length; i += 3) { c[i] = col.r; c[i + 1] = col.g; c[i + 2] = col.b; } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; }
 
@@ -101,9 +101,9 @@ const CORNER = (() => { const v = [[-0.5, -0.5, -0.5], [0.5, -0.5, -0.5], [0.5, 
   const uv = []; for (let i = 0; i < pos.length / 3; i++) uv.push(pos[i * 3] + 0.5, pos[i * 3 + 1] + 0.5); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); return g; })();
 const CYL = new THREE.CylinderGeometry(0.5, 0.5, 1, 28).rotateZ(Math.PI / 2), BALL = new THREE.SphereGeometry(0.5, 24, 16), UNIT = new THREE.BoxGeometry(1, 1, 1);
 function scaledUV(g, s) { g = g.clone(); const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * s, uv.getY(i) * s); return g; }
-const sizeOf = (p) => (p.shape === 'Ball' ? [p.size[0], p.size[0], p.size[0]] : p.size);
+export const sizeOf = (p) => (p.shape === 'Ball' ? [p.size[0], p.size[0], p.size[0]] : p.size);
 /** geometry already scaled to the part size (rotation / position are applied by the caller) */
-function partGeo(p) {
+export function partGeo(p) {
   const s = sizeOf(p), mx = Math.max(...s);
   if (p.cls === 'WedgePart') return scaledUV(WEDGE, mx / 8).scale(...s);
   if (p.cls === 'CornerWedgePart') return scaledUV(CORNER, mx / 8).scale(...s);
@@ -111,7 +111,7 @@ function partGeo(p) {
   if (p.shape === 'Ball') return scaledUV(BALL, s[0] / 6).scale(...s);
   const g = boxGeo(...s); if (p.cls === 'TrussPart') { const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 4, uv.getY(i) * 4); } return g;
 }
-const colliderGeo = (p) => (p.cls === 'WedgePart' ? WEDGE : p.cls === 'CornerWedgePart' ? CORNER : p.shape === 'Cylinder' ? CYL : p.shape === 'Ball' ? BALL : UNIT);
+export const colliderGeo = (p) => (p.cls === 'WedgePart' ? WEDGE : p.cls === 'CornerWedgePart' ? CORNER : p.shape === 'Cylinder' ? CYL : p.shape === 'Ball' ? BALL : UNIT);
 export const partMatrix = (p) => new THREE.Matrix4().compose(new THREE.Vector3().fromArray(p.pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(p.rot[0] * D2R, p.rot[1] * D2R, p.rot[2] * D2R, 'XYZ')), new THREE.Vector3(1, 1, 1));
 
 /* ---------- labels (BillboardGui-like, Roblox font with dark stroke) ---------- */

@@ -360,7 +360,7 @@ export function* callGen(f, args) {
 }
 
 export class Interpreter {
-  constructor(globals) { this.G = globals; this.steps = 0; this.budget = 5e6; this.maxSteps = 4e8; this.depth = 0; }
+  constructor(globals) { this.G = globals; this.steps = 0; this.budget = 5e6; this.maxSteps = 4e8; this.depth = 0; this.side = 'server'; }
   run(ast, chunk, env = {}) { const f = this.load(ast, chunk, env); return f([]); }
   load(ast, chunk, env = {}) {
     if (!ast.prepared) { prepare(ast); ast.prepared = true; }
@@ -381,7 +381,7 @@ export class Interpreter {
       finally { self.depth--; }
     };
     const fn = function luaFunction(args) { return drive(gen(args), self); };
-    fn.gen = gen; fn.luaName = f.name; return fn;
+    fn.gen = gen; fn.luaName = f.name; fn.side = self.side; return fn;
   }
   /* ---------- generator path ---------- */
   *execBlock(body, sc, chunk) { for (let i = 0; i < body.length; i++) { const s = body[i]; const r = s.y ? yield* this.exec(s, sc, chunk) : this.execS(s, sc, chunk); if (r) return r; } return undefined; }

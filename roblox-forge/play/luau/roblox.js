@@ -8,7 +8,7 @@
    reads as nil and an unknown service is an empty Instance, so scripts
    get as far as they can without a full engine.
    ===================================================================== */
-import { LuaTable, LuaError, call, callGen, tostr, typeOf, isTruthy } from './luau.js?v=7';
+import { LuaTable, LuaError, call, callGen, tostr, typeOf, isTruthy } from './luau.js?v=8';
 
 const err = (m) => { throw new LuaError(m); };
 const num = (v, d = 0) => (typeof v === 'number' ? v : v === undefined || v === null ? d : +v || d);
@@ -294,7 +294,23 @@ function defaults(o) { const c = o.cls, P = o.props;
   if (c === 'Model') { P.set('PrimaryPart', undefined); }
   if (c === 'Humanoid') { P.set('Health', 100); P.set('MaxHealth', 100); P.set('WalkSpeed', 16); P.set('JumpPower', 50); P.set('JumpHeight', 7.2); P.set('UseJumpPower', true); P.set('HipHeight', 2); P.set('DisplayName', ''); }
   if (/Value$/.test(c)) P.set('Value', c === 'StringValue' ? '' : c === 'BoolValue' ? false : c === 'ObjectValue' ? undefined : c === 'Vector3Value' ? new Vector3() : c === 'CFrameValue' ? new CFrame() : c === 'Color3Value' ? new Color3() : 0);
-  if (isA(c, 'GuiObject')) { P.set('Visible', true); P.set('Size', UDim2(0, 100, 0, 100)); P.set('Position', UDim2(0, 0, 0, 0)); P.set('BackgroundTransparency', 0); P.set('BackgroundColor3', new Color3(1, 1, 1)); P.set('Text', ''); P.set('TextColor3', new Color3(0, 0, 0)); P.set('ZIndex', 1); P.set('LayoutOrder', 0); P.set('AnchorPoint', new Vector2()); P.set('Rotation', 0); }
+  if (isA(c, 'GuiObject')) { P.set('Visible', true); P.set('Size', UDim2(0, 100, 0, 100)); P.set('Position', UDim2(0, 0, 0, 0)); P.set('BackgroundTransparency', 0); P.set('BackgroundColor3', new Color3(163 / 255, 162 / 255, 165 / 255)); P.set('ZIndex', 1); P.set('LayoutOrder', 0); P.set('AnchorPoint', new Vector2()); P.set('Rotation', 0); P.set('BorderSizePixel', 1); P.set('ClipsDescendants', false); P.set('Active', false); P.set('SizeConstraint', enumItem('SizeConstraint', 'RelativeXY')); P.set('AutomaticSize', enumItem('AutomaticSize', 'None')); P.set('BorderColor3', new Color3(27 / 255, 42 / 255, 53 / 255));
+    if (/^Text/.test(c)) { P.set('Text', c === 'TextLabel' ? 'Label' : c === 'TextButton' ? 'Button' : ''); P.set('TextColor3', new Color3(0, 0, 0)); P.set('TextSize', 14); P.set('TextScaled', false); P.set('TextWrapped', false); P.set('TextTransparency', 0); P.set('TextStrokeTransparency', 1); P.set('TextStrokeColor3', new Color3()); P.set('Font', enumItem('Font', 'Legacy')); P.set('TextXAlignment', enumItem('TextXAlignment', 'Center')); P.set('TextYAlignment', enumItem('TextYAlignment', 'Center')); P.set('RichText', false); P.set('LineHeight', 1); P.set('MaxVisibleGraphemes', -1); }
+    if (/^Image/.test(c)) { P.set('Image', ''); P.set('ImageColor3', new Color3(1, 1, 1)); P.set('ImageTransparency', 0); P.set('ScaleType', enumItem('ScaleType', 'Stretch')); P.set('ImageRectOffset', new Vector2()); P.set('ImageRectSize', new Vector2()); }
+    if (/Button$/.test(c)) { P.set('AutoButtonColor', true); P.set('Selectable', true); }
+    if (c === 'ScrollingFrame') { P.set('CanvasSize', UDim2(0, 0, 2, 0)); P.set('CanvasPosition', new Vector2()); P.set('ScrollBarThickness', 12); P.set('ScrollingEnabled', true); P.set('ScrollingDirection', enumItem('ScrollingDirection', 'XY')); P.set('AutomaticCanvasSize', enumItem('AutomaticSize', 'None')); } }
+  if (c === 'ScreenGui') { P.set('DisplayOrder', 0); P.set('IgnoreGuiInset', false); P.set('ResetOnSpawn', true); }
+  if (c === 'BillboardGui') { P.set('Size', UDim2(0, 0, 0, 0)); P.set('StudsOffset', new Vector3()); P.set('StudsOffsetWorldSpace', new Vector3()); P.set('AlwaysOnTop', false); P.set('MaxDistance', Infinity); P.set('LightInfluence', 0); P.set('Adornee', undefined); P.set('ExtentsOffset', new Vector3()); P.set('SizeOffset', new Vector2()); }
+  if (c === 'SurfaceGui') { P.set('Face', enumItem('NormalId', 'Front')); P.set('CanvasSize', new Vector2(800, 600)); P.set('PixelsPerStud', 50); P.set('SizingMode', enumItem('SurfaceGuiSizingMode', 'FixedSize')); P.set('Adornee', undefined); P.set('AlwaysOnTop', false); }
+  if (c === 'UIScale') P.set('Scale', 1);
+  if (c === 'UICorner') P.set('CornerRadius', new Simple('UDim', { Scale: 0, Offset: 8 }));
+  if (c === 'UIStroke') { P.set('Thickness', 1); P.set('Color', new Color3()); P.set('Transparency', 0); P.set('Enabled', true); P.set('ApplyStrokeMode', enumItem('ApplyStrokeMode', 'Contextual')); }
+  if (c === 'UIGradient') { P.set('Rotation', 0); P.set('Offset', new Vector2()); P.set('Enabled', true); P.set('Color', new Simple('ColorSequence', { Keypoints: LuaTable.from([new Simple('ColorSequenceKeypoint', { Time: 0, Value: new Color3(1, 1, 1) }), new Simple('ColorSequenceKeypoint', { Time: 1, Value: new Color3(1, 1, 1) })]) })); }
+  if (c === 'Attachment') { P.set('CFrame', new CFrame()); }
+  if (c === 'Motor6D' || c === 'Weld' || c === 'ManualWeld') { P.set('C0', new CFrame()); P.set('C1', new CFrame()); P.set('Enabled', true); if (c === 'Motor6D') P.set('Transform', new CFrame()); }
+  if (c === 'WeldConstraint') P.set('Enabled', true);
+  if (/Light$/.test(c)) { P.set('Brightness', 1); P.set('Range', c === 'SurfaceLight' ? 16 : 8); P.set('Color', new Color3(1, 1, 1)); P.set('Enabled', true); P.set('Shadows', false); }
+  if (c === 'ProximityPrompt') { P.set('ActionText', 'Interact'); P.set('ObjectText', ''); P.set('HoldDuration', 0); P.set('MaxActivationDistance', 10); P.set('Enabled', true); P.set('RequiresLineOfSight', true); P.set('KeyboardKeyCode', enumItem('KeyCode', 'E')); P.set('UIOffset', new Vector2()); P.set('Exclusivity', enumItem('ProximityPromptExclusivity', 'OnePerButton')); }
   if (isA(c, 'LayerCollector')) P.set('Enabled', true);
   if (c === 'Lighting') { P.set('ClockTime', 14); P.set('Brightness', 2); P.set('Ambient', new Color3(0.27, 0.27, 0.27)); P.set('OutdoorAmbient', new Color3(0.5, 0.5, 0.5)); P.set('FogEnd', 100000); P.set('FogStart', 0); P.set('FogColor', new Color3(0.75, 0.75, 0.75)); P.set('ExposureCompensation', 0); P.set('GlobalShadows', true); P.set('TimeOfDay', '14:00:00'); }
   if (c === 'Sound') { P.set('Volume', 0.5); P.set('Playing', false); P.set('TimePosition', 0); P.set('IsPlaying', false); }
@@ -306,7 +322,25 @@ function derived(o, k) {
     if (k === 'Position') return cf.get('Position'); if (k === 'Orientation' || k === 'Rotation') { const [x, y, z] = cf.toEulerYXZ(); return new Vector3(x / D2R, y / D2R, z / D2R); }
     if (k === 'BrickColor') return new BrickColor(nearestBrick(o.props.get('Color'))); if (k === 'Mass') { const s = o.props.get('Size'); return s.x * s.y * s.z * 0.7; } if (k === 'AssemblyMass') return derived(o, 'Mass'); if (k === 'ExtentsCFrame' || k === 'PivotOffset') return k === 'PivotOffset' ? new CFrame() : cf; }
   if (k === 'WorldPivot' && o.cls === 'Model') return o.pivot();
+  if (o.cls === 'Attachment' || o.cls === 'Bone') { const cf = o.props.get('CFrame') || new CFrame(), par = o.parent && o.parent.props && o.parent.props.get('CFrame');
+    if (k === 'Position') return cf.get('Position'); if (k === 'WorldPosition') return par ? par.pointToWorld(cf.get('Position')) : cf.get('Position'); if (k === 'WorldCFrame') return par ? par.mulCF(cf) : cf;
+    if (k === 'Axis') return cf.get('RightVector'); if (k === 'SecondaryAxis') return cf.get('UpVector'); if (k === 'Orientation') { const [x, y, z] = cf.toEulerYXZ(); return new Vector3(x / D2R, y / D2R, z / D2R); } if (k === 'WorldAxis') return par ? par.vecToWorld(cf.get('RightVector')) : cf.get('RightVector'); }
+  if (isA(o.cls, 'GuiBase2d')) { if (k === 'AbsoluteSize' || k === 'AbsolutePosition' || k === 'AbsoluteRotation' || k === 'AbsoluteCanvasSize' || k === 'AbsoluteWindowSize') { const a = guiAbs(o); return k === 'AbsoluteRotation' ? 0 : k === 'AbsolutePosition' ? new Vector2(a[0], a[1]) : new Vector2(a[2], a[3]); }
+    if (k === 'TextBounds') { const t = String(o.props.get('Text') || ''), sz = o.props.get('TextSize') || 14; return new Vector2(t.length * sz * 0.55, sz); } if (k === 'TextFits') return true; if (k === 'GuiState') return enumItem('GuiState', 'Idle'); if (k === 'IsLoaded') return true; if (k === 'ContentText') return String(o.props.get('Text') || '').replace(/<[^>]+>/g, ''); }
   return undefined;
+}
+/* absolute position / size of a GUI object: the DOM measures it when it is on screen, otherwise UDim2 math */
+function guiAbs(o) {
+  if (o.rt.guiMeasure) { const m = o.rt.guiMeasure(o); if (m) return m; }
+  if (o.cls === 'ScreenGui' || o.cls === 'PlayerGui') { const w = o.rt.viewW || 390, h = o.rt.viewH || 844, inset = o.props.get('IgnoreGuiInset') ? 0 : 58; return [0, inset, w, h - inset]; }
+  if (o.cls === 'BillboardGui' || o.cls === 'SurfaceGui') { const s = o.props.get('Size'), cs = o.props.get('CanvasSize'); if (o.cls === 'SurfaceGui') return [0, 0, cs ? cs.x : 800, cs ? cs.y : 600]; return [0, 0, s ? s.f.X.f.Offset + s.f.X.f.Scale * 50 : 100, s ? s.f.Y.f.Offset + s.f.Y.f.Scale * 50 : 50]; }
+  const par = o.parent && isA(o.parent.cls, 'GuiBase2d') ? guiAbs(o.parent) : [0, 0, o.rt.viewW || 390, o.rt.viewH || 844];
+  const S = o.props.get('Size'), Pp = o.props.get('Position'), A = o.props.get('AnchorPoint') || new Vector2();
+  let w = S ? S.f.X.f.Scale * par[2] + S.f.X.f.Offset : 100, h = S ? S.f.Y.f.Scale * par[3] + S.f.Y.f.Offset : 100;
+  const ar = o.kids.find((c) => c.cls === 'UIAspectRatioConstraint'); if (ar) { const r = ar.props.get('AspectRatio') || 1; if (w / h > r) w = h * r; else h = w / r; }
+  let sc = 1; let q = o; while (q && isA(q.cls, 'GuiBase2d')) { const u = q.kids.find((c) => c.cls === 'UIScale'); if (u) sc *= u.props.get('Scale') ?? 1; q = q.parent; } w *= sc; h *= sc;
+  const x = par[0] + (Pp ? Pp.f.X.f.Scale * par[2] + Pp.f.X.f.Offset * sc : 0) - A.x * w, y = par[1] + (Pp ? Pp.f.Y.f.Scale * par[3] + Pp.f.Y.f.Offset * sc : 0) - A.y * h;
+  return [x, y, w, h];
 }
 function derive(o, k, v) { return v; }
 function setDerived(o, k, v) {
@@ -432,9 +466,9 @@ export class Runtime {
     }));
   }
   /* ---- scheduler: Luau threads are generators; task.wait / Signal:Wait / coroutine.yield suspend them ---- */
-  spawn(f, args) { const th = new Thread(); th.it = callGen(f, args); this.resume(th, undefined); return th; }
-  start(f, args, delay = 0, th = new Thread()) { th.it = null; th.f = f; th.args = args; th.wakeAt = this.now + Math.max(0, delay); this.threads.add(th); return th; }
-  adopt(it, y) { const th = new Thread(); th.it = it; this.park(th, y); return th; }
+  spawn(f, args) { const th = new Thread(); th.side = (f && f.side) || this.I.side; th.it = null; th.f = f; th.args = args; this.resume(th, undefined); return th; }
+  start(f, args, delay = 0, th = new Thread()) { th.it = null; th.f = f; th.args = args; th.side = (f && f.side) || this.I.side; th.wakeAt = this.now + Math.max(0, delay); this.threads.add(th); return th; }
+  adopt(it, y) { const th = new Thread(); th.it = it; th.side = this.I.side; this.park(th, y); return th; }
   park(th, y) {
     if (y && y.wait !== undefined) { th.wakeAt = this.now + Math.max(1 / 60, +y.wait || 0); th.waitStart = this.now; this.threads.add(th); }
     else if (y && y.waitSignal) { const s = y.waitSignal; (s.waiters ||= []).push(th); th.wakeAt = Infinity; }
@@ -442,18 +476,20 @@ export class Runtime {
     else { th.wakeAt = this.now + 1 / 60; this.threads.add(th); }
   }
   resume(th, val) {
-    if (th.cancelled || th.done) return; this.threads.delete(th); this.I.steps = 0; this.current = th;
+    if (th.cancelled || th.done) return; this.threads.delete(th); this.I.steps = 0; const prevTh = this.current, prevSide = this.I.side; this.current = th; if (th.side) this.I.side = th.side;
     try { if (!th.it) th.it = callGen(th.f, th.args || []); const r = th.it.next(val); if (r.done) { th.done = true; th.result = r.value; } else this.park(th, r.value); }
     catch (e) { th.done = true; th.error = e; if (!th.resumer) this.report(e); }
-    finally { this.current = null; }
+    finally { this.current = prevTh; this.I.side = prevSide; }
   }
   step(dt) { this.now += dt; for (const th of [...this.threads]) if (th.wakeAt <= this.now) this.resume(th, th.waitStart !== undefined ? [this.now - th.waitStart, this.now] : []); }
   report(e) { const m = e instanceof LuaError ? tostr(e.value) : String(e && e.stack || e); this.errors.push(m); (this.io.warn || console.warn)(m); }
   require(mod) {
     if (!(mod instanceof Instance)) { if (typeof mod === 'number') err('require(assetId) is not supported here'); err('Attempted to call require with invalid argument(s).'); }
-    if (this.modules.has(mod)) { const m = this.modules.get(mod); if (m.loading) err('Requested module was required recursively'); return [m.value]; }
-    const entry = { loading: true }; this.modules.set(mod, entry);
-    const r = this.runScript(mod, true); entry.loading = false; entry.value = r[0]; return [r[0]];
+    const side = this.I.side, key = side + ':' + mod.id; // server and client each get their own copy, like Roblox
+    if (this.modules.has(key)) { const m = this.modules.get(key); if (m.loading) err('Requested module was required recursively'); return [m.value]; }
+    const entry = { loading: true }; this.modules.set(key, entry);
+    try { const r = this.runScript(mod, true); entry.value = r[0]; } catch (e) { this.modules.delete(key); throw e; } finally { entry.loading = false; }
+    return [entry.value];
   }
   parseScript(scr) { if (!scr.ast) scr.ast = this.io.parse(scr.source || '', Instance.methods.GetFullName([scr])[0]); return scr.ast; }
   runScript(scr, isModule = false) {
