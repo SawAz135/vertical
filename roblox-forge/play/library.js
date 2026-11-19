@@ -14,7 +14,6 @@ import * as THREE from 'three';
 import { applyText } from '../create/game-spec.js';
 import { buildMap } from '../create/game-pack.js';
 import * as MC from '../map/map-core.js';
-import { readRoblox } from './rbxl.js';
 
 /* ---------- IndexedDB ---------- */
 const DB = 'forge-play', ST = 'games';
@@ -122,7 +121,7 @@ export async function importFile(file) {
   const name = file.name.replace(/\.[^.]+$/, ''), buf = await file.arrayBuffer(), u8 = new Uint8Array(buf), dec = new TextDecoder();
   const head = dec.decode(u8.subarray(0, 64));
   if (head.startsWith('<roblox!') || /<roblox[\s>]/.test(head) || /\.rbx[lm]x?$/i.test(file.name)) { // Roblox Studio place / model
-    const r = readRoblox(buf, name); let spec = null;
+    const { readRoblox } = await import('./rbxl.js?v=5'); const r = readRoblox(buf, name); let spec = null; // loaded only when needed: a problem there never blocks the app
     if (r.configSrc) { try { spec = specFromConfig(parseLuaTable(r.configSrc)); } catch (e) { console.warn(e); } }
     const notes = [`${r.stats.parts.toLocaleString('fr')} pièces`]; if (r.stats.meshes) notes.push(`${r.stats.meshes} MeshPart/Union en forme de bloc`); if (r.stats.terrain) notes.push('Terrain non affiché'); if (r.stats.scripts) notes.push(`${r.stats.scripts} scripts Luau non exécutés`); if (r.stats.skipped) notes.push(`${r.stats.skipped} pièces au-delà de la limite`);
     return { id: 'imp-' + Date.now().toString(36), title: spec?.title || r.map.name, source: 'file', file: file.name, spec, map: r.map, genre: spec ? (spec.train ? 'simulator' : 'jeu') : 'carte', theme: null, notes };

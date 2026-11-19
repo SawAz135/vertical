@@ -14,7 +14,7 @@
    when the place was made with Roblox Forge.
    Luau scripts are not run: only the Forge rules are played.
    ===================================================================== */
-import { decompress as zstd } from './vendor/fzstd.mjs';
+import { decompress as zstd } from './vendor/fzstd.js?v=5';
 
 const dec = new TextDecoder();
 
