@@ -14,11 +14,13 @@ const ICONS = {
   library: I('<path d="M4 4.5h4.5v15H4zM10.5 4.5H15v15h-4.5z"/><path d="M17 5.2l3.4-.9 3 14.4-3.4.9z" transform="translate(-2.5 0)"/>'),
   skills: I('<path d="M2.5 9L12 4.5 21.5 9 12 13.5z"/><path d="M6.5 11v5c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3v-5"/><path d="M21.5 9v5"/>'),
   push: I('<path d="M12 15V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M4 14.5v3.5a2.5 2.5 0 002.5 2.5h11a2.5 2.5 0 002.5-2.5v-3.5"/>'),
+  play: I('<rect x="3" y="6" width="18" height="12" rx="4"/><path d="M7.5 10v4M5.5 12h4"/><circle cx="15.5" cy="11" r="1"/><circle cx="17.5" cy="13.5" r="1"/>'),
   menu: I('<path d="M4 7h16M4 12h16M4 17h10"/>'),
 };
 const base = location.pathname.replace(/[^/]*$/, ''), up = /\/roblox-forge\/[^/]+\/$/.test(base) ? '../' : '../';
 const APPS = [
   { id: 'create', href: up + 'create/', name: 'Créer tout', desc: 'Une phrase → jeu complet : carte, scripts, GUI', c: '#ffd45c' },
+  { id: 'play', href: up + 'play/', name: 'Jouer', desc: 'Joue à tes jeux dans le navigateur, comme dans Roblox', c: '#00b06f' },
   { id: 'studio', icon: 'pets', href: up + 'studio/', name: 'Pets', desc: 'Pets voxel, simulateur, IA 3D, animations', c: '#ff8ad8' },
   { id: 'map', icon: 'maps', href: up + 'map/', name: 'Cartes', desc: 'Cartes voxel complètes, obby, tycoon, simulator', c: '#3dffa8' },
   { id: 'gui', href: up + 'gui/', name: 'Interfaces', desc: 'GUI Roblox : boutiques, HUD, menus', c: '#3ee6ff' },
@@ -45,7 +47,7 @@ function build() {
   const scrim = Object.assign(document.createElement('div'), { className: 'fx-scrim' }); scrim.onclick = () => toggle(false);
   const dr = Object.assign(document.createElement('nav'), { className: 'fx-drawer' }); dr.setAttribute('aria-label', 'Apps Roblox Forge');
   dr.innerHTML = `<div class="fx-brand"><span class="fx-mark"></span><span><b>Roblox Forge</b><small>Crée ton jeu Roblox · 0 €</small></span></div><div class="fx-nav">${items}</div>
-    <div class="fx-foot">iPhone et PC · tout reste sur ton appareil et ton GitHub.<br><kbd>⌘K</kbd> ouvrir · <kbd>1</kbd>–<kbd>8</kbd> changer d’app · <kbd>Esc</kbd> fermer</div>`;
+    <div class="fx-foot">iPhone et PC · tout reste sur ton appareil et ton GitHub.<br><kbd>⌘K</kbd> ouvrir · <kbd>1</kbd>–<kbd>9</kbd> changer d’app · <kbd>Esc</kbd> fermer</div>`;
   // 4. rail (PC / iPad landscape, shown by CSS)
   const rail = Object.assign(document.createElement('nav'), { className: 'fx-rail' }); rail.setAttribute('aria-label', 'Apps');
   rail.innerHTML = `<span class="fx-mark" title="Roblox Forge"></span>${APPS.map((a) => `<a href="${a.href}" class="${a.id === here ? 'on' : ''}${a.id === 'push' ? ' fx-bottom' : ''}" data-tip="${a.name}" aria-label="${a.name}">${icon(a)}</a>`).join('')}`;
@@ -59,7 +61,7 @@ addEventListener('keydown', (e) => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') || document.activeElement?.isContentEditable;
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); toggle(!document.body.classList.contains('fx-open')); return; }
   if (e.key === 'Escape' && document.body.classList.contains('fx-open')) { toggle(false); return; }
-  if (document.body.classList.contains('fx-open') && !typing && /^[1-8]$/.test(e.key)) { const a = APPS[+e.key - 1]; if (a) location.href = a.href; }
+  if (document.body.classList.contains('fx-open') && !typing && /^[1-9]$/.test(e.key)) { const a = APPS[+e.key - 1]; if (a) location.href = a.href; }
 });
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 export { APPS };

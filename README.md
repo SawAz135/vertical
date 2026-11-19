@@ -17,3 +17,6 @@ Anglais partiel ; animations génériques (pas d'analyse de posture) ; pas d'ala
 
 ## À tester sur iPhone avant usage
 Installation, migration des données, chrono après changement d'app, caméra, GPS, push, hors ligne, export/import.
+
+## Roblox Forge · Jouer (roblox-forge/play/)
+Joue à tes jeux Forge dans le navigateur, en vertical sur iPhone : avatar R15 animé, joystick + saut, caméra, classement, chat, menu Échap, boutique, œufs, rebirth, vente, codes, combat, obby, tycoon. Mets le pack .zip (ou une carte .json) : il apparaît dans « Mes jeux ». « ▶ Jouer maintenant » dans Créer tout ouvre directement ton jeu. Solo (pas de serveur multijoueur).
