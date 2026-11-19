@@ -12,6 +12,7 @@
    Rects are also what scripts read back as AbsolutePosition/AbsoluteSize.
    ===================================================================== */
 import { isA, EnumItem, Vector2, Color3 } from '../luau/engine.js?v=8';
+import { ViewportRenderer } from './viewport.js?v=8';
 
 const FONT = { FredokaOne: '"F-Fredoka","Fredoka One",system-ui', Fredoka: '"F-Fredoka",system-ui', GothamBlack: '"F-Mont",system-ui', GothamBold: '"F-Mont",system-ui', GothamMedium: '"F-Mont",system-ui', Gotham: '"F-Mont",system-ui', GothamSemibold: '"F-Mont",system-ui',
   BuilderSans: '"F-Mont",system-ui', BuilderSansBold: '"F-Mont",system-ui', BuilderSansExtraBold: '"F-Mont",system-ui', Montserrat: '"F-Mont",system-ui', LuckiestGuy: '"F-Luckiest",system-ui', Bangers: '"F-Bangers",system-ui', PermanentMarker: '"F-Marker",system-ui',
@@ -56,6 +57,7 @@ export const Assets = {
 export class GuiRenderer {
   constructor(engine, root, { camera, world } = {}) {
     this.E = engine; this.root = root; this.camera = camera; this.world = world; this.els = new Map(); this.rects = new Map(); this.frameN = 0; this.hover = null;
+    this.vp = new ViewportRenderer();
     this.layer = document.createElement('div'); this.layer.className = 'rbx-gui'; root.appendChild(this.layer);
     this.bb = document.createElement('div'); this.bb.className = 'rbx-bb'; root.insertBefore(this.bb, this.layer);
     engine.rt.guiMeasure = (o) => this.rects.get(o) || null;
@@ -137,7 +139,7 @@ export class GuiRenderer {
   render(W, H, inset) {
     this.frameN++; const guis = this.layout(W, H, inset); const seen = new Set();
     let z = 0; for (const g of guis) { z += 1000; this.drawTree(g, this.layer, seen, z); }
-    for (const [o, el] of this.els) if (!seen.has(o)) { el.remove(); this.els.delete(o); }
+    for (const [o, el] of this.els) if (!seen.has(o)) { el.remove(); this.els.delete(o); if (o.cls === 'ViewportFrame') this.vp.drop(o); }
     this.billboards(seen);
   }
   drawTree(o, parentEl, seen, zBase) {
@@ -188,6 +190,7 @@ export class GuiRenderer {
     if (/^Image/.test(o.cls)) this.image(o, el, r, sc, rad);
     if (o.cls === 'ScrollingFrame') { const canvas = o.autoCanvas || [r[2], r[3]]; el.$kids.style.overflow = 'hidden'; void canvas; }
     if (isText) this.text(o, el, r, sc, textStroke);
+    if (o.cls === 'ViewportFrame') this.vp.draw(o, el, r[2], r[3], this.frameN);
     if (isA(o.cls, 'GuiButton')) { el.classList.toggle('rxbtn', true); el.classList.toggle('rxabc', P.get('AutoButtonColor') !== false); } else el.classList.toggle('rxact', !!P.get('Active') && (o.sigs.get('InputBegan')?.conns.length > 0));
   }
   image(o, el, r, sc, rad) {
@@ -254,5 +257,6 @@ input.rxt{background:transparent;border:0;outline:none;pointer-events:auto;paddi
 .rx.rxbtn.rxabc.rxdown>.rxbg{filter:brightness(.72)}
 .rxbb{position:absolute;pointer-events:none}
 .rxi{display:block;max-width:100%;text-align:inherit}
+.rxvp{position:absolute;inset:0;pointer-events:none}
 .rx>.rxim{position:absolute;inset:0;display:block;pointer-events:none;box-sizing:border-box}
 `;
