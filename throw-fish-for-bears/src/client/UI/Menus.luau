@@ -1320,6 +1320,22 @@ function Menus.mount()
 	end)
 end
 
+-- open the inventory on a tab ("Fish" / "Bears"): switches tab if it is already open
+function Menus.openInventory(cat: string)
+	local w = windows.Inventory
+	if not w then return end
+	if w.menu.IsOpen and invTab == cat then
+		w.menu.Close()
+		return
+	end
+	invTab = cat
+	if w.menu.IsOpen then
+		renderers.Inventory(true)
+	else
+		w.menu.Open()
+	end
+end
+
 function Menus.open(name: string)
 	local w = windows[name]
 	if not w then return end

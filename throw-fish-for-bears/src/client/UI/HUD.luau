@@ -97,7 +97,9 @@ local function buildRight()
 		local b = Sim.button(tiles, { Name = name, Grad = grad, Size = Vector2.new(84, 84), Position = UDim2.fromOffset(50, y), Hover = 1.07 },
 			function()
 				if open == "Bears" then
-					if refs.togglePanel then refs.togglePanel() end -- small "X/13 Active" panel with Pick Up
+					if refs.togglePanel then refs.togglePanel() end -- small "X/13 Active" panel
+				elseif open == "Fish" then
+					if HUD.menus and HUD.menus.openInventory then HUD.menus.openInventory("Fish") end
 				else
 					HUD.menus.open(open)
 				end
@@ -107,11 +109,9 @@ local function buildRight()
 		Sim.text(b, name, { Size = UDim2.new(1, 4, 0, 24), Position = UDim2.new(0.5, 0, 1, -12), Max = 22, ZIndex = 9 })
 		return b, Sim.badge(b)
 	end
-	local _, giftBadge = tile("Gifts", "red", K.Icons.Gift, 56, "Rewards")
-	local _, dailyBadge = tile("Daily", "orange", K.Icons.Daily, 164, "Daily")
+	-- (Gifts + Daily removed) the FISH inventory sits where Daily was, Bears under it
+	tile("Fish", "blue", K.Icons.Bait, 164, "Fish")
 	tile("Bears", "teal", K.Icons.Paw, 272, "Bears")
-	refs.giftBadge = giftBadge
-	refs.dailyBadge = dailyBadge
 
 	local tab = Sim.button(root, { Name = "PanelTab", Grad = "red", Size = Vector2.new(46, 64), Position = UDim2.fromOffset(34, 164), Text = "<", Max = 40 })
 	tab.Visible = false -- the red arrow only exists while the Bears panel is open
@@ -516,7 +516,7 @@ function HUD.renderStats()
 	local pend = d.indexPending or {}
 	refs.indexBadge.Visible = (pend.Fish or 0) + (pend.Bears or 0) > 0
 	local daily = d.daily
-	refs.dailyBadge.Visible = daily ~= nil and os.time() - (daily.last or 0) >= E.Daily.cooldown
+	if refs.dailyBadge then refs.dailyBadge.Visible = daily ~= nil and os.time() - (daily.last or 0) >= E.Daily.cooldown end
 	local nextRod
 	for _, id in RodConfig.Order do
 		if not (d.rods and d.rods.owned[id]) then nextRod = RodConfig.get(id) break end
@@ -620,7 +620,7 @@ end
 
 function HUD.mount(g: ScreenGui)
 	gui = g
-	buildInventoryButton()
+	local _ = buildInventoryButton -- (top-left inventory button removed: the Fish / Bears tiles open it)
 	buildTitle()
 	buildLeft()
 	buildRight()

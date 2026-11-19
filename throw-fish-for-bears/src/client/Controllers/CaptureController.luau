@@ -628,11 +628,6 @@ local function buildStageUi()
 	local BLOCK_Y = 44
 	local block = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(700, 220), Position = UDim2.fromOffset(0, BLOCK_Y) }, inner)
 	local blockScale = Sim.new("UIScale", { Scale = 0 }, block)
-	-- GHOST word: the stage name huge and faint behind everything, drifting
-	local ghost = Sim.text(block, "", { Size = UDim2.fromOffset(900, 170), Position = UDim2.fromOffset(350, 112), Max = 170, Stroke = 4, ZIndex = 3 })
-	ghost.TextTransparency = 0.88
-	local ghostStroke = ghost:FindFirstChildOfClass("UIStroke")
-	if ghostStroke then ghostStroke.Transparency = 0.85 end
 	-- TITLE: letters that drop in one by one
 	local titleRow = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(600, 34), Position = UDim2.fromOffset(50, 2) }, block)
 	Sim.new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
@@ -650,88 +645,33 @@ local function buildStageUi()
 		Sim.new("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.35, 0.1), NumberSequenceKeypoint.new(1, 1) }) }, ray)
 		rays[i + 1] = ray
 	end
-	-- the VALUE: an ODOMETER, one rolling cell per character, chunky 3D lettering
+	-- the VALUE: ONE big cartoon counter (a single label: nothing can ever show twice).
+	-- It scrolls fast, slows down, and LOCKS with an impact; every change kicks it a little.
 	local VG_Y = 116
 	local vg = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(680, 120), Position = UDim2.fromOffset(350, VG_Y), AnchorPoint = Vector2.new(0.5, 0.5) }, block)
 	local vScale = Sim.new("UIScale", {}, vg)
-	Sim.new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, -2), SortOrder = Enum.SortOrder.LayoutOrder }, vg)
-	local SIZE = 88
-	local cells = {}
 	local valueCol = Color3.new(1, 1, 1)
-	local function widthOf(ch: string): number
-		if ch == " " then return SIZE * 0.28 end
-		if ch == "." or ch == "," then return SIZE * 0.3 end
-		if ch == "M" or ch == "W" then return SIZE * 0.86 end
-		if ch == "I" or ch == "1" then return SIZE * 0.45 end
-		return SIZE * 0.64
-	end
-	local function glyph(parent: Instance, ch: string, yOff: number): Frame
-		-- one character: 2 dark extrusion layers + the gradient front face
-		local holder = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Position = UDim2.fromScale(0, yOff) }, parent)
-		for k = 2, 1, -1 do
-			local l = Sim.new("TextLabel", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Position = UDim2.fromOffset(0, k * 3), Font = Sim.FONT,
-				Text = ch, TextSize = SIZE, TextColor3 = valueCol:Lerp(Color3.new(0, 0, 0), 0.5 + k * 0.12), ZIndex = 6 }, holder)
-			Sim.new("UIStroke", { Thickness = 6, Color = Color3.new(0, 0, 0), LineJoinMode = Enum.LineJoinMode.Round }, l)
-		end
-		local f = Sim.new("TextLabel", { Name = "Face", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Font = Sim.FONT, Text = ch, TextSize = SIZE,
-			TextColor3 = Color3.new(1, 1, 1), ZIndex = 8 }, holder)
-		Sim.new("UIStroke", { Thickness = 6, Color = Color3.new(0, 0, 0), LineJoinMode = Enum.LineJoinMode.Round }, f)
-		Sim.new("UIGradient", { Name = "Grad", Rotation = 90, Color = ColorSequence.new(valueCol:Lerp(Color3.new(1, 1, 1), 0.6), valueCol) }, f)
-		return holder
-	end
+	local val = Sim.new("TextLabel", { Name = "Value", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5), Font = Sim.FONT, Text = "", TextScaled = true, TextColor3 = Color3.new(1, 1, 1), ZIndex = 8 }, vg)
+	Sim.new("UITextSizeConstraint", { MaxTextSize = 96, MinTextSize = 10 }, val)
+	Sim.new("UIStroke", { Thickness = 7, Color = Color3.new(0, 0, 0), LineJoinMode = Enum.LineJoinMode.Round }, val)
+	local valGrad = Sim.new("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(1, 1, 1)) }, val)
+	local kick = 0 -- vertical kick of the counter (each change bumps it, a spring brings it back)
+	local kickV = 0
 	local function tw(o, t, goal, style, dir)
 		local x = TweenService:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), goal)
 		x:Play()
 		return x
 	end
-	-- sets the odometer text; changed characters ROLL (old one falls out, new one drops in)
 	local function setValue(text: string, roll: boolean)
-		local chars = {}
-		for _, cp in utf8.codes(text) do table.insert(chars, utf8.char(cp)) end
-		for i, ch in chars do
-			local cell = cells[i]
-			if not cell then
-				local frame = Sim.new("Frame", { BackgroundTransparency = 1, ClipsDescendants = true, Size = UDim2.fromOffset(widthOf(ch), SIZE * 1.25), LayoutOrder = i }, vg)
-				cell = { frame = frame, ch = nil, glyph = nil }
-				cells[i] = cell
-			end
-			if cell.ch ~= ch then
-				cell.frame.Size = UDim2.fromOffset(widthOf(ch), SIZE * 1.25)
-				local old = cell.glyph
-				local nextG = glyph(cell.frame, ch, if roll and old then -1 else 0)
-				if roll and old then
-					tw(nextG, 0.12, { Position = UDim2.fromScale(0, 0) }, Enum.EasingStyle.Quad)
-					tw(old, 0.12, { Position = UDim2.fromScale(0, 1) }, Enum.EasingStyle.Quad).Completed:Connect(function() old:Destroy() end)
-				elseif old then
-					old:Destroy()
-				end
-				cell.glyph = nextG
-				cell.ch = ch
-			end
-		end
-		for i = #chars + 1, #cells do
-			if cells[i].glyph then cells[i].glyph:Destroy() end
-			cells[i].frame:Destroy()
-			cells[i] = nil
+		if val.Text ~= text then
+			val.Text = text
+			if roll then kick = math.max(-9, kick - 4) end
 		end
 	end
 	local function recolor(col: Color3)
 		valueCol = col
-		for _, cell in cells do
-			if cell.glyph then
-				for _, d in cell.glyph:GetChildren() do
-					if d:IsA("TextLabel") then
-						if d.Name == "Face" then
-							local gr = d:FindFirstChild("Grad")
-							if gr then gr.Color = ColorSequence.new(col:Lerp(Color3.new(1, 1, 1), 0.6), col) end
-						else
-							d.TextColor3 = col:Lerp(Color3.new(0, 0, 0), 0.62)
-						end
-					end
-				end
-			end
-		end
+		valGrad.Color = ColorSequence.new(col:Lerp(Color3.new(1, 1, 1), 0.65), col)
 	end
 	-- stud chips flying out of the value (UI, no glow)
 	local function burst(color: Color3)
@@ -769,26 +709,23 @@ local function buildStageUi()
 	local pending, lastRoll = nil, 0
 	local conn = RunService.RenderStepped:Connect(function(dt)
 		local t = os.clock()
-		-- the odometer rolls at most ~16 times a second (fast counters stay readable + cheap)
-		if pending and t - lastRoll > 0.06 then
+		-- the counter text follows every update at once (smooth scroll), and springs back from kicks
+		if pending then
 			setValue(pending, true)
 			recolor(valueCol)
 			pending = nil
 			lastRoll = t
 		end
+		kickV += (-kick * 260 - kickV * 22) * dt
+		kick += kickV * dt
+		val.Position = UDim2.new(0.5, 0, 0.5, kick)
 		hit = math.max(0, hit - dt * 3)
 		local beat = math.abs(math.sin(t * (3 + suspense * 7)))
 		vScale.Scale = baseScale * (1 + suspense * 0.09 * beat ^ 6)
-		-- each character trembles on its own while the result hangs
-		for i, cell in cells do
-			if cell.glyph then
-				local j = suspense * 4 + hit * 8
-				cell.glyph.Rotation = math.noise(t * 9, i * 3.1) * j * 2
-			end
-		end
+		-- the counter trembles while the result hangs
+		val.Rotation = math.noise(t * 9, 3.1) * (suspense * 4 + hit * 8) * 1.2
 		vg.Position = UDim2.fromOffset(350 + math.noise(t * 22, 1) * hit * 10, VG_Y + math.noise(t * 22, 2) * hit * 10)
 		inner.Position = UDim2.fromOffset(math.noise(t * 18, 7) * hit * 6, math.noise(t * 18, 9) * hit * 6)
-		ghost.Position = UDim2.fromOffset(350 + math.sin(t * 0.6) * 30, 112)
 		if suspense > 0 then
 			recolor(valueCol:Lerp(Color3.fromRGB(255, 70, 50), suspense * 0.02))
 		end
@@ -818,8 +755,6 @@ local function buildStageUi()
 				if ch ~= " " then Sound.play("Tick", { pitch = 1.6 + i * 0.04, volume = 0.22 }) end
 			end)
 		end
-		ghost.Text = name
-		ghost.TextColor3 = pair[1]
 		line.BackgroundColor3 = pair[1]
 		line.Size = UDim2.fromOffset(0, 3)
 		tw(line, 0.5, { Size = UDim2.fromOffset(360, 3) }, Enum.EasingStyle.Quint)
@@ -880,6 +815,9 @@ local function buildStageUi()
 				tw(blockScale, 0.25, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 				tw(block, 0.25, { Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 			end
+			-- the result chip only appears once the big value is gone (never both on screen)
+			task.wait(0.24)
+			if not g.Parent then return end
 			order += 1
 			if order > 1 then
 				local sep = Sim.text(row, "•", { Size = UDim2.fromOffset(14, 30), Max = 22, Stroke = 3, ZIndex = 6, LayoutOrder = order * 2 - 1 })
@@ -1254,7 +1192,10 @@ local function revealSequence(d)
 				local step = q * n
 				local idx = math.floor(step)
 				local fr = step - idx
-				local stair = (math.min(idx, n) + (if idx < n then Easing.sineOut(math.clamp(fr / 0.35, 0, 1)) else 0)) / n
+				-- each stomp: a FLUID swell (smootherstep over most of the step) instead of a jerk
+				local sw = math.clamp(fr / 0.75, 0, 1)
+				sw = sw * sw * sw * (sw * (sw * 6 - 15) + 10)
+				local stair = (math.min(idx, n) + (if idx < n then sw else 0)) / n
 				growth = 0.72 + (1 - 0.72) * math.clamp(stair, 0, 1)
 				if idx ~= lastPulse and idx < n then
 					lastPulse = idx
