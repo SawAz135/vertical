@@ -14,7 +14,7 @@
    when the place was made with Roblox Forge.
    Luau scripts are not run: only the Forge rules are played.
    ===================================================================== */
-import { decompress as zstd } from './vendor/fzstd.js?v=5';
+import { decompress as zstd } from './vendor/fzstd.js?v=6';
 
 const dec = new TextDecoder();
 
@@ -200,9 +200,15 @@ export function placeToGame(roots, fileName = 'Jeu') {
     const out = { id: nid(), cls: 'Model', name, children: sub }; const A = readAttributes(P(o, 'AttributesSerialize')); if (A.ForgeTycoon) out.tycoon = true; return out;
   };
   const find = (cls) => roots.find((r) => r.cls === cls);
-  const ws = find('Workspace'); const top = ws ? ws.children : roots.filter((r) => PARTS.has(r.cls) || r.cls === 'Model' || r.cls === 'Folder');
-  const children = top.filter((c) => c.cls !== 'Camera').map(node).filter(Boolean);
-  if (!stats.parts) throw new Error(stats.terrain ? 'cette place n’a que du Terrain (le terrain lisse de Roblox ne peut pas encore être affiché) : ajoute des pièces' : 'aucune pièce trouvée dans ce fichier');
+  // the map: Workspace first, plus parts and models left at the root of the file (models, some exports);
+  // if that holds no part, look everywhere else (ServerStorage, ReplicatedStorage maps…) except the player's own containers
+  const SVC = new Set(['Players', 'StarterPlayer', 'StarterPack', 'StarterGui', 'CoreGui', 'Lighting', 'SoundService', 'Chat', 'Teams', 'TestService']);
+  const ws = find('Workspace'); const top = [...(ws ? ws.children : []), ...roots.filter((r) => PARTS.has(r.cls) || r.cls === 'Model' || r.cls === 'Folder')];
+  let children = top.filter((c) => c.cls !== 'Camera').map(node).filter(Boolean);
+  if (!stats.parts) { const rest = roots.filter((r) => r !== ws && !SVC.has(r.cls) && !PARTS.has(r.cls) && r.cls !== 'Model' && r.cls !== 'Folder'); children = rest.flatMap((r) => r.children).map(node).filter(Boolean); }
+  if (!stats.parts) { const all = {}; const cnt = (o) => { all[o.cls] = (all[o.cls] || 0) + 1; o.children.forEach(cnt); }; roots.forEach(cnt);
+    const total = Object.values(all).reduce((a, b) => a + b, 0), list = Object.entries(all).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => `${k} ×${v}`).join(', ');
+    throw new Error(stats.terrain ? 'cette place n’a que du Terrain (le terrain lisse de Roblox ne peut pas encore être affiché) : ajoute des pièces' : `aucune pièce trouvée dans ce fichier (${total} objets : ${list})`); }
   // Lighting
   const L = find('Lighting'), over = {}; let preset = 'jour';
   if (L) { const ct = P(L, 'ClockTime'), tod = s(P(L, 'TimeOfDay')); const clock = typeof ct === 'number' ? ct : /^\d+:\d+/.test(tod) ? (+tod.split(':')[0] + +tod.split(':')[1] / 60) : null;

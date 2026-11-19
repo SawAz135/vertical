@@ -15,9 +15,9 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { World, labelSprite, voxMat } from './world.js?v=5';
-import { Avatar, DEFAULT_LOOK, HATS, FACES, petMesh } from './avatar.js?v=5';
-import * as LIB from './library.js?v=5';
+import { World, labelSprite, voxMat } from './world.js?v=6';
+import { Avatar, DEFAULT_LOOK, HATS, FACES, petMesh } from './avatar.js?v=6';
+import * as LIB from './library.js?v=6';
 import * as MC from '../map/map-core.js';
 
 const $ = (id) => document.getElementById(id);
