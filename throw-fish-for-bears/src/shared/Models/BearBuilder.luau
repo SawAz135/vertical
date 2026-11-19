@@ -326,6 +326,7 @@ function BearBuilder.build(speciesId: string, opts: any?): Model
 	else
 		root.Massless = false
 	end
+	Studs.allStuds(model) -- full studs: sides and bottom too
 	return model
 end
 

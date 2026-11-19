@@ -22,7 +22,7 @@ local bears = {}
 local fishes = {}
 local rainbow = {}
 local golden = {} -- [model] = { parts with a sheen }
-local diamonds = {} -- [model] = { orbiting crystal shards }
+local diamonds = {} -- [model] = { facets that twinkle }
 local camera = workspace.CurrentCamera
 local frame = 0
 
@@ -188,27 +188,15 @@ local function register(inst: Instance)
 		golden[inst] = list
 		inst.Destroying:Connect(function() golden[inst] = nil end)
 	end
-	if inst:GetAttribute("DiamondOrbit") and inst.PrimaryPart then
-		-- 4 crystal shards orbiting the bear (local parts, clear glass, no glow)
-		local _, bodySize = inst:GetBoundingBox() -- measured BEFORE the shards exist
-		local shards = {}
-		for i = 1, 4 do
-			local sh = Instance.new("Part")
-			sh.Name = "DiamondShard"
-			sh.Size = Vector3.new(0.35, 0.6, 0.35)
-			sh.Material = Enum.Material.Glass
-			sh.Transparency = 0.2
-			sh.Reflectance = 0.3
-			sh.Color = Color3.fromRGB(170, 235, 255)
-			sh.Anchored = true
-			sh.CanCollide = false
-			sh.CanQuery = false
-			sh.CanTouch = false
-			sh.CastShadow = false
-			sh.Parent = inst
-			shards[i] = sh
+	if inst:GetAttribute("DiamondTwinkle") then
+		-- facets of the body itself flash white and fade back (nothing floats around it)
+		local list = {}
+		for _, d in inst:GetDescendants() do
+			if d:IsA("BasePart") and d.Transparency < 1 and d:GetAttribute("Role") and d:GetAttribute("Role") ~= "eye" then
+				table.insert(list, { p = d, base = d.Color, t = -1 })
+			end
 		end
-		diamonds[inst] = { shards = shards, size = bodySize, s0 = inst:GetScale() }
+		diamonds[inst] = list
 		inst.Destroying:Connect(function() diamonds[inst] = nil end)
 	end
 end
@@ -1090,17 +1078,24 @@ function Animator.init()
 				end
 			end
 		end
-		for model, dd in diamonds do
+		for model, list in diamonds do
 			local pp = model.PrimaryPart
-			local shards = dd.shards
-			if model.Parent and pp and (pp.Position - camPos).Magnitude < 140 then
-				local size = dd.size * (model:GetScale() / math.max(0.01, dd.s0))
-				local r = math.max(size.X, size.Z) * 0.62
-				local c = pp.Position
-				for i, sh in shards do
-					local a = now * 0.9 + i * math.pi / 2
-					local y = size.Y * (0.15 + 0.12 * math.sin(now * 1.7 + i))
-					sh.CFrame = CFrame.new(c + Vector3.new(math.cos(a) * r, y, math.sin(a) * r)) * CFrame.Angles(now * 1.3 + i, now * 2 + i, math.pi / 4)
+			if model.Parent and pp and #list > 0 and (pp.Position - camPos).Magnitude < 140 and not model:GetAttribute("Silhouette") then
+				-- a few new facets light up every frame-ish, each fades over 0.35 s
+				if math.random() < dt * 14 then
+					local f = list[math.random(1, #list)]
+					f.t = now
+				end
+				for _, f in list do
+					if f.t >= 0 then
+						local k = 1 - (now - f.t) / 0.35
+						if k <= 0 then
+							f.t = -1
+							f.p.Color = f.base
+						else
+							f.p.Color = f.base:Lerp(Color3.fromRGB(245, 252, 255), k * k * 0.85)
+						end
+					end
 				end
 			end
 		end

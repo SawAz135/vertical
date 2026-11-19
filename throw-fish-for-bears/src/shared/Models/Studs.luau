@@ -46,6 +46,20 @@ function Studs.piece(parent: Instance, name: string, size: Vector3, cf: CFrame, 
 	return p
 end
 
+-- FULL STUDS: every studded block of a model gets studs on all 6 faces (sides and bottom
+-- too), like a real brick toy. Smooth parts (eyes, glass, details) are left smooth.
+function Studs.allStuds(model: Instance)
+	for _, d in model:GetDescendants() do
+		if d:IsA("Part") and d.Shape == Enum.PartType.Block and d.TopSurface == STUDS then
+			d.FrontSurface = STUDS
+			d.BackSurface = STUDS
+			d.LeftSurface = STUDS
+			d.RightSurface = STUDS
+			d.BottomSurface = STUDS
+		end
+	end
+end
+
 -- toy-like vivid colours for the world: boosts saturation (and a little brightness)
 -- of coloured parts; whites, greys and blacks stay as they are
 Studs.VIVID_SAT = 1.28

@@ -227,7 +227,7 @@ function Variants.apply(model: Model, variant: string)
 			end
 		end
 		if root then sparkles(root, Color3.fromRGB(170, 240, 255), 6) end
-		model:SetAttribute("DiamondOrbit", true) -- the client spins crystal shards around it
+		model:SetAttribute("DiamondTwinkle", true) -- the client makes facets flash ON the body
 	elseif variant == "Rainbow" then
 		-- hue sweeps from front to back; the client drifts it over time (attribute RainbowHue)
 		local minZ, maxZ = math.huge, -math.huge
