@@ -14,7 +14,7 @@
    when the place was made with Roblox Forge.
    Luau scripts are not run: only the Forge rules are played.
    ===================================================================== */
-import { decompress as zstd } from './vendor/fzstd.js?v=6';
+import { decompress as zstd } from './vendor/fzstd.js?v=7';
 
 const dec = new TextDecoder();
 
@@ -225,10 +225,13 @@ export function placeToGame(roots, fileName = 'Jeu') {
   return { map: { v: 1, name: title, theme: null, lighting: { preset, over }, gen: { id: 'import' }, root: { id: nid(), cls: 'Folder', name: title, children } }, configSrc, stats };
 }
 
-/** a Roblox file (binary or XML, place or model) → { map, configSrc, stats } */
+function placeToGameSafe(roots, fileName) { try { return placeToGame(roots, fileName); } catch (e) { return { map: null, configSrc: null, stats: { parts: 0, terrain: false, scripts: 0 }, error: e.message }; } }
+/** does the place build its world with server scripts? */
+export function hasServerScripts(roots) { let n = 0; const w = (o, svc) => { if (o.cls === 'Script' && (svc === 'ServerScriptService' || svc === 'Workspace') && o.props.Disabled !== true) n++; o.children.forEach((c) => w(c, svc)); }; roots.forEach((r) => w(r, r.cls)); return n; }
+/** a Roblox file (binary or XML, place or model) → { roots, map, configSrc, stats } */
 export function readRoblox(buf, fileName) {
   const u8 = new Uint8Array(buf); const head = dec.decode(u8.subarray(0, 64));
   const roots = head.startsWith('<roblox!') ? readBinary(buf) : /<roblox[\s>]/.test(head) || head.includes('<?xml') ? readXml(dec.decode(u8)) : null;
   if (!roots) throw new Error('ce n’est pas un fichier Roblox (.rbxl, .rbxlx, .rbxm, .rbxmx)');
-  return placeToGame(roots, fileName);
+  return { roots, ...placeToGameSafe(roots, fileName) };
 }

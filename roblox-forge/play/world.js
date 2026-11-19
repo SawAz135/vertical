@@ -66,6 +66,19 @@ export function material(p, special, vc = false) {
   matCache.set(key, m); return m;
 }
 
+/* classic Roblox studs: one bump per stud, lit from the top-left, multiplied by the part colour */
+function studCanvas() { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.fillStyle = 'rgb(232,232,232)'; g.fillRect(0, 0, 64, 64);
+  const grd = g.createRadialGradient(28, 27, 4, 32, 32, 21); grd.addColorStop(0, 'rgb(250,250,250)'); grd.addColorStop(0.75, 'rgb(236,236,236)'); grd.addColorStop(1, 'rgb(205,205,205)');
+  g.fillStyle = 'rgba(120,120,120,.55)'; g.beginPath(); g.arc(35, 36, 19.5, 0, 7); g.fill(); g.fillStyle = grd; g.beginPath(); g.arc(32, 32, 19, 0, 7); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 2.2; g.beginPath(); g.arc(32, 32, 17.5, Math.PI * 0.95, Math.PI * 1.55); g.stroke(); g.strokeStyle = 'rgba(110,110,110,.45)'; g.beginPath(); g.arc(32, 32, 18, Math.PI * 1.95, Math.PI * 2.55); g.stroke(); return c; }
+let studMatC = null;
+export function studMat() { if (studMatC) return studMatC; const t = new THREE.CanvasTexture(studCanvas()); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  studMatC = new THREE.MeshStandardMaterial({ map: t, vertexColors: true, roughness: 0.55, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }); return studMatC; }
+/* the top face of a studded part, as its own quad (UVs in studs) */
+function studTop(p, mtx, col) { const [w, h, d] = p.size; const g = new THREE.PlaneGeometry(w, d); g.rotateX(-Math.PI / 2); g.translate(0, h / 2 + 0.002, 0);
+  const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w, uv.getY(i) * d); g.applyMatrix4(mtx);
+  const c = new Float32Array(g.attributes.position.count * 3); for (let i = 0; i < c.length; i += 3) { c[i] = col.r; c[i + 1] = col.g; c[i + 2] = col.b; } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; }
+
 /* voxel look: every merged voxel block shows its little cubes (bevel + per-cube tint), like the ForgeVoxel material */
 export const voxMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.05 });
 voxMat.onBeforeCompile = (sh) => {
@@ -140,7 +153,7 @@ export class World {
   load(map, isDynamic) {
     this.map = map; const parts = MC.partsOf(map.root);
     const groups = new Map(); // key → { mat, geos: [] }
-    const voxGeos = [];
+    const voxGeos = [], studGeos = [];
     const v = new THREE.Vector3(), n = new THREE.Vector3(), nm = new THREE.Matrix3(), col = new THREE.Color();
     for (const p of parts) {
       this.parts.set(p.id, p);
@@ -161,11 +174,13 @@ export class World {
       g.applyMatrix4(mtx);
       const c = new Float32Array(g.attributes.position.count * 3); for (let i = 0; i < c.length; i += 3) { c[i] = col.r; c[i + 1] = col.g; c[i + 2] = col.b; } g.setAttribute('color', new THREE.BufferAttribute(c, 3));
       if (isVox) { voxGeos.push(g); continue; }
+      if (p.studs && p.cls === 'Part' && (!p.shape || p.shape === 'Block')) studGeos.push(studTop(p, mtx, col));
       const kind = p.cls === 'TrussPart' ? 'Truss' : p.material, key = kind + '|' + (p.reflectance || 0);
       if (!groups.has(key)) groups.set(key, { mat: material({ ...p, color: '#ffffff' }, kind === 'Truss' ? 'Truss' : undefined, true), geos: [] });
       groups.get(key).geos.push(g);
     }
     for (const { mat, geos } of groups.values()) this.addMerged(geos, mat, mat.vertexColors && !(mat instanceof THREE.MeshBasicMaterial));
+    if (studGeos.length) this.addMerged(studGeos, studMat(), false);
     if (voxGeos.length) this.addMerged(voxGeos, voxMat, true, ['voxL', 'voxN', 'voxA', 'voxH']);
     void v; void n; void nm;
   }
@@ -194,6 +209,7 @@ export class World {
     if (p.cls === 'SpawnLocation') mat = [mat, mat, material(p, 'Spawn'), mat, mat, mat];
     const m = new THREE.Mesh(geo, mat); mtx.decompose(m.position, m.quaternion, m.scale);
     m.castShadow = p.material !== 'Neon' && p.material !== 'ForceField' && (p.transparency || 0) < 0.6; m.receiveShadow = true; m.userData.id = p.id; this.root.add(m); this.dyn.set(p.id, m);
+    if (p.studs && p.cls === 'Part' && (!p.shape || p.shape === 'Block') && !(p.transparency > 0)) { const sg = studTop(p, new THREE.Matrix4(), new THREE.Color(p.color)); const sm = new THREE.Mesh(sg, studMat()); sm.receiveShadow = true; m.add(sm); }
     if (p.light) { const l = new THREE.PointLight(p.color, (p.light.brightness || 2) * 6, p.light.range || 16, 1.6); l.position.copy(m.position); this.root.add(l); m.userData.light = l; }
     const txt = p.label || (p.role ? { buybutton: `🛒 ${p.role.target} · ${p.role.price}`, claim: '🏳️ Réclamer', gate: `🔒 ${p.role.need} ${p.role.stat}` }[p.role.type] : null);
     if (txt) { const s = labelSprite(txt); s.position.set(p.pos[0], p.pos[1] + sizeOf(p)[1] / 2 + 2.6, p.pos[2]); this.root.add(s); this.labels.set(p.id, s); }
