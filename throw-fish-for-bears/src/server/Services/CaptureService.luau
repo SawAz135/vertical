@@ -86,6 +86,8 @@ function CaptureService.roll(fish, landing: Vector3, zone: number)
 	local spec = BearConfig.get(species)
 	local fishRatio = math.clamp(fish.w / FishConfig.get(fish.s).weight.avg, 0, 3)
 	local w = Rng.skewed(rand, spec.weight.min, spec.weight.max, 2.4 / (1 + fishRatio * 0.5))
+	-- a MUTATED fish makes a heavier bear (Golden +25% ... Clockwork +200%)
+	w *= 1 + (fv.kgBonus or 0)
 	return { s = species, r = rarity, v = variant, w = math.floor(w * 10 + 0.5) / 10, baseR = baseRarity, mult = mult }, luck
 end
 

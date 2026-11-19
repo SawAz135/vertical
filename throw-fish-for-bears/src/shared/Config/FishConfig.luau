@@ -532,7 +532,15 @@ end
 function FishConfig.scaleFor(id: string, weight: number): number
 	local s = FishConfig.Species[id]
 	if not s then return 1 end
-	return math.clamp((weight / s.weight.avg) ^ (1 / 3), 0.6, 2.1)
+	-- the SAME species really changes size: the lightest are half size, the average is 1x,
+	-- the heaviest are 3x (a rare HUGE fish)
+	local wt = s.weight
+	if weight <= wt.avg then
+		local k = math.clamp((weight - wt.min) / math.max(1e-6, wt.avg - wt.min), 0, 1)
+		return 0.5 + 0.5 * k
+	end
+	local k = math.clamp((weight - wt.avg) / math.max(1e-6, wt.max - wt.avg), 0, 1)
+	return 1 + 2 * k ^ 0.8
 end
 
 return FishConfig

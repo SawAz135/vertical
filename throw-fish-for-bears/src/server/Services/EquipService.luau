@@ -8,6 +8,8 @@ local RodBuilder = require(Shared.Models.RodBuilder)
 local FishBuilder = require(Shared.Models.FishBuilder)
 local BearBuilder = require(Shared.Models.BearBuilder)
 local BearConfig = require(Shared.Config.BearConfig)
+local FishConfig = require(Shared.Config.FishConfig)
+local Format = require(Shared.Util.Format)
 local R = require(script.Parent.Parent.Registry)
 
 local EquipService = {}
@@ -99,6 +101,39 @@ function EquipService.equipFish(player: Player, fishId: string): boolean
 	-- carried across the chest in both arms, head to the right
 	local c0 = CFrame.new(0, -0.35, -(t.Size.Z / 2 + 0.25 + width * 0.45)) * CFrame.Angles(0, math.pi / 2, 0)
 	mount(char, model, t, c0, "FishCarry")
+	-- the fish's weight floats above it (+ HUGE for the giants)
+	local sc = FishConfig.scaleFor(fish.s, fish.w)
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "FishKg"
+	bb.Size = UDim2.fromOffset(150, if sc >= 2.2 then 62 else 34)
+	bb.StudsOffsetWorldSpace = Vector3.new(0, 1.2 + (model:GetAttribute("Height") or 1) * 0.6, 0)
+	bb.AlwaysOnTop = false
+	bb.LightInfluence = 0
+	bb.MaxDistance = 60
+	bb.Adornee = model.PrimaryPart
+	local function label(text: string, y: number, h: number, c1: Color3, c2: Color3)
+		local t2 = Instance.new("TextLabel")
+		t2.BackgroundTransparency = 1
+		t2.Size = UDim2.new(1, 0, 0, h)
+		t2.Position = UDim2.fromOffset(0, y)
+		t2.Font = Enum.Font.FredokaOne
+		t2.TextScaled = true
+		t2.Text = text
+		t2.TextColor3 = Color3.new(1, 1, 1)
+		local st = Instance.new("UIStroke")
+		st.Thickness = 3
+		st.Parent = t2
+		local g = Instance.new("UIGradient")
+		g.Rotation = 90
+		g.Color = ColorSequence.new(c1, c2)
+		g.Parent = t2
+		t2.Parent = bb
+	end
+	if sc >= 2.2 then
+		label("HUGE!", 0, 28, Color3.fromRGB(255, 240, 140), Color3.fromRGB(255, 120, 30))
+	end
+	label(Format.kg(fish.w), if sc >= 2.2 then 28 else 0, 34, Color3.new(1, 1, 1), Color3.fromRGB(255, 214, 60))
+	bb.Parent = model
 	char:SetAttribute("Holding", "Fish")
 	char:SetAttribute("HeldId", fish.id)
 	char:SetAttribute("Pose", "HoldFish")
