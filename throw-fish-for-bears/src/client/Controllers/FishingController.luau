@@ -274,6 +274,10 @@ local function leap(player: Player, from: Vector3, fish, isLocal: boolean)
 	Fx.splash(from, 1.6)
 	Sound.play("BigSplash", { at = from })
 	local tier = RarityConfig.get(FishConfig.get(fish.s).rarity)
+	-- the water EXPLODES: a crown of spray, a ring on the surface, falling droplets
+	Fx.ring(from + Vector3.new(0, 0.1, 0), Color3.fromRGB(225, 245, 255), 0.6, 4 + tier.index * 0.5, 0.6)
+	Fx.blocks(from + Vector3.new(0, 0.3, 0), Color3.fromRGB(170, 220, 255), 18 + tier.index * 3, 14 + tier.index, 0.2,
+		{ life = 1.1, up = 3.2, spread = 1.6, gravity = 50, colors = { Color3.fromRGB(170, 220, 255), Color3.fromRGB(235, 248, 255), Color3.fromRGB(120, 190, 245) } })
 	-- rarer fish leap higher and hang longer in the air
 	local dur = 1.0 + tier.index * 0.05
 	local apex = 8 + tier.index * 0.8
@@ -313,9 +317,9 @@ local function leap(player: Player, from: Vector3, fish, isLocal: boolean)
 		-- eased: bursts out, hangs at the top, then drops into the hands
 		local raw = math.clamp((os.clock() - t0) / dur, 0, 1)
 		local u = Easing.sineInOut(raw)
-		if tier.index >= 4 then
-			-- a beat of slow motion at the top of the leap
-			u = raw + (0.5 - raw) * 0.35 * math.sin(raw * math.pi)
+		if tier.index >= 2 then
+			-- SLOW MOTION at the top of the leap (longer for rarer fish)
+			u = raw + (0.5 - raw) * math.min(0.5, 0.15 + tier.index * 0.05) * math.sin(raw * math.pi)
 			u = Easing.sineInOut(math.clamp(u, 0, 1))
 		end
 		local to = root.Position + root.CFrame.LookVector * 1.6 + Vector3.new(0, 0.6, 0)
@@ -605,6 +609,14 @@ local function reelStep(dt: number)
 			r.fishSpeed = speed * 2.4
 			r.nextMove = now + 0.35 + rand:NextNumber() * 0.4
 			Sound.play("Reel", { pitch = 0.6 })
+			-- the fish YANKS: the rod jerks, the view shakes, a splash at the line
+			CameraController.shake(0.25 + math.min(d, 8) * 0.03, 0.18)
+			r.tension = 1
+			r.yankT = now
+			local s = sessions[localPlayer]
+			if s and s.bobPos then
+				Fx.blocks(s.bobPos + Vector3.new(0, 0.3, 0), Color3.fromRGB(160, 215, 255), 6, 9, 0.16, { life = 0.5, up = 2.4, spread = 1.2, gravity = 45 })
+			end
 		elseif roll > 0.85 then
 			-- pause (feint)
 			r.fishTarget = r.fish
@@ -628,7 +640,12 @@ local function reelStep(dt: number)
 	r.inside = math.abs(r.fish - r.zone) <= half
 	if r.inside then
 		r.inTime += dt
+		local before = math.floor(r.combo or 0)
 		r.combo = math.min(5, r.inTime / Rc.comboTime)
+		if math.floor(r.combo) > before then
+			-- combo step: a rising "ding"
+			Sound.play("Tick", { pitch = 1.2 + math.floor(r.combo) * 0.15, volume = 0.6 })
+		end
 		local boost = if r.combo >= 1 then Rc.comboBoost else 1
 		r.progress += Rc.fill * boost * dt
 		r.tension = 0.25 + math.abs(r.fish - r.zone) / half * 0.3
@@ -644,7 +661,9 @@ local function reelStep(dt: number)
 		Sound.play("Reel", { volume = 0.5, pitch = 1 + (if r.inside then 0.2 else -0.1) })
 	end
 	if ui then ui.update(r) end
-	HumanPose.tension = r.tension
+	-- a yank spikes the tension for a moment (the pose leans hard into it)
+	local yank = if r.yankT then math.max(0, 1 - (now - r.yankT) / 0.35) else 0
+	HumanPose.tension = math.min(1, r.tension + yank * 0.5)
 	if r.progress <= 0 then
 		task.spawn(finishReel, false)
 	elseif r.progress >= 1 then
