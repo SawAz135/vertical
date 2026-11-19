@@ -296,16 +296,20 @@ function P.Lift(o, t, now)
 	local move = rep % 3
 	local tremble = 0
 	if move == 0 then
-		local arms = kf(r, { { 0, 1.35 }, { 0.32, 1.2 }, { 0.47, 3.35, drive }, { 0.56, 3.05 }, { 0.84, 3.12 }, { 1.1, 1.4, Easing.sineInOut }, { 1.25, 1.35 } })
-		local elbow = kf(r, { { 0, 1.4 }, { 0.32, 1.6 }, { 0.47, 0.0, drive }, { 0.84, 0.1 }, { 1.1, 1.35, Easing.sineInOut }, { 1.25, 1.4 } })
-		local squat = kf(r, { { 0, 0.05 }, { 0.32, 1.15, Easing.sineOut }, { 0.44, 0, drive }, { 1.25, 0.05 } })
-		tremble = if r > 0.52 and r < 0.86 then sin(now * 46) * 0.06 else 0
+		-- HEAVY press: explosive drive off the legs to the STICKING POINT (head height), then a
+		-- slow trembling GRIND to lockout, a shaky hold, and a controlled drop
+		local arms = kf(r, { { 0, 1.35 }, { 0.3, 1.2 }, { 0.44, 2.15, drive }, { 0.5, 2.05 }, { 0.8, 3.3, Easing.sineInOut }, { 0.9, 3.1 }, { 1.1, 1.4, Easing.sineInOut }, { 1.25, 1.35 } })
+		local elbow = kf(r, { { 0, 1.4 }, { 0.3, 1.6 }, { 0.44, 0.75, drive }, { 0.5, 0.85 }, { 0.8, 0.05, Easing.sineInOut }, { 0.9, 0.1 }, { 1.1, 1.35, Easing.sineInOut }, { 1.25, 1.4 } })
+		local squat = kf(r, { { 0, 0.05 }, { 0.3, 1.15, Easing.sineOut }, { 0.42, 0, drive }, { 0.5, 0.18 }, { 0.8, 0.08 }, { 1.25, 0.05 } })
+		local grind = if r > 0.46 and r < 0.92 then 1 else 0
+		tremble = grind * (sin(now * 46) * 0.07 + sin(now * 29) * 0.04)
+		o.N = V3(0, sin(now * 31) * 0.06 * grind, 0) -- head shaking with the effort
 		o.RS = V3(arms + tremble, 0, -0.18 + 0.26 * (arms - 1.25) / 2)
 		o.LS = V3(arms - tremble, 0, -0.18 + 0.26 * (arms - 1.25) / 2)
 		o.RE = V3(elbow, 0, 0)
 		o.LE = V3(elbow, 0, 0)
-		o.W = V3(kf(r, { { 0, 0 }, { 0.32, -0.22 }, { 0.47, 0.22, drive }, { 0.84, 0.14 }, { 1.1, 0 }, { 1.25, 0 } }), 0, tremble * 0.4)
-		o.N = V3(kf(r, { { 0, -0.1 }, { 0.32, -0.25 }, { 0.47, 0.45, drive }, { 0.84, 0.32 }, { 1.1, -0.05 }, { 1.25, -0.1 } }), 0, 0)
+		o.W = V3(kf(r, { { 0, 0 }, { 0.3, -0.22 }, { 0.44, 0.1, drive }, { 0.8, 0.26 }, { 0.9, 0.16 }, { 1.1, 0 }, { 1.25, 0 } }), 0, tremble * 0.5)
+		o.N = V3(kf(r, { { 0, -0.1 }, { 0.3, -0.25 }, { 0.44, 0.2, drive }, { 0.8, 0.5 }, { 0.9, 0.32 }, { 1.1, -0.05 }, { 1.25, -0.1 } }), o.N.Y, 0)
 		o.RH = V3(0.7 * squat, 0, 0.12)
 		o.LH = V3(0.7 * squat, 0, -0.12)
 		o.RK = V3(-1.3 * squat, 0, 0)

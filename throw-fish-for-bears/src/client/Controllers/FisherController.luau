@@ -231,6 +231,7 @@ local function registerFisher(m: Model)
 		fishers[m] = nil
 		if e.tackle then e.tackle:Destroy() end
 		if e.fish then e.fish:Destroy() end
+		if e.bubble then e.bubble:Destroy() end
 	end)
 end
 
@@ -675,6 +676,75 @@ local function guard(e, fn)
 	end
 end
 
+-- SPEECH BUBBLES: a little studded bubble over the fisherman's head (pops in, floats, pops out)
+local LINES = {
+	CatchBig = { "WHOA! Look at this one!", "A monster!!", "Now THAT's a fish!" },
+	Catch = { "Got one!", "Fish on!", "Here we go!" },
+	Small = { "Bit small... it counts!", "Tiny but tasty.", "Better than nothing!" },
+	Full = { "Bucket's full!", "No more room!", "Come collect!" },
+	Drop = { "In you go!", "Another one!", "Plop!" },
+	Wave = { "Hey there!", "Ahoy!", "Nice day for it!" },
+}
+local function say(e, kind: string)
+	local list = LINES[kind]
+	local head = e.head
+	if not list or not head or not head.Parent then return end
+	local TweenService = game:GetService("TweenService")
+	if e.bubble then e.bubble:Destroy() end
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "FisherBubble"
+	bb.Size = UDim2.fromOffset(190, 52)
+	bb.StudsOffsetWorldSpace = Vector3.new(0, 2.6, 0)
+	bb.Adornee = head
+	bb.LightInfluence = 0
+	bb.MaxDistance = 70
+	bb.AlwaysOnTop = false
+	local box = Instance.new("Frame")
+	box.AnchorPoint = Vector2.new(0.5, 1)
+	box.Position = UDim2.fromScale(0.5, 0.82)
+	box.Size = UDim2.fromScale(1, 0.8)
+	box.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	box.Parent = bb
+	local cr = Instance.new("UICorner")
+	cr.CornerRadius = UDim.new(0, 10)
+	cr.Parent = box
+	local st = Instance.new("UIStroke")
+	st.Thickness = 3
+	st.Color = Color3.fromRGB(20, 20, 24)
+	st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	st.Parent = box
+	local tail = Instance.new("Frame")
+	tail.Size = UDim2.fromOffset(12, 12)
+	tail.AnchorPoint = Vector2.new(0.5, 0.5)
+	tail.Position = UDim2.new(0.5, 0, 1, 0)
+	tail.Rotation = 45
+	tail.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	tail.BorderSizePixel = 0
+	tail.ZIndex = 0
+	tail.Parent = box
+	local tx = Instance.new("TextLabel")
+	tx.BackgroundTransparency = 1
+	tx.Size = UDim2.new(1, -14, 1, -8)
+	tx.Position = UDim2.fromOffset(7, 4)
+	tx.Font = Enum.Font.FredokaOne
+	tx.TextScaled = true
+	tx.TextColor3 = Color3.fromRGB(40, 40, 46)
+	tx.Text = list[math.random(1, #list)]
+	tx.ZIndex = 2
+	tx.Parent = box
+	local sc = Instance.new("UIScale")
+	sc.Scale = 0
+	sc.Parent = box
+	bb.Parent = player:WaitForChild("PlayerGui")
+	e.bubble = bb
+	TweenService:Create(sc, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	task.delay(2.4, function()
+		if e.bubble ~= bb then return end
+		TweenService:Create(sc, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 }):Play()
+		task.delay(0.22, function() bb:Destroy() end)
+	end)
+end
+
 local NOMINAL = F.Timing
 
 local function updateFisher(e, dt: number, now: number)
@@ -695,6 +765,16 @@ local function updateFisher(e, dt: number, now: number)
 	end
 	local near = (e.root.Position - camera.CFrame.Position).Magnitude < 190 -- seen from the base too
 	e.near = near
+	-- speech bubbles on the key moments (only when you are close enough to read them)
+	if e.entered and (e.root.Position - camera.CFrame.Position).Magnitude < 70 then
+		e.head = e.head or m:FindFirstChild("Head", true)
+		if phase == "Catch" then say(e, if big then "CatchBig" else "Catch")
+		elseif phase == "Full" then say(e, "Full")
+		elseif phase == "Drop" and math.random() < 0.5 then say(e, "Drop")
+		elseif phase == "Unhook" and not big and math.random() < 0.4 then
+			task.delay(2.8, function() say(e, "Small") end)
+		end
+	end
 
 	-- where he stands / walks ----------------------------------------------------------------
 	local feet, face
@@ -744,7 +824,11 @@ local function updateFisher(e, dt: number, now: number)
 			local localDir = CFrame.Angles(0, e.yaw, 0):VectorToObjectSpace(v)
 			local look = math.atan2(-localDir.X, -localDir.Z)
 			p.Neck = V3(p.Neck.X, clamp(look, -1.1, 1.1), p.Neck.Z)
-			if os.clock() - e.waveT > 25 and (phase ~= "Wait" or e.act == nil) then e.waveT = os.clock() end
+			if os.clock() - e.waveT > 25 and (phase ~= "Wait" or e.act == nil) then
+				e.waveT = os.clock()
+				e.head = e.head or m:FindFirstChild("Head", true)
+				say(e, "Wave")
+			end
 		end
 	end
 	local wk = os.clock() - e.waveT
