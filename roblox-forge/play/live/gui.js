@@ -44,7 +44,8 @@ function richToHtml(s) {
 export const Assets = {
   cache: (() => { try { return JSON.parse(localStorage.getItem('forgeplay.assets') || '{}'); } catch { return {}; } })(), pending: new Set(), queue: new Set(), timer: 0, listeners: new Set(),
   id(src) { const m = String(src || '').match(/(?:rbxassetid:\/\/|[?&]id=|^)(\d{5,})/); return m ? m[1] : null; },
-  url(src) { const id = this.id(src); if (!id) return null; const c = this.cache[id]; if (c) return c === 'x' ? null : c; if (!this.pending.has(id)) { this.pending.add(id); this.queue.add(id); clearTimeout(this.timer); this.timer = setTimeout(() => this.flush(), 60); } return null; },
+  local: new Set(), ready: fetch('assets/rbx/index.json').then((r) => r.json()).then((l) => { for (const i of l) Assets.local.add(String(i)); for (const f of Assets.listeners) f(); }).catch(() => {}),
+  url(src) { const id = this.id(src); if (!id) return null; if (this.local.has(id)) return 'assets/rbx/' + id + '.png'; const c = this.cache[id]; if (c) return c === 'x' ? null : c; if (!this.pending.has(id)) { this.pending.add(id); this.queue.add(id); clearTimeout(this.timer); this.timer = setTimeout(() => this.flush(), 60); } return null; },
   async flush() {
     const ids = [...this.queue]; this.queue.clear(); if (!ids.length) return;
     for (let i = 0; i < ids.length; i += 50) { const chunk = ids.slice(i, i + 50); let data = null;
@@ -68,7 +69,8 @@ export class GuiRenderer {
     this.rects = new Map(); this.W = W; this.H = H; this.inset = inset;
     const pg = this.E.player && this.E.player.child('PlayerGui'); if (!pg) return [];
     const guis = pg.kids.filter((g) => g.cls === 'ScreenGui' && g.props.get('Enabled') !== false).sort((a, b) => (a.props.get('DisplayOrder') || 0) - (b.props.get('DisplayOrder') || 0));
-    for (const g of guis) { const ign = !!g.props.get('IgnoreGuiInset'), si = en(g.props.get('ScreenInsets'), 'CoreUISafeInsets'); const top = ign || si === 'None' || si === 'DeviceSafeInsets' ? (ign ? 0 : inset) : inset;
+    for (const g of guis) { const si = g.props.get('ScreenInsets'), ign = !!g.props.get('IgnoreGuiInset'); // ScreenInsets wins when set: CoreUISafeInsets keeps clear of the Roblox topbar, DeviceSafeInsets / None do not
+      const top = si instanceof EnumItem ? (si.name === 'CoreUISafeInsets' ? inset : 0) : ign ? 0 : inset;
       const r = [0, top, W, H - top]; this.rects.set(g, [...r, 1]); this.layoutKids(g, r, this.scaleOf(g)); }
     return guis;
   }
@@ -169,7 +171,7 @@ export class GuiRenderer {
   inputObj(e, state) { const io = new (this.E.Instance)('InputObject', this.E.rt); io.props.set('UserInputType', this.E.enumItem('UserInputType', e.pointerType === 'mouse' ? 'MouseButton1' : 'Touch')); io.props.set('UserInputState', this.E.enumItem('UserInputState', state)); io.props.set('Position', new (this.E.Vector3)(e.clientX, e.clientY, 0)); io.props.set('KeyCode', this.E.enumItem('KeyCode', 'Unknown')); return io; }
   fire(o, ev, args) { const s = o.sigs.get(ev); if (!s || !s.conns.length) return; const prev = this.E.I.side; this.E.I.side = 'client'; try { s.fire(args); } finally { this.E.I.side = prev; } }
   style(o, el, r, parent, zBase) {
-    const P = o.props, pr = this.rects.get(parent) || [0, 0, 0, 0, 1], sc = r[4];
+    const P = o.props, pr = parent.cls === 'ScreenGui' ? [0, 0, 0, 0, 1] : this.rects.get(parent) || [0, 0, 0, 0, 1], sc = r[4]; // a ScreenGui has no element: its children sit on the layer
     if (r[5]) { if (el.style.display !== 'none') el.style.display = 'none'; return; } else if (el.style.display === 'none') el.style.display = '';
     const x = r[0] - pr[0], y = r[1] - pr[1], rot = P.get('Rotation') || 0, A = P.get('AnchorPoint') || new Vector2();
     const z = (P.get('ZIndex') || 1); const key = [x, y, r[2], r[3], rot, z].map((v) => Math.round(v * 10)).join(',');
