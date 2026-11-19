@@ -83,8 +83,8 @@ async function renderHome() {
   $('feed').innerHTML = `
     ${loc.length ? `<div class="sec"><h2>Tes créations <small>depuis Forge</small></h2><div class="row">${loc.map(tile).join('')}</div></div>` : ''}
     ${recent.length ? `<div class="sec"><h2>Continuer</h2><div class="row">${recent.map(tile).join('')}</div></div>` : ''}
-    <div class="sec"><h2>Mes jeux <small>${dbGames.length} jeu${dbGames.length > 1 ? 'x' : ''}</small></h2>${dbGames.length ? `<div class="row">${dbGames.map(tile).join('')}</div>` : '<div class="empty">Aucun jeu ici pour l’instant. Mets le fichier de ton jeu (le pack <b>.zip</b> de « Créer tout » ou de Map Studio, ou une carte <b>.json</b>) : il apparaît ici et tu peux y jouer.</div>'}
-      <button class="drop" id="dropBtn"><span class="di"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 005.5 20h13a1.5 1.5 0 001.5-1.5V16"/></svg></span><span><b>Ajouter un jeu</b><small>Choisis le fichier .zip ou .json · ou glisse-le ici</small></span></button></div>
+    <div class="sec"><h2>Mes jeux <small>${dbGames.length} jeu${dbGames.length > 1 ? 'x' : ''}</small></h2>${dbGames.length ? `<div class="row">${dbGames.map(tile).join('')}</div>` : '<div class="empty">Aucun jeu ici pour l’instant. Mets le fichier de ton jeu : une place Roblox <b>.rbxl</b> (ou .rbxlx, .rbxm), le pack <b>.zip</b> de « Créer tout » ou de Map Studio, ou une carte <b>.json</b>. Il apparaît ici et tu peux y jouer.</div>'}
+      <button class="drop" id="dropBtn"><span class="di"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M4 16v2.5A1.5 1.5 0 005.5 20h13a1.5 1.5 0 001.5-1.5V16"/></svg></span><span><b>Ajouter un jeu</b><small>.rbxl, .rbxlx, .rbxm, .zip ou .json · ou glisse-le ici</small></span></button></div>
     <div class="sec"><h2>Découvrir <small>faits avec Roblox Forge</small></h2><div class="wide">${F.map(tile).join('')}</div></div>`;
   $('feed').querySelectorAll('[data-g]').forEach((b) => (b.onclick = () => { SFX.click(); openSheet(findGame(b.dataset.g)); }));
   $('dropBtn').onclick = () => $('file').click();
@@ -102,7 +102,7 @@ addEventListener('drop', (e) => { e.preventDefault(); document.body.classList.re
 /* game page (bottom sheet) */
 function openSheet(g) {
   if (!g) return; const th = thumbOf(g.id), feats = g.spec ? describeSpec(g.spec) : mapFeatures(g);
-  const saved = Store.get('save.' + g.id, null);
+  const saved = Store.get('save.' + g.id, null); if (g.notes) feats.push(...g.notes.map((n) => 'ℹ️ ' + n));
   $('pane').innerHTML = `<div class="hero" style="${th ? '' : LIB.coverStyle(g)}">${th ? `<img src="${th}" alt="">` : `<span class="gl">${LIB.genreEmoji(g.genre)}</span>`}<span class="grab"></span><button class="x" id="shX" aria-label="Fermer">✕</button></div>
     <div class="info"><h3>${esc(g.title)}</h3><div class="by">par <b>@${esc(look.name)}</b> · ${esc(LIB.GENRE_FR[g.genre] || 'Jeu')}${g.file ? ' · ' + esc(g.file) : ''}</div>
       <button class="play" id="shPlay"><svg viewBox="0 0 24 24" fill="#fff"><path d="M7 4.5v15l12.5-7.5z"/></svg>${saved ? 'Reprendre' : 'Jouer'}</button>
