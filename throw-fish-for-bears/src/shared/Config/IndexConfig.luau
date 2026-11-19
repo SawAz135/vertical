@@ -11,6 +11,7 @@
 local FishConfig = require(script.Parent.FishConfig)
 local BearConfig = require(script.Parent.BearConfig)
 local RarityConfig = require(script.Parent.RarityConfig)
+local E = require(script.Parent.EconomyConfig)
 local ZoneConfig = require(script.Parent.ZoneConfig)
 
 local I = {}
@@ -120,7 +121,7 @@ function I.reward(s)
 	local rank = s.rank
 	local fishR = RarityConfig.Order[math.clamp(rank + v.fishBonus, 2, 8)]
 	return {
-		money = math.floor(2500 * 2.4 ^ (rank - 1) * v.money / 100 + 0.5) * 100,
+		money = math.floor(2500 * 2.4 ^ (rank - 1) * v.money / 100 + 0.5) * 100 * E.MoneyMult,
 		luck = math.floor((0.02 + rank * 0.004) * v.luck * 1000 + 0.5) / 1000, -- +2.4% .. +6% (x mutation)
 		fish = fishR,
 		rod = I.RodRewards[s.key],

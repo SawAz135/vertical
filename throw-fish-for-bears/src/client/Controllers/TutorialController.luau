@@ -194,7 +194,7 @@ local function buildUI(gui: ScreenGui)
 	ui.tab = Sim.text(tab, "TUTORIAL", { Size = UDim2.new(1, -14, 0.8, 0), Max = 22, ZIndex = 7 })
 	-- mascot (3D Baby Bear) in a dark studded box
 	local box = Sim.panel(panel, { Size = UDim2.fromOffset(88, 88), Position = UDim2.fromOffset(10, 10), Color = RGB(36, 60, 110), DarkStuds = true, ZIndex = 5 })
-	Sim.model(box, { kind = "Bear", id = "BabyBear", size = UDim2.fromScale(1.15, 1.15), yaw = math.rad(-160), pitch = math.rad(8) })
+	Sim.model(box, { kind = "Bear", id = "BabyBear", size = UDim2.fromScale(1.15, 1.15), yaw = math.rad(-28), pitch = math.rad(8) })
 	ui.mascot = box
 	ui.icon = Sim.text(panel, "", { Size = UDim2.fromOffset(34, 34), Position = UDim2.fromOffset(92, 84), Max = 28, Stroke = 0, ZIndex = 8 })
 	-- text

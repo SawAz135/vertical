@@ -292,6 +292,65 @@ function Cine.banner(text: string, color: Color3?, sub: string?)
 	end)
 end
 
+-- COMPACT zone banner for the throw flight: a small pill at the top centre, sized for the
+-- screen (phones get a smaller one) and ONLY ONE at a time: a new zone replaces the previous
+-- banner at once, so banners never pile up or overlap during a long throw.
+local zoneBannerHolder: Frame? = nil
+function Cine.zoneBanner(text: string, color: Color3?)
+	ensure()
+	if zoneBannerHolder then
+		zoneBannerHolder:Destroy()
+		zoneBannerHolder = nil
+	end
+	local cam = workspace.CurrentCamera
+	local vp = if cam then cam.ViewportSize else Vector2.new(1280, 720)
+	local k = math.clamp(math.min(vp.X / 1280, vp.Y / 720) * 1.15, 0.7, 1) -- phones ~0.7
+	local h = math.floor(40 * k)
+	local w = math.floor((#text * 12 + 28) * k)
+	local holder = Instance.new("Frame")
+	holder.Name = "ZoneBanner"
+	holder.AnchorPoint = Vector2.new(0.5, 0)
+	holder.BackgroundColor3 = color or RGB(255, 200, 40)
+	holder.BorderSizePixel = 0
+	holder.Size = UDim2.fromOffset(w, h)
+	holder.Position = UDim2.new(0.5, 0, 0.14, -h)
+	holder.ZIndex = 15
+	holder.Parent = gui
+	zoneBannerHolder = holder
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.3, 0)
+	corner.Parent = holder
+	local st = Instance.new("UIStroke")
+	st.Thickness = math.max(2, math.floor(3 * k))
+	st.Color = RGB(255, 255, 255)
+	st.Parent = holder
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(0.7, 0.7, 0.7))
+	g.Rotation = 90
+	g.Parent = holder
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.new(1, -8, 0.8, 0)
+	label.Position = UDim2.fromScale(0, 0.1)
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.Text = text
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.ZIndex = 16
+	label.Parent = holder
+	local ts = Instance.new("UIStroke")
+	ts.Thickness = math.max(2, math.floor(3 * k))
+	ts.Parent = label
+	tween(holder, 0.25, { Position = UDim2.new(0.5, 0, 0.14, 0) }, Enum.EasingStyle.Back)
+	task.delay(1.1, function()
+		if zoneBannerHolder ~= holder then return end
+		tween(holder, 0.2, { Position = UDim2.new(0.5, 0, 0.14, -h) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		task.wait(0.22)
+		if zoneBannerHolder == holder then zoneBannerHolder = nil end
+		holder:Destroy()
+	end)
+end
+
 ------------------------------------------------------------------------------------------
 -- FISH POV: eyelids that blink (faster with stress), red stress edges, blur
 ------------------------------------------------------------------------------------------

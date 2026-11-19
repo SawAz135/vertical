@@ -269,7 +269,7 @@ local function registerGhost(m: Model)
 		bb.Size = UDim2.fromOffset(240, 90)
 		bb.StudsOffsetWorldSpace = V3(0, 7.6, 0)
 		bb.AlwaysOnTop = false
-		bb.MaxDistance = 90
+		bb.MaxDistance = 30 -- only readable when you are near the silhouette (was 90)
 		bb.Adornee = m.PrimaryPart
 		bb.Parent = m
 		textLabel(bb, "HIRE FISHERMAN", UDim2.fromScale(1, 0.4), UDim2.fromScale(0.5, 0.25), Color3.fromRGB(255, 236, 120), 3)

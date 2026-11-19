@@ -3,6 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local E = require(ReplicatedStorage.Shared.Config.EconomyConfig)
+local Format = require(ReplicatedStorage.Shared.Util.Format)
 local R = require(script.Parent.Parent.Registry)
 
 local Reward = {}
@@ -42,7 +43,7 @@ function Reward.claimDaily(player: Player)
 	d.last = now
 	R.EconomyService.add(player, amount)
 	R.PlayerData.push(player, "daily")
-	R.Notify(player, ("Day %d reward: +$%s"):format(day, tostring(amount)), "good")
+	R.Notify(player, ("Day %d reward: +%s"):format(day, Format.money(amount)), "good")
 	R.Sfx(player, "Reward")
 end
 
@@ -57,7 +58,7 @@ function Reward.claimPlaytime(player: Player, index: number)
 	local amount = gift.money + math.floor(R.EconomyService.rate(player) * E.PlaytimeIncomeSeconds)
 	R.EconomyService.add(player, amount)
 	player:SetAttribute("GiftsClaimed", (player:GetAttribute("GiftsClaimed") or "") .. index .. ",")
-	R.Notify(player, ("Gift opened: +$%s"):format(tostring(amount)), "good")
+	R.Notify(player, ("Gift opened: +%s"):format(Format.money(amount)), "good")
 	R.Sfx(player, "Reward")
 end
 

@@ -6,6 +6,7 @@ local FishConfig = require(ReplicatedStorage.Shared.Config.FishConfig)
 local RodConfig = require(ReplicatedStorage.Shared.Config.RodConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local Net = require(ReplicatedStorage.Shared.Net)
+local Format = require(ReplicatedStorage.Shared.Util.Format)
 local rand = Random.new()
 local R = require(script.Parent.Parent.Registry)
 
@@ -54,7 +55,7 @@ function Index.claim(player: Player, category: string)
 	data.indexPending[category] = 0
 	R.EconomyService.add(player, amount)
 	R.PlayerData.push(player, "indexPending")
-	R.Notify(player, ("Index reward: +$%d"):format(amount), "good")
+	R.Notify(player, ("Index reward: +%s"):format(Format.money(amount)), "good")
 	R.Sfx(player, "Reward")
 end
 

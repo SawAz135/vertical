@@ -5,11 +5,12 @@
        - levels: faster + luckier, and the fisherman's OUTFIT gets better every 2 levels
        - bucket: holds the catch until the player collects it; upgradable capacity ]]
 local Layout = require(script.Parent.Parent.Layout)
+local E = require(script.Parent.EconomyConfig)
 
 local F = {}
 
 F.MaxSlots = 2
-F.HirePrice = { 50_000, 250_000 }
+F.HirePrice = { 50_000 * E.MoneyMult, 250_000 * E.MoneyMult }
 F.MaxLevel = 10
 
 -- price to go from `lv` to `lv + 1` for a fisherman in `slot`
@@ -47,6 +48,8 @@ F.Bucket = {
 	{ cap = 80, cost = 600_000, name = "Golden Barrel" },
 	{ cap = 150, cost = 2_500_000, name = "Royal Vat" },
 }
+
+for _, b in F.Bucket do b.cost *= E.MoneyMult end
 
 -- the loop timings (seconds); the waiting time fills the rest of the interval
 -- nominal timings (level 1). bait: worm from the creel onto the hook. unhook: he kneels,

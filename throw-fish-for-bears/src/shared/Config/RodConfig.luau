@@ -1,6 +1,7 @@
 --[[ RodConfig: fishing rods (models follow the 12 reference rods: handle / shaft / band /
      reel / bobber colours). speed divides the bite waiting time, luck multiplies the
      fish rarity luck. Prices are $; order = shop order. ]]
+local E = require(script.Parent.EconomyConfig)
 local RodConfig = {}
 local C = Color3.fromRGB
 
@@ -63,6 +64,10 @@ RodConfig.Rods = {
 	Gearwork = { name = "Gearwork Rod", exclusive = true, price = 0, speed = 4.2, luck = 9.0, desc = "Index: Clockwork Zone 5 bears.",
 		colors = { handle = C(110, 70, 40), shaft = C(200, 150, 70), band = C(184, 115, 51), reel = C(200, 150, 70), bobber = C(184, 115, 51) } },
 }
+
+for _, rod in RodConfig.Rods do
+	if rod.price and rod.price > 0 then rod.price *= E.MoneyMult end
+end
 
 function RodConfig.get(id: string)
 	return RodConfig.Rods[id] or RodConfig.Rods.Starter

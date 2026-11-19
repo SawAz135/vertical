@@ -153,7 +153,7 @@ local function onThrow(player: Player, d)
 			if z and z ~= lastZone then
 				lastZone = z
 				local zc = ZoneConfig.get(z)
-				Cine.banner(("ZONE %d · %s"):format(z, zc.name:upper()), zc.sign, nil)
+				Cine.zoneBanner(("ZONE %d · %s"):format(z, zc.name:upper()), zc.sign)
 				Sound.play("Notify")
 			end
 			if u < 0.16 then

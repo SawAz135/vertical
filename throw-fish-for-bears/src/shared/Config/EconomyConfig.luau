@@ -1,7 +1,10 @@
 --[[ EconomyConfig: every money number in one place. ]]
 local E = {}
 
-E.StartMoney = 150
+-- every money number (prices, income, rewards) is multiplied by this
+E.MoneyMult = 100
+
+E.StartMoney = 150 * E.MoneyMult
 E.FishBagMax = math.huge -- the fish bag has no limit
 E.BearStorageMax = 60
 
@@ -12,7 +15,7 @@ E.Strength = {
 	repTime = 1.25, -- seconds per lift
 	maxGain = 200,
 	gainCost = function(gain: number): number -- price to go from +gain to +(gain + 1) per lift
-		return math.floor(100 * 1.32 ^ (gain - 1) / 5 + 0.5) * 5
+		return math.floor(100 * 1.32 ^ (gain - 1) / 5 + 0.5) * 5 * E.MoneyMult
 	end,
 	-- studs at full power: ~70 at 0, ~200 at 50, ~600 at 1.5K, ~1.2K at 12K, ~3K at 100K
 	maxDistance = function(strength: number): number
@@ -30,7 +33,7 @@ E.Strength = {
 E.Capacity = {
 	start = 5, perLevel = 1, maxLevel = 26,
 	cost = function(level: number): number
-		return math.floor(400 * 1.55 ^ (level - 1) / 10 + 0.5) * 10
+		return math.floor(400 * 1.55 ^ (level - 1) / 10 + 0.5) * 10 * E.MoneyMult
 	end,
 }
 
@@ -57,5 +60,12 @@ E.TutorialDone = 99
 E.IndexReward = { Fish = 250, Bears = 600 } -- per newly discovered species
 
 E.Lucky = { period = 900, duration = 180, fishLuck = 2, biteSpeed = 1.5 }
+
+-- x MoneyMult on every flat reward (income-based rewards already scale with bear income)
+for i, v in E.Daily.rewards do E.Daily.rewards[i] = v * E.MoneyMult end
+for _, g in E.Playtime do g.money *= E.MoneyMult end
+E.TutorialReward *= E.MoneyMult
+E.IndexReward.Fish *= E.MoneyMult
+E.IndexReward.Bears *= E.MoneyMult
 
 return E

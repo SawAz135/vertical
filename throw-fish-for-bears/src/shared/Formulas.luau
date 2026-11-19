@@ -18,7 +18,7 @@ function F.bearIncome(bear): number
 	local tier = RarityConfig.get(bear.r)
 	local variant = RarityConfig.Variants[bear.v or "Normal"] or RarityConfig.Variants.Normal
 	local wk = (bear.w / spec.weight.ref) ^ E.WeightIncomeExp
-	return spec.income * tier.bearIncome * variant.income * wk
+	return spec.income * tier.bearIncome * variant.income * wk * E.MoneyMult
 end
 
 function F.bearSellValue(bear): number
@@ -31,7 +31,7 @@ function F.fishValue(fish): number
 	local tier = RarityConfig.get(spec.rarity)
 	local variant = RarityConfig.Variants[fish.v or "Normal"] or RarityConfig.Variants.Normal
 	local wk = (fish.w / spec.weight.avg) ^ E.FishValueWeightExp
-	return math.max(1, math.floor(spec.value * tier.fishValue * variant.value * wk + 0.5))
+	return math.max(1, math.floor(spec.value * tier.fishValue * variant.value * wk * E.MoneyMult + 0.5))
 end
 
 -- landing distance for a throw

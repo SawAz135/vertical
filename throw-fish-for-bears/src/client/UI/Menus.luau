@@ -63,7 +63,7 @@ local function scroller(parent, p)
 		PaddingBottom = UDim.new(0, 12) }, s)
 	if p.Grid then
 		new("UIGridLayout", { CellSize = UDim2.fromOffset(p.Grid.X, p.Grid.Y), CellPadding = UDim2.fromOffset(p.Gap or 12, p.Gap or 14),
-			SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Center }, s)
+			SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = if p.Left then Enum.HorizontalAlignment.Left else Enum.HorizontalAlignment.Center }, s)
 	else
 		new("UIListLayout", { FillDirection = if p.X then Enum.FillDirection.Horizontal else Enum.FillDirection.Vertical,
 			Padding = UDim.new(0, p.Gap or 12), SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Top }, s)
@@ -355,7 +355,7 @@ local function sellIds(ids)
 	end
 end
 
-local function fishCards(w, mode)
+local function fishCards(w, mode, left)
 	return function(animate)
 		clear(w.content)
 		local d = Data.values
@@ -369,7 +369,7 @@ local function fishCards(w, mode)
 			emptyText(w.content, if mode == "Sell" then "No fish to sell!\nFish at the end of your dock." else "Your bag is empty.\nGo to your dock and CAST!")
 			return
 		end
-		local list = scroller(w.content, { Size = UDim2.new(1, 0, 1, -56), Position = UDim2.fromOffset(0, 54), Grid = Vector2.new(196, 268), Gap = 14, PadTop = 10 })
+		local list = scroller(w.content, { Size = UDim2.new(1, 0, 1, -56), Position = UDim2.fromOffset(0, 54), Grid = Vector2.new(196, 268), Gap = 14, PadTop = 10, Left = left })
 		for i, f in fish do
 			local spec = FishConfig.get(f.s)
 			local rar = spec.rarity
@@ -831,7 +831,7 @@ end
 ------------------------------------------------------------------------------------------
 -- Bears
 ------------------------------------------------------------------------------------------
-local function bearCards(w)
+local function bearCards(w, left)
 	return function(animate)
 		clear(w.content)
 		local d = Data.values
@@ -855,7 +855,7 @@ local function bearCards(w)
 			emptyText(w.content, "No bears yet!\nThrow a fish into the forest and bring the bear home.")
 			return
 		end
-		local grid = scroller(w.content, { Size = UDim2.new(1, 0, 1, -56), Position = UDim2.fromOffset(0, 54), Grid = Vector2.new(196, 292), Gap = 14, PadTop = 10 })
+		local grid = scroller(w.content, { Size = UDim2.new(1, 0, 1, -56), Position = UDim2.fromOffset(0, 54), Grid = Vector2.new(196, 292), Gap = 14, PadTop = 10, Left = left })
 		for i, b in list do
 			local spec = BearConfig.get(b.s)
 			local tier = RarityConfig.get(b.r)
@@ -898,10 +898,246 @@ end
 -- Inventory : "Bears + Fish" (replaces the default Roblox inventory button)
 -- Bears tab = collection cards (Pick Up / Place / Sell), Fish tab = fish bag cards (Hold)
 ------------------------------------------------------------------------------------------
+-- Inventory skin: lake decor (Fish tab) / pine-forest decor (Bears tab), built from studded blocks
+local function invBox(parent, x, y, w, h, col, tr, r, stroke)
+	local f = new("Frame", { BackgroundColor3 = col, BackgroundTransparency = tr or 0, BorderSizePixel = 0,
+		Size = UDim2.fromOffset(w, h), Position = UDim2.fromOffset(x, y), ZIndex = parent.ZIndex }, parent)
+	if r then new("UICorner", { CornerRadius = if r < 0 then UDim.new(1, 0) else UDim.new(0, r) }, f) end
+	if stroke then new("UIStroke", { Thickness = stroke, Color = RGB(17, 17, 20), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, f) end
+	return f
+end
+local function invIcon(parent, img, x, y, s, tr, rot)
+	return new("ImageLabel", { BackgroundTransparency = 1, Image = img, ImageTransparency = tr, Size = UDim2.fromOffset(s, s),
+		Position = UDim2.fromOffset(x, y), Rotation = rot or 0, ZIndex = parent.ZIndex }, parent)
+end
+local function invPine(parent, x, base, s, dark)
+	local g1, g2, g3 = RGB(30, 130, 48), RGB(44, 160, 58), RGB(70, 190, 70)
+	if dark then g1, g2, g3 = RGB(14, 90, 34), RGB(22, 118, 42), RGB(34, 140, 52) end
+	invBox(parent, x - 4 * s, base - 10 * s, 8 * s, 10 * s, RGB(110, 70, 34), 0, 1, 1.5)
+	invBox(parent, x - 23 * s, base - 22 * s, 46 * s, 12 * s, g1, 0, 2, 1.5)
+	invBox(parent, x - 17 * s, base - 34 * s, 34 * s, 12 * s, g2, 0, 2, 1.5)
+	invBox(parent, x - 11 * s, base - 46 * s, 22 * s, 12 * s, g3, 0, 2, 1.5)
+end
+local function invWeed(parent, x, base, n, col)
+	for k = 0, n - 1 do invBox(parent, x + (k % 2) * 4, base - (k + 1) * 11, 9, 13, col or RGB(47, 180, 58), 0, 4, 1.5) end
+end
+local invWhite = Color3.new(1, 1, 1)
+local PINE = {
+	near = { RGB(110, 70, 34), RGB(30, 130, 48), RGB(44, 160, 58), RGB(70, 190, 70), RGB(150, 235, 110) },
+	mid = { RGB(80, 52, 30), RGB(18, 92, 40), RGB(26, 116, 48), RGB(38, 138, 58), RGB(60, 160, 70) },
+	far = { RGB(60, 60, 90), RGB(40, 74, 100), RGB(46, 86, 112), RGB(54, 98, 124), RGB(70, 114, 138) },
+}
+local function invPine2(parent, x, base, s, pal, outline)
+	local st = if outline then 1.5 else nil
+	invBox(parent, x - 3.5 * s, base - 9 * s, 7 * s, 9 * s, pal[1], 0, 1, st)
+	invBox(parent, x - 21 * s, base - 21 * s, 42 * s, 12 * s, pal[2], 0, 2, st)
+	invBox(parent, x - 16 * s, base - 32 * s, 32 * s, 12 * s, pal[3], 0, 2, st)
+	invBox(parent, x - 10 * s, base - 43 * s, 20 * s, 12 * s, pal[4], 0, 2, st)
+	invBox(parent, x - 4 * s, base - 50 * s, 8 * s, 8 * s, pal[5], 0, 2, st)
+end
+local function invMountain(parent, cx, base, w, h, col, snow)
+	local n = 6
+	for k = 0, n - 1 do
+		local ww = w * (1 - k / n)
+		local c = col:Lerp(invWhite, k * 0.04)
+		if snow and k >= n - 2 then c = RGB(240, 246, 255) end
+		invBox(parent, cx - ww / 2, base - (k + 1) * h / n, ww, h / n + 1, c, 0, 1)
+	end
+end
+local function invCloud(parent, x, y, s)
+	invBox(parent, x, y + 10 * s, 60 * s, 14 * s, invWhite, 0.55, 7 * s)
+	invBox(parent, x + 10 * s, y, 28 * s, 16 * s, invWhite, 0.55, 8 * s)
+	invBox(parent, x + 30 * s, y + 4 * s, 22 * s, 14 * s, invWhite, 0.55, 7 * s)
+end
+local function invBird(parent, x, y, s)
+	local a = invBox(parent, x, y, 9 * s, 2 * s, RGB(20, 24, 40), 0, 1)
+	a.Rotation = 25
+	local b = invBox(parent, x + 8 * s, y, 9 * s, 2 * s, RGB(20, 24, 40), 0, 1)
+	b.Rotation = -25
+end
+local function invFire(parent, x, base)
+	invBox(parent, x - 34, base - 52, 68, 68, RGB(255, 160, 60), 0.86, -1)
+	local l1 = invBox(parent, x - 16, base - 6, 32, 7, RGB(110, 70, 34), 0, 2, 1.5)
+	l1.Rotation = 8
+	local l2 = invBox(parent, x - 16, base - 6, 32, 7, RGB(90, 56, 28), 0, 2, 1.5)
+	l2.Rotation = -8
+	for _, f in { { 16, 12, RGB(235, 70, 30) }, { 11, 9, RGB(255, 150, 30) }, { 6, 7, RGB(255, 230, 90) } } do
+		local d = invBox(parent, x - f[1] / 2, base - 8 - f[2] - f[1] / 2, f[1], f[1], f[3], 0, 3, if f[1] == 16 then 1.5 else nil)
+		d.Rotation = 45
+	end
+end
+local function invShroom(parent, x, base, s)
+	invBox(parent, x - 3 * s, base - 8 * s, 6 * s, 8 * s, RGB(240, 226, 200), 0, 1, 1.5)
+	invBox(parent, x - 8 * s, base - 16 * s, 16 * s, 9 * s, RGB(220, 50, 50), 0, 6 * s, 1.5)
+	invBox(parent, x - 4 * s, base - 14 * s, 3 * s, 3 * s, invWhite, 0, -1)
+	invBox(parent, x + 2 * s, base - 13 * s, 3 * s, 3 * s, invWhite, 0, -1)
+end
+local function invFlower(parent, x, base, col)
+	invBox(parent, x - 1, base - 10, 2, 10, RGB(30, 130, 48), 0)
+	for _, o in { { -4, -14 }, { 2, -14 }, { -1, -17 }, { -1, -11 } } do invBox(parent, x + o[1] - 1.5, base + o[2], 5, 5, col, 0, -1) end
+	invBox(parent, x - 2, base - 15, 4, 4, RGB(255, 220, 60), 0, -1)
+end
+local function invHoney(parent, x, base)
+	invBox(parent, x - 12, base - 22, 24, 22, RGB(150, 92, 40), 0, 8, 1.5)
+	invBox(parent, x - 14, base - 28, 28, 9, RGB(255, 200, 50), 0, 4, 1.5)
+	invBox(parent, x - 5, base - 20, 6, 12, RGB(255, 200, 50), 0, 3)
+	invBox(parent, x - 8, base - 12, 16, 8, RGB(255, 235, 150), 0, 3)
+end
+local function invRock(parent, x, base, s)
+	invBox(parent, x, base - 10 * s, 22 * s, 10 * s, RGB(150, 150, 160), 0, 4, 1.5)
+	invBox(parent, x + 4 * s, base - 8 * s, 8 * s, 3 * s, RGB(200, 200, 210), 0, 1)
+end
+local function skinBears(bodyB, hdrB, bw, bh, HH)
+	-- twilight sky
+	local sky = invBox(bodyB, 0, 0, bw, bh, invWhite)
+	new("UIGradient", { Rotation = 90, Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, RGB(22, 36, 84)), ColorSequenceKeypoint.new(0.45, RGB(96, 72, 144)),
+		ColorSequenceKeypoint.new(0.78, RGB(255, 150, 100)), ColorSequenceKeypoint.new(1, RGB(255, 205, 125)) }) }, sky)
+	for _, s in { { 30, 12 }, { 90, 40 }, { 150, 8 }, { 210, 30 }, { 275, 10 }, { 330, 44 }, { 392, 14 }, { 440, 36 }, { 500, 8 }, { 560, 30 }, { 610, 14 }, { 640, 46 }, { 120, 24 }, { 360, 26 } } do
+		invBox(bodyB, s[1], s[2], 3, 3, invWhite, 0.15)
+	end
+	for _, s in { { 190, 18 }, { 520, 20 }, { 70, 44 } } do
+		invBox(bodyB, s[1] - 5, s[2], 11, 2, invWhite, 0.1)
+		invBox(bodyB, s[1], s[2] - 5, 2, 11, invWhite, 0.1)
+	end
+	-- sun (half hidden by the mountains) + glow
+	local sx, sy = bw * 0.74, bh - 118
+	invBox(bodyB, sx - 95, sy - 95, 190, 190, RGB(255, 170, 90), 0.9, -1)
+	invBox(bodyB, sx - 70, sy - 70, 140, 140, RGB(255, 180, 90), 0.84, -1)
+	invBox(bodyB, sx - 50, sy - 50, 100, 100, RGB(255, 216, 92), 0, -1)
+	invCloud(bodyB, 40, 22, 1)
+	invCloud(bodyB, 330, 44, 0.8)
+	invCloud(bodyB, 520, 70, 1.1)
+	invBird(bodyB, 180, 70, 1)
+	invBird(bodyB, 205, 58, 0.8)
+	invBird(bodyB, 560, 38, 1)
+	-- stepped mountains (far, then near)
+	for _, m in { { 70, 230, 150 }, { 250, 260, 190 }, { 450, 250, 160 }, { 620, 220, 170 } } do
+		invMountain(bodyB, m[1], bh - 70, m[2], m[3], RGB(98, 84, 148), true)
+	end
+	for _, m in { { 160, 200, 100 }, { 360, 230, 120 }, { 560, 210, 105 } } do
+		invMountain(bodyB, m[1], bh - 56, m[2], m[3], RGB(56, 94, 122), false)
+	end
+	-- three depths of pine forest
+	for i = 0, math.ceil(bw / 26) do invPine2(bodyB, 10 + i * 26, bh - 54 + (i % 2) * 3, 0.5, PINE.far, false) end
+	for i = 0, math.ceil(bw / 34) do invPine2(bodyB, 18 + i * 34, bh - 34 + ((i * 5) % 3) * 3, 0.8 + ((i * 7) % 3) * 0.1, PINE.mid, true) end
+	local meadow = invBox(bodyB, 0, bh - 40, bw, 40, RGB(48, 150, 44))
+	Sim.studs(meadow, { z = 2 })
+	local sizes = { 1, 0.85, 1.15, 0.95 }
+	for i = 0, math.ceil(bw / 44) do invPine2(bodyB, 20 + i * 44, bh - 8, sizes[i % 4 + 1], PINE.near, true) end
+	-- ground details
+	for i = 0, 14 do
+		local p = invIcon(bodyB, K.Icons.Paw, 70 + i * 40, bh - 22 + (i % 2) * 4, 16, 0.35, (i % 2) * 20 - 10)
+		p.ImageColor3 = RGB(80, 50, 25)
+	end
+	invFire(bodyB, 46, bh - 3)
+	invHoney(bodyB, bw - 36, bh - 3)
+	for _, x in { 120, 300, 520 } do invShroom(bodyB, x, bh - 3, 1) end
+	for i, x in { 90, 180, 360, 440, 580 } do invFlower(bodyB, x, bh - 3, if i % 2 == 0 then RGB(255, 120, 190) else RGB(255, 240, 110)) end
+	invRock(bodyB, 210, bh - 3, 1)
+	invRock(bodyB, 470, bh - 3, 0.8)
+	for _, p in { { 250, 0 }, { 330, 1 }, { 400, 2 }, { 550, 1 }, { 610, 0 } } do
+		for k = 0, 2 do
+			local t = invBox(bodyB, p[1] + k * 4, bh - 12, 2, 9, RGB(30, 150, 50), 0)
+			t.Rotation = (k - 1) * 22
+		end
+	end
+	-- fireflies and falling leaves
+	for _, f in { { 140, 170 }, { 230, 120 }, { 310, 210 }, { 390, 150 }, { 470, 230 }, { 540, 140 }, { 600, 190 }, { 80, 230 }, { 430, 90 }, { 620, 110 } } do
+		invBox(bodyB, f[1] - 8, f[2] - 8, 16, 16, RGB(200, 255, 120), 0.82, -1)
+		invBox(bodyB, f[1] - 2, f[2] - 2, 4, 4, RGB(255, 255, 170), 0, -1)
+	end
+	for i, f in { { 100, 90 }, { 260, 150 }, { 350, 95 }, { 500, 160 }, { 580, 80 }, { 40, 150 }, { 640, 230 } } do
+		local lf = invBox(bodyB, f[1], f[2], 8, 8, if i % 2 == 0 then RGB(240, 120, 40) else RGB(210, 60, 40), 0, 2)
+		lf.Rotation = 25 + i * 17
+	end
+	-- wooden plank border + top shade
+	local wood = RGB(140, 88, 40)
+	for _, r in { { 0, 0, bw, 7 }, { 0, 0, 7, bh }, { bw - 7, 0, 7, bh } } do invBox(bodyB, r[1], r[2], r[3], r[4], wood, 0, 1, 1.5) end
+	for x = 40, bw - 40, 60 do invBox(bodyB, x, 0, 2, 7, RGB(96, 58, 24), 0) end
+	for y = 40, bh - 40, 60 do
+		invBox(bodyB, 0, y, 7, 2, RGB(96, 58, 24), 0)
+		invBox(bodyB, bw - 7, y, 7, 2, RGB(96, 58, 24), 0)
+	end
+	local vg = invBox(bodyB, 0, 0, bw, 90, Color3.new(0, 0, 0), 0)
+	new("UIGradient", { Rotation = 90, Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 1) }) }, vg)
+	-- header: sun, birds, two rows of pines, leaves
+	invBox(hdrB, 346, -4, 60, 60, RGB(255, 200, 90), 0.75, -1)
+	invBox(hdrB, 360, 10, 32, 32, RGB(255, 226, 110), 0, -1, 1.5)
+	invBird(hdrB, 300, 14, 1)
+	invBird(hdrB, 318, 28, 0.8)
+	for i = 0, math.ceil(bw / 28) do invPine2(hdrB, 8 + i * 28, HH + 2, 0.5, PINE.mid, true) end
+	for i = 0, math.ceil(bw / 28) do invPine2(hdrB, 22 + i * 28, HH + 6, 0.4, PINE.near, true) end
+	for i, x in { 430, 540, 600 } do
+		local lf = invBox(hdrB, x, 8 + i * 9, 7, 7, if i % 2 == 0 then RGB(240, 120, 40) else RGB(210, 60, 40), 0, 2)
+		lf.Rotation = 30 + i * 20
+	end
+end
+
+local function skinInventory(w)
+	local bw, bh, HH = w.W - 8, w.H - w.HH - 12, w.HH
+	local function group(parent, z)
+		return new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ClipsDescendants = true, ZIndex = z }, parent)
+	end
+	local bodyF, bodyB = group(w.body, 2), group(w.body, 2)
+	local hdrF, hdrB = group(w.header, 4), group(w.header, 4)
+	local white = Color3.new(1, 1, 1)
+	-- FISH / lake: light rays, fish, bubbles, seaweed, studded sand
+	for i, x in { 200, 320, 460 } do
+		local ray = invBox(bodyF, x, -40, 30 + i * 8, bh + 80, RGB(150, 220, 255), 0.9)
+		ray.Rotation = 18
+	end
+	for _, f in { { 250, 100, 70, -10 }, { 400, 215, 56, 12 }, { 500, 110, 44, -6 }, { 120, 250, 50, 8 } } do
+		invIcon(bodyF, K.Icons.Bait, f[1], f[2], f[3], 0.88, f[4])
+	end
+	for _, b in { { 236, 230, 14 }, { 258, 256, 9 }, { 596, 280, 22 }, { 36, 320, 16 }, { 556, 50, 14 }, { 586, 80, 9 }, { 300, 40, 10 } } do
+		local c = invBox(bodyF, b[1], b[2], b[3], b[3], white, 1, -1)
+		new("UIStroke", { Thickness = 2.5, Color = white, Transparency = 0.45 }, c)
+	end
+	local sand = invBox(bodyF, 0, bh - 22, bw, 22, RGB(230, 194, 122))
+	Sim.studs(sand, { z = 2 })
+	for _, p in { { 250, 10 }, { 272, 7 }, { 420, 9 }, { 520, 11 }, { 560, 7 }, { 330, 8 } } do
+		invBox(bodyF, p[1], bh - 16, p[2], p[2], RGB(185, 141, 76), 0, -1, 1.5)
+	end
+	invWeed(bodyF, 22, bh - 14, 6)
+	invWeed(bodyF, 36, bh - 14, 4, RGB(31, 154, 53))
+	invWeed(bodyF, bw - 52, bh - 14, 6)
+	invWeed(bodyF, bw - 38, bh - 14, 4, RGB(31, 154, 53))
+	for _, s in { { 300, bh - 20, RGB(255, 138, 92) }, { 470, bh - 18, RGB(255, 210, 63) } } do
+		local st = invBox(bodyF, s[1], s[2], 16, 16, s[3], 0, 2, 1.5)
+		st.Rotation = 45
+	end
+	for i = 0, math.ceil(bw / 18) do
+		invBox(hdrF, i * 18 - 9, HH - 22, 26, 26, white, 0.72, -1)
+		invBox(hdrF, i * 18, HH - 12, 26, 26, white, 0.6, -1)
+	end
+	invIcon(hdrF, K.Icons.Bait, 330, 8, 30, 0.2)
+	invIcon(hdrF, K.Icons.Bait, 380, 30, 22, 0.3, 8)
+	skinBears(bodyB, hdrB, bw, bh, HH)
+	-- gold gems on the four window corners
+	for _, c in { { -9, -9 }, { w.W - 9, -9 }, { -9, w.H - 9 }, { w.W - 9, w.H - 9 } } do
+		local g = invBox(w.frame, c[1], c[2], 18, 18, RGB(255, 210, 63), 0, -1, 2)
+		g.ZIndex = 20
+	end
+	local gradObj = w.header:FindFirstChildOfClass("UIGradient")
+	local strokeObj = w.frame:FindFirstChildOfClass("UIStroke")
+	return function(cat)
+		local bears = cat == "Bears"
+		bodyB.Visible, hdrB.Visible = bears, bears
+		bodyF.Visible, hdrF.Visible = not bears, not bears
+		if gradObj then
+			gradObj.Color = if bears then ColorSequence.new(RGB(134, 232, 95), RGB(28, 138, 44)) else ColorSequence.new(RGB(116, 220, 255), RGB(31, 95, 230))
+		end
+		if strokeObj then strokeObj.Color = if bears then RGB(61, 35, 14) else RGB(12, 53, 96) end
+		w.body.BackgroundColor3 = if bears then RGB(60, 52, 46) else RGB(42, 58, 82)
+	end
+end
+
 local invTab = "Bears"
 local function buildInventory()
-	local w = makeWindow("Inventory", { title = "Bears + Fish", grad = "purple", size = Vector2.new(860, 480), titleWidth = 380 })
-	local sub = { Bears = bearCards(w), Fish = fishCards(w, "Bag") }
+	local w = makeWindow("Inventory", { title = "Bears + Fish", grad = "purple", size = Vector2.new(668, 470), titleWidth = 380 })
+	local sub = { Bears = bearCards(w, true), Fish = fishCards(w, "Bag", true) }
+	local skin = skinInventory(w)
 	local tabs = {}
 	for i, cat in { "Bears", "Fish" } do
 		tabs[cat] = Sim.button(w.frame, { Name = "Tab" .. cat, Grad = if cat == "Fish" then "blue" else "orange", Size = Vector2.new(170, 62),
@@ -917,6 +1153,7 @@ local function buildInventory()
 			local st = b:FindFirstChildOfClass("UIStroke")
 			if st then st.Color = if cat == invTab then Color3.new(1, 1, 1) else Color3.new(0, 0, 0) end
 		end
+		skin(invTab)
 		sub[invTab](animate)
 	end
 end

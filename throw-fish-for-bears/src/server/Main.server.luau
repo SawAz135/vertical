@@ -10,6 +10,7 @@ local Shared = ReplicatedStorage.Shared
 local Net = require(Shared.Net)
 local Layout = require(Shared.Layout)
 local E = require(Shared.Config.EconomyConfig)
+local Format = require(Shared.Util.Format)
 local R = require(script.Parent.Registry)
 local S = script.Parent.Services
 
@@ -214,7 +215,7 @@ on("TutorialStep", { "number" }, function(player, step)
 	if step >= E.TutorialDone and not data.tutorialPaid and data.stats.bears >= 1 then
 		data.tutorialPaid = true
 		R.EconomyService.add(player, E.TutorialReward)
-		R.Notify(player, ("Tutorial complete! +$%d"):format(E.TutorialReward), "good")
+		R.Notify(player, ("Tutorial complete! +%s"):format(Format.money(E.TutorialReward)), "good")
 	end
 	R.PlayerData.push(player, "tutorial")
 end)

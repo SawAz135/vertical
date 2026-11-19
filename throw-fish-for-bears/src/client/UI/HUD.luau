@@ -600,7 +600,8 @@ local function buildInventoryButton()
 		if inset.Max.X <= inset.Min.X or h <= 0 then return end
 		local size = math.clamp(h - 12, 32, 48)
 		b.Size = UDim2.fromOffset(size, size)
-		b.Position = UDim2.fromOffset(inset.Min.X + 8, inset.Min.Y + (h - size) / 2)
+		-- the Roblox "Shop" bag button already sits at inset.Min.X: put ours RIGHT of it (one slot over)
+		b.Position = UDim2.fromOffset(inset.Min.X + 8 + (size + 8), inset.Min.Y + (h - size) / 2 + 6)
 	end
 	place()
 	GuiService:GetPropertyChangedSignal("TopbarInset"):Connect(place)

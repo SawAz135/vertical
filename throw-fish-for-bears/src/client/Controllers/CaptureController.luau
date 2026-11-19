@@ -1447,7 +1447,8 @@ local function startControlling(d)
 	local name = BearConfig.get(d.outcome.s).name
 	local variant = if d.outcome.v ~= "Normal" then d.outcome.v .. " " else ""
 	local hex = (if tier.textColor then tier.textColor else tier.color):ToHex()
-	returnName.Text = ('<font color="#%s">%s</font> %s%s · %s · %s'):format(hex, tier.name, variant, name, Format.kg(d.outcome.w), Format.perSec(d.income))
+	-- rarity + name + $/s only: the weight was already shown by the reveal and comes back on the Bear Unlocked screen
+	returnName.Text = ('<font color="#%s">%s</font> %s%s · %s'):format(hex, tier.name, variant, name, Format.perSec(d.income))
 	returnGui.Enabled = true
 	d.started = os.clock()
 	arrow = buildArrow()
@@ -1458,7 +1459,8 @@ local function startControlling(d)
 		Fx.burst(r.Position - Vector3.new(0, (d.bear:GetAttribute("HipHeight") or 1.6), 0), tier.color, (d.bear:GetAttribute("Scale") or 1))
 		Fx.puff(r.Position, Color3.new(1, 1, 1), 18, 4)
 	end
-	if Capture.Reveal then Capture.Reveal.bearToast(d.outcome, d.income) end
+	-- (no "YOU ARE A ..." toast any more: the return banner already shows the bear, and the reveal
+	-- slam + Bear Unlocked screen play the rarity sound)
 	Sound.play("Growl", { pitch = bearPitch(d.bear) })
 end
 

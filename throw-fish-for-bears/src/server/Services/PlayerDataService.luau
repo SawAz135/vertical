@@ -22,7 +22,7 @@ local Signal = require(ReplicatedStorage.Shared.Util.Signal)
 local PlayerData = {}
 PlayerData.Loaded = Signal.new() -- (player, data)
 
-local VERSION = 1
+local VERSION = 2
 local STORE_NAME = "TFB_PlayerData_v1"
 local AUTOSAVE = 90
 local LOCK_STALE = 900
@@ -68,7 +68,14 @@ end
 local function migrate(data)
 	if type(data) ~= "table" then return template() end
 	data.v = data.v or 0
-	-- (future) if data.v < 2 then ... data.v = 2 end
+	if data.v < 2 then -- economy x100: bring the old savings / pending rewards to the new scale
+		data.money = (tonumber(data.money) or 0) * E.MoneyMult
+		data.earned = (tonumber(data.earned) or 0) * E.MoneyMult
+		if type(data.indexPending) == "table" then
+			data.indexPending.Fish = (tonumber(data.indexPending.Fish) or 0) * E.MoneyMult
+			data.indexPending.Bears = (tonumber(data.indexPending.Bears) or 0) * E.MoneyMult
+		end
+	end
 	data.v = VERSION
 	return data
 end

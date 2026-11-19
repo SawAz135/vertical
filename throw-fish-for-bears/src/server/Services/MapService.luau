@@ -39,6 +39,8 @@ local V3 = Vector3.new
 local C = Color3.fromRGB
 local GRASS = C(78, 172, 50)
 local GRASS_DARK = C(68, 156, 44)
+local CHECK_LIGHT = C(104, 204, 62) -- checkerboard (damier) tones, shared by the spawn floor and the bases
+local CHECK_DARK = C(44, 118, 28)
 local SAND = C(226, 190, 128)
 local WATER = C(30, 140, 245)
 
@@ -87,10 +89,55 @@ local function buildGround(map)
 	Studs.static(map, "Shore", V3(l0.maxX - l0.minX, 9, 2), CF(0, -4.5, l0.minZ + 1), C(200, 168, 110))
 	-- subtle darker tiles in the compound so the floor reads like the reference baseplate
 	for i, c in Layout.BASE_CENTERS do
-		local floor = Studs.static(map, "BaseFloor" .. i, V3(Layout.BASE_SIZE - 2, 0.2, Layout.BASE_SIZE - 2), CF(c.X, 0.1, c.Z), GRASS_DARK)
-		floor.CanCollide = false
+		-- BASE FLOOR: small checkerboard inside the fence = one light plate + dark tiles on top
+		-- (half the parts of a full grid): 22 x 22 cells of 4 studs. The beach is not touched.
+		local folder = Instance.new("Folder")
+		folder.Name = "BaseChecker" .. i
+		local span = Layout.BASE_SIZE - 2
+		local n = 22
+		local tile = span / n
+		Studs.static(folder, "BasePlate", V3(span, 0.2, span), CF(c.X, 0.1, c.Z), CHECK_LIGHT, { noCollide = true, noShadow = true })
+		for a = 0, n - 1 do
+			for b = 0, n - 1 do
+				if (a + b) % 2 == 1 then
+					local x = c.X - span / 2 + (a + 0.5) * tile
+					local z = c.Z - span / 2 + (b + 0.5) * tile
+					Studs.static(folder, "BaseTile", V3(tile, 0.22, tile), CF(x, 0.11, z), CHECK_DARK, { noCollide = true, noShadow = true })
+				end
+			end
+		end
+		folder.Parent = map
 	end
-	-- sand "fishing zone" strip with its label
+	-- SPAWN FLOOR: small green checkerboard (damier) over the front area, bases excluded.
+	-- One light plate per rectangle + dark tiles on top. NEVER inside the throw zone: tiles are
+	-- 3.875 studs so the zone edges (x = +-62, z = 0) fall exactly on tile borders.
+	do
+		local TILE = 3.875
+		local ta = Layout.THROW_AREA
+		local folder = Instance.new("Folder")
+		folder.Name = "SpawnChecker"
+		local function plate(x0, x1, z0, z1)
+			Studs.static(folder, "SpawnPlate", V3(x1 - x0, 0.08, z1 - z0), CF((x0 + x1) / 2, 0.04, (z0 + z1) / 2), CHECK_LIGHT, { noCollide = true, noShadow = true })
+		end
+		local X = 50 * TILE -- 193.75
+		plate(-X, X, 0, 18 * TILE) -- z 0 .. 69.75 (the bases start at z = 70)
+		plate(-X, ta.minX, -6 * TILE, 0) -- left of the throw zone
+		plate(ta.maxX, X, -6 * TILE, 0) -- right of the throw zone
+		for i = -50, 49 do
+			local x0, x1 = i * TILE, (i + 1) * TILE
+			for j = -6, 17 do
+				if (i + j) % 2 == 1 then
+					local z0, z1 = j * TILE, (j + 1) * TILE
+					local inThrowZone = x1 > ta.minX and x0 < ta.maxX and z1 > ta.minZ - 2 and z0 < ta.maxZ
+					if not inThrowZone then
+						Studs.static(folder, "SpawnTile", V3(TILE, 0.11, TILE), CF((x0 + x1) / 2, 0.055, (z0 + z1) / 2), CHECK_DARK, { noCollide = true, noShadow = true })
+					end
+				end
+			end
+		end
+		folder.Parent = map
+	end
+	-- sand \"fishing zone\" strip with its label
 	local s = Layout.SAND
 	Studs.static(map, "Sand", V3(s.maxX - s.minX, 0.4, s.maxZ - s.minZ + 4), CF((s.minX + s.maxX) / 2, 0.2, (s.minZ + s.maxZ) / 2 + 2), SAND)
 
