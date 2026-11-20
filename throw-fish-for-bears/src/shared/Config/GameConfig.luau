@@ -38,7 +38,7 @@ return {
 		arrive = 1.3, sniff = 1.2, eat = 3.7, happy = 1.2, transform = 0.5, -- transform = the "poof" before the bear appears in your hands
 		-- seconds into the eat stage: snatch the fish, TOSS it up (apex), it falls back in slow
 		-- motion into the open jaws (fish POV), CHOMP, swallow
-		pickupAt = 0.35, tossAt = 0.8, tossApex = 1.35, chompAt = 2.6, swallowAt = 3.15,
+		pickupAt = 0.35, tossAt = 0.8, tossApex = 1.7, chompAt = 2.6, swallowAt = 3.15, -- tossApex = the top of the real arc
 		returnTimeout = 300,
 		sprintMultiplier = 1.35,
 		maxSpeedTolerance = 1.7, -- anti teleport (x max legal speed)

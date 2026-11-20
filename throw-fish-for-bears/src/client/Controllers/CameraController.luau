@@ -63,6 +63,11 @@ function Camera.stop(instant: boolean?)
 	blendOut = { t = 0, dur = 0.55, from = from, fromFov = fromFov }
 end
 
+-- the next frame of the running shot is a hard cut (no smoothing from the previous framing)
+function Camera.cut()
+	if active then active.snapNext = true end
+end
+
 function Camera.shake(amount: number, duration: number)
 	shakeAmp = math.max(shakeAmp, amount)
 	shakeT = math.max(shakeT, duration)
@@ -112,6 +117,12 @@ function Camera.init()
 				if cf then a.lastCF, a.lastFov = cf, fov end
 			end
 			if cf then
+				if a.snapNext then
+					-- a hard CUT: no smoothing toward the new shot this frame
+					a.snapNext = false
+					a.pos = cf.Position
+					a.look = cf.LookVector
+				end
 				if a.smooth > 0 then
 					local k = Easing.damp(a.smooth, dt)
 					a.pos = a.pos:Lerp(cf.Position, k)

@@ -378,23 +378,31 @@ local function eatSequence(d)
 	local tPick = tl.eat + G.pickupAt
 	local tApex = tl.eat + G.tossApex
 	local tToss = tl.eat + (G.tossAt or 0.8)
-	-- the camera IS the fish: the server fish (welded in the mouth) stays hidden for us
-	local toss = nil -- { start, apex }
-	local function tossPos(now: number, mouth: Vector3, look: Vector3, sc: number): Vector3?
+	-- the camera IS the fish: the server fish (welded in the mouth) stays hidden for us.
+	-- THE TOSS IS REAL PHYSICS: flicked out of the jaws, the fish flies on a true ballistic
+	-- arc (gravity, no straight lines), tumbling, and is GUIDED every frame so it lands
+	-- exactly in the jaws at the moment they snap shut (the head moves: the arc bends softly)
+	local toss = nil -- { p, v, g, last }
+	local function tossStep(now: number, target: Vector3): Vector3?
 		if not toss then return nil end
-		if now < tApex then
-			local k = Easing.quadOut(math.clamp((now - tToss) / (tApex - tToss), 0, 1))
-			return toss.start:Lerp(toss.apex, k)
+		local dt = now - toss.last
+		toss.last = now
+		if dt > 0 then
+			local tau = math.max(0.06, tChomp - now)
+			local gv = Vector3.new(0, -toss.g, 0)
+			-- the launch velocity that would reach the target right on time from here
+			local need = (target - toss.p - gv * (0.5 * tau * tau)) / tau
+			-- soft guidance early (the throw's own curve lives: it drifts aside and forward),
+			-- firm at the end (it lands exactly in the jaws) - checked numerically: miss ~0.1 stud
+			local late = 1 - tau / toss.T
+			toss.v = toss.v:Lerp(need, math.clamp(dt * (1.5 + 12 * late * late), 0, 1))
+			toss.p += toss.v * dt + gv * (0.5 * dt * dt)
+			toss.v += gv * dt
 		end
-		-- falls back down to a point IN FRONT of the open jaws (on the mouth's axis), then
-		-- straight into the mouth: so the camera (the fish's eyes) always faces the opening
-		local k = math.clamp((now - tApex) / (tChomp - tApex), 0, 1)
-		local front = mouth + look * 3.4 * sc
-		if k < 0.6 then
-			return toss.apex:Lerp(front, Easing.sineInOut(k / 0.6))
-		end
-		return front:Lerp(mouth + look * 0.2 * sc, Easing.quadIn((k - 0.6) / 0.4))
+		return toss.p
 	end
+	local catchFish: Model? = nil -- local copy of the fish for the outside catch shot
+	local tCut = tChomp - 0.42 -- the fish POV cuts OUTSIDE just before the jaws snap
 	local fired = {}
 	local function once(key, fn)
 		if not fired[key] then
@@ -535,18 +543,27 @@ local function eatSequence(d)
 			local dir = look - h.CFrame.UpVector * 0.45
 			cf = CFrame.lookAt(eye, eye + dir, h.CFrame.UpVector)
 			fov = 70
-		elseif now < tChomp then
-			-- S4: the FLICK: flung into the sky, one smooth roll, the bear below with its jaws
-			-- open, waiting... the slow fall... straight into the jaws, between the fangs
+		elseif now < tCut then
+			-- S4: the FLICK, seen through the fish's eyes: a real arc up into the sky, tumbling,
+			-- the "uh-oh" at the top, it turns over and sees the bear BELOW, jaws wide open,
+			-- rising to meet it...
+			local catchAt = mouth + UP * 0.12 * sc
 			once("toss", function()
 				Sound.play("Throw", { pitch = 0.75, volume = 1 })
 				CameraController.shake(0.9, 0.3)
-				toss = { start = mouth + h.CFrame.LookVector * 0.5 * sc, apex = mouth + UP * (5 + 3 * sc) + baseFwd * 1.4 * sc }
+				local T = math.max(0.3, tChomp - tToss)
+				local rise = 4.5 + 2.5 * sc -- height of the arc above the jaws
+				local g = 8 * rise / (T * T)
+				local p0 = mouth + h.CFrame.LookVector * 0.5 * sc
+				-- flicked up AND a little aside: a real curved arc, not a straight up-and-down
+				local side = if math.random() < 0.5 then -1 else 1
+				local v0 = (catchAt - p0 + Vector3.new(0, g, 0) * (0.5 * T * T)) / T + baseSide * (2.2 * sc / T) * side
+				toss = { p = p0, v = v0, g = g, last = now, T = T }
 			end)
-			local look = h.CFrame.LookVector
-			local fp = tossPos(now, mouth, look, sc) or mouth
+			local fp = tossStep(now, catchAt) or mouth
+			local vel = if toss then toss.v else UP
 			local w = math.clamp((now - tToss) / (tChomp - tToss), 0, 1)
-			if now >= tApex then
+			if now >= tApex - 0.2 then
 				once("pov", function()
 					Sound.play("Throw", { pitch = 0.32, volume = 1 }) -- stretched slow-motion whoosh
 					Cine.grade({ tint = Color3.fromRGB(240, 235, 252), saturation = -0.1, contrast = 0.25, brightness = 0.04 }, 0.4)
@@ -557,42 +574,122 @@ local function eatSequence(d)
 					Sound.play("Heartbeat", { pitch = 0.5, volume = 0.9 })
 				end
 			end
-			local aim = mouth - h.CFrame.UpVector * 0.25 * sc
-			local upK = math.clamp((now - tToss) / (tApex - tToss), 0, 1)
-			local target = if now < tApex then h.Position:Lerp(aim, upK) else aim
-			local roll = Easing.sineInOut(w) * math.pi * 2
+			-- the eyes look along the flight (the sky) going up, then turn over at the top and
+			-- look DOWN at the open jaws; the body keeps tumbling (roll)
+			local turn = Easing.sineInOut(math.clamp((now - (tApex - 0.35)) / 0.6, 0, 1))
+			local ahead = fp + (if vel.Magnitude > 0.1 then vel.Unit else UP) * 6
+			local target = ahead:Lerp(catchAt, turn)
+			local roll = Easing.sineInOut(w) * math.pi * 1.5
 			cf = CFrame.lookAt(fp, target) * CFrame.Angles(0, 0, roll)
-			fov = 70 + 4 * w
-			local enter = math.clamp((w - 0.9) / 0.1, 0, 1)
-			Cine.dark(0.3 + 0.45 * enter)
+			fov = 70 + 6 * w
+			Cine.dark(0.32)
 			Cine.setLids(1)
+		elseif now < tChomp then
+			-- S5: CUT OUTSIDE, low 3/4 close-up of the head: the fish drops out of the sky, the
+			-- bear lunges up and SNAPS it out of the air
+			local catchAt = mouth + UP * 0.12 * sc
+			once("catchShot", function()
+				c.catchBase = catchAt
+				CameraController.cut()
+				Cine.eyelids(false)
+				Cine.setLids(1)
+				Cine.motion(6)
+				Sound.play("Throw", { pitch = 0.5, volume = 0.8 })
+				-- a local copy of the fish (the server one stays hidden for us)
+				local src = c.fish
+				if src and src.Parent then
+					local ok, cl = pcall(function() return src:Clone() end)
+					if ok and cl then
+						for _, d in cl:GetDescendants() do
+							if d:IsA("BasePart") then
+								local tr = d:GetAttribute("TFBTr")
+								if tr ~= nil then d.Transparency = tr d:SetAttribute("TFBTr", nil) end
+								d.LocalTransparencyModifier = 0
+								d.Anchored = false
+								d.Massless = true
+								d.CanCollide = false
+								d.CanQuery = false
+								d.CanTouch = false
+							elseif d:IsA("WeldConstraint") then
+								d:Destroy()
+							end
+						end
+						if cl.PrimaryPart then cl.PrimaryPart.Anchored = true end
+						cl:SetAttribute("Anim", "Thrown")
+						cl:SetAttribute("FlyPanic", 1)
+						cl.Parent = Fx.folder
+						catchFish = cl
+					end
+				end
+			end)
+			local fp = tossStep(now, catchAt) or catchAt
+			local vel = if toss then toss.v else -UP
+			if catchFish and catchFish.Parent then
+				-- tumbling and thrashing on its way down into the jaws
+				local spin = (now - tCut) * 9
+				local base = CFrame.lookAt(fp, fp + (if vel.Magnitude > 0.1 then vel.Unit else -UP))
+				catchFish:PivotTo(base * CFrame.Angles(0, 0, spin) * CFrame.Angles(math.sin(now * 23) * 0.35, 0, 0))
+			end
+			local b = c.catchBase or catchAt
+			local k = Easing.sineOut(math.clamp((now - tCut) / (tChomp - tCut), 0, 1))
+			local eye = b + baseSide * (3.3 - 0.5 * k) * sc + baseFwd * (2.5 - 0.4 * k) * sc + UP * 0.25 * sc
+			cf = CFrame.lookAt(keepOut(eye), b + UP * (1.0 - 0.3 * k) * sc)
+			fov = 52 - 3 * k
+			Cine.dark(0.22)
 		else
+			-- THE BITE: the jaws slam shut on the fish (hit-stop), it's stuck crosswise in the
+			-- jaws, tail thrashing, pulled in bite by bite while the bear chews... GULP
 			once("chomp", function()
 				Sound.play("Chomp", { at = mouth, pitch = bearPitch(c.bear) * 0.85, volume = 1.5 })
 				Sound.play("Growl", { pitch = bearPitch(c.bear) * 0.6, volume = 0.8 })
-				CameraController.shake(1.6, 0.45)
-				freezeUntil = os.clock() + 0.12 -- hit-stop on the bite
-				Cine.blackout(true, 0.04)
-				Cine.eyelids(false)
+				CameraController.shake(1.3, 0.35)
+				CameraController.punch(-6)
+				freezeUntil = os.clock() + 0.09 -- hit-stop on the bite
+				Fx.blocks(mouth, Color3.fromRGB(190, 225, 250), 10, 8 * sc, 0.12 * sc, { life = 0.6, up = 1.6, spread = 1.4, gravity = 50 })
+				if not c.catchBase then
+					-- (the cut was skipped by a slow frame) still go outside for the bite
+					c.catchBase = mouth
+					CameraController.cut()
+					Cine.eyelids(false)
+				end
 			end)
-			-- CHEWING in the dark: muffled crunches, each one shakes the world, a sliver of
-			-- light flickers between the teeth as the jaws part, then the big GULP
 			local since = now - tChomp
-			for i, at in { 0.28, 0.5, 0.7, 0.88 } do
+			local swallowT = tl.eat + G.swallowAt
+			local chewPulse = 0
+			for i, at in { 0.12, 0.3, 0.46 } do
 				if since >= at then
 					once("chew" .. i, function()
-						Sound.play("Chomp", { pitch = bearPitch(c.bear) * (0.7 + i * 0.06), volume = 0.9 - i * 0.12 })
-						CameraController.shake(0.6 - i * 0.1, 0.18)
+						Sound.play("Chomp", { at = mouth, pitch = bearPitch(c.bear) * (0.8 + i * 0.07), volume = 1 - i * 0.15 })
+						CameraController.shake(0.5 - i * 0.1, 0.15)
 					end)
 				end
+				local u = (since - at) / 0.12
+				if u > 0 and u < 1 then chewPulse += math.sin(u * math.pi) end
 			end
-			if now >= tl.eat + G.swallowAt then
+			if catchFish and catchFish.Parent then
+				local k = math.clamp(since / math.max(0.1, swallowT - tChomp), 0, 1)
+				local mcf = if mouthAtt then (mouthAtt :: Attachment).WorldCFrame else h.CFrame
+				-- crosswise in the jaws (like the server's weld), pulled further in on every chew
+				local inward = (0.1 + 0.45 * Easing.quadIn(k) + 0.08 * chewPulse) * sc
+				catchFish:SetAttribute("Anim", "Eaten")
+				catchFish:PivotTo(mcf * CFrame.new(0, -0.05 * sc, inward) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.Angles(0, 0, math.sin(now * 19) * 0.12))
+				if now >= swallowT then
+					catchFish:Destroy()
+					catchFish = nil
+				end
+			end
+			if now >= swallowT then
 				once("gulp", function()
 					Sound.play("Growl", { pitch = bearPitch(c.bear) * 1.3, volume = 0.5 })
 					CameraController.shake(0.5, 0.35)
 				end)
 			end
-			cf, fov = lastCF or CFrame.lookAt(mouth + h.CFrame.LookVector * 0.3, mouth), lastFov
+			local b = c.catchBase or mouth
+			local k = Easing.sineOut(math.clamp(since / 1.0, 0, 1))
+			local eye = b + baseSide * (2.8 - 0.3 * k) * sc + baseFwd * (2.1 - 0.2 * k) * sc + UP * 0.3 * sc
+			cf = CFrame.lookAt(keepOut(eye), mouth + UP * 0.35 * sc)
+			fov = 49
+			Cine.dark(0.2)
 		end
 		-- DROOL dripping off the fangs while the jaws are open (little drops, natural colour)
 		if now > tl.eat + 0.2 and now < tChomp then

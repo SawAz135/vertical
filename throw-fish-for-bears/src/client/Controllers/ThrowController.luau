@@ -65,6 +65,10 @@ local function onThrow(player: Player, d)
 	end
 	model.PrimaryPart.Anchored = true
 	model:SetAttribute("Anim", "Thrown")
+	-- the IMPACT scales with the fish: a little sardine makes a little puff, a huge one a crater
+	-- (a 4-stud fish = 1; the throw power adds a bit)
+	local fishK = math.clamp(model:GetExtentsSize().Magnitude / 4, 0.3, 2)
+	local impactK = fishK * (0.6 + 0.4 * (d.power or 0.5))
 	model:PivotTo(CFrame.new(d.from))
 	model.Parent = Fx.folder
 	-- a soft white motion trail (no glow)
@@ -209,14 +213,14 @@ local function onThrow(player: Player, d)
 					freezeUntil = os.clock() + 0.12
 					frozenCF, frozenFov = lastCF, lastFov
 					Cine.dof(nil, 0)
-					CameraController.shake(2.0, 0.55)
-					CameraController.punch(-14)
+					CameraController.shake(0.7 + 1.3 * math.min(1, impactK), 0.55)
+					CameraController.punch(-6 - 8 * math.min(1, impactK))
 					Cine.motion(18)
 					Sound.play("Land", { pitch = 0.6, volume = 1.2 })
-					local big = 1 + d.power
-					Fx.dust(d.to, 1.8 * big)
-					-- earth and grass flying (natural colours, no glow)
-					Fx.blocks(d.to + Vector3.new(0, 0.6, 0), Color3.fromRGB(120, 95, 70), 26, 22 * big, 0.45, { life = 1.2, up = 2, spread = 3, gravity = 70,
+					local big = impactK
+					Fx.dust(d.to, 1.6 * big)
+					-- earth and grass flying (natural colours, no glow), as much as the fish is big
+					Fx.blocks(d.to + Vector3.new(0, 0.6, 0), Color3.fromRGB(120, 95, 70), math.floor(6 + 18 * big), 18 * big, 0.25 + 0.2 * big, { life = 1.2, up = 2, spread = 3 * big, gravity = 70,
 						colors = { Color3.fromRGB(120, 95, 70), Color3.fromRGB(95, 74, 52), Color3.fromRGB(80, 150, 55), Color3.fromRGB(65, 125, 45) } })
 					if not d.ok then Cine.letterbox(false) end
 				end
@@ -315,14 +319,14 @@ local function onThrow(player: Player, d)
 		end
 		if u >= 1 then
 			unbind()
-			Fx.dust(d.to, 1.4)
+			Fx.dust(d.to, 1.2 * impactK)
 			Sound.play("Land", { at = d.to })
 			-- IMPACT CRATER: a ring of studded turf chunks bursts up around the spot, tilts and
 			-- settles back down (real parts, removed after a few seconds), + a low dust ring
 			task.spawn(function()
-				local big = 1 + (d.power or 0.5)
+				local big = impactK
 				local chunks = {}
-				local n = 10
+				local n = math.clamp(math.floor(4 + 7 * big + 0.5), 4, 12)
 				for i = 1, n do
 					local a = i / n * math.pi * 2 + math.random() * 0.3
 					local r = (1.6 + math.random() * 0.6) * big

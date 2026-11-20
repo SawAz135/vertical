@@ -482,6 +482,14 @@ STATES.Eat = function(p, e, t, s)
 	local settle = Easing.cubicInOut(clamp((t - (C + 0.08)) / 0.35, 0, 1))
 	local slow = if t > A and t < C then 1 else 0
 	local sway = sin(t * 2.2) * 0.05 * slow
+	-- the LUNGE: a split second before the jaws close, the head shoots UP and forward to meet
+	-- the falling fish, jaws gaping even wider... then SNAP
+	local lunge = Easing.bump(clamp((t - (C - 0.26)) / 0.3, 0, 1))
+	rot(p, "Neck", 0.34 * lunge)
+	pos(p, "Neck", 0, 0.22 * s * lunge, -0.3 * s * lunge)
+	rot(p, "Jaw", -0.4 * lunge * (1 - Easing.expoOut(clamp((t - (C - 0.06)) / 0.1, 0, 1))))
+	rot(p, "BodyJoint", 0.08 * lunge)
+	rot(p, "LegFL", -0.12 * lunge) rot(p, "LegFR", -0.12 * lunge)
 	-- a front paw PINS the fish first: lifts high, slams down on it (weight onto that side),
 	-- holds it while the jaws close, then lets go as the head lifts
 	local pinUp = Easing.cubicOut(clamp(t / 0.12, 0, 1))
