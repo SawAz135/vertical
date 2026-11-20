@@ -143,15 +143,22 @@ local function buildLeg(model, torso: BasePart, name: string, pivot: CFrame, spe
 	local pawH = len * 0.32
 	local pawCF = pivot * CF(0, -len + pawH / 2, -th * 0.08)
 	local pk = if t.bigPaws then 1.3 else 1
-	table.insert(parts, Studs.piece(model, "Paw", V3(th * 1.1 * pk, pawH, th * 1.24 * pk), pawCF, c.paw, "paw"))
-	table.insert(parts, Studs.piece(model, "PawPad", V3(th * 0.9, 0.06, th * 0.9), pawCF * CF(0, -pawH / 2 + 0.02, 0), Studs.shade(c.paw, 0.7), "paw", { smooth = true }))
+	-- the PAW has its own joint at the wrist / ankle ("PawFL"...): the animator keeps it flat on
+	-- the ground while the leg swings over it, rolls it off the toes and curls it in the air
+	local ankle = pivot * CF(0, -len + pawH, 0)
+	local pawBone = Studs.bone(model, name .. "PawBone", ankle)
+	local pawParts = {}
+	table.insert(pawParts, Studs.piece(model, "Paw", V3(th * 1.1 * pk, pawH, th * 1.24 * pk), pawCF, c.paw, "paw"))
+	table.insert(pawParts, Studs.piece(model, "PawPad", V3(th * 0.9, 0.06, th * 0.9), pawCF * CF(0, -pawH / 2 + 0.02, 0), Studs.shade(c.paw, 0.7), "paw", { smooth = true }))
 	-- claws
 	local clawLen = if t.longClaws then 0.32 * s else 0.18 * s
 	for k = -1, 1 do
-		table.insert(parts, Studs.piece(model, "Claw", V3(th * 0.16, pawH * 0.26, clawLen), pawCF * CF(k * th * 0.32, -pawH * 0.28, -th * 0.62 - clawLen / 2 + 0.04), c.claw, "claw", { smooth = true }))
+		table.insert(pawParts, Studs.piece(model, "Claw", V3(th * 0.16, pawH * 0.26, clawLen), pawCF * CF(k * th * 0.32, -pawH * 0.28, -th * 0.62 - clawLen / 2 + 0.04), c.claw, "claw", { smooth = true }))
 	end
 	Studs.weldAll(bone, parts)
+	Studs.weldAll(pawBone, pawParts)
 	Studs.motor(name, torso, bone, pivot)
+	Studs.motor("Paw" .. string.sub(name, 4), bone, pawBone, ankle)
 	return bone
 end
 

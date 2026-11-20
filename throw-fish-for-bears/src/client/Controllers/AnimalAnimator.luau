@@ -28,7 +28,9 @@ local frame = 0
 
 local sin, cos, abs, clamp, noise = math.sin, math.cos, math.abs, math.clamp, math.noise
 local TAU = math.pi * 2
-local JOINTS = { "BodyJoint", "Neck", "Jaw", "EarL", "EarR", "LegFL", "LegFR", "LegBL", "LegBR", "Tail" }
+local JOINTS = { "BodyJoint", "Neck", "Jaw", "EarL", "EarR", "LegFL", "LegFR", "LegBL", "LegBR", "Tail",
+	"PawFL", "PawFR", "PawBL", "PawBR" }
+local LEGS = { FL = "LegFL", FR = "LegFR", BL = "LegBL", BR = "LegBR" }
 
 local function newPose()
 	local p = {}
@@ -271,10 +273,24 @@ STATES.Sniff = function(p, e, t, s)
 end
 
 STATES.Arrive = function(p, e, t, s)
-	local k = Easing.cubicOut(clamp(t / 0.4, 0, 1))
-	rot(p, "Neck", -0.35 * k, 0, 0)
-	pos(p, "BodyJoint", 0, -0.05 * s * k, 0)
-	rot(p, "EarL", -0.2 * k) rot(p, "EarR", -0.2 * k)
+	-- the SKID STOP after the charge: weight thrown back onto the haunches, front paws braced
+	-- out in front, the head keeps going (inertia) then snaps back; a little rebound forward
+	-- and it settles low, nose already pointing at the fish
+	local brake = Easing.bump(clamp(t / 0.42, 0, 1))
+	local rebound = Easing.bump(clamp((t - 0.3) / 0.35, 0, 1))
+	local settle = Easing.cubicOut(clamp((t - 0.45) / 0.45, 0, 1))
+	local hv = e.heavy or 0
+	rot(p, "BodyJoint", -0.22 * brake * (1 + hv * 0.4) + 0.08 * rebound + 0.03 * settle)
+	pos(p, "BodyJoint", 0, (-0.16 * brake - 0.05 * settle) * s, (0.18 * brake - 0.06 * rebound) * s)
+	rot(p, "LegFL", 0.42 * brake - 0.1 * rebound) rot(p, "LegFR", 0.38 * brake - 0.1 * rebound)
+	rot(p, "LegBL", 0.3 * brake) rot(p, "LegBR", 0.3 * brake)
+	-- head: carried forward by the momentum, then whips back and lowers onto the fish
+	local inertia = Easing.bump(clamp((t - 0.05) / 0.3, 0, 1))
+	rot(p, "Neck", -0.3 * inertia + 0.12 * rebound - 0.38 * settle, 0, 0)
+	pos(p, "Neck", 0, 0, -0.18 * inertia * s)
+	rot(p, "Jaw", -0.15 * brake - 0.06 * settle)
+	rot(p, "EarL", 0.35 * inertia - 0.2 * settle) rot(p, "EarR", 0.35 * inertia - 0.2 * settle)
+	rot(p, "Tail", 0.4 * brake, sin(t * 9) * 0.25 * (1 - settle))
 end
 
 local function sitPose(p, s, legLen, k)
@@ -466,6 +482,16 @@ STATES.Eat = function(p, e, t, s)
 	local settle = Easing.cubicInOut(clamp((t - (C + 0.08)) / 0.35, 0, 1))
 	local slow = if t > A and t < C then 1 else 0
 	local sway = sin(t * 2.2) * 0.05 * slow
+	-- a front paw PINS the fish first: lifts high, slams down on it (weight onto that side),
+	-- holds it while the jaws close, then lets go as the head lifts
+	local pinUp = Easing.cubicOut(clamp(t / 0.12, 0, 1))
+	local pinDown = Easing.quadIn(clamp((t - 0.12) / 0.1, 0, 1))
+	local pinOff = Easing.cubicInOut(clamp((t - 0.55) / 0.25, 0, 1))
+	local pinRaise = pinUp * (1 - pinDown)
+	local pinHold = pinDown * (1 - pinOff)
+	rot(p, "LegFR", 0.55 * pinRaise + 0.3 * pinHold, 0, -0.08 * pinRaise)
+	pos(p, "LegFR", 0, 0.35 * s * pinRaise, 0)
+	rot(p, "BodyJoint", 0, 0.05 * pinHold, -0.07 * pinHold)
 	-- head: down -> flung way up -> lowers slightly to catch -> slammed down -> level
 	rot(p, "Neck", -0.85 * dive + 1.55 * toss - 0.35 * waitK - 0.95 * chomp + 0.6 * settle + sway, sway * 0.6)
 	pos(p, "Neck", 0, (-0.3 * dive + 0.4 * toss - 0.1 * waitK - 0.3 * chomp + 0.3 * settle) * s,
@@ -556,12 +582,21 @@ STATES.Reveal = function(p, e, t, s)
 		rot(p, "Jaw", -0.6 * toss)
 		-- 4) kg: growth STOMPS every 0.4 s (front paws lift, then pound the ground)
 		if t > e3 and t < e4 then
-			local ph = ((t - e3) / 0.4) % 1
+			-- ALTERNATING stomps: one front paw rises high, the weight rocks onto the other side,
+			-- it pounds down (head nods, jaw rattles), then the other paw
+			local cyc = (t - e3) / 0.4
+			local ph = cyc % 1
+			local left = math.floor(cyc) % 2 == 0
 			local lift = if ph < 0.55 then Easing.sineOut(ph / 0.55) else 1 - Easing.quadIn((ph - 0.55) / 0.45)
-			rot(p, "LegFL", -0.5 * lift) rot(p, "LegFR", -0.5 * lift)
-			rot(p, "BodyJoint", 0.18 * lift)
-			pos(p, "BodyJoint", 0, (0.12 * lift - 0.06 * (1 - lift)) * s, 0)
-			rot(p, "Jaw", -0.3 * lift)
+			local impact = if ph > 0.9 then (ph - 0.9) / 0.1 else 0
+			local side = if left then 1 else -1
+			rot(p, if left then "LegFL" else "LegFR", 0.5 * lift, 0, 0.12 * side * lift)
+			pos(p, if left then "LegFL" else "LegFR", 0, 0.32 * s * lift, 0)
+			rot(p, if left then "LegFR" else "LegFL", -0.1 * lift)
+			rot(p, "BodyJoint", 0.12 * lift, 0.04 * side * lift, -0.09 * side * lift)
+			pos(p, "BodyJoint", 0, (0.08 * lift - 0.07 * impact) * s, 0)
+			rot(p, "Neck", -0.1 * impact + 0.06 * lift, -0.06 * side * lift, 0)
+			rot(p, "Jaw", -0.12 * lift - 0.1 * impact)
 		end
 		-- 5) loading up for the peak: crouch low, ears back, trembling
 		local load = Easing.sineInOut(clamp((t - (e4 - 0.5)) / 0.85, 0, 1))
@@ -665,6 +700,10 @@ local function locomotion(p, e, t, s, speed, dt)
 		local liftAmt = math.max(0, cos(a)) * (0.22 + runK * 0.25) * s * walkK
 		rot(p, leg, swing * amp)
 		pos(p, leg, 0, liftAmt, 0)
+		e.lift = e.lift or {}
+		e.lift[leg] = math.max(0, cos(a)) * walkK
+		e.swing = e.swing or {}
+		e.swing[leg] = -sin(a) -- > 0 while the foot travels forward (toe-off -> reach)
 	end
 	-- body motion: heavy bears pound the ground (deep bob, squash on each footfall,
 	-- rolling shoulders, spine flexing), light bears bounce
@@ -736,6 +775,7 @@ local function updateBear(e, dt, now)
 
 	local animT = now - (model:GetAttribute("AnimT") or 0)
 	local p = newPose()
+	if e.lift then for k in e.lift do e.lift[k] = 0 end end
 	local moving = locomotion(p, e, t, s, e.speed, dt)
 	-- NATURAL BODY ACTING while moving: lean INTO turns, head turns ahead into the turn,
 	-- sit back when braking, push forward when accelerating
@@ -793,6 +833,50 @@ local function updateBear(e, dt, now)
 	if closed ~= e.lidsClosed then
 		e.lidsClosed = closed
 		for _, lid in e.lids do lid.Transparency = if closed then 0 else 1 end
+	end
+
+	-- FEET: the paws have their own joint. A paw on the ground stays FLAT on it whatever the
+	-- leg and the body do (counter-rotation), it rolls off the toes as the foot lifts, curls
+	-- under in the air and reaches flat again before it lands. Rearing up: front paws droop.
+	if e.motors.PawFL then
+		local bodyX = p.BodyJoint.x
+		local rear = clamp((bodyX - 0.45) / 0.5, 0, 1)
+		for suf, leg in LEGS do
+			local paw = "Paw" .. suf
+			local lift = if e.lift then (e.lift[leg] or 0) else 0
+			local fwd = if e.swing then (e.swing[leg] or 0) else 0
+			local front = suf == "FL" or suf == "FR"
+			local flatten = -(bodyX + p[leg].x)
+			local plant = 1 - lift
+			-- toe-off: heel rises first (paw pitched toes-down), reach: toes come up to land flat
+			local roll = lift * (if fwd > 0 then -0.55 * (1 - fwd) + 0.25 * fwd else -0.75)
+			local droop = if front then -0.6 * rear else 0
+			rot(p, paw, clamp(flatten * (0.35 + 0.65 * plant) + roll + droop, -1.3, 1.3))
+		end
+	end
+	-- FOLLOW-THROUGH: soft parts lag behind the head and body. The ears flop against the
+	-- head's motion, the tail swings against the body's turns and bounces with its bob.
+	if dt > 0 then
+		local c = e.cur
+		local nx, ny = c.Neck.x + c.BodyJoint.x, c.Neck.y + c.BodyJoint.y
+		local by, bpy = c.BodyJoint.y, c.BodyJoint.py
+		if e.prevNx then
+			local vnx = clamp((nx - e.prevNx) / dt, -12, 12)
+			local vny = clamp((ny - e.prevNy) / dt, -12, 12)
+			local vby = clamp((by - e.prevBy) / dt, -12, 12)
+			local vbpy = clamp((bpy - e.prevBpy) / dt / math.max(0.3, s), -12, 12)
+			e.fNx = (e.fNx or 0) + (vnx - (e.fNx or 0)) * Easing.damp(14, dt)
+			e.fNy = (e.fNy or 0) + (vny - (e.fNy or 0)) * Easing.damp(14, dt)
+			e.fBy = (e.fBy or 0) + (vby - (e.fBy or 0)) * Easing.damp(10, dt)
+			e.fBpy = (e.fBpy or 0) + (vbpy - (e.fBpy or 0)) * Easing.damp(12, dt)
+			local ex = clamp(-e.fNx * 0.07 - e.fBpy * 0.12, -0.55, 0.55)
+			local ez = clamp(-e.fNy * 0.06, -0.45, 0.45)
+			rot(p, "EarL", ex, 0, ez) rot(p, "EarR", ex, 0, ez)
+			rot(p, "Tail", clamp(-e.fBpy * 0.25, -0.5, 0.5), clamp(-e.fBy * 0.22 - e.fNy * 0.04, -0.6, 0.6))
+			-- the loose jaw drops a hair on hard landings / big head drops
+			rot(p, "Jaw", clamp(-math.max(0, e.fBpy) * 0.05, -0.15, 0))
+		end
+		e.prevNx, e.prevNy, e.prevBy, e.prevBpy = nx, ny, by, bpy
 	end
 
 	-- smooth toward the target pose and apply. The big cartoon moments use an under-damped
