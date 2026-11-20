@@ -9,8 +9,8 @@
    (RollOffMinDistance / RollOffMaxDistance). Without Web Audio (tests) the
    objects keep working silently.
    ===================================================================== */
-import { assetId, fetchAsset } from '../assets.js?v=9';
-import { isA } from './roblox.js?v=9';
+import { assetId, fetchAsset } from '../assets.js?v=10';
+import { isA } from './roblox.js?v=10';
 
 const fn = (f) => f;
 let ctx = null; const AC = typeof window !== 'undefined' ? window.AudioContext || window.webkitAudioContext : null;

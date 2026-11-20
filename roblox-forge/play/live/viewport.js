@@ -7,9 +7,9 @@
    each frame (animated thumbnails keep moving).
    ===================================================================== */
 import * as THREE from 'three';
-import { material, partGeo, studTop, studMat } from '../world.js?v=9';
-import { partDesc } from './render3d.js?v=9';
-import { isA, Color3 } from '../luau/engine.js?v=9';
+import { material, partGeo, studTop, studMat } from '../world.js?v=10';
+import { partDesc } from './render3d.js?v=10';
+import { isA, Color3 } from '../luau/engine.js?v=10';
 
 let R = null;
 const renderer = () => { if (!R) { R = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); R.outputColorSpace = THREE.SRGBColorSpace; R.toneMapping = THREE.ACESFilmicToneMapping; R.setPixelRatio(1); } return R; };
