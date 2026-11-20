@@ -647,6 +647,7 @@ function FishBuilder.build(speciesId: string, opts: any?): Model
 	if opts.variant and opts.variant ~= "Normal" then
 		require(script.Parent.Variants).apply(model, opts.variant)
 	end
+	Studs.allStuds(model) -- full studs (brick-built look): sides and bottom too
 	return model
 end
 
