@@ -14,7 +14,7 @@
    when the place was made with Roblox Forge.
    Luau scripts are not run: only the Forge rules are played.
    ===================================================================== */
-import { decompress as zstd } from './vendor/fzstd.js?v=8';
+import { decompress as zstd } from './vendor/fzstd.js?v=9';
 
 const dec = new TextDecoder();
 
@@ -108,9 +108,23 @@ function readValues(r, t, n, shared) {
       const rots = []; for (let i = 0; i < n; i++) { const id = r.u8(); if (id === 0) { const m = []; for (let k = 0; k < 9; k++) m.push(r.f32()); rots.push(m); } else rots.push(specialRot(id)); }
       const x = r.floats(n), y = r.floats(n), z = r.floats(n); const v = rots.map((m, i) => ({ pos: [x[i], y[i], z[i]], rot: m })); if (t === 0x1E) r.bytes(n); return v; }
     case 0x12: return Array.from(r.inter(n));
-    case 0x13: return r.refs(n);
+    case 0x13: return r.refs(n).map((x) => (x === -1 ? null : { ref: x }));
     case 0x1A: { const a = r.bytes(n), b = r.bytes(n), c = r.bytes(n); return Array.from(a, (x, i) => ({ rgb8: [x, b[i], c[i]] })); }
     case 0x1C: return Array.from(r.inter(n), (i) => shared[i]);
+    case 0x06: { const sc = r.floats(n), of = r.ints(n); return sc.map((x, i) => ({ udim: [x, of[i]] })); }
+    case 0x07: { const xs = r.floats(n), ys = r.floats(n), xo = r.ints(n), yo = r.ints(n); return xs.map((x, i) => ({ udim2: [x, xo[i], ys[i], yo[i]] })); }
+    case 0x08: { const v = []; for (let i = 0; i < n; i++) { const a = []; for (let k = 0; k < 6; k++) a.push(r.f32()); v.push({ ray: a }); } return v; }
+    case 0x09: case 0x0A: return Array.from(r.bytes(n), (b) => ({ faces: b }));
+    case 0x0D: { const x = r.floats(n), y = r.floats(n); return x.map((v, i) => ({ v2: [v, y[i]] })); }
+    case 0x14: { const v = []; for (let i = 0; i < n; i++) { v.push([r.d.getInt16(r.p, true), r.d.getInt16(r.p + 2, true), r.d.getInt16(r.p + 4, true)]); r.p += 6; } return v; }
+    case 0x15: { const v = []; for (let i = 0; i < n; i++) { const c = r.u32(), k = []; for (let j = 0; j < c; j++) k.push([r.f32(), r.f32(), r.f32()]); v.push({ nseq: k }); } return v; }
+    case 0x16: { const v = []; for (let i = 0; i < n; i++) { const c = r.u32(), k = []; for (let j = 0; j < c; j++) k.push([r.f32(), r.f32(), r.f32(), r.f32(), r.f32()]); v.push({ cseq: k }); } return v; }
+    case 0x17: { const v = []; for (let i = 0; i < n; i++) v.push({ nrange: [r.f32(), r.f32()] }); return v; }
+    case 0x18: { const a = r.floats(n), b = r.floats(n), c = r.floats(n), d = r.floats(n); return a.map((x, i) => ({ rect: [x, b[i], c[i], d[i]] })); }
+    case 0x1B: { const b = r.bytes(n * 8), out = []; for (let i = 0; i < n; i++) { let v = 0n; for (let k = 0; k < 8; k++) v = (v << 8n) | BigInt(b[k * n + i]); const z = (v >> 1n) ^ -(v & 1n); out.push(Number(z)); } return out; }
+    case 0x20: { const v = []; for (let i = 0; i < n; i++) { const family = r.str(), weight = r.d.getUint16(r.p, true); r.p += 2; const style = r.u8(); r.str(); v.push({ font: { family, weight, style } }); } return v; }
+    case 0x22: { // Content: a source type per value, then the URIs (and object / external refs, unused here)
+      const types = r.ints(n), nu = r.u32(), uris = []; for (let i = 0; i < nu; i++) uris.push(r.str()); let u = 0; return types.map((t) => (t === 1 ? uris[u++] : null)); }
     default: return null;
   }
 }
@@ -123,7 +137,7 @@ export function readXml(text) {
   const b64 = (s) => { try { const bin = atob(String(s).replace(/\s/g, '')), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; } catch { return new Uint8Array(); } };
   const shared = {}; doc.querySelectorAll('SharedStrings > SharedString').forEach((s) => (shared[s.getAttribute('md5')] = b64(s.textContent)));
   const num = (el, tag) => parseFloat(el.getElementsByTagName(tag)[0]?.textContent || '0');
-  const item = (el) => { const o = { cls: el.getAttribute('class'), props: {}, children: [] };
+  const item = (el) => { const o = { cls: el.getAttribute('class'), ref: el.getAttribute('referent'), props: {}, children: [] };
     const P = [...el.children].find((c) => c.tagName === 'Properties');
     if (P) for (const p of P.children) { const name = p.getAttribute('name'); if (!name) continue; const tag = p.tagName; let v;
       if (tag === 'Vector3') v = ['X', 'Y', 'Z'].map((k) => num(p, k));
@@ -136,6 +150,18 @@ export function readXml(text) {
       else if (tag === 'BinaryString') v = b64(p.textContent);
       else if (tag === 'SharedString') v = shared[p.textContent.trim()] || new Uint8Array();
       else if (tag === 'string' || tag === 'ProtectedString') v = new TextEncoder().encode(p.textContent);
+      else if (tag === 'Content' || tag === 'ContentId') { const u = p.getElementsByTagName('url')[0] || p.getElementsByTagName('uri')[0]; v = u ? u.textContent.trim() : p.getElementsByTagName('null')[0] ? null : p.textContent.trim(); }
+      else if (tag === 'Vector2') v = { v2: ['X', 'Y'].map((k) => num(p, k)) };
+      else if (tag === 'Vector3int16') v = ['X', 'Y', 'Z'].map((k) => num(p, k));
+      else if (tag === 'UDim') v = { udim: [num(p, 'S'), num(p, 'O')] };
+      else if (tag === 'UDim2') v = { udim2: [num(p, 'XS'), num(p, 'XO'), num(p, 'YS'), num(p, 'YO')] };
+      else if (tag === 'Rect2D') { const mn = p.getElementsByTagName('min')[0], mx = p.getElementsByTagName('max')[0]; v = { rect: [mn ? num(mn, 'X') : 0, mn ? num(mn, 'Y') : 0, mx ? num(mx, 'X') : 0, mx ? num(mx, 'Y') : 0] }; }
+      else if (tag === 'NumberRange') { const a = p.textContent.trim().split(/\s+/).map(Number); v = { nrange: [a[0] || 0, a[1] ?? a[0] ?? 0] }; }
+      else if (tag === 'NumberSequence') { const a = p.textContent.trim().split(/\s+/).map(Number), k = []; for (let i = 0; i + 2 < a.length; i += 3) k.push([a[i], a[i + 1], a[i + 2]]); v = { nseq: k }; }
+      else if (tag === 'ColorSequence') { const a = p.textContent.trim().split(/\s+/).map(Number), k = []; for (let i = 0; i + 4 < a.length; i += 5) k.push([a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4]]); v = { cseq: k }; }
+      else if (tag === 'Ref') { const t = p.textContent.trim(); v = t && t !== 'null' ? { ref: t } : null; }
+      else if (tag === 'Font') { const f = p.getElementsByTagName('Family')[0], w = p.getElementsByTagName('Weight')[0], st = p.getElementsByTagName('Style')[0]; const fu = f && (f.getElementsByTagName('url')[0] || f.getElementsByTagName('uri')[0]); v = { font: { family: fu ? fu.textContent.trim() : f ? f.textContent.trim() : '', weight: w ? parseInt(w.textContent, 10) : 400, style: st && /italic/i.test(st.textContent) ? 1 : 0 } }; }
+      else if (tag === 'Faces' || tag === 'Axes') v = { faces: parseInt((p.getElementsByTagName('faces')[0] || p.getElementsByTagName('axes')[0] || p).textContent, 10) || 0 };
       else continue;
       o.props[name] = v; }
     for (const c of el.children) if (c.tagName === 'Item') o.children.push(item(c)); return o; };

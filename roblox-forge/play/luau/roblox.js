@@ -8,7 +8,7 @@
    reads as nil and an unknown service is an empty Instance, so scripts
    get as far as they can without a full engine.
    ===================================================================== */
-import { LuaTable, LuaError, call, callGen, tostr, typeOf, isTruthy } from './luau.js?v=8';
+import { LuaTable, LuaError, call, callGen, tostr, typeOf, isTruthy } from './luau.js?v=9';
 
 const err = (m) => { throw new LuaError(m); };
 const num = (v, d = 0) => (typeof v === 'number' ? v : v === undefined || v === null ? d : +v || d);
@@ -191,11 +191,25 @@ class RandomGen extends UD {
 /* ---------------------------------------------------------------- Enum */
 const MATERIAL_VALUES = { Plastic: 256, SmoothPlastic: 272, Neon: 288, Wood: 512, WoodPlanks: 528, Marble: 784, Basalt: 788, Slate: 800, CrackedLava: 804, Concrete: 816, Limestone: 820, Granite: 832, Pavement: 836, Brick: 848, Pebble: 864, Cobblestone: 880, Rock: 896, Sandstone: 912,
   CorrodedMetal: 1040, DiamondPlate: 1056, Foil: 1072, Metal: 1088, Grass: 1280, LeafyGrass: 1284, Sand: 1296, Fabric: 1312, Snow: 1328, Mud: 1344, Ground: 1360, Asphalt: 1376, Salt: 1392, Ice: 1536, Glacier: 1552, Glass: 1568, ForceField: 1584, Air: 1792, Water: 2048, Cardboard: 1316, Carpet: 1318, Leather: 1320, Plaster: 820, Rubber: 1322 };
+const seqv = (names, from = 0) => Object.fromEntries(names.split(' ').map((n, i) => [n, i + from]));
+/* real Roblox values of the enums places store (a saved property holds the number) */
+const KNOWN_VALUES = { AnimationPriority: { Idle: 0, Movement: 1, Action: 2, Action2: 3, Action3: 4, Action4: 5, Core: 1000 }, PoseEasingStyle: { Linear: 0, Constant: 1, Elastic: 2, Cubic: 3, Bounce: 4, CubicV2: 5 }, PoseEasingDirection: { In: 0, Out: 1, InOut: 2 },
+  TextXAlignment: { Left: 0, Right: 1, Center: 2 }, TextYAlignment: { Top: 0, Center: 1, Bottom: 2 }, ScaleType: seqv('Stretch Slice Tile Fit Crop'), SizeConstraint: seqv('RelativeXY RelativeXX RelativeYY'), AutomaticSize: seqv('None X Y XY'),
+  FillDirection: seqv('Horizontal Vertical'), HorizontalAlignment: seqv('Center Left Right'), VerticalAlignment: seqv('Center Top Bottom'), SortOrder: seqv('Name Custom LayoutOrder'), AspectType: seqv('FitWithinMaxSize ScaleWithParentSize'), DominantAxis: seqv('Width Height'),
+  ZIndexBehavior: seqv('Global Sibling'), ApplyStrokeMode: seqv('Contextual Border'), LineJoinMode: seqv('Round Bevel Miter'), ScreenInsets: seqv('None DeviceSafeInsets CoreUISafeInsets TopbarSafeInsets'), TextTruncate: seqv('None AtEnd SplitWord'),
+  Font: { ...seqv('Legacy Arial ArialBold SourceSans SourceSansBold SourceSansLight SourceSansItalic Bodoni Garamond Cartoon Code Highway SciFi Arcade Fantasy Antique SourceSansSemibold Gotham GothamMedium GothamBold GothamBlack AmaticSC Bangers Creepster DenkOne Fondamento FredokaOne GrenzeGotisch IndieFlower JosefinSans Jura Kalam LuckiestGuy Merriweather Michroma Nunito Oswald PatrickHand PermanentMarker Roboto RobotoCondensed RobotoMono Sarpanch SpecialElite TitilliumWeb Ubuntu BuilderSans BuilderSansMedium BuilderSansBold BuilderSansExtraBold Arimo ArimoBold'), Unknown: 100 },
+  FontWeight: { Thin: 100, ExtraLight: 200, Light: 300, Regular: 400, Medium: 500, SemiBold: 600, Bold: 700, ExtraBold: 800, Heavy: 900 }, FontStyle: seqv('Normal Italic'),
+  MeshType: seqv('Head Torso Wedge Sphere Cylinder FileMesh Brick Prism Pyramid ParallelRamp RightAngleRamp CornerWedge'), NormalId: seqv('Right Top Back Left Bottom Front'), HumanoidRigType: seqv('R6 R15'),
+  CameraType: seqv('Fixed Watch Attach Track Follow Custom Scriptable Orbital'), ScrollingDirection: { X: 1, Y: 2, XY: 4 }, ScrollBarInset: seqv('None ScrollBar Always'), VerticalScrollBarPosition: seqv('Right Left'), BorderMode: seqv('Outline Middle Inset'),
+  RollOffMode: { Inverse: 0, Linear: 1, LinearSquare: 2, InverseTapered: 3 }, HumanoidDisplayDistanceType: seqv('Viewer Subject None'), SurfaceGuiSizingMode: seqv('FixedSize PixelsPerStud'), ProximityPromptStyle: seqv('Default Custom'),
+  ProximityPromptExclusivity: seqv('OnePerButton OneGlobally AlwaysShow'), ResamplerMode: seqv('Default Pixelated'), ElasticBehavior: seqv('WhenScrollable Always Never'), SelectionBehavior: seqv('Escape Stop'), ButtonStyle: seqv('Custom RobloxButtonDefault RobloxButton RobloxRoundButton RobloxRoundDefaultButton RobloxRoundDropdownButton'),
+  EasingStyle: seqv('Linear Sine Back Quad Quart Quint Bounce Elastic Exponential Circular Cubic'), EasingDirection: seqv('In Out InOut'), ParticleOrientation: seqv('FacingCamera FacingCameraWorldUp VelocityParallel VelocityPerpendicular'),
+  KeyCode: { Unknown: 0, Backspace: 8, Tab: 9, Return: 13, Escape: 27, Space: 32, ...Object.fromEntries([...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((c, i) => [c, 97 + i])), Zero: 48, One: 49, Two: 50, Three: 51, Four: 52, Five: 53, Six: 54, Seven: 55, Eight: 56, Nine: 57, LeftShift: 304, RightShift: 303, LeftControl: 306, ButtonX: 1000, ButtonY: 1001, ButtonA: 1002, ButtonB: 1003, ButtonR1: 1004, ButtonL1: 1005 } };
 class EnumItem extends UD { constructor(type, name, value) { super(); this.type = type; this.name = name; this.value = value; } get $type() { return 'EnumItem'; }
   get(k) { if (k === 'Name') return this.name; if (k === 'Value') return this.value; if (k === 'EnumType') return Enum.get(this.type); return undefined; } $tostring() { return `Enum.${this.type}.${this.name}`; }
   static methods = { IsA: fn((a) => [a[0].type === a[1]]) }; }
 class EnumType extends UD { constructor(name) { super(); this.name = name; this.items = new Map(); } get $type() { return 'Enum'; }
-  item(k) { if (!this.items.has(k)) { const v = this.name === 'Material' ? MATERIAL_VALUES[k] ?? this.items.size : this.items.size; this.items.set(k, new EnumItem(this.name, k, v)); } return this.items.get(k); }
+  item(k) { if (!this.items.has(k)) { const v = this.name === 'Material' ? MATERIAL_VALUES[k] ?? this.items.size : KNOWN_VALUES[this.name]?.[k] ?? this.items.size; this.items.set(k, new EnumItem(this.name, k, v)); } return this.items.get(k); }
   $index(k) { if (k === 'GetEnumItems') return fn(() => [LuaTable.from([...this.items.values()])]); if (k === 'FromName') return fn((a) => [this.item(a[1])]); if (k === 'FromValue') return fn((a) => [[...this.items.values()].find((i) => i.value === a[1])]); return this.item(k); }
   $tostring() { return this.name; } }
 const Enum = new Map(); const enumOf = (n) => { if (!Enum.has(n)) Enum.set(n, new EnumType(n)); return Enum.get(n); };
@@ -203,6 +217,7 @@ const EnumRoot = { $type: 'Enums', $index: (k) => (k === 'GetEnums' ? fn(() => [
 // pre-register Material so values are stable
 Object.keys(MATERIAL_VALUES).forEach((k) => enumOf('Material').item(k));
 ['Ball', 'Block', 'Cylinder', 'Wedge', 'CornerWedge'].forEach((k) => enumOf('PartType').item(k));
+for (const [t, vals] of Object.entries(KNOWN_VALUES)) Object.keys(vals).forEach((k) => enumOf(t).item(k));
 export const enumItem = (t, n) => enumOf(t).item(n);
 
 /* ---------------------------------------------------------------- signals */
@@ -502,4 +517,4 @@ export class Runtime {
 class Thread extends UD { get $type() { return 'thread'; } get $thread() { return true; } }
 class Bag extends UD { constructor(t, f) { super(); this.t = t; this.f = f; } get $type() { return this.t; } $index(k) { return this.f[k]; } $newindex(k, v) { this.f[k] = v; } static methods = {} }
 Bag.prototype.$index = function (k) { if (k === 'AddToFilter') return fn((a) => { const l = this.f.FilterDescendantsInstances; l.set(l.length() + 1, a[1]); return []; }); return this.f[k]; };
-export { BrickColor, Simple, UDim2, EnumItem, isA, typeOf, bounds };
+export { BrickColor, Simple, UDim2, UDim, NumberRange, Keypoint, EnumItem, isA, typeOf, bounds, KNOWN_VALUES };

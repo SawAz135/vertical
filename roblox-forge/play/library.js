@@ -121,18 +121,18 @@ export async function importFile(file) {
   const name = file.name.replace(/\.[^.]+$/, '').replace(/^[0-9a-f]{8}-/, '').replace(/_/g, ' '), buf = await file.arrayBuffer(), u8 = new Uint8Array(buf), dec = new TextDecoder();
   const head = dec.decode(u8.subarray(0, 64));
   if (head.startsWith('<roblox!') || /<roblox[\s>]/.test(head) || /\.rbx[lm]x?$/i.test(file.name)) { // Roblox Studio place / model
-    const RB = await import('./rbxl.js?v=8'); const r = RB.readRoblox(buf, name); let spec = null, map = r.map, notes = [];
+    const RB = await import('./rbxl.js?v=9'); const r = RB.readRoblox(buf, name); let spec = null, map = r.map, notes = [];
     // the world is built by the place's own server scripts: run them like a Roblox server would
     const nScripts = RB.hasServerScripts(r.roots);
-    if (nScripts) { try { const { runPlace } = await import('./luau/runner.js?v=8'); const run = runPlace(r.roots, RB.readAttributes, { title: r.map?.name || name });
+    if (nScripts) { try { const { runPlace } = await import('./luau/runner.js?v=9'); const run = runPlace(r.roots, RB.readAttributes, { title: r.map?.name || name });
         if (run.stats.parts) { map = run.map; notes.push(`monde construit par les scripts du jeu : ${run.stats.parts.toLocaleString('fr')} pièces en ${(run.ms / 1000).toFixed(1)} s`); if (run.errors.length) notes.push(`${run.errors.length} erreur(s) de script : ${run.errors[0].slice(0, 120)}`); }
         else if (run.errors.length) notes.push('scripts : ' + run.errors[0].slice(0, 140)); }
       catch (e) { console.warn(e); notes.push('les scripts n’ont pas pu tourner : ' + (e.message || e)); } }
     if (!map) throw new Error(r.error || 'aucune pièce trouvée dans ce fichier');
     if (r.configSrc) { try { spec = specFromConfig(parseLuaTable(r.configSrc)); } catch (e) { console.warn(e); } }
-    const st = r.stats; if (!nScripts) notes.push(`${st.parts.toLocaleString('fr')} pièces`); if (st.meshes) notes.push(`${st.meshes} MeshPart/Union en forme de bloc`); if (st.terrain) notes.push('Terrain non affiché');
-    // a scripted place keeps its file: it runs live (server + client scripts, GUIs) when played
-    return { id: 'imp-' + Date.now().toString(36), title: spec?.title || map.name, source: 'file', file: file.name, spec, map, genre: nScripts ? 'jeu' : spec ? (spec.train ? 'simulator' : 'jeu') : 'carte', theme: null, notes, rbxl: nScripts ? new Uint8Array(buf) : null };
+    const st = r.stats; if (!nScripts) notes.push(`${st.parts.toLocaleString('fr')} pièces`); if (st.meshes) notes.push(`${st.meshes} MeshPart/Union`); if (st.terrain) notes.push('Terrain non affiché');
+    // every Roblox file keeps its bytes: it runs live (scripts, GUIs, real meshes, animations, sounds) when played
+    return { id: 'imp-' + Date.now().toString(36), title: spec?.title || map.name, source: 'file', file: file.name, spec, map, genre: nScripts ? 'jeu' : spec ? (spec.train ? 'simulator' : 'jeu') : 'carte', theme: null, notes, rbxl: new Uint8Array(buf) };
   }
   if (u8[0] === 0x50 && u8[1] === 0x4b) { // zip pack
     const files = await unzip(buf), names = Object.keys(files);

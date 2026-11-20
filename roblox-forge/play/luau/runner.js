@@ -10,8 +10,8 @@
    4. Workspace's parts (and Lighting) come back as a Forge map.
    Client scripts and the game loop are not run here.
    ===================================================================== */
-import { parse, Interpreter, createGlobals, LuaTable, LuaError, tostr, call } from './luau.js?v=8';
-import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, bounds } from './roblox.js?v=8';
+import { parse, Interpreter, createGlobals, LuaTable, LuaError, tostr, call } from './luau.js?v=9';
+import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, bounds, UDim2, UDim, NumberRange, Keypoint, KNOWN_VALUES } from './roblox.js?v=9';
 
 const fn = (f) => f;
 const dec = new TextDecoder();
@@ -89,8 +89,29 @@ const toJS = (v) => { if (v instanceof LuaTable) { if (v.hash.size === 0) return
 const fromJS = (v) => (Array.isArray(v) ? LuaTable.from(v.map(fromJS)) : v && typeof v === 'object' ? LuaTable.from(Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fromJS(x)]))) : v === null ? undefined : v);
 
 /* ---------------------------------------------------------------- place → runtime */
+/* saved enum properties hold a number: which enum each property uses */
+const PROP_ENUM = { TextXAlignment: 'TextXAlignment', TextYAlignment: 'TextYAlignment', ScaleType: 'ScaleType', SizeConstraint: 'SizeConstraint', AutomaticSize: 'AutomaticSize', FillDirection: 'FillDirection', HorizontalAlignment: 'HorizontalAlignment',
+  VerticalAlignment: 'VerticalAlignment', SortOrder: 'SortOrder', AspectType: 'AspectType', DominantAxis: 'DominantAxis', ZIndexBehavior: 'ZIndexBehavior', ApplyStrokeMode: 'ApplyStrokeMode', LineJoinMode: 'LineJoinMode', ScreenInsets: 'ScreenInsets',
+  TextTruncate: 'TextTruncate', Font: 'Font', MeshType: 'MeshType', Face: 'NormalId', RigType: 'HumanoidRigType', CameraType: 'CameraType', ScrollingDirection: 'ScrollingDirection', VerticalScrollBarInset: 'ScrollBarInset', HorizontalScrollBarInset: 'ScrollBarInset',
+  VerticalScrollBarPosition: 'VerticalScrollBarPosition', BorderMode: 'BorderMode', RollOffMode: 'RollOffMode', DisplayDistanceType: 'HumanoidDisplayDistanceType', SizingMode: 'SurfaceGuiSizingMode', Style: 'ProximityPromptStyle', Exclusivity: 'ProximityPromptExclusivity',
+  KeyboardKeyCode: 'KeyCode', GamepadKeyCode: 'KeyCode', ResampleMode: 'ResamplerMode', ElasticBehavior: 'ElasticBehavior', SelectionBehaviorUp: 'SelectionBehavior', Orientation: null };
+const ENUM_BY_VALUE = new Map(); const enumByValue = (t, v) => { if (!ENUM_BY_VALUE.has(t)) ENUM_BY_VALUE.set(t, new Map(Object.entries(KNOWN_VALUES[t] || {}).map(([n, x]) => [x, n]))); const n = ENUM_BY_VALUE.get(t).get(v); return n === undefined ? undefined : enumItem(t, n); };
+const FONT_WEIGHT = { 100: 'Thin', 200: 'ExtraLight', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold', 900: 'Heavy' };
 function convProp(cls, k, v) {
   if (v instanceof Uint8Array) return k === 'Source' || k === 'AttributesSerialize' || k === 'Tags' ? v : str(v);
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    if (v.udim2) return UDim2(...v.udim2);
+    if (v.udim) return UDim(...v.udim);
+    if (v.v2) return new Vector2(v.v2[0], v.v2[1]);
+    if (v.nrange) return NumberRange(v.nrange[0], v.nrange[1]);
+    if (v.rect) return new Simple('Rect', { Min: new Vector2(v.rect[0], v.rect[1]), Max: new Vector2(v.rect[2], v.rect[3]), Width: v.rect[2] - v.rect[0], Height: v.rect[3] - v.rect[1] });
+    if (v.nseq) return new Simple('NumberSequence', { Keypoints: LuaTable.from(v.nseq.map((x) => Keypoint(x[0], x[1], x[2]))) });
+    if (v.cseq) return new Simple('ColorSequence', { Keypoints: LuaTable.from(v.cseq.map((x) => Keypoint(x[0], new Color3(x[1], x[2], x[3])))) });
+    if (v.font) return new Simple('Font', { Family: v.font.family, Weight: enumItem('FontWeight', FONT_WEIGHT[v.font.weight] || 'Regular'), Style: enumItem('FontStyle', v.font.style ? 'Italic' : 'Normal'), Bold: v.font.weight >= 600 });
+    if (v.ray) return new Simple('Ray', { Origin: new Vector3(v.ray[0], v.ray[1], v.ray[2]), Direction: new Vector3(v.ray[3], v.ray[4], v.ray[5]) });
+    if (v.faces !== undefined) return new Simple('Faces', { Right: !!(v.faces & 1), Top: !!(v.faces & 2), Back: !!(v.faces & 4), Left: !!(v.faces & 8), Bottom: !!(v.faces & 16), Front: !!(v.faces & 32) });
+  }
+  if (typeof v === 'number' && PROP_ENUM[k]) { const e = enumByValue(PROP_ENUM[k], v); if (e) return e; }
   if (Array.isArray(v) && v.length === 3) return new Vector3(...v);
   if (v && v.pos && v.rot) return new CFrame(v.pos.slice(), v.rot.slice());
   if (v && v.rgb8) return new Color3(v.rgb8[0] / 255, v.rgb8[1] / 255, v.rgb8[2] / 255);
@@ -102,12 +123,15 @@ function convProp(cls, k, v) {
 }
 const RENAME = { size: 'Size', Color3uint8: 'Color', shape: 'Shape', formFactorRaw: null, Tags: null };
 export function loadPlace(rt, roots, readAttributes) {
+  const byRef = new Map(), pending = [];
   const make = (o, parent) => {
     let inst;
     if (!parent && (o.cls === 'Workspace' || rt.serviceNames.has(o.cls))) inst = rt.service(o.cls);
     else { inst = new Instance(o.cls, rt); }
+    if (o.ref !== undefined && o.ref !== null) byRef.set(o.ref, inst);
     for (const [k0, v] of Object.entries(o.props)) {
       const k = k0 in RENAME ? RENAME[k0] : k0; if (k === null) continue;
+      if (v && typeof v === 'object' && 'ref' in v && Object.keys(v).length === 1) { pending.push([inst, k, v.ref]); continue; }
       if (k === 'AttributesSerialize') { for (const [ak, av] of Object.entries(readAttributes(v))) if (av !== null && av !== undefined) inst.attrs.set(ak, typeof av === 'string' && /^#[0-9a-f]{6}$/i.test(av) ? hexColor(av) : Array.isArray(av) && av.length === 3 ? new Vector3(...av) : av); continue; }
       if (k === 'Source') { inst.source = str(v); continue; }
       if (k0 === 'Tags' && v instanceof Uint8Array) { str(v).split('\0').filter(Boolean).forEach((t) => inst.tags.add(t)); continue; }
@@ -119,6 +143,8 @@ export function loadPlace(rt, roots, readAttributes) {
     o.children.forEach((c) => make(c, inst)); return inst;
   };
   for (const r of roots) make(r, null);
+  // object references (Part0 / Part1, PrimaryPart, ObjectValue.Value, Adornee, SoundGroup…) point at the loaded Instances
+  for (const [inst, k, ref] of pending) { const target = byRef.get(ref); if (target) inst.props.set(k, target); }
 }
 const hexColor = (h) => { const n = parseInt(h.slice(1), 16); return new Color3(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); };
 

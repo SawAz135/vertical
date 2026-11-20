@@ -15,12 +15,12 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { World, labelSprite, voxMat } from './world.js?v=8';
-import { Avatar, DEFAULT_LOOK, HATS, FACES, petMesh } from './avatar.js?v=8';
-import * as LIB from './library.js?v=8';
+import { World, labelSprite, voxMat } from './world.js?v=9';
+import { Avatar, DEFAULT_LOOK, HATS, FACES, petMesh } from './avatar.js?v=9';
+import * as LIB from './library.js?v=9';
 import * as MC from '../map/map-core.js';
-import { online } from './online/online.js?v=8';
-import { RemotePlayers } from './online/remote.js?v=8';
+import { online } from './online/online.js?v=9';
+import { RemotePlayers } from './online/remote.js?v=9';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -230,9 +230,12 @@ async function startGame(g, opts = {}) {
     let full = g.map ? g : (g.id.startsWith('imp-') || g.source === 'saved' ? (await LIB.dbGet(g.id)) || g : g);
     if (g.cloud) { const cached = await LIB.dbGet(g.id); if (cached && cached.rbxl && cached.size === g.size) full = { ...g, rbxl: cached.rbxl }; else { await loadStep('Téléchargement du jeu…', 0.1); const bytes = await online.download(g); full = { ...g, rbxl: bytes }; LIB.dbPut({ ...full, createdAt: Date.now() }).catch(() => {}); } online.visit(g.gid).catch(() => {}); }
     mpGame = { id: g.gid || g.id, title: g.title, serverId: opts.serverId };
-    if (full.rbxl) { // a Roblox place with scripts: run it live
-      await loadStep('Lecture de la place Roblox…', 0.15); ensureRenderer(); const RB = await import('./rbxl.js?v=8'); const { LiveGame } = await import('./live/game.js?v=8');
-      const roots = RB.readRoblox(full.rbxl.buffer.slice(full.rbxl.byteOffset, full.rbxl.byteOffset + full.rbxl.byteLength), full.title).roots;
+    if (full.rbxl) { // a Roblox place or model: run it live
+      await loadStep('Lecture de la place Roblox…', 0.15); ensureRenderer(); const RB = await import('./rbxl.js?v=9'); const { LiveGame } = await import('./live/game.js?v=9');
+      let roots = RB.readRoblox(full.rbxl.buffer.slice(full.rbxl.byteOffset, full.rbxl.byteOffset + full.rbxl.byteLength), full.title).roots;
+      // a model file (.rbxm / .rbxmx) has no Workspace: its objects go into one, as when inserted in Studio
+      const SERVICES = /^(Workspace|Lighting|ReplicatedStorage|ReplicatedFirst|ServerScriptService|ServerStorage|StarterGui|StarterPack|StarterPlayer|SoundService|Teams|Chat|TextChatService|Players|MaterialService)$/;
+      const loose = roots.filter((r) => !SERVICES.test(r.cls)); if (loose.length) { const ws = roots.find((r) => r.cls === 'Workspace'); if (ws) ws.children.push(...loose); else roots = [...roots.filter((r) => SERVICES.test(r.cls)), { cls: 'Workspace', props: {}, children: loose }]; roots = roots.filter((r) => SERVICES.test(r.cls)); }
       $('game').hidden = false; $('home').hidden = true; $('tabs').hidden = true; $('hud').hidden = true; resize();
       G = new LiveGame({ renderer, camera, hud: $('game'), record: full, roots, readAttributes: RB.readAttributes, look, quality: quality(), onToast: toast, onLeave: () => leaveGame() });
       await G.load((t, p) => loadStep(t, p)); renderer.compile(G.world.scene, camera);

@@ -12,10 +12,13 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { LiveEngine, Vector3, CFrame, enumItem, isA, LuaTable } from '../luau/engine.js?v=8';
-import { LiveWorld } from './render3d.js?v=8';
-import { GuiRenderer, GUI_CSS } from './gui.js?v=8';
-import { Avatar } from '../avatar.js?v=8';
+import { LiveEngine, Vector3, CFrame, enumItem, isA, LuaTable } from '../luau/engine.js?v=9';
+import { LiveWorld } from './render3d.js?v=9';
+import { GuiRenderer, GUI_CSS } from './gui.js?v=9';
+import { Avatar } from '../avatar.js?v=9';
+import { preloadClip } from '../luau/anim.js?v=9';
+// Roblox's default R15 animations (the clips its Animate script plays)
+const DEFAULT_ANIMS = { idle: [507766388, 507766666, 507766951], walk: [507777826], run: [507767714], jump: [507765000], fall: [507767968], toolnone: [507768375] };
 
 const GRAV = 196.2;
 const MOTOR = { LowerTorso: 'Root', UpperTorso: 'Waist', Head: 'Neck', LeftUpperArm: 'LeftShoulder', LeftLowerArm: 'LeftElbow', LeftHand: 'LeftWrist', RightUpperArm: 'RightShoulder', RightLowerArm: 'RightElbow', RightHand: 'RightWrist',
@@ -59,8 +62,28 @@ export class LiveGame {
   remoteList(l) { this.others = l.filter((x) => x.id !== this.myId); this.drawLB(); }
   /* ---------------- character ---------------- */
   onCharacter(m) { if (!m) return; this.char = m; const hrp = m.parts.HumanoidRootPart.props.get('CFrame'); this.P.pos.set(hrp.p[0], hrp.p[1] - 3, hrp.p[2]); this.P.vel.set(0, 0, 0); this.lastHRP = null; this.cam.cur.copy(this.P.pos).add(new THREE.Vector3(0, 4.5, 0)); this.dead = false; }
-  animate(dt) { // default Roblox-like animations written to the Motor6D Transforms (the game's own poses layer on top)
-    const m = this.char; if (!m || this.dead) return; const A = this.anim, hv = Math.hypot(this.P.vel.x, this.P.vel.z), hum = m.humanoid;
+  /* Roblox's default R15 Animate behaviour, with Roblox's own animation clips, played through the character's Animator */
+  defaultAnim(dt) {
+    const D = (this.dAnim ||= { ready: false, tracks: {}, cur: null, jumpT: 0 }), m = this.char, E = this.engine;
+    if (!D.loading) { D.loading = Promise.all(Object.values(DEFAULT_ANIMS).flat().map((id) => preloadClip(id))).then((r) => { D.ready = r.every(Boolean); }); }
+    if (!D.ready) return false;
+    if (D.rig !== m) { D.rig = m; D.tracks = {}; D.cur = null; const hum = m.humanoid; for (const [k, ids] of Object.entries(DEFAULT_ANIMS)) D.tracks[k] = ids.map((id) => { const a = new E.Instance('Animation', E.rt); a.props.set('Name', k); a.props.set('AnimationId', 'rbxassetid://' + id); return E.anims.load(hum, a); }); }
+    const T = D.tracks, play = (name, fade) => { if (D.cur === name) return; for (const [k, ts] of Object.entries(T)) if (k !== 'toolnone' && k !== name && !(name === 'walk' && k === 'run')) for (const t of ts) E.anims.stop(t, fade);
+        if (name === 'idle') { const t = T.idle[Math.random() < 0.9 ? 0 : 1 + Math.floor(Math.random() * (T.idle.length - 1))]; E.anims.play(t, fade, 1, 1); } else if (name === 'walk') { E.anims.play(T.walk[0], fade, 1, 1); E.anims.play(T.run[0], fade, 1e-4, 1); } else E.anims.play(T[name][0], fade, 1, 1); D.cur = name; };
+    const P = this.P, hv = Math.hypot(P.vel.x, P.vel.z), hum = m.humanoid;
+    if (!P.grounded) { if (P.vel.y > 0 && D.cur !== 'fall' && (D.cur !== 'jump' || D.jumpT > 0)) { if (D.cur !== 'jump') D.jumpT = 0.31; play('jump', 0.1); D.jumpT -= dt; } else if (D.jumpT <= 0 || P.vel.y <= 0) play('fall', 0.2); }
+    else if (hv > 0.75) { play('walk', 0.2); const run = hv / 16 / Math.max(0.5, (hum.props.get('HipHeight') || 2) / 2); const w = T.walk[0], r = T.run[0];
+      if (run < 0.33) { E.anims.play(w, 0.2, 1); E.anims.play(r, 0.2, 1e-4); } else if (run < 0.66) { const k = (run - 0.33) / 0.33; E.anims.play(w, 0.2, 1 - k + 1e-4); E.anims.play(r, 0.2, k + 1e-4); } else { E.anims.play(w, 0.2, 1e-4); E.anims.play(r, 0.2, 1); }
+      w.props.set('Speed', run); r.props.set('Speed', run); }
+    else play('idle', 0.2);
+    // idle variations restart when an idle clip ends its loop
+    const tool = m.kids.find((k) => k.cls === 'Tool' && k.child('Handle')); const tn = T.toolnone[0]; if (tool && !tn.track.playing) E.anims.play(tn, 0.1, 1, 1); else if (!tool && tn.track.playing) E.anims.stop(tn, 0.1);
+    return true;
+  }
+  animate(dt) { // the character's default animations: Roblox's own clips (like its Animate script), a procedural stand-in until they load
+    const m = this.char; if (!m || this.dead) return;
+    if (m.kids.some((k) => k.cls === 'LocalScript' && k.props.get('Name') === 'Animate' && k.source)) return; // the game ships its own Animate script
+    if (this.defaultAnim(dt)) return; const A = this.anim, hv = Math.hypot(this.P.vel.x, this.P.vel.z), hum = m.humanoid;
     A.state.speed = this.P.grounded ? hv * (16 / Math.max(8, hum.props.get('WalkSpeed') || 16)) : 0; A.state.grounded = this.P.grounded; A.state.vy = this.P.vel.y; A.state.climbing = false; A.state.tool = !!m.kids.find((k) => k.cls === 'Tool'); A.update(dt);
     for (const [jn, mn] of Object.entries(MOTOR)) { const mot = m.parts[jn] && m.parts[jn].kids.find((k) => k.cls === 'Motor6D' && k.props.get('Name') === mn); const s = A.js[jn]; if (!mot || !s) continue;
       let cf = CFrame.methods ? null : null; void cf; const ang = new THREE.Euler(s.x, s.y, s.z, 'XYZ'), q = new THREE.Matrix4().makeRotationFromEuler(ang).elements;
