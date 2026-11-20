@@ -13,9 +13,11 @@
      Motor6D, Weld, WeldConstraint) → PostSimulation / Heartbeat → waiting
      threads → tweens (TweenService with all Roblox easing styles).
    ===================================================================== */
-import { parse, Interpreter, createGlobals, LuaTable, LuaError, call, callGen, tostr } from './luau.js?v=8';
-import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, UDim2 } from './roblox.js?v=8';
-import { installServices, loadPlace } from './runner.js?v=8';
+import { parse, Interpreter, createGlobals, LuaTable, LuaError, call, callGen, tostr } from './luau.js?v=9';
+import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, UDim2 } from './roblox.js?v=9';
+import { installServices, loadPlace } from './runner.js?v=9';
+import { AnimSystem } from './anim.js?v=9';
+import { SoundSystem } from './sound.js?v=9';
 
 const fn = (f) => f;
 const D2R = Math.PI / 180;
@@ -67,7 +69,7 @@ export class LiveEngine {
     this.I = new Interpreter(this.G); this.I.budget = 4e6;
     const rt = (this.rt = new Runtime(this.I, this.G, { parse: (src, name) => parse(src, name), warn: (s) => this.logs.push('❌ ' + s) }));
     rt.serviceNames = new Set(['Workspace', 'Lighting', 'ReplicatedStorage', 'ReplicatedFirst', 'ServerScriptService', 'ServerStorage', 'StarterGui', 'StarterPack', 'StarterPlayer', 'SoundService', 'Teams', 'Chat', 'TextChatService', 'Players', 'MaterialService', 'TestService', 'LocalizationService', 'HttpService', 'CollectionService', 'TweenService', 'RunService', 'ProximityPromptService', 'VoiceChatService']);
-    installServices(rt); loadPlace(rt, roots, readAttributes); this.extend();
+    installServices(rt); loadPlace(rt, roots, readAttributes); this.extend(); this.anims = new AnimSystem(rt, this); this.sounds = new SoundSystem(rt, this);
     this.tweens = new Set(); this.joints = new Set(); this.aligns = new Set(); this.prompts = new Set(); this.welds = new Map();
     rt.onParent = (o, p) => this.track(o, p); for (const d of rt.workspace.descendants()) this.track(d, d.parent);
     this.t = 0; this.frameN = 0; this.Instance = Instance; this.enumItem = enumItem; this.Vector3 = Vector3; this.CFrame = CFrame;
@@ -165,6 +167,7 @@ export class LiveEngine {
     this.spawnCharacter(P);
     const locals = [...ps.descendants(), ...pg.descendants(), ...this.service('ReplicatedFirst').descendants()].filter((d) => (d.cls === 'LocalScript' || (d.cls === 'Script' && d.runContext === 2)) && !d.disabled && d.source);
     for (const s of locals) this.runScript(s, 'client');
+    try { this.sounds.autoplay(this.rt.workspace); this.sounds.autoplay(this.service('SoundService')); } catch (e) { console.warn(e); }
     onStep?.('C’est parti !');
   }
   runScript(s, side) { const name = Instance.methods.GetFullName([s])[0]; this.log((side === 'server' ? 'Serveur : ' : 'Client : ') + name); const prev = this.I.side; this.I.side = side;
@@ -218,7 +221,7 @@ export class LiveEngine {
   }
   /* ---- joints ---- */
   applyJoint(j, fire = false) {
-    const P = j.props, p0 = P.get('Part0'), p1 = P.get('Part1'); if (!p0 || !p1 || P.get('Enabled') === false) return;
+    const P = j.props, p0 = P.get('Part0'), p1 = P.get('Part1'); if (!p0 || !p1 || P.get('Enabled') === false || !p0.props || !p1.props) return; if (p1.props.get('Anchored') && j.cls !== 'Motor6D') return; // like Roblox, joints do not drag anchored parts
     if (j.cls === 'WeldConstraint' || j.cls === 'RigidConstraint') { if (!j.offset) j.offset = p0.props.get('CFrame').inverse().mulCF(p1.props.get('CFrame')); p1.props.set('CFrame', p0.props.get('CFrame').mulCF(j.offset)); return; }
     const c0 = P.get('C0') || new CFrame(), c1 = P.get('C1') || new CFrame(), tr = j.cls === 'Motor6D' ? P.get('Transform') || new CFrame() : new CFrame();
     p1.props.set('CFrame', p0.props.get('CFrame').mulCF(c0).mulCF(tr).mulCF(c1.inverse())); void fire;
@@ -267,13 +270,13 @@ export class LiveEngine {
     if (rt.renderSteps.size) { const prev = this.I.side; this.I.side = 'client'; for (const [, b] of [...rt.renderSteps].sort((a, b) => (a[1].pri ?? 0) - (b[1].pri ?? 0))) { try { call(b.f, [dt]); } catch (e) { rt.report(e); } } this.I.side = prev; }
     hooks.camera?.(dt);
     hooks.animate?.(dt);
-    fire('PreAnimation', [dt]); fire('PreSimulation', [dt]); fire('Stepped', [this.t, dt]);
+    fire('PreAnimation', [dt]); this.anims.step(dt); fire('PreSimulation', [dt]); fire('Stepped', [this.t, dt]);
     hooks.character?.(dt);
     if (this.jointsDirty || !this.jointOrder || this.frameN % 30 === 0) { this.orderJoints(); this.rebuildAssemblies(); }
     this.physics(dt);
     for (const j of this.jointOrder) this.applyJoint(j);
     fire('PostSimulation', [dt]); fire('Heartbeat', [dt]);
-    rt.step(dt); this.stepTweens(dt);
+    rt.step(dt); this.stepTweens(dt); this.sounds.step();
     if (this.char && this.char.humanoid && this.char.humanoid.onHealth) this.char.humanoid.onHealth();
   }
 }

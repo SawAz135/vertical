@@ -11,8 +11,9 @@
    Buttons fire MouseButton1Click / Activated / MouseEnter… on the client.
    Rects are also what scripts read back as AbsolutePosition/AbsoluteSize.
    ===================================================================== */
-import { isA, EnumItem, Vector2, Color3 } from '../luau/engine.js?v=8';
-import { ViewportRenderer } from './viewport.js?v=8';
+import { isA, EnumItem, Vector2, Color3 } from '../luau/engine.js?v=9';
+import { ViewportRenderer } from './viewport.js?v=9';
+import { assetId, imageURL } from '../assets.js?v=9';
 
 const FONT = { FredokaOne: '"F-Fredoka","Fredoka One",system-ui', Fredoka: '"F-Fredoka",system-ui', GothamBlack: '"F-Mont",system-ui', GothamBold: '"F-Mont",system-ui', GothamMedium: '"F-Mont",system-ui', Gotham: '"F-Mont",system-ui', GothamSemibold: '"F-Mont",system-ui',
   BuilderSans: '"F-Mont",system-ui', BuilderSansBold: '"F-Mont",system-ui', BuilderSansExtraBold: '"F-Mont",system-ui', Montserrat: '"F-Mont",system-ui', LuckiestGuy: '"F-Luckiest",system-ui', Bangers: '"F-Bangers",system-ui', PermanentMarker: '"F-Marker",system-ui',
@@ -38,22 +39,19 @@ function richToHtml(s) {
   return out + esc(s.slice(i));
 }
 
-/* Roblox images (rbxassetid://123): the browser asks Roblox's thumbnail service for the picture's URL
-   (official API first, then the public roproxy mirror if the official one refuses cross-site requests),
-   then shows it with a plain <img>/CSS url (no CORS needed to display). Results are cached on the device. */
+/* Roblox images (rbxassetid://123, http://www.roblox.com/asset/?id=123, a Decal id…) of any place: shown straight
+   from the asset relay (the original picture, a Decal resolved to its image), kept by the browser's HTTP cache.
+   The picture's real pixel size is measured once, for sprite sheets (ImageRectOffset / ImageRectSize) and 9-slices. */
 export const Assets = {
-  cache: (() => { try { return JSON.parse(localStorage.getItem('forgeplay.assets') || '{}'); } catch { return {}; } })(), pending: new Set(), queue: new Set(), timer: 0, listeners: new Set(),
-  id(src) { const m = String(src || '').match(/(?:rbxassetid:\/\/|[?&]id=|^)(\d{5,})/); return m ? m[1] : null; },
-  local: new Set(), ready: fetch('assets/rbx/index.json').then((r) => r.json()).then((l) => { for (const i of l) Assets.local.add(String(i)); for (const f of Assets.listeners) f(); }).catch(() => {}),
-  url(src) { const id = this.id(src); if (!id) return null; if (this.local.has(id)) return 'assets/rbx/' + id + '.png'; const c = this.cache[id]; if (c) return c === 'x' ? null : c; if (!this.pending.has(id)) { this.pending.add(id); this.queue.add(id); clearTimeout(this.timer); this.timer = setTimeout(() => this.flush(), 60); } return null; },
-  async flush() {
-    const ids = [...this.queue]; this.queue.clear(); if (!ids.length) return;
-    for (let i = 0; i < ids.length; i += 50) { const chunk = ids.slice(i, i + 50); let data = null;
-      for (const host of ['https://thumbnails.roblox.com', 'https://thumbnails.roproxy.com']) { try { const r = await fetch(`${host}/v1/assets?assetIds=${chunk.join(',')}&returnPolicy=PlaceHolder&size=420x420&format=Png&isCircular=false`, { credentials: 'omit' }); if (r.ok) { data = await r.json(); break; } } catch { /* try the next host */ } }
-      for (const id of chunk) { const it = data && data.data && data.data.find((d) => String(d.targetId) === id); this.cache[id] = it && it.imageUrl && it.state === 'Completed' ? it.imageUrl : data ? 'x' : undefined; if (!this.cache[id]) delete this.cache[id]; this.pending.delete(id); }
-    }
-    try { localStorage.setItem('forgeplay.assets', JSON.stringify(this.cache)); } catch {} for (const f of this.listeners) f();
-  },
+  listeners: new Set(), dims: new Map(), bad: new Set(), loading: new Set(), timer: 0,
+  id(src) { return assetId(src); },
+  local: new Set(), ready: fetch('assets/rbx/index.json').then((r) => r.json()).then((l) => { for (const i of l) Assets.local.add(String(i)); Assets.changed(); }).catch(() => {}),
+  url(src) { const id = this.id(src); if (!id || this.bad.has(id)) return null; const u = this.local.has(id) ? 'assets/rbx/' + id + '.png' : imageURL(id); this.measure(id, u); return u; },
+  size(src) { const id = this.id(src); return (id && this.dims.get(id)) || null; },
+  measure(id, u) { if (this.dims.has(id) || this.loading.has(id) || typeof Image === 'undefined') return; this.loading.add(id); const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = () => { this.loading.delete(id); this.dims.set(id, { w: im.naturalWidth || 420, h: im.naturalHeight || 420 }); this.changed(); };
+    im.onerror = () => { this.loading.delete(id); this.bad.add(id); this.changed(); }; im.src = u; },
+  changed() { clearTimeout(this.timer); this.timer = setTimeout(() => { for (const f of this.listeners) f(); }, 30); },
 };
 export class GuiRenderer {
   constructor(engine, root, { camera, world } = {}) {
@@ -198,16 +196,19 @@ export class GuiRenderer {
   image(o, el, r, sc, rad) {
     const P = o.props, src = String(P.get('Image') || ''), it = P.get('ImageTransparency') ?? 0; let im = el.$im; if (!src || it >= 1) { if (im) im.style.display = 'none'; return; }
     const url = Assets.url(src); const st = en(P.get('ScaleType'), 'Stretch'), tint = P.get('ImageColor3') || new Color3(1, 1, 1), ro = P.get('ImageRectOffset'), rs = P.get('ImageRectSize');
-    const key = [url, it, st, tint.r, tint.g, tint.b, ro && ro.x, ro && ro.y, rs && rs.x, rs && rs.y, Math.round(r[2]), Math.round(r[3]), rad].join('|'); if (el.$imk === key) return; el.$imk = key;
+    const key = [url, (Assets.size(src) || {}).w, it, st, tint.r, tint.g, tint.b, ro && ro.x, ro && ro.y, rs && rs.x, rs && rs.y, Math.round(r[2]), Math.round(r[3]), rad].join('|'); if (el.$imk === key) return; el.$imk = key;
     if (!im) { im = el.$im = document.createElement('i'); im.className = 'rxim'; el.insertBefore(im, el.$kids); } im.style.display = '';
     const s2 = im.style; s2.opacity = 1 - it; s2.borderRadius = rad + 'px';
     if (!url) { s2.background = 'none'; s2.webkitMaskImage = s2.maskImage = 'none'; return; }
     const white = tint.r > 0.98 && tint.g > 0.98 && tint.b > 0.98; let size = '100% 100%', pos = 'center', rep = 'no-repeat';
     if (st === 'Fit') size = 'contain'; else if (st === 'Crop') size = 'cover'; else if (st === 'Tile') { const ts = P.get('TileSize'); size = ts ? `${ud(ts.f.X, r[2], sc)}px ${ud(ts.f.Y, r[3], sc)}px` : '100% 100%'; rep = 'repeat'; pos = '0 0'; }
-    if (rs && rs.x > 0 && rs.y > 0) { const k = 420 / Math.max(rs.x, rs.y, 1); void k; /* sprite sheets: thumbnails are 420px renders of the whole sheet */ const W = r[2] / (rs.x / 420), H = r[3] / (rs.y / 420); size = `${W}px ${H}px`; pos = `${-(ro ? ro.x : 0) / 420 * W}px ${-(ro ? ro.y : 0) / 420 * H}px`; }
+    const dim = Assets.size(src) || { w: 420, h: 420 };
+    if (rs && rs.x > 0 && rs.y > 0) { /* sprite sheet: show the ImageRectSize window at ImageRectOffset, scaled to the element */ const kx = r[2] / rs.x, ky = r[3] / rs.y; size = `${dim.w * kx}px ${dim.h * ky}px`; pos = `${-(ro ? ro.x : 0) * kx}px ${-(ro ? ro.y : 0) * ky}px`; rep = 'no-repeat'; }
     if (white) { s2.background = `url("${url}") ${pos}/${size} ${rep}`; s2.webkitMaskImage = s2.maskImage = 'none'; }
     else { s2.background = rgba(tint); const m = `url("${url}")`; s2.webkitMaskImage = s2.maskImage = m; s2.webkitMaskSize = s2.maskSize = size; s2.webkitMaskPosition = s2.maskPosition = pos; s2.webkitMaskRepeat = s2.maskRepeat = rep; }
-    if (st === 'Slice') { const sc2 = P.get('SliceCenter'); if (sc2 && sc2.f) { const a = sc2.f.Min, b = sc2.f.Max; s2.background = 'none'; s2.borderStyle = 'solid'; s2.borderWidth = `${a.y}px ${Math.max(0, 420 - b.x) / 4}px ${Math.max(0, 420 - b.y) / 4}px ${a.x}px`; s2.borderImage = `url("${url}") ${a.y} ${420 - b.x} ${420 - b.y} ${a.x} fill stretch`; } }
+    if (st === 'Slice') { const sc2 = P.get('SliceCenter'); if (sc2 && sc2.f) { const a = sc2.f.Min, b = sc2.f.Max, k = (P.get('SliceScale') ?? 1) * sc; const t = a.y, rr = Math.max(0, dim.w - b.x), bb = Math.max(0, dim.h - b.y), l = a.x;
+      s2.background = 'none'; s2.webkitMaskImage = s2.maskImage = 'none'; s2.borderStyle = 'solid'; s2.borderColor = 'transparent'; s2.borderWidth = `${t * k}px ${rr * k}px ${bb * k}px ${l * k}px`; s2.borderImage = `url("${url}") ${t} ${rr} ${bb} ${l} fill stretch`; s2.boxSizing = 'border-box'; } }
+    else if (s2.borderImage) { s2.borderImage = ''; s2.borderWidth = '0'; s2.borderStyle = 'none'; }
   }
   text(o, el, r, sc, stroke) {
     const P = o.props; let txt = String(P.get('Text') ?? ''); const rich = !!P.get('RichText'); const f = fontOf(o); const tt = P.get('TextTransparency') ?? 0;

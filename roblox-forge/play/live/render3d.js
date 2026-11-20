@@ -13,10 +13,11 @@
    - collisions for the player and Workspace:Raycast for scripts.
    ===================================================================== */
 import * as THREE from 'three';
-import { World, material, studMat, partGeo, colliderGeo, sizeOf, studTop, voxMat, matTex } from '../world.js?v=8';
-import { headGeo, faceTex } from '../avatar.js?v=8';
-import { isA, EnumItem, Color3, Vector3 } from '../luau/engine.js?v=8';
+import { World, material, studMat, partGeo, colliderGeo, sizeOf, studTop, voxMat, matTex } from '../world.js?v=9';
+import { headGeo, faceTex } from '../avatar.js?v=9';
+import { isA, EnumItem, Color3, Vector3 } from '../luau/engine.js?v=9';
 import * as MC from '../../map/map-core.js';
+import { meshSpec, meshGeometry, meshTexture } from './mesh.js?v=9';
 
 const MAT_OK = new Set(['Plastic', 'SmoothPlastic', 'Neon', 'Wood', 'WoodPlanks', 'Brick', 'Cobblestone', 'Concrete', 'Slate', 'Granite', 'Marble', 'Basalt', 'Rock', 'Pebble', 'Grass', 'LeafyGrass', 'Sand', 'Snow', 'Ice', 'Glacier', 'Glass', 'ForceField', 'Metal', 'DiamondPlate', 'CorrodedMetal', 'Foil', 'Fabric', 'Asphalt', 'Pavement', 'CrackedLava', 'Sandstone']);
 const MAT_ALIAS = { Limestone: 'Sandstone', Mud: 'Grass', Ground: 'Grass', Salt: 'Sand', Cardboard: 'WoodPlanks', Carpet: 'Fabric', Leather: 'Fabric', Plaster: 'Concrete', Rubber: 'SmoothPlastic', Water: 'Glass', Air: 'Glass' };
@@ -30,8 +31,10 @@ export function partDesc(o) {
   let size = [s.x, s.y, s.z]; if (mesh && mesh.props.get('Scale') && mt !== 'Head') { const k = mesh.props.get('Scale'); if (mt === 'FileMesh' || mt === 'Brick' || mt === 'Sphere' || mt === 'Cylinder') size = [s.x * Math.min(1, k.x), s.y * Math.min(1, k.y), s.z * Math.min(1, k.z)]; }
   const top = P.get('TopSurface');
   return { cls, size, pos: [0, 0, 0], rot: [0, 0, 0], color: hexOf(P.get('Color')), material: mat, transparency: +(P.get('Transparency') || 0), reflectance: +(P.get('Reflectance') || 0),
-    shape: mt === 'Sphere' || sh === 'Ball' ? 'Ball' : mt === 'Cylinder' || sh === 'Cylinder' ? 'Cylinder' : 'Block', studs: top instanceof EnumItem && top.name === 'Studs' && mat === 'Plastic', head: mt === 'Head', canCollide: P.get('CanCollide') !== false };
+    shape: mt === 'Sphere' || sh === 'Ball' ? 'Ball' : mt === 'Cylinder' || sh === 'Cylinder' ? 'Cylinder' : 'Block', studs: top instanceof EnumItem && top.name === 'Studs' && mat === 'Plastic' && o.cls !== 'MeshPart' && mt !== 'FileMesh', head: mt === 'Head', canCollide: P.get('CanCollide') !== false };
 }
+const texMats = new Map();
+const texMat = (tex, d) => { const k = tex.id + '|' + d.transparency + '|' + d.material; if (!texMats.has(k)) texMats.set(k, new THREE.MeshStandardMaterial({ map: tex, roughness: d.material === 'SmoothPlastic' || d.material === 'Glass' ? 0.35 : 0.75, metalness: /Metal|Foil|DiamondPlate/.test(d.material) ? 0.5 : 0, transparent: d.transparency > 0, opacity: 1 - d.transparency, depthWrite: d.transparency < 0.5, alphaTest: 0.02 })); return texMats.get(k); };
 const cfMat = (cf, m = new THREE.Matrix4()) => { const r = cf.r, p = cf.p; return m.set(r[0], r[1], r[2], p[0], r[3], r[4], r[5], p[1], r[6], r[7], r[8], p[2], 0, 0, 0, 1); };
 
 export class LiveWorld extends World {
@@ -47,14 +50,16 @@ export class LiveWorld extends World {
   /* ---- first build ---- */
   build() {
     const parts = this.E.workspace.descendants().filter((d) => isA(d.cls, 'BasePart') && d.cls !== 'Terrain');
-    for (const o of parts) { if (this.movable(o) || (o.props.get('Transparency') || 0) > 0.02 || o.kids.some((k) => k.cls === 'SpecialMesh' || k.cls === 'Decal' || isA(k.cls, 'Light'))) this.addLive(o); else { const g = this.groupKey(o); if (!this.groups.has(g)) this.groups.set(g, { parts: new Set(), meshes: [] }); this.groups.get(g).parts.add(o); this.partGroup.set(o, g); } this.addCollider(o); }
+    for (const o of parts) { const ms = meshSpec(o); if (this.movable(o) || (ms && ms.tex) || (o.props.get('Transparency') || 0) > 0.02 || o.kids.some((k) => k.cls === 'SpecialMesh' || k.cls === 'Decal' || isA(k.cls, 'Light'))) this.addLive(o); else { const g = this.groupKey(o); if (!this.groups.has(g)) this.groups.set(g, { parts: new Set(), meshes: [] }); this.groups.get(g).parts.add(o); this.partGroup.set(o, g); } this.addCollider(o); }
     for (const g of this.groups.keys()) this.rebuildGroup(g);
     this.scanEffects(); this.applyLighting();
   }
   rebuildGroup(key) {
     const G = this.groups.get(key); if (!G) return; for (const m of G.meshes) { this.root.remove(m); m.geometry.dispose(); } G.meshes = [];
     const byMat = new Map(), studs = []; const col = new THREE.Color();
-    for (const o of G.parts) { const d = partDesc(o), cf = o.props.get('CFrame'); if (!cf || d.transparency >= 1) continue; const g = partGeo(d), mtx = cfMat(cf); g.applyMatrix4(mtx); col.set(d.color);
+    for (const o of G.parts) { const d = partDesc(o), cf = o.props.get('CFrame'); if (!cf || d.transparency >= 1) continue; const ms = meshSpec(o); let g;
+      if (ms) { g = meshGeometry(o, ms, () => this.dirtyGroups.add(key)); if (g === undefined) continue; if (g === null) g = partGeo(d); else { g = g.index ? g.toNonIndexed() : g; for (const a of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(a)) g.deleteAttribute(a); } } else g = partGeo(d);
+      const mtx = cfMat(cf); g.applyMatrix4(mtx); col.set(d.color);
       const c = new Float32Array(g.attributes.position.count * 3); for (let i = 0; i < c.length; i += 3) { c[i] = col.r; c[i + 1] = col.g; c[i + 2] = col.b; } g.setAttribute('color', new THREE.BufferAttribute(c, 3));
       const kind = d.cls === 'TrussPart' ? 'Truss' : d.material; if (!byMat.has(kind)) byMat.set(kind, []); byMat.get(kind).push(g); if (d.studs && d.cls === 'Part' && d.shape === 'Block') studs.push(studTop(d, mtx, col)); }
     const add = (geos, mat, shadow) => { const before = this.root.children.length; this.addMerged(geos, mat, shadow); G.meshes.push(...this.root.children.slice(before)); };
@@ -69,7 +74,10 @@ export class LiveWorld extends World {
     const { o } = e, d = (e.d = partDesc(o)); if (e.mesh) { this.root.remove(e.mesh); e.mesh.geometry.dispose(); }
     let geo, mat;
     if (d.head) { geo = headGeo(); const s = d.size; geo.scale(s[0] / 1.2, s[1] / 1.2, s[2] / 1.2); mat = new THREE.MeshStandardMaterial({ color: d.color, roughness: 0.62 }); }
-    else { geo = partGeo(d); mat = material(d, d.cls === 'TrussPart' ? 'Truss' : undefined); if (d.cls === 'SpawnLocation') mat = [mat, mat, material(d, 'Spawn'), mat, mat, mat]; }
+    else { const ms = meshSpec(o); const g = ms ? meshGeometry(o, ms, () => { e.key = ''; }) : null;
+      if (ms && g === undefined) { geo = new THREE.BufferGeometry(); mat = material(d); } // the mesh is on its way
+      else if (g) { geo = g; const tex = ms.tex ? meshTexture(ms.tex, d.color, () => { e.key = ''; }) : null; mat = tex ? texMat(tex, d) : material(d); }
+      else { geo = partGeo(d); mat = material(d, d.cls === 'TrussPart' ? 'Truss' : undefined); if (d.cls === 'SpawnLocation') mat = [mat, mat, material(d, 'Spawn'), mat, mat, mat]; } }
     const m = new THREE.Mesh(geo, mat); m.matrixAutoUpdate = false; m.castShadow = d.material !== 'Neon' && d.material !== 'ForceField' && d.transparency < 0.6; m.receiveShadow = true; m.visible = d.transparency < 1;
     if (d.studs && d.cls === 'Part' && d.shape === 'Block' && d.transparency <= 0) { const sm = new THREE.Mesh(studTop(d, new THREE.Matrix4(), new THREE.Color(d.color)), studMat()); sm.receiveShadow = true; m.add(sm); }
     const face = o.kids.find((k) => k.cls === 'Decal' && /face/i.test(String(k.props.get('Name')))); if (face && d.head) { const fm = new THREE.Mesh(new THREE.CylinderGeometry(0.625, 0.625, 1.05, 32, 1, true, Math.PI - 0.95, 1.9), new THREE.MeshStandardMaterial({ map: faceTex(this.E.look?.face || 'sourire'), transparent: true, depthWrite: false, roughness: 0.7 })); fm.scale.set(d.size[0] / 1.2, d.size[1] / 1.2, d.size[2] / 1.2); m.add(fm); }
