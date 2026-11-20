@@ -217,7 +217,26 @@ local function reelCamera(s)
 		local tn = os.clock()
 		local sway = Vector3.new(math.noise(tn * 1.3, 1), math.noise(tn * 1.3, 2) * 0.5, math.noise(tn * 1.3, 3)) * (0.4 + tension * 1.2)
 		local p = mid + side * (dist * 0.55 + 4 - prog * 2) - dir * (dist * 0.2) + Vector3.new(0, 4.2 - prog * 1.2, 0) + sway
-		return CFrame.lookAt(p, mid - Vector3.new(0, 0.8, 0)), 60 - prog * 12 - tension * 4
+		-- the FIGHT acting: every yank pulls the lens toward the fish and rolls the horizon;
+		-- losing (the fish about to escape): the world drains of colour, the edges darken, a
+		-- heartbeat; winning: the camera closes in on you for the final heave
+		local rl = Fishing.reel
+		local yank = if rl and rl.yankT then math.max(0, 1 - (os.clock() - rl.yankT) / 0.4) else 0
+		local ysign = if rl and rl.yankT and math.noise(rl.yankT * 3.7, 0.5) < 0 then -1 else 1
+		local danger = if rl and not rl.done then math.clamp((0.3 - prog) / 0.3, 0, 1) else 0
+		local win = if rl and not rl.done then math.clamp((prog - 0.72) / 0.28, 0, 1) else 0
+		p += dir * (Easing.cubicOut(yank) * 1.8) - side * (win * dist * 0.18)
+		Cine.gradeSet({ saturation = -0.35 * danger, contrast = 0.22 * danger + 0.08 * win })
+		Cine.dark(0.4 * danger)
+		if danger > 0.2 then
+			s.beatAt = s.beatAt or 0
+			if os.clock() - s.beatAt > 0.75 - 0.35 * danger then
+				s.beatAt = os.clock()
+				Sound.play("Heartbeat", { pitch = 0.8 + 0.3 * danger, volume = 0.5 + 0.4 * danger })
+			end
+		end
+		local roll = yank * yank * 0.1 * ysign + math.noise(tn * 0.7, 9.1) * 0.03 * tension
+		return CFrame.lookAt(p, mid - Vector3.new(0, 0.8, 0)) * CFrame.Angles(0, 0, roll), 60 - prog * 12 - tension * 4 + yank * 5 - win * 6
 	end, 90, { smooth = 6, blendIn = 0.35 })
 end
 
@@ -569,6 +588,9 @@ local function finishReel(success: boolean)
 	local r = Fishing.reel
 	if not r or r.done then return end
 	r.done = true
+	-- the fight's colour grading / vignette go back to normal whatever the outcome
+	Cine.gradeSet({ saturation = 0, contrast = 0 })
+	Cine.dark(0)
 	-- server requires a minimum reel time: wait for it if needed
 	local wait = GameConfig.Fishing.reelMinTime + 0.15 - (os.clock() - r.start)
 	if wait > 0 then task.wait(wait) end
