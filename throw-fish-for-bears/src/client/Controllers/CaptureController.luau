@@ -639,8 +639,8 @@ local function buildStageUi()
 	              every change (kick + squash), trembles and throbs with a heartbeat that speeds
 	              up while the result hangs, SLAMS when it lands (punch, stretch -> squash,
 	              stud chips, a shine sweeping across the letters)...
-	     RESULT : ...then the value itself shrinks and flies to the results column on the left
-	              (RARITY / MUTATION / LUCK / SIZE), where it settles with a little bounce. ]]
+	     EXIT   : ...then it rises, shrinks and fades away with its title (no results list):
+	              the next stage drops into a clean screen. ]]
 	local g = Sim.new("ScreenGui", { Name = "TFBRevealStages", ResetOnSpawn = false, DisplayOrder = 13, IgnoreGuiInset = true,
 		ScreenInsets = Enum.ScreenInsets.None, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
 	local root = Sim.root(g, "Stages", Vector2.new(1000, 560), UDim2.new(0.5, 0, 0, 6), Vector2.new(0.5, 0))
@@ -676,7 +676,6 @@ local function buildStageUi()
 		valGrad.Color = ColorSequence.new(col:Lerp(WHITE, 0.62), col)
 	end
 	-- RESULTS column (left)
-	local results = 0
 	local flying = {}
 	local suspense, hit = 0, 0
 	local kick, kickV, sq, sqV = 0, 0, 0, 0
@@ -750,42 +749,36 @@ local function buildStageUi()
 			end
 		end
 	end)
-	-- the landed value flies to the results column (once). Called 0.7 s after the slam, or
-	-- right away when the next stage starts first: the big value empties at that moment.
+	-- the landed value leaves (once). Called 0.7 s after the slam, or right away when the next
+	-- stage starts first: the big value empties at that moment.
 	local pending = nil
-	flushResult = function()
+	flushResult = function(quick: boolean?)
+		-- the landed value LEAVES (no results list): a copy of it rises, spins a little,
+		-- shrinks and fades away while the stage name flies off; the centre is free at once
 		local pd = pending
-		if not pd or closed or pd.text == "" then pending = nil return end
 		pending = nil
-		results += 1
-		local slot = results
+		if not pd or closed or pd.text == "" then return end
 		if val.Text == pd.text then val.Text = "" end
-		clearTitle(true) -- the stage name leaves with its result
-		local item = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(VW, VH), Position = UDim2.fromOffset(CX - VW / 2, VALUE_Y),
-			AnchorPoint = Vector2.new(0, 0.5), ZIndex = 8 }, stage)
-		Sim.text(item, pd.text, { Size = UDim2.fromScale(1, 1), Max = 108, Stroke = 7, ZIndex = 9,
+		clearTitle(true)
+		local item = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(VW, VH), Position = UDim2.fromOffset(CX, VALUE_Y),
+			AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 8 }, stage)
+		local lab = Sim.text(item, pd.text, { Size = UDim2.fromScale(1, 1), Max = 108, Stroke = 7, ZIndex = 9,
 			Gradient = { pd.color:Lerp(WHITE, 0.62), pd.color } })
-		local tY = 34 + (slot - 1) * 58
-		tw(item, 0.45, { Position = UDim2.fromOffset(18, tY + 8), Size = UDim2.fromOffset(250, 38) }, Enum.EasingStyle.Quint)
-		-- (a centred column: the item's centre is x = 143)
-		local tiny = Sim.text(stage, pd.title, { Size = UDim2.fromOffset(200, 19), Position = UDim2.fromOffset(143, tY - 15), Max = 18, Stroke = 2.5,
-			Color = Color3.fromRGB(225, 225, 235), ZIndex = 9 })
-		tiny.TextTransparency = 1
-		local ts = tiny:FindFirstChildOfClass("UIStroke")
-		if ts then ts.Transparency = 1 end
-		task.delay(0.38, function()
-			if tiny.Parent then
-				tw(tiny, 0.2, { TextTransparency = 0 })
-				if ts then tw(ts, 0.2, { Transparency = 0 }) end
-			end
-			-- lands in the column with a small bounce
-			if item.Parent then
-				local isc = Sim.new("UIScale", { Scale = 1.25 }, item)
-				tw(isc, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
-			end
+		local isc = Sim.new("UIScale", { Scale = 1 }, item)
+		local st = lab:FindFirstChildOfClass("UIStroke")
+		-- a tiny anticipation dip, then up and away (fast when the next stage is already here:
+		-- it is gone before the new value appears, the two never overlap)
+		local dip = if quick then 0.04 else 0.08
+		local go = if quick then 0.2 else 0.38
+		tw(item, dip, { Position = UDim2.fromOffset(CX, VALUE_Y + 10) }, Enum.EasingStyle.Quad)
+		task.delay(dip, function()
+			if not item.Parent then return end
+			tw(item, go, { Position = UDim2.fromOffset(CX, VALUE_Y - 100), Rotation = (if math.random() < 0.5 then -1 else 1) * 8 }, Enum.EasingStyle.Quint)
+			tw(isc, go, { Scale = 0.5 }, Enum.EasingStyle.Quint)
+			tw(lab, go * 0.8, { TextTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			if st then tw(st, go * 0.8, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In) end
 		end)
-		table.insert(flying, item)
-		table.insert(flying, tiny)
+		task.delay(dip + go + 0.05, function() item:Destroy() end)
 	end
 	clearTitle = function(fly: boolean)
 		for i, l in letters do
@@ -808,7 +801,7 @@ local function buildStageUi()
 		local myVer = ver
 		suspense = 0
 		stageCol = pair[2]
-		flushResult() -- the previous result leaves first: never two values in the middle
+		flushResult(true) -- the previous result leaves first: never two values in the middle
 		clearTitle(true)
 		-- the new title: letters DROP in one after another and bounce
 		local i = 0
@@ -836,11 +829,18 @@ local function buildStageUi()
 				task.delay(0.42, function() l.ready = true end)
 			end)
 		end
-		-- the value pops in from nothing
+		-- the value pops in from nothing, a beat later (the previous one has left by then)
 		val.Text = ""
 		recolor(WHITE)
+		val.TextTransparency = 1
+		valStroke.Transparency = 1
 		valScale.Scale = 0.2
-		tw(valScale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
+		task.delay(0.2, function()
+			if ver ~= myVer or closed then return end
+			val.TextTransparency = 0
+			valStroke.Transparency = 0
+			tw(valScale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
+		end)
 		sq, sqV = -0.25, 0
 	end
 	function ui.value(text: string, color: Color3?, pop: boolean?)
@@ -871,7 +871,7 @@ local function buildStageUi()
 		local titleText = ""
 		for _, l in letters do titleText ..= l.lab.Text end
 		pending = { text = val.Text, title = titleText, color = chipColor }
-		task.delay(0.7, function() flushResult() end)
+		task.delay(0.7, function() flushResult(false) end)
 	end
 	function ui.shake(_a: number) end
 	function ui.stamp(text: string)
