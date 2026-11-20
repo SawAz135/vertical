@@ -1,0 +1,66 @@
+{
+  "name": "ThrowFishForBears",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Shared": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$properties": {
+        "CameraMaxZoomDistance": 90,
+        "CharacterWalkSpeed": 20,
+        "CharacterJumpPower": 50,
+        "LoadCharacterAppearance": true
+      },
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "FallenPartsDestroyHeight": -120,
+        "Gravity": 196.2
+      }
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "Ambient": [
+          0.5,
+          0.5,
+          0.52
+        ],
+        "OutdoorAmbient": [
+          0.52,
+          0.52,
+          0.56
+        ],
+        "Brightness": 2.6,
+        "ClockTime": 14.2,
+        "GeographicLatitude": 35,
+        "GlobalShadows": true,
+        "EnvironmentDiffuseScale": 0.45,
+        "EnvironmentSpecularScale": 0.6,
+        "ShadowSoftness": 0.12,
+        "ExposureCompensation": 0.1
+      }
+    },
+    "SoundService": {
+      "$className": "SoundService"
+    }
+  }
+}
