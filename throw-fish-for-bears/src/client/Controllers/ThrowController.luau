@@ -172,11 +172,14 @@ local function onThrow(player: Player, d)
 					CameraController.shake(0.8, 0.3)
 					Sound.play("Throw", { pitch = 1.3, volume = 0.7 })
 				end
+				-- (tested: from 6-13 studs behind with a 78-96 lens the fish was a dot) -> riding right
+				-- on its tail, a little above and to the side: it fills the frame, twisting, the
+				-- corridor rushing past behind it; the lens kicks wide in the middle for the speed
 				local k = (u - 0.16) / 0.39
-				local p = fp - travel * (6 + 7 * Easing.sineOut(k)) + Vector3.new(0, 1.6 + 2.2 * k, 0) + side * (1.6 - 1.2 * k)
+				local p = fp - travel * (3.6 + 2.4 * Easing.sineOut(k)) + Vector3.new(0, 1.0 + 0.9 * k, 0) + side * (1.5 - 0.5 * k)
 				-- smooth wind buffeting (low-frequency noise, NOT a random shake every frame)
-				local buffet = Vector3.new(math.noise(t * 3, 1.7), math.noise(t * 3, 4.2), 0) * 0.25 * math.sin(k * math.pi)
-				return CFrame.lookAt(p + buffet, fp + travel * (10 + d.power * 6)), 78 + 18 * math.sin(k * math.pi)
+				local buffet = Vector3.new(math.noise(t * 3, 1.7), math.noise(t * 3, 4.2), 0) * 0.2 * math.sin(k * math.pi)
+				return CFrame.lookAt(p + buffet, fp + travel * (4 + d.power * 3) - Vector3.new(0, 0.3, 0)), 60 + 14 * math.sin(k * math.pi)
 			elseif u < 0.8 then
 				-- E) drone: high above, the fish crossing the corridor, the zones under it
 				if not droned then
@@ -184,10 +187,11 @@ local function onThrow(player: Player, d)
 					Cine.motion(10)
 					CameraController.punch(-6)
 				end
+				-- (tested: 30 studs up the fish was a dot over the grass) -> a closer high side shot:
+				-- the fish big at the top of its arc, the corridor and its walls falling away below
 				local k = (u - 0.55) / 0.25
-				local mid = fp:Lerp(d.to, 0.35)
-				local p = mid + side * (26 - 6 * k) - travel * (14 - 10 * k) + Vector3.new(0, 30 - 8 * k, 0)
-				return CFrame.lookAt(p, fp), 48 - 6 * k
+				local p = fp + side * (13 - 4 * k) - travel * (5 - 4 * k) + Vector3.new(0, 7 - 3 * k, 0)
+				return CFrame.lookAt(p, fp - Vector3.new(0, 1.2, 0)), 50 - 6 * k
 			else
 				-- F) incoming: low at the landing spot, the fish falling at the lens in slow-mo
 				if not incoming then
@@ -240,7 +244,10 @@ local function onThrow(player: Player, d)
 		CameraController.run(function(t, dt)
 			local cf, fov = shot(t, dt)
 			if not cf then return cf, fov end
-			local following = released and os.clock() >= freezeUntil and not landed
+			-- the last shot (incoming) is a FIXED camera on the ground: it must not ride along with
+			-- the falling fish (tested: the follow offset dragged it under the ground)
+			local uNow = (sNow() - startT) / d.flight
+			local following = released and os.clock() >= freezeUntil and not landed and uNow < 0.8
 			if not following then
 				lastCF = cf
 				offs = nil
