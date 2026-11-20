@@ -536,7 +536,7 @@ STATES.Reveal = function(p, e, t, s)
 		-- 2) mutation: shiver building, then the dog-shake
 		if mut > 0 and t > e1 and t < e2 + 0.7 then
 			local k = clamp((t - e1) / math.max(0.1, mut), 0, 1)
-			local shiver = sin(t * 45) * 0.03 * k * k * (if t < e2 then 1 else 0)
+			local shiver = sin(t * 14) * 0.03 * k * k * (if t < e2 then 1 else 0)
 			rot(p, "BodyJoint", shiver, 0, shiver)
 			local u = (t - e2) / 0.7
 			if u > 0 and u < 1 then
@@ -565,7 +565,7 @@ STATES.Reveal = function(p, e, t, s)
 		end
 		-- 5) loading up for the peak: crouch low, ears back, trembling
 		local load = Easing.sineInOut(clamp((t - (e4 - 0.5)) / 0.85, 0, 1))
-		local trem = sin(t * 53) * 0.03 * load
+		local trem = sin(t * 11) * 0.02 * load
 		pos(p, "BodyJoint", 0, -0.3 * s * load, 0)
 		rot(p, "BodyJoint", -0.1 * load + trem)
 		rot(p, "LegFL", 0.25 * load) rot(p, "LegFR", 0.25 * load)
@@ -581,7 +581,7 @@ STATES.Reveal = function(p, e, t, s)
 	local stomp = if u > 1.11 then Easing.bump(clamp((u - 1.11) / 0.25, 0, 1)) else 0
 	local proud = Easing.cubicOut(clamp((u - 1.3) / 0.4, 0, 1))
 	local roar = up * (1 - down)
-	local shiver = sin(u * 60) * 0.04 * roar * (1 - clamp(u / 0.95, 0, 1))
+	local shiver = sin(u * 16) * 0.03 * roar * (1 - clamp(u / 0.95, 0, 1))
 	pos(p, "BodyJoint", 0, (0.95 * roar - 0.32 * stomp + 0.08 * proud) * s, 0.75 * s * roar)
 	rot(p, "BodyJoint", 1.3 * roar + shiver - 0.18 * stomp + 0.05 * proud)
 	rot(p, "LegFL", -1.65 * roar + 0.4 * stomp, 0, 0.5 * roar) rot(p, "LegFR", -1.65 * roar + 0.4 * stomp, 0, -0.5 * roar)

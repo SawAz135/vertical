@@ -48,7 +48,7 @@ return {
 		-- the reveal, in STAGES (the bear in full colour, growing from small to its real size):
 		-- RARITY (casino ticker) -> MUTATION (only if Golden / Diamond / Rainbow: colour wave)
 		-- -> LUCK (bear grows) -> KG (bear grows to its real size) -> final slam + roar + name
-		revealRarity = 2.6, revealMutation = 2.3, revealLuck = 2.3, revealKg = 2.7, revealFinal = 2.6,
+		revealRarity = 2.0, revealMutation = 1.8, revealLuck = 1.9, revealKg = 2.2, revealFinal = 2.0, -- ~10 s in all
 		revealStartScale = 0.45, -- size of the bear when the reveal starts (x its real size)
 		-- LUCK BONUS rolled by the server during the reveal: rerolls the rarity with luck x mult
 		-- and keeps the better result (only shown when it really upgrades the bear)
