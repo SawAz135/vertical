@@ -632,193 +632,281 @@ local function spaced(text: string): string
 end
 
 local function buildStageUi()
-	--[[ BRICK PLATES: every stage is a big studded brick plate in the stage colour. It drops
-	     from the top and lands with a bounce, its counter rolls on it, it shakes while the
-	     result hangs, SLAMS (punch + stud chips) when it lands, then shrinks and flies to the
-	     left where the results stack up (RARITY / MUTATION / LUCK / SIZE). ]]
+	--[[ TEXT ONLY (no panel, no background): every stage is pure cartoon typography.
+	     TITLE  : the stage name, letter by letter: each letter drops in and bounces, then the
+	              word keeps waving; it shivers harder while the result hangs
+	     VALUE  : one huge label (a single label: nothing can ever show twice). It rolls on
+	              every change (kick + squash), trembles and throbs with a heartbeat that speeds
+	              up while the result hangs, SLAMS when it lands (punch, stretch -> squash,
+	              stud chips, a shine sweeping across the letters)...
+	     RESULT : ...then the value itself shrinks and flies to the results column on the left
+	              (RARITY / MUTATION / LUCK / SIZE), where it settles with a little bounce. ]]
 	local g = Sim.new("ScreenGui", { Name = "TFBRevealStages", ResetOnSpawn = false, DisplayOrder = 13, IgnoreGuiInset = true,
 		ScreenInsets = Enum.ScreenInsets.None, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
 	local root = Sim.root(g, "Stages", Vector2.new(1000, 560), UDim2.new(0.5, 0, 0, 6), Vector2.new(0.5, 0))
-	local rootScale = Sim.new("UIScale", { Name = "Pop", Scale = 1 }, Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, root))
-	local stage = rootScale.Parent
+	local stage = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, root)
+	local rootScale = Sim.new("UIScale", { Name = "Pop", Scale = 1 }, stage)
 	local function tw(o, t, goal, style, dir)
 		local x = TweenService:Create(o, TweenInfo.new(t, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), goal)
 		x:Play()
 		return x
 	end
-	local PW, PH = 520, 168
-	local HOME = Vector2.new(500, 128)
-	local cur = nil -- the plate on stage
-	local stacked = 0
-	local plates = {}
+	local WHITE, BLACK = Color3.new(1, 1, 1), Color3.new(0, 0, 0)
+	local CX, TITLE_Y, VALUE_Y = 500, 46, 128
+	local VW, VH = 900, 124
+	-- TITLE (letters in a centred row)
+	local titleRow = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(700, 52), Position = UDim2.fromOffset(CX, TITLE_Y), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 6 }, stage)
+	Sim.new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, titleRow)
+	local letters = {}
+	-- VALUE (one label)
+	local valHolder = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(VW, VH), Position = UDim2.fromOffset(CX, VALUE_Y), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 8 }, stage)
+	local valScale = Sim.new("UIScale", { Scale = 1 }, valHolder)
+	local val = Sim.new("TextLabel", { Name = "Value", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
+		Font = Sim.FONT, Text = "", TextScaled = true, TextColor3 = WHITE, ZIndex = 9 }, valHolder)
+	Sim.new("UITextSizeConstraint", { MaxTextSize = 108, MinTextSize = 10 }, val)
+	local valStroke = Sim.new("UIStroke", { Thickness = 7, Color = BLACK, LineJoinMode = Enum.LineJoinMode.Round }, val)
+	local valGrad = Sim.new("UIGradient", { Rotation = 90, Color = ColorSequence.new(WHITE, WHITE) }, val)
+	local stageCol = WHITE
+	local valueCol = WHITE
+	local function recolor(col: Color3)
+		valueCol = col
+		valGrad.Rotation = 90
+		valGrad.Offset = Vector2.zero
+		valGrad.Color = ColorSequence.new(col:Lerp(WHITE, 0.62), col)
+	end
+	-- RESULTS column (left)
+	local results = 0
+	local flying = {}
 	local suspense, hit = 0, 0
-	-- stud chips bursting out of a plate (UI, no glow)
-	local function burst(at: Vector2, color: Color3)
-		for _ = 1, 26 do
-			local sz = math.random(12, 22)
-			local f = Sim.new("Frame", { BackgroundColor3 = if math.random() < 0.3 then Color3.new(1, 1, 1) else color, BorderSizePixel = 0,
-				Size = UDim2.fromOffset(sz, sz), Position = UDim2.fromOffset(at.X + math.random(-200, 200), at.Y + math.random(-40, 40)),
-				AnchorPoint = Vector2.new(0.5, 0.5), Rotation = math.random(0, 90), ZIndex = 20 }, stage)
+	local kick, kickV, sq, sqV = 0, 0, 0, 0
+	local ver = 0
+	local closed = false
+	local flushResult, clearTitle
+	-- stud chips bursting out of the value (cubes, no glow)
+	local function burst(color: Color3)
+		for _ = 1, 30 do
+			local sz = math.random(12, 24)
+			local f = Sim.new("Frame", { BackgroundColor3 = if math.random() < 0.3 then WHITE else color, BorderSizePixel = 0,
+				Size = UDim2.fromOffset(sz, sz), Position = UDim2.fromOffset(CX + math.random(-260, 260), VALUE_Y + math.random(-30, 30)),
+				AnchorPoint = Vector2.new(0.5, 0.5), Rotation = math.random(0, 90), ZIndex = 12 }, stage)
 			Sim.corner(f, 3)
 			Sim.stroke(f, 2)
-			Sim.studs(f, { tile = sz, transparency = 0.5, z = 20 })
+			Sim.studs(f, { tile = sz, transparency = 0.5, z = 12 })
 			local ang = math.random() * math.pi * 2
-			local dist = math.random(160, 360)
-			local dur = 0.6 + math.random() * 0.35
-			tw(f, dur, { Position = UDim2.fromOffset(at.X + math.cos(ang) * dist, at.Y + math.sin(ang) * dist * 0.6 + 70),
-				Rotation = f.Rotation + math.random(-320, 320), BackgroundTransparency = 1 }, Enum.EasingStyle.Quart)
-			local st2 = f:FindFirstChildOfClass("UIStroke")
-			if st2 then tw(st2, dur, { Transparency = 1 }) end
+			local dist = math.random(180, 380)
+			local dur = 0.6 + math.random() * 0.4
+			-- arcs out and FALLS (gravity feel: out fast, then drop)
+			local ex, ey = CX + math.cos(ang) * dist, VALUE_Y + math.sin(ang) * dist * 0.5
+			tw(f, dur * 0.45, { Position = UDim2.fromOffset(ex, ey - 40), Rotation = f.Rotation + math.random(-200, 200) }, Enum.EasingStyle.Quart)
+			task.delay(dur * 0.45, function()
+				if f.Parent then
+					tw(f, dur * 0.55, { Position = UDim2.fromOffset(ex + math.random(-30, 30), ey + 160), BackgroundTransparency = 1, Rotation = f.Rotation + math.random(-200, 200) },
+						Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+					local st2 = f:FindFirstChildOfClass("UIStroke")
+					if st2 then tw(st2, dur * 0.55, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In) end
+				end
+			end)
 			task.delay(dur + 0.05, function() f:Destroy() end)
 		end
 	end
-	local function makePlate(name: string, pair)
-		local holder = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(PW, PH), AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromOffset(HOME.X, -140), ZIndex = 5 }, stage)
-		local sc = Sim.new("UIScale", { Scale = 1 }, holder)
-		-- shadow brick under the plate (thickness)
-		local shadow = Sim.panel(holder, { Size = UDim2.new(1, 0, 1, 0), Position = UDim2.fromOffset(0, 9), Color = pair[2]:Lerp(Color3.new(0, 0, 0), 0.55), Stroke = 4, ZIndex = 5, Tile = 34 })
-		local _ = shadow
-		local plate = Sim.panel(holder, { Size = UDim2.new(1, 0, 1, 0), Gradient = pair, Stroke = 4, ZIndex = 6, Tile = 34 })
-		plate.ClipsDescendants = true
-		Sim.bands(plate, 0.62, 6)
-		-- the title band: a dark studded strip across the top of the plate
-		local band = Sim.panel(plate, { Size = UDim2.new(1, -20, 0, 40), Position = UDim2.fromOffset(10, 9), Color = Color3.fromRGB(32, 32, 38), DarkStuds = true, Stroke = 3, ZIndex = 7 })
-		Sim.text(band, name, { Size = UDim2.new(1, -16, 0.8, 0), Max = 30, Stroke = 3.5, ZIndex = 8,
-			Gradient = { pair[1]:Lerp(Color3.new(1, 1, 1), 0.55), pair[1] } })
-		-- the value: one big cartoon label (rolls by changing text)
-		local val = Sim.new("TextLabel", { Name = "Value", BackgroundTransparency = 1, Size = UDim2.new(1, -30, 0, 96), Position = UDim2.new(0.5, 0, 0, 104),
-			AnchorPoint = Vector2.new(0.5, 0.5), Font = Sim.FONT, Text = "", TextScaled = true, TextColor3 = Color3.new(1, 1, 1), ZIndex = 9 }, plate)
-		Sim.new("UITextSizeConstraint", { MaxTextSize = 86, MinTextSize = 10 }, val)
-		Sim.new("UIStroke", { Thickness = 6.5, Color = Color3.new(0, 0, 0), LineJoinMode = Enum.LineJoinMode.Round }, val)
-		local grad = Sim.new("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(1, 1, 1)) }, val)
-		local outline = plate:FindFirstChildOfClass("UIStroke")
-		local pl = { holder = holder, scale = sc, val = val, grad = grad, outline = outline, kick = 0, kickV = 0, settled = false }
-		table.insert(plates, pl)
-		-- DROP: falls in with a little tilt, lands with a bounce + a squash punch
-		holder.Rotation = math.random(-8, 8)
-		tw(holder, 0.5, { Position = UDim2.fromOffset(HOME.X, HOME.Y) }, Enum.EasingStyle.Bounce)
-		tw(holder, 0.55, { Rotation = 0 }, Enum.EasingStyle.Back)
-		task.delay(0.22, function()
-			if sc.Parent then
-				sc.Scale = 1.08
-				tw(sc, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
-				hit = math.max(hit, 0.35)
-			end
-		end)
-		task.delay(0.5, function() pl.settled = true end)
-		return pl
-	end
-	local function recolor(pl, col: Color3)
-		pl.grad.Color = ColorSequence.new(col:Lerp(Color3.new(1, 1, 1), 0.65), col)
+	-- a bright SHINE sweeping across the value's letters (moving gradient band, no glow)
+	local function shine(col: Color3)
+		local base, lite = col, col:Lerp(WHITE, 0.85)
+		valGrad.Rotation = 18
+		valGrad.Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, base), ColorSequenceKeypoint.new(0.42, base),
+			ColorSequenceKeypoint.new(0.5, lite), ColorSequenceKeypoint.new(0.58, base), ColorSequenceKeypoint.new(1, base) })
+		valGrad.Offset = Vector2.new(-1, 0)
+		tw(valGrad, 0.45, { Offset = Vector2.new(1, 0) }, Enum.EasingStyle.Quad)
+		task.delay(0.47, function() if valueCol == col then recolor(col) end end)
 	end
 	local conn = RunService.RenderStepped:Connect(function(dt)
 		local t = os.clock()
 		hit = math.max(0, hit - dt * 3)
-		local pl = cur
-		if pl and pl.holder.Parent then
-			-- counter kick spring (each change bumps the number up, it settles back)
-			pl.kickV += (-pl.kick * 260 - pl.kickV * 24) * dt
-			pl.kick += pl.kickV * dt
-			pl.val.Position = UDim2.new(0.5, 0, 0, 104 + pl.kick)
-			-- the plate shakes (low frequency, smooth noise) while the result hangs, and on hits
-			if pl.settled then
-				local amp = suspense * 5 + hit * 10
-				pl.holder.Position = UDim2.fromOffset(HOME.X + math.noise(t * 9, 1.3) * amp, HOME.Y + math.noise(t * 9, 4.7) * amp)
-				pl.holder.Rotation = math.noise(t * 6, 8.1) * suspense * 2.5
-			end
-			if pl.outline then pl.outline.Color = Color3.new(0, 0, 0):Lerp(Color3.new(1, 1, 1), suspense * (0.5 + 0.5 * math.sin(t * 14))) end
-		end
-		-- STRESS: the whole stage throbs with a heartbeat that speeds up as the result hangs,
-		-- the plate swells on each beat and the counter strains (squeezed / stretched)
+		-- counter kick (vertical) + squash/stretch springs
+		kickV += (-kick * 260 - kickV * 24) * dt
+		kick += kickV * dt
+		sqV += (-sq * 300 - sqV * 14) * dt
+		sq += sqV * dt
+		-- STRESS: a heartbeat that speeds up while the result hangs
 		local bpm = 1.6 + suspense * 4.5
 		local beat = math.max(0, math.sin(t * bpm * math.pi)) ^ 8
-		rootScale.Scale = 1 + suspense * (0.025 + 0.05 * beat)
-		if pl and pl.holder.Parent and pl.settled and suspense > 0 then
-			pl.scale.Scale = 1 + suspense * 0.06 * beat
-			pl.val.Size = UDim2.new(1, -30 + suspense * 18 * beat, 0, 96 - suspense * 10 * beat)
-		elseif pl and pl.holder.Parent then
-			pl.val.Size = UDim2.new(1, -30, 0, 96)
+		rootScale.Scale = 1 + suspense * (0.02 + 0.05 * beat)
+		local amp = suspense * 7 + hit * 12
+		valHolder.Position = UDim2.fromOffset(CX + math.noise(t * 11, 1.3) * amp, VALUE_Y + kick + math.noise(t * 11, 4.7) * amp)
+		valHolder.Rotation = math.noise(t * 7, 8.1) * (suspense * 4 + hit * 3)
+		-- volume kept: wider when flatter; the heartbeat squeezes it too
+		local s2 = sq - suspense * 0.08 * beat
+		valHolder.Size = UDim2.fromOffset(VW * (1 - 0.55 * s2), VH * (1 + s2))
+		valStroke.Color = BLACK:Lerp(stageCol:Lerp(BLACK, 0.35), suspense * (0.5 + 0.5 * math.sin(t * 14)))
+		valStroke.Thickness = 7 + suspense * 2 * beat
+		-- title letters wave; they shiver while the result hangs
+		for i, l in letters do
+			if l.ready and l.lab.Parent then
+				local wave = math.sin(t * 5 + i * 0.55) * 4
+				local jit = math.noise(t * 13, i * 2.3) * suspense * 5
+				l.lab.Position = UDim2.new(0.5, jit, 0.5, wave * (1 - suspense * 0.5) + math.noise(t * 13, i * 5.1) * suspense * 4)
+				l.lab.Rotation = math.sin(t * 4 + i) * 4 + jit
+			end
 		end
 	end)
+	-- the landed value flies to the results column (once). Called 0.7 s after the slam, or
+	-- right away when the next stage starts first: the big value empties at that moment.
+	local pending = nil
+	flushResult = function()
+		local pd = pending
+		if not pd or closed or pd.text == "" then pending = nil return end
+		pending = nil
+		results += 1
+		local slot = results
+		if val.Text == pd.text then val.Text = "" end
+		clearTitle(true) -- the stage name leaves with its result
+		local item = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(VW, VH), Position = UDim2.fromOffset(CX - VW / 2, VALUE_Y),
+			AnchorPoint = Vector2.new(0, 0.5), ZIndex = 8 }, stage)
+		Sim.text(item, pd.text, { Size = UDim2.fromScale(1, 1), Max = 108, Stroke = 7, ZIndex = 9,
+			Gradient = { pd.color:Lerp(WHITE, 0.62), pd.color } })
+		local tY = 34 + (slot - 1) * 58
+		tw(item, 0.45, { Position = UDim2.fromOffset(18, tY + 8), Size = UDim2.fromOffset(250, 38) }, Enum.EasingStyle.Quint)
+		-- (a centred column: the item's centre is x = 143)
+		local tiny = Sim.text(stage, pd.title, { Size = UDim2.fromOffset(200, 19), Position = UDim2.fromOffset(143, tY - 15), Max = 18, Stroke = 2.5,
+			Color = Color3.fromRGB(225, 225, 235), ZIndex = 9 })
+		tiny.TextTransparency = 1
+		local ts = tiny:FindFirstChildOfClass("UIStroke")
+		if ts then ts.Transparency = 1 end
+		task.delay(0.38, function()
+			if tiny.Parent then
+				tw(tiny, 0.2, { TextTransparency = 0 })
+				if ts then tw(ts, 0.2, { Transparency = 0 }) end
+			end
+			-- lands in the column with a small bounce
+			if item.Parent then
+				local isc = Sim.new("UIScale", { Scale = 1.25 }, item)
+				tw(isc, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+			end
+		end)
+		table.insert(flying, item)
+		table.insert(flying, tiny)
+	end
+	clearTitle = function(fly: boolean)
+		for i, l in letters do
+			local lab = l.lab
+			if fly and lab.Parent then
+				l.ready = false
+				tw(lab, 0.25, { Position = UDim2.new(0.5, 0, 0.5, -60), TextTransparency = 1, Rotation = (i % 2 * 2 - 1) * 40 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+				local st = lab:FindFirstChildOfClass("UIStroke")
+				if st then tw(st, 0.25, { Transparency = 1 }) end
+				task.delay(0.27, function() l.holder:Destroy() end)
+			else
+				l.holder:Destroy()
+			end
+		end
+		letters = {}
+	end
 	local ui = {}
 	function ui.stage(name: string, pair)
+		ver += 1
+		local myVer = ver
 		suspense = 0
-		cur = makePlate(name, pair)
-		Sound.play("Land", { pitch = 1.6, volume = 0.35 })
+		stageCol = pair[2]
+		flushResult() -- the previous result leaves first: never two values in the middle
+		clearTitle(true)
+		-- the new title: letters DROP in one after another and bounce
+		local i = 0
+		for _, cp in utf8.codes(name) do
+			i += 1
+			local ch = utf8.char(cp)
+			local cw = if ch == " " then 14 elseif ch == "I" or ch == "1" or ch == "!" or ch == "." then 18 elseif ch == "M" or ch == "W" then 46 else 36
+			local holder = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(cw, 52), LayoutOrder = i }, titleRow)
+			local lab = Sim.text(holder, ch, { Size = UDim2.fromScale(1, 1), Max = 44, Stroke = 4.5, ZIndex = 7,
+				Gradient = { pair[1]:Lerp(WHITE, 0.55), pair[1] } })
+			lab.Position = UDim2.new(0.5, 0, 0.5, -70)
+			lab.TextTransparency = 1
+			local st = lab:FindFirstChildOfClass("UIStroke")
+			if st then st.Transparency = 1 end
+			local l = { holder = holder, lab = lab, ready = false }
+			table.insert(letters, l)
+			task.delay(0.03 + i * 0.04, function()
+				if ver ~= myVer or not lab.Parent then return end
+				lab.TextTransparency = 0
+				if st then st.Transparency = 0 end
+				lab.Rotation = math.random(-25, 25)
+				tw(lab, 0.42, { Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Bounce)
+				tw(lab, 0.42, { Rotation = 0 }, Enum.EasingStyle.Back)
+				if ch ~= " " then Sound.play("Tick", { pitch = 1.5 + i * 0.05, volume = 0.22 }) end
+				task.delay(0.42, function() l.ready = true end)
+			end)
+		end
+		-- the value pops in from nothing
+		val.Text = ""
+		recolor(WHITE)
+		valScale.Scale = 0.2
+		tw(valScale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
+		sq, sqV = -0.25, 0
 	end
 	function ui.value(text: string, color: Color3?, pop: boolean?)
-		local pl = cur
-		if not pl then return end
-		if pl.val.Text ~= text then
-			pl.val.Text = text
-			pl.kick = math.max(-9, pl.kick - 4)
+		if val.Text ~= text then
+			val.Text = text
+			kick = math.max(-10, kick - 5)
+			sqV -= 1.6
 		end
-		recolor(pl, color or Color3.new(1, 1, 1))
+		recolor(color or WHITE)
 		if pop then
-			pl.scale.Scale = 1.06
-			tw(pl.scale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
+			valScale.Scale = 1.08
+			tw(valScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
 		end
 	end
 	function ui.suspense(k: number)
 		suspense = math.clamp(k, 0, 1)
 	end
 	function ui.done(_chipText: string, chipColor: Color3)
-		local pl = cur
-		if not pl then return end
 		suspense = 0
 		hit = 1
-		recolor(pl, chipColor)
-		-- SLAM: the plate punches out big and settles, chips burst out of it
-		pl.scale.Scale = 1.28
-		tw(pl.scale, 0.38, { Scale = 1 }, Enum.EasingStyle.Back)
-		burst(HOME, chipColor)
-		-- then it shrinks and flies to the results stack on the left
-		stacked += 1
-		local slot = stacked
-		task.delay(0.62, function()
-			if not pl.holder.Parent then return end
-			if cur == pl then cur = nil end
-			pl.settled = false
-			tw(pl.holder, 0.42, { Position = UDim2.fromOffset(150, 70 + (slot - 1) * 74), Rotation = 0 }, Enum.EasingStyle.Quint)
-			tw(pl.scale, 0.42, { Scale = 0.4 }, Enum.EasingStyle.Quint)
-			task.delay(0.42, function()
-				if pl.scale.Parent then
-					pl.scale.Scale = 0.46
-					tw(pl.scale, 0.25, { Scale = 0.4 }, Enum.EasingStyle.Back)
-				end
-			end)
-		end)
+		recolor(chipColor)
+		-- SLAM: punches out huge, STRETCHES then squashes, chips burst, a shine sweeps across
+		valScale.Scale = 1.45
+		tw(valScale, 0.42, { Scale = 1 }, Enum.EasingStyle.Back)
+		sq, sqV = 0.2, 0
+		burst(chipColor)
+		task.delay(0.12, function() shine(chipColor) end)
+		local titleText = ""
+		for _, l in letters do titleText ..= l.lab.Text end
+		pending = { text = val.Text, title = titleText, color = chipColor }
+		task.delay(0.7, function() flushResult() end)
 	end
 	function ui.shake(_a: number) end
 	function ui.stamp(text: string)
-		local st = Sim.text(stage, text, { Size = UDim2.fromOffset(560, 54), Position = UDim2.fromOffset(HOME.X, HOME.Y + PH / 2 + 46), Max = 46, Stroke = 5, ZIndex = 15,
+		-- comes in after the slam (never on top of the value); never yields the caller
+		task.delay(0.3, function()
+		if closed then return end
+		local st = Sim.text(stage, text, { Size = UDim2.fromOffset(560, 56), Position = UDim2.fromOffset(CX, VALUE_Y + 96), Max = 50, Stroke = 5.5, ZIndex = 15,
 			Gradient = { Color3.fromRGB(255, 255, 210), Color3.fromRGB(255, 186, 20) } })
-		local ss = Sim.new("UIScale", { Scale = 2.6 }, st)
-		st.Rotation = -8
+		local ss = Sim.new("UIScale", { Scale = 1.9 }, st)
+		st.Rotation = -10
 		tw(ss, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
-		tw(st, 0.3, { Rotation = 0 }, Enum.EasingStyle.Back)
+		tw(st, 0.3, { Rotation = -3 }, Enum.EasingStyle.Back)
 		hit = math.max(hit, 0.7)
-		task.delay(1.4, function()
+		task.delay(1.0, function()
 			if st.Parent then
 				tw(ss, 0.2, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 				task.delay(0.22, function() st:Destroy() end)
 			end
 		end)
+	end)
 	end
-	local closed = false
+
 	function ui.close()
 		if closed then return end
 		closed = true
-		for i, pl in plates do
-			task.delay(i * 0.04, function()
-				if pl.holder.Parent then
-					tw(pl.holder, 0.3, { Position = pl.holder.Position - UDim2.fromOffset(260, 0) }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-					tw(pl.scale, 0.3, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+		clearTitle(true)
+		tw(valScale, 0.25, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+		for i, o in flying do
+			task.delay(i * 0.03, function()
+				if o.Parent then
+					tw(o, 0.3, { Position = o.Position - UDim2.fromOffset(320, 0) }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 				end
 			end)
 		end
-		task.delay(0.6, function()
+		task.delay(0.65, function()
 			conn:Disconnect()
 			g:Destroy()
 		end)
