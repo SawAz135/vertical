@@ -698,6 +698,7 @@ local function locomotion(p, e, t, s, speed, dt)
 	e.phase = (e.phase + dt * freq * TAU) % TAU
 	local ph = e.phase
 	-- walk: 4 beat lateral sequence; run: bounding gallop (pairs) with spine flex
+	e.runK = runK
 	local amp = (0.42 + runK * 0.35) * walkK
 	local walkOff = { LegFL = 0, LegBR = 0.25, LegFR = 0.5, LegBL = 0.75 }
 	local runOff = { LegFL = 0, LegFR = 0.08, LegBL = 0.5, LegBR = 0.58 }
@@ -784,7 +785,25 @@ local function updateBear(e, dt, now)
 	local animT = now - (model:GetAttribute("AnimT") or 0)
 	local p = newPose()
 	if e.lift then for k in e.lift do e.lift[k] = 0 end end
+	e.runK = 0
 	local moving = locomotion(p, e, t, s, e.speed, dt)
+	-- GALLOP IMPACTS: every stride the paws pound the ground: a puff of dust (bigger for heavy
+	-- and big bears), and for a big bear close to the camera the view thumps
+	if e.runK > 0.55 and not Fx.low then
+		local half = math.floor(e.phase / math.pi)
+		if half ~= e.lastHalf then
+			e.lastHalf = half
+			local camD = (root.Position - camera.CFrame.Position).Magnitude
+			if camD < 90 then
+				local foot = root.Position - Vector3.new(0, e.legLen * s * 0.95, 0)
+				Fx.dust(foot, clamp(0.25 + s * 0.12 + (e.heavy or 0) * 0.3, 0.25, 1.1))
+				if camD < 30 and s > 1.4 then
+					local CameraController = require(script.Parent.CameraController)
+					CameraController.shake(clamp(0.06 * s, 0.05, 0.3), 0.1)
+				end
+			end
+		end
+	end
 	-- NATURAL BODY ACTING while moving: lean INTO turns, head turns ahead into the turn,
 	-- sit back when braking, push forward when accelerating
 	if dt > 0 then
