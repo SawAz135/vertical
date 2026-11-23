@@ -12,11 +12,11 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { LiveEngine, Vector3, CFrame, enumItem, isA, LuaTable } from '../luau/engine.js?v=9';
-import { LiveWorld } from './render3d.js?v=9';
-import { GuiRenderer, GUI_CSS } from './gui.js?v=9';
-import { Avatar } from '../avatar.js?v=9';
-import { preloadClip } from '../luau/anim.js?v=9';
+import { LiveEngine, Vector3, CFrame, enumItem, isA, LuaTable } from '../luau/engine.js?v=10';
+import { LiveWorld } from './render3d.js?v=10';
+import { GuiRenderer, GUI_CSS } from './gui.js?v=10';
+import { Avatar } from '../avatar.js?v=10';
+import { preloadClip } from '../luau/anim.js?v=10';
 // Roblox's default R15 animations (the clips its Animate script plays)
 const DEFAULT_ANIMS = { idle: [507766388, 507766666, 507766951], walk: [507777826], run: [507767714], jump: [507765000], fall: [507767968], toolnone: [507768375] };
 
@@ -43,8 +43,8 @@ export class LiveGame {
     this.world = new LiveWorld(this.renderer, this.q, E); this.world.build();
     E.raycast = (o, d, p) => this.world.raycast(o, d, p); E.groundAt = (x, y, z, self) => this.world.groundAt(x, y, z, self);
     E.onEmit = (em, n) => this.world.burst(em, n);
-    E.worldToScreen = (v) => { const p = new THREE.Vector3(v.x, v.y, v.z).project(this.camera); return [new Vector3((p.x * 0.5 + 0.5) * innerWidth, (-p.y * 0.5 + 0.5) * innerHeight - 58, p.z), p.z < 1 && Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1]; };
-    E.screenRay = (x, y) => { const rc = new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1), this.camera); const o = rc.ray.origin, d = rc.ray.direction; return new E.rt.G.get('Ray').get('new')([new Vector3(o.x, o.y, o.z), new Vector3(d.x, d.y, d.z)])[0]; };
+    E.worldToScreen = (v, inset = 58) => { const p = new THREE.Vector3(v.x, v.y, v.z).project(this.camera); return [new Vector3((p.x * 0.5 + 0.5) * innerWidth, (-p.y * 0.5 + 0.5) * innerHeight - inset, p.z), p.z < 1 && Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1]; };
+    E.screenRay = (x, y) => { const rc = new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1), this.camera); const o = rc.ray.origin, d = rc.ray.direction; return E.rt.G.get('Ray').get('new')([new Vector3(o.x, o.y, o.z), new Vector3(d.x, d.y, d.z)])[0]; };
     E.onSystemMessage = (t) => this.sys(t); E.onCoreGui = () => this.coreGui(); E.onCharacter = (m) => this.onCharacter(m);
     if (this.q.bloom) { this.composer = new EffectComposer(this.renderer); this.composer.addPass(new RenderPass(this.world.scene, this.camera)); this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.35, 0.4, 0.95); this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass()); }
     this.gui = new GuiRenderer(E, this.hud, { camera: this.camera, world: this.world });
@@ -148,6 +148,7 @@ export class LiveGame {
   }
   /* ---------------- input → UserInputService / Mouse / Tool ---------------- */
   inputObject(type, state, key, pos, delta) { const E = this.engine, io = new E.Instance('InputObject', E.rt); io.props.set('UserInputType', enumItem('UserInputType', type)); io.props.set('UserInputState', enumItem('UserInputState', state)); io.props.set('KeyCode', enumItem('KeyCode', key || 'Unknown')); io.props.set('Position', new Vector3(pos ? pos[0] : 0, pos ? pos[1] - 58 : 0, 0)); io.props.set('Delta', new Vector3(delta ? delta[0] : 0, delta ? delta[1] : 0, 0)); return io; }
+  ioMove(io, state, x, y, dx, dy) { io.props.set('UserInputState', enumItem('UserInputState', state)); io.props.set('Position', new Vector3(x, y - 58, 0)); io.props.set('Delta', new Vector3(dx, dy, 0)); io.changed('Position'); }
   uis(ev, io, processed = false) { const E = this.engine, s = E.service('UserInputService').sigs.get(ev); if (s && s.conns.length) { const prev = E.I.side; E.I.side = 'client'; try { s.fire([io, processed]); } finally { E.I.side = prev; } }
     if (ev === 'InputBegan' && !processed) for (const [, a] of E.actions) { if (a.inputs.some((x) => x && x.name === io.props.get('KeyCode').name || x && x.name === io.props.get('UserInputType').name)) { const prev = E.I.side; E.I.side = 'client'; try { E.rt.spawn(a.f, [undefined, enumItem('UserInputState', 'Begin'), io]); } finally { E.I.side = prev; } } } }
   pollInput() { const E = this.engine; E.input.touch = !!this.touch; }
@@ -165,9 +166,11 @@ export class LiveGame {
       if (e.target.closest('.rx.rxbtn,.rx.rxact,input,button,.lv-menu,.lv-prompt')) return; this.touch = e.pointerType !== 'mouse';
       const inStick = this.touch && e.clientX < innerWidth * 0.45 && e.clientY > innerHeight * 0.45;
       if (inStick && stickId == null) { stickId = e.pointerId; stickC = [e.clientX, e.clientY]; const s = this.$('stick'); s.style.left = e.clientX + 'px'; s.style.top = e.clientY + 'px'; s.classList.add('on'); return; }
-      ptr.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0, b: e.button }); try { view.setPointerCapture(e.pointerId); } catch {}
+      // like Roblox, one finger / button keeps the same InputObject from Began to Ended (scripts compare them)
+      const io = this.inputObject(this.touch ? 'Touch' : e.button === 2 ? 'MouseButton2' : 'MouseButton1', 'Begin', null, [e.clientX, e.clientY]);
+      ptr.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0, b: e.button, io }); try { view.setPointerCapture(e.pointerId); } catch {}
       if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: C.zoom }; }
-      this.uis('InputBegan', this.inputObject(this.touch ? 'Touch' : e.button === 2 ? 'MouseButton2' : 'MouseButton1', 'Begin', null, [e.clientX, e.clientY]));
+      this.uis('InputBegan', io);
     });
     on(view, 'pointermove', (e) => { this.engine.input.mx = e.clientX; this.engine.input.my = e.clientY;
       if (e.pointerId === stickId) { let dx = e.clientX - stickC[0], dy = e.clientY - stickC[1]; const l = Math.hypot(dx, dy), mx = 52; if (l > mx) { dx *= mx / l; dy *= mx / l; } this.$('knob').style.transform = `translate(${dx}px,${dy}px)`; P.input.set(dx / mx, dy / mx); return; }
@@ -175,10 +178,10 @@ export class LiveGame {
       const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; p.moved += Math.abs(dx) + Math.abs(dy);
       if (ptr.size === 2 && pinch) { const [a, b] = [...ptr.values()]; C.zoom = Math.max(0.5, Math.min(128, pinch.z * pinch.d / Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)))); return; }
       if (this.touch || (e.buttons & 2)) { C.yaw -= dx * 0.0065; C.pitch = Math.max(-1.4, Math.min(1.4, C.pitch + dy * 0.005)); }
-      this.uis('InputChanged', this.inputObject(this.touch ? 'Touch' : 'MouseMovement', 'Change', null, [e.clientX, e.clientY], [dx, dy])); });
+      if (this.touch) { this.ioMove(p.io, 'Change', e.clientX, e.clientY, dx, dy); this.uis('InputChanged', p.io); } else this.uis('InputChanged', this.inputObject('MouseMovement', 'Change', null, [e.clientX, e.clientY], [dx, dy])); });
     const up = (e) => { if (e.pointerId === stickId) { stickId = null; P.input.set(0, 0); this.$('knob').style.transform = ''; this.$('stick').classList.remove('on'); return; }
       const p = ptr.get(e.pointerId); if (!p) return; ptr.delete(e.pointerId); if (ptr.size < 2) pinch = null;
-      this.uis('InputEnded', this.inputObject(this.touch ? 'Touch' : p.b === 2 ? 'MouseButton2' : 'MouseButton1', 'End', null, [e.clientX, e.clientY]));
+      this.ioMove(p.io, 'End', e.clientX, e.clientY, 0, 0); this.uis('InputEnded', p.io);
       if (p.moved < 10 && performance.now() - p.t < 400 && p.b !== 2) { this.activate(e.clientX, e.clientY); if (this.touch) { const s = this.engine.service('UserInputService').sigs.get('TouchTap'); if (s) s.fire([LuaTable.from([new Vector3(e.clientX, e.clientY - 58, 0)]), false]); } } };
     on(view, 'pointerup', up); on(view, 'pointercancel', up); on(view, 'contextmenu', (e) => e.preventDefault());
     on(view, 'wheel', (e) => { e.preventDefault(); C.zoom = Math.max(0.5, Math.min(128, C.zoom * (e.deltaY > 0 ? 1.25 : 0.8))); this.uis('InputChanged', this.inputObject('MouseWheel', 'Change', null, [e.clientX, e.clientY], [0, -Math.sign(e.deltaY)])); }, { passive: false });

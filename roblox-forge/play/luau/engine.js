@@ -13,11 +13,11 @@
      Motor6D, Weld, WeldConstraint) → PostSimulation / Heartbeat → waiting
      threads → tweens (TweenService with all Roblox easing styles).
    ===================================================================== */
-import { parse, Interpreter, createGlobals, LuaTable, LuaError, call, callGen, tostr } from './luau.js?v=9';
-import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, UDim2 } from './roblox.js?v=9';
-import { installServices, loadPlace } from './runner.js?v=9';
-import { AnimSystem } from './anim.js?v=9';
-import { SoundSystem } from './sound.js?v=9';
+import { parse, Interpreter, createGlobals, LuaTable, LuaError, call, callGen, tostr } from './luau.js?v=10';
+import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, UDim2 } from './roblox.js?v=10';
+import { installServices, loadPlace } from './runner.js?v=10';
+import { AnimSystem } from './anim.js?v=10';
+import { SoundSystem } from './sound.js?v=10';
 
 const fn = (f) => f;
 const D2R = Math.PI / 180;
@@ -105,10 +105,11 @@ export class LiveEngine {
       { ygen: function* (a) { const h = a[0].props.get('OnServerInvoke'); if (!h) return []; const prev = eng.I.side; eng.I.side = 'server'; try { return (yield* callGen(h, [eng.player, ...a.slice(1).map((x) => netCopy(x))])).map((x) => netCopy(x)); } finally { eng.I.side = prev; } } });
     CM.Workspace.Raycast = fn((a) => [eng.raycast ? eng.raycast(a[1], a[2], a[3]) : undefined]);
     CM.Workspace.GetServerTimeNow = fn(() => [eng.serverTime()]);
-    CM.Camera.WorldToViewportPoint = fn((a) => eng.worldToScreen ? eng.worldToScreen(a[1]) : [new Vector3(0, 0, 1), true]);
-    CM.Camera.WorldToScreenPoint = CM.Camera.WorldToViewportPoint;
+    // Viewport* = whole screen; Screen* = below the top bar inset (58 px), like Roblox
+    CM.Camera.WorldToViewportPoint = fn((a) => eng.worldToScreen ? eng.worldToScreen(a[1], 0) : [new Vector3(0, 0, 1), true]);
+    CM.Camera.WorldToScreenPoint = fn((a) => eng.worldToScreen ? eng.worldToScreen(a[1], 58) : [new Vector3(0, 0, 1), true]);
     CM.Camera.ViewportPointToRay = fn((a) => [eng.screenRay ? eng.screenRay(a[1], a[2]) : new Simple('Ray', { Origin: new Vector3(), Direction: new Vector3(0, 0, -1) })]);
-    CM.Camera.ScreenPointToRay = CM.Camera.ViewportPointToRay;
+    CM.Camera.ScreenPointToRay = fn((a) => [eng.screenRay ? eng.screenRay(a[1], a[2] + 58) : new Simple('Ray', { Origin: new Vector3(), Direction: new Vector3(0, 0, -1) })]);
     CM.UserInputService.GetMouseLocation = fn(() => [new Vector2(eng.input.mx, eng.input.my)]);
     CM.UserInputService.GetLastInputType = fn(() => [enumItem('UserInputType', eng.input.touch ? 'Touch' : 'MouseButton1')]);
     CM.UserInputService.IsKeyDown = fn((a) => [eng.input.keys.has(a[1] && a[1].name)]);

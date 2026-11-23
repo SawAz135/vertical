@@ -13,11 +13,12 @@
    - collisions for the player and Workspace:Raycast for scripts.
    ===================================================================== */
 import * as THREE from 'three';
-import { World, material, studMat, partGeo, colliderGeo, sizeOf, studTop, voxMat, matTex } from '../world.js?v=9';
-import { headGeo, faceTex } from '../avatar.js?v=9';
-import { isA, EnumItem, Color3, Vector3 } from '../luau/engine.js?v=9';
+import { World, material, studMat, partGeo, colliderGeo, sizeOf, studTop, voxMat, matTex } from '../world.js?v=10';
+import { headGeo, faceTex } from '../avatar.js?v=10';
+import { isA, EnumItem, Color3, Vector3 } from '../luau/engine.js?v=10';
 import * as MC from '../../map/map-core.js';
-import { meshSpec, meshGeometry, meshTexture } from './mesh.js?v=9';
+import { meshSpec, meshGeometry, meshTexture } from './mesh.js?v=10';
+import { BeamSystem } from './beams.js?v=10';
 
 const MAT_OK = new Set(['Plastic', 'SmoothPlastic', 'Neon', 'Wood', 'WoodPlanks', 'Brick', 'Cobblestone', 'Concrete', 'Slate', 'Granite', 'Marble', 'Basalt', 'Rock', 'Pebble', 'Grass', 'LeafyGrass', 'Sand', 'Snow', 'Ice', 'Glacier', 'Glass', 'ForceField', 'Metal', 'DiamondPlate', 'CorrodedMetal', 'Foil', 'Fabric', 'Asphalt', 'Pavement', 'CrackedLava', 'Sandstone']);
 const MAT_ALIAS = { Limestone: 'Sandstone', Mud: 'Grass', Ground: 'Grass', Salt: 'Sand', Cardboard: 'WoodPlanks', Carpet: 'Fabric', Leather: 'Fabric', Plaster: 'Concrete', Rubber: 'SmoothPlastic', Water: 'Glass', Air: 'Glass' };
@@ -40,7 +41,7 @@ const cfMat = (cf, m = new THREE.Matrix4()) => { const r = cf.r, p = cf.p; retur
 export class LiveWorld extends World {
   constructor(renderer, quality, engine) {
     super(renderer, quality); this.E = engine; this.THREE = THREE; this.live = new Map(); this.groups = new Map(); this.partGroup = new Map(); this.dirtyGroups = new Set(); this.colliderOf = new Map();
-    this.lights = []; this.particles = []; this.tmpM = new THREE.Matrix4(); this.map = { lighting: { preset: 'jour', over: {} }, root: { children: [] } };
+    this.lights = []; this.particles = []; this.beams = new BeamSystem(this, engine); this.tmpM = new THREE.Matrix4(); this.map = { lighting: { preset: 'jour', over: {} }, root: { children: [] } };
     engine.onTrack = (o, p, inWorld) => this.onTrack(o, inWorld);
     const prev = engine.rt.onChange; engine.rt.onChange = (o, k) => { prev?.(o, k); this.onChange(o, k); };
   }
@@ -169,7 +170,8 @@ export class LiveWorld extends World {
   update(dt) {
     for (const e of this.live.values()) { const o = e.o; if (!o.parent) continue; const k = this.lookKey(o); if (k !== e.key) this.makeMesh(e); else this.place(e); }
     let n = 0; for (const g of this.dirtyGroups) { this.rebuildGroup(g); this.dirtyGroups.delete(g); if (++n > 3) break; }
-    if (this.effectsDirty) this.scanEffects();
+    if (this.effectsDirty) { this.scanEffects(); this.beams.dirty = true; }
+    this.beams.update(dt);
     for (const { l, obj } of this.lights) { const part = l.parent, cf = part && part.props && part.props.get('CFrame'); if (cf) obj.position.set(cf.p[0], cf.p[1], cf.p[2]); obj.visible = l.props.get('Enabled') !== false; obj.intensity = (l.props.get('Brightness') ?? 1) * 5; obj.distance = l.props.get('Range') ?? 8; }
     this.stepParticles(dt);
     if (this.lightDirty || (this.E.frameN % 30 === 0)) this.applyLighting();

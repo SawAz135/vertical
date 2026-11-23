@@ -8,7 +8,7 @@
    reads as nil and an unknown service is an empty Instance, so scripts
    get as far as they can without a full engine.
    ===================================================================== */
-import { LuaTable, LuaError, call, callGen, tostr, typeOf, isTruthy } from './luau.js?v=9';
+import { LuaTable, LuaError, call, callGen, tostr, typeOf, isTruthy } from './luau.js?v=10';
 
 const err = (m) => { throw new LuaError(m); };
 const num = (v, d = 0) => (typeof v === 'number' ? v : v === undefined || v === null ? d : +v || d);
@@ -364,6 +364,13 @@ function setDerived(o, k, v) {
     if (k === 'Orientation' || k === 'Rotation') { const cf = o.props.get('CFrame'), r = mul3(mul3(ry(v.y * D2R), rx(v.x * D2R)), rz(v.z * D2R)); o.props.set('CFrame', new CFrame(cf.p, r)); o.changed('CFrame'); return true; }
     if (k === 'BrickColor') { o.props.set('Color', v.get('Color')); o.changed('Color'); return true; }
     if (k === 'Size' && v instanceof Vector3) { o.props.set('Size', new Vector3(Math.max(0.001, Math.min(2048, v.x)), Math.max(0.001, Math.min(2048, v.y)), Math.max(0.001, Math.min(2048, v.z)))); return true; }
+  }
+  if (o.cls === 'Attachment' || o.cls === 'Bone') { const cf = o.props.get('CFrame') || new CFrame(), par = o.parent && o.parent.props && o.parent.props.get('CFrame');
+    if (k === 'Position' && v instanceof Vector3) { o.props.set('CFrame', new CFrame([v.x, v.y, v.z], cf.r)); o.changed('CFrame'); return true; }
+    if (k === 'Orientation' && v instanceof Vector3) { o.props.set('CFrame', new CFrame(cf.p, mul3(mul3(ry(v.y * D2R), rx(v.x * D2R)), rz(v.z * D2R)))); o.changed('CFrame'); return true; }
+    if (k === 'WorldPosition' && v instanceof Vector3) { const l = par ? par.inverse().pointToWorld(v) : v; o.props.set('CFrame', new CFrame([l.x, l.y, l.z], cf.r)); o.changed('CFrame'); return true; }
+    if (k === 'WorldCFrame' && v instanceof CFrame) { o.props.set('CFrame', par ? par.inverse().mulCF(v) : v); o.changed('CFrame'); return true; }
+    if (k === 'WorldOrientation' && v instanceof Vector3) { const w = new CFrame([0, 0, 0], mul3(mul3(ry(v.y * D2R), rx(v.x * D2R)), rz(v.z * D2R))); const l = par ? new CFrame([0, 0, 0], par.r).inverse().mulCF(w) : w; o.props.set('CFrame', new CFrame(cf.p, l.r)); o.changed('CFrame'); return true; }
   }
   if (o.cls === 'Model' && k === 'WorldPivot') { o.props.set('WorldPivot', v); return true; }
   if (o.cls === 'Lighting' && k === 'TimeOfDay') { const m = String(v).match(/^(\d+):(\d+)/); if (m) o.props.set('ClockTime', +m[1] + +m[2] / 60); o.props.set('TimeOfDay', v); return true; }

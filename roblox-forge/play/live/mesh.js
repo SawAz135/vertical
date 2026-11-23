@@ -16,7 +16,7 @@
    ===================================================================== */
 import * as THREE from 'three';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-import { fetchAsset, assetId, imageURL } from '../assets.js?v=9';
+import { fetchAsset, assetId, imageURL } from '../assets.js?v=10';
 
 const dec = new TextDecoder();
 /* ---------- parsing ---------- */

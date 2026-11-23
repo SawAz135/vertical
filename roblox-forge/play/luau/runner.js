@@ -10,8 +10,8 @@
    4. Workspace's parts (and Lighting) come back as a Forge map.
    Client scripts and the game loop are not run here.
    ===================================================================== */
-import { parse, Interpreter, createGlobals, LuaTable, LuaError, tostr, call } from './luau.js?v=9';
-import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, bounds, UDim2, UDim, NumberRange, Keypoint, KNOWN_VALUES } from './roblox.js?v=9';
+import { parse, Interpreter, createGlobals, LuaTable, LuaError, tostr, call } from './luau.js?v=10';
+import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, bounds, UDim2, UDim, NumberRange, Keypoint, KNOWN_VALUES } from './roblox.js?v=10';
 
 const fn = (f) => f;
 const dec = new TextDecoder();
