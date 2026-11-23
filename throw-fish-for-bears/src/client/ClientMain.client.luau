@@ -99,6 +99,7 @@ Capture.Flash = Notify.flash
 Capture.init()
 Ambience.init()
 require(Controllers.WaterFlow).init()
+require(Controllers.LakeLife).init()
 require(Controllers.FishUpController).init(require(UI.Sim))
 require(Controllers.FisherController).init(HUD)
 require(Controllers.GamepadController).init(Menus)

@@ -540,7 +540,18 @@ local function step(dt: number)
 			elseif s.phase == "Bite" then
 				target = 0.3 + math.abs(math.sin(s.t * 18)) * 0.2
 			else
-				target = 0.04 + math.sin(now * 2) * 0.015
+				-- waiting: a fish NIBBLES now and then: the rod tip shivers in small quick taps
+				-- (and the line twitches the bobber); stronger and more frequent as time goes
+				local seed = (player.UserId % 97) * 0.37
+				local nib = math.max(0, math.sin(now * 0.8 + seed) - 0.82) * 5.5
+				target = 0.04 + math.sin(now * 2) * 0.015 + nib * (0.05 + 0.07 * math.abs(math.sin(now * 31)))
+				if nib > 0.3 and s.bobber and s.bobber.PrimaryPart then
+					s.nibT = (s.nibT or 0) - dt
+					if s.nibT <= 0 then
+						s.nibT = 0.45
+						Fx.ripple(s.bobber.PrimaryPart.Position, 0.35)
+					end
+				end
 			end
 			s.bendV = (s.bendV or 0) + ((target - s.bend) * 260 - (s.bendV or 0) * 14) * dt
 			s.bend += s.bendV * dt
