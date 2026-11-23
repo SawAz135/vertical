@@ -360,46 +360,17 @@ local function onThrow(player: Player, d)
 			if d.ok then
 				task.delay(0.12, function() if model.Parent then model:Destroy() end end)
 			else
-				-- MISSED: three cartoon bounces (each lower, quicker), the fish flops sideways,
-				-- squashes on every landing, wiggles, then pops out in a puff
 				local t0 = os.clock()
 				local c2
-				local BOUNCES = { { 0.5, 3.4 }, { 0.36, 1.7 }, { 0.26, 0.7 } }
-				local total = 0
-				for _, b in BOUNCES do total += b[1] end
-				total += 0.35 -- lying flopping at the end
-				local landed = 0
 				c2 = RunService.RenderStepped:Connect(function()
-					local el = os.clock() - t0
-					if el >= total or not model.Parent then
+					local k = (os.clock() - t0) / 0.5
+					if k >= 1 or not model.Parent then
 						c2:Disconnect()
-						Fx.puff(d.to + Vector3.new(0, 0.8, 0), Color3.new(1, 1, 1), 10, 2.2)
-						Fx.blocks(d.to + Vector3.new(0, 0.8, 0), Color3.fromRGB(255, 255, 255), 8, 6, 0.18, { life = 0.6, up = 1.5, spread = 1.5, gravity = 30 })
-						Sound.play("Notify", { at = d.to, pitch = 1.4, volume = 0.5 })
+						Fx.puff(d.to + Vector3.new(0, 1, 0), Color3.new(1, 1, 1), 8, 2)
 						if model.Parent then model:Destroy() end
 						return
 					end
-					local acc, h, sq, spin = 0, 0, 0, 0
-					for i, b in BOUNCES do
-						if el >= acc and el < acc + b[1] then
-							local u = (el - acc) / b[1]
-							h = 4 * b[2] * u * (1 - u)
-							sq = if u < 0.12 then (1 - u / 0.12) * 0.35 else 0
-							spin = (i + u) * 3.2
-							if u < 0.05 and landed < i then
-								landed = i
-								Sound.play("Flop", { at = d.to, volume = 0.6, pitch = 1.1 + i * 0.1 })
-								Fx.dust(d.to, 0.5 / i)
-							end
-						end
-						acc += b[1]
-					end
-					if el >= acc then
-						-- lying on its side, flopping
-						h = 0.25 + math.abs(math.sin(el * 22)) * 0.25
-						spin = 10 + math.sin(el * 18) * 0.35
-					end
-					model:PivotTo(CFrame.new(d.to + Vector3.new(0, 0.9 + h - sq * 0.4, 0)) * CFrame.Angles(0, yaw, spin) * CFrame.Angles(math.sin(el * 25) * 0.25, 0, 0))
+					model:PivotTo(CFrame.new(d.to + Vector3.new(0, 1.2 + 2.5 * Easing.bump(k), 0)) * CFrame.Angles(0, yaw, k * 6))
 				end)
 			end
 		end

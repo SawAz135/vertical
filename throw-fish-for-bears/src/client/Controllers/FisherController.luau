@@ -458,7 +458,7 @@ end
 -- the idle schedule while sitting: what he's doing at time `w` into the wait
 local function waitAct(e, w: number, d: number): (string?, number)
 	if d < 3.2 then return nil, 0 end
-	local acts = { "look", "thermos", "check", "swing", "yawn", "scratch", "rebait", "stretch" }
+	local acts = { "look", "thermos", "check", "swing" }
 	local start = 1.2
 	local slot = math.floor((w - start) / 2.6)
 	if w < start or slot < 0 then return nil, 0 end
@@ -502,29 +502,6 @@ function P.Wait(e, p, x, t, d, w)
 		elseif act == "swing" then
 			p.KneeL += V3(sin(t * 4) * 0.35 * b, 0, 0)
 			p.KneeR += V3(sin(t * 4 + PI) * 0.35 * b, 0, 0)
-		elseif act == "yawn" then
-			-- a big yawn: free hand over the mouth, head tips back, shoulders rise
-			p.ShoulderL = p.ShoulderL:Lerp(V3(1.7, 0.3, 0.05), b)
-			p.ElbowL = p.ElbowL:Lerp(V3(1.9, 0, 0), b)
-			p.Neck += V3(-0.3 * b, 0, 0.1 * b)
-			p.Waist += V3(-0.08 * b, 0, 0)
-		elseif act == "scratch" then
-			-- scratches the back of his head (cap pushed up), quick scrubbing
-			p.ShoulderL = p.ShoulderL:Lerp(V3(2.5, 0.6, 0.45), b)
-			p.ElbowL = p.ElbowL:Lerp(V3(2.2 + sin(t * 14) * 0.25, 0, 0), b)
-			p.Neck += V3(0.08 * b, sin(t * 3) * 0.1 * b, 0)
-		elseif act == "rebait" then
-			-- checks the hook: reels a few cranks and looks at it
-			p.ShoulderL = p.ShoulderL:Lerp(V3(1.0, -0.2, 0.2), b)
-			p.ElbowL = p.ElbowL:Lerp(V3(1.1, 0, 0), b)
-			p.WristL = V3(sin(t * 12) * 0.5 * b, 0, 0)
-			p.Neck += V3(0.35 * b, 0, 0)
-		elseif act == "stretch" then
-			-- arms up and back, back arched, a little shiver at the top
-			p.ShoulderL = p.ShoulderL:Lerp(V3(3.1, 0.2, 0.3), b)
-			p.ElbowL = p.ElbowL:Lerp(V3(0.1, 0, 0), b)
-			p.Waist += V3(-0.15 * b + sin(t * 20) * 0.01 * b, 0, 0)
-			p.Neck += V3(-0.2 * b, 0, 0)
 		end
 	end
 	p.bend = 0.06 + sin(t * 1.3) * 0.015
