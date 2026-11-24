@@ -189,15 +189,9 @@ local function buildCompound(map, rand)
 	local cy = Layout.CORRIDOR_Y
 	-- 1) the plateau's FRONT CLIFF above the trench (face looks down the corridor), low grass lip
 	Props.cliffFace(map, V3(-H, 0, c.minZ + 2), V3(H, 0, c.minZ + 2), cy, 0, V3(0, 0, -1), CLIFF.forest, rand, LOW_RIM)
-	-- invisible wall along the edge (the ramp stays open)
-	local rp = Layout.RAMP
-	Props.invisibleWall(map, V3(-H - 4, 0, c.minZ - 0.4), V3(rp.minX, 0, c.minZ - 0.4), 0, 40)
-	-- the trench wall top next to the ramp: nobody walks onto the cliff rim
-	Props.invisibleWall(map, V3(H + 0.4, 0, c.minZ), V3(H + 0.4, 0, c.minZ - Layout.DESCENT_LEN - 6), cy, 60)
-	Props.invisibleWall(map, V3(rp.maxX, 0, c.minZ + 0.6), V3(H + 6, 0, c.minZ + 0.6), 0, 40)
-	-- 2) the RAMP (right, along the corridor wall): down into the trench and back up
-	Studs.static(map, "Ramp", V3(rp.maxX - rp.minX, Layout.CORRIDOR_DEPTH, Layout.DESCENT_LEN),
-		CF((rp.minX + rp.maxX) / 2, cy + Layout.CORRIDOR_DEPTH / 2, c.minZ - Layout.DESCENT_LEN / 2), C(150, 150, 158), { wedge = true })
+	-- invisible wall along the whole edge: nobody goes down into the corridor (no stairs, no
+	-- ramp: the fish flies down there, GO BACK brings you home after a capture)
+	Props.invisibleWall(map, V3(-H - 6, 0, c.minZ - 0.4), V3(H + 6, 0, c.minZ - 0.4), 0, 40)
 	-- 3) the PLATEAU WALLS: the same dirt-checker cliffs as the corridor, just as high (20),
 	--    all around the spawn (front corners beside the trench, both sides, behind the lake),
 	--    grass rim on top with still decor (birches, blocky trees, sunflowers, mushrooms)
@@ -260,29 +254,7 @@ local function buildCompound(map, rand)
 	line(Layout.FRONT.maxZ + 1, c.minX + 3, c.maxX - 3)
 	line(Layout.SAND.minZ - 0.5, c.minX + 3, c.maxX - 3)
 	Props.groundLabel(map, V3(0, 0, Layout.THROW_AREA.maxZ - 6), 44, 8, "THROW ZONE")
-	-- 4) the front plaza, both sides of the throw zone: birches, bushes, flowers, sunflowers,
-	--    mushrooms (kept away from the SELL / SHOP stalls, the lines and the FISH-UP stations)
-	local function free(p: Vector3): boolean
-		if (p - Layout.SELL_POS).Magnitude < 13 or (p - Layout.SHOP_POS).Magnitude < 13 then return false end
-		for i = 1, #Layout.BASE_CENTERS do
-			if (p - Layout.trainPos(i)).Magnitude < 10 then return false end
-		end
-		return math.abs(p.X) > ta.maxX + 4 and math.abs(p.X) < c.maxX - 4
-	end
-	local placed = 0
-	for _ = 1, 400 do
-		if placed >= 70 then break end
-		local p = V3((rand:NextNumber() * 2 - 1) * (c.maxX - 6), 0, c.minZ + 4 + rand:NextNumber() * (Layout.FRONT.maxZ - c.minZ - 8))
-		if free(p) then
-			placed += 1
-			local roll = rand:NextNumber()
-			if roll < 0.12 then Props.birch(map, p, 0.75 + rand:NextNumber() * 0.3, rand)
-			elseif roll < 0.25 then Props.bush(map, p, 0.8, rand)
-			elseif roll < 0.45 then Props.sunflower(map, p, rand)
-			elseif roll < 0.6 then Props.mushroom(map, p, 0.8 + rand:NextNumber() * 0.4)
-			else Props.flower(map, p, rand) end
-		end
-	end
+	-- (no decor on the spawn floor: it stays clean around the bases; the decor is on the walls)
 end
 
 local function buildBases(map)

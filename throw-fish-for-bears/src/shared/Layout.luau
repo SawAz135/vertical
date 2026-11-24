@@ -75,9 +75,7 @@ Layout.CORRIDOR_HALF = 72 -- a bit wider than before (60), still a corridor; the
 Layout.CORRIDOR_START_Z = -24
 Layout.CORRIDOR_Y = -20
 Layout.CORRIDOR_DEPTH = 20
--- the ramp (right side, along the corridor wall) between the plateau and the trench
-Layout.RAMP = { minX = 58, maxX = 72 }
-Layout.DESCENT_LEN = 40
+Layout.DESCENT_LEN = 20 -- clear strip at the corridor entrance (no stairs / ramp any more)
 Layout.ZONE_LENGTH = 300
 Layout.ZONE_COUNT = 10 -- Green Forest -> Tropical Beach (ZoneConfig)
 Layout.CORRIDOR_END_Z = Layout.CORRIDOR_START_Z - Layout.ZONE_LENGTH * Layout.ZONE_COUNT
@@ -174,7 +172,7 @@ end
 function Layout.zoneDens(i: number): { Vector3 }
 	local a = Layout.zoneRange(i)
 	local dens = {}
-	local first = if i == 1 then Layout.DESCENT_LEN + 12 else 0 -- not on the stairs / ramp
+	local first = if i == 1 then Layout.DESCENT_LEN + 12 else 0 -- off the entrance strip
 	for k = 0, 5 do
 		local z = a - 25 - first - k * 44
 		table.insert(dens, Vector3.new(-(Layout.CORRIDOR_HALF - 12), Layout.CORRIDOR_Y, z))
@@ -187,7 +185,7 @@ end
 function Layout.zoneRoamRects(i: number)
 	local a, b = Layout.zoneRange(i)
 	local top = a - 14
-	if i == 1 then top = a - Layout.DESCENT_LEN - 10 end -- keep off the stairs / ramp
+	if i == 1 then top = a - Layout.DESCENT_LEN - 10 end -- off the entrance strip
 	return {
 		{ minX = -(Layout.CORRIDOR_HALF - 6), maxX = -22, minZ = b + 14, maxZ = top },
 		{ minX = 22, maxX = Layout.CORRIDOR_HALF - 6, minZ = b + 14, maxZ = top },

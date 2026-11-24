@@ -113,6 +113,29 @@ local function onPlayer(player: Player)
 	if player.Character then onCharacter(player, player.Character) end
 end
 
+-- nobody can walk down into the corridor (no stairs / ramp): a player who ends up down there
+-- anyway (fell, glitched) is sent back to their base after a moment
+task.spawn(function()
+	local below = {}
+	while true do
+		task.wait(1)
+		for _, p in Players:GetPlayers() do
+			local char = p.Character
+			local root = char and char:FindFirstChild("HumanoidRootPart")
+			local base = R.BaseService.get(p)
+			if root and base and root.Position.Y < Layout.CORRIDOR_Y + 8 and Layout.inTrench(root.Position) then
+				below[p] = (below[p] or 0) + 1
+				if below[p] >= 2 then
+					below[p] = nil
+					char:PivotTo(Layout.baseSpawn(base))
+				end
+			else
+				below[p] = nil
+			end
+		end
+	end
+end)
+
 Players.PlayerAdded:Connect(onPlayer)
 for _, p in Players:GetPlayers() do task.spawn(onPlayer, p) end
 
