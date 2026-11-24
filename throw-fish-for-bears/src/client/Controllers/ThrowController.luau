@@ -357,7 +357,15 @@ local function onThrow(player: Player, d)
 				end
 				for _, ch in chunks do ch.p:Destroy() end
 			end)
-			if d.ok then
+			if d.ok and isLocal then
+				-- the fish stays on the ground: the capture reveal TRANSFORMS this very fish into
+				-- the "1 IN ?" silhouette (CaptureController takes it; removed if nobody does)
+				local fh = model:GetAttribute("Height") or 1
+				model:PivotTo(CFrame.new(d.to + Vector3.new(0, fh * 0.32 - 0.05, 0)) * CFrame.Angles(0, yaw, math.pi / 2))
+				model:SetAttribute("Anim", "Flop")
+				model.Name = "TFBLandedFish"
+				task.delay(20, function() if model.Parent and model.Name == "TFBLandedFish" then model:Destroy() end end)
+			elseif d.ok then
 				task.delay(0.12, function() if model.Parent then model:Destroy() end end)
 			else
 				local t0 = os.clock()

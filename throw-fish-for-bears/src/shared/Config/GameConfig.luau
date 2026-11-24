@@ -33,23 +33,12 @@ return {
 		minLandingDepth = 8, -- studs past the throw line to count as "in the zone"
 	},
 	Capture = {
-		alert = 0.7, -- bear notices the fish
-		runSpeed = 26, -- studs/s at scale 1
-		arrive = 1.3, sniff = 1.2, eat = 3.7, happy = 1.2, transform = 0.5, -- transform = the "poof" before the bear appears in your hands
-		-- seconds into the eat stage: snatch the fish, TOSS it up (apex), it falls back in slow
-		-- motion into the open jaws (fish POV), CHOMP, swallow
-		pickupAt = 0.35, tossAt = 0.8, tossApex = 1.7, chompAt = 2.6, swallowAt = 3.15, -- tossApex = the top of the real arc
-		returnTimeout = 300,
-		sprintMultiplier = 1.35,
-		maxSpeedTolerance = 1.7, -- anti teleport (x max legal speed)
-		arrivalHappy = 0.7,
-		-- the rarity reveal (bear frozen in front of the fish): roulette spin, then optional luck climb
-		-- reveal: 6 body parts uncovered one by one (luck + size counters climb), then name / rarity
-		-- the reveal, in STAGES (the bear in full colour, growing from small to its real size):
-		-- RARITY (casino ticker) -> MUTATION (only if Golden / Diamond / Rainbow: colour wave)
-		-- -> LUCK (bear grows) -> KG (bear grows to its real size) -> final slam + roar + name
-		revealRarity = 2.0, revealMutation = 1.8, revealLuck = 1.9, revealKg = 2.2, revealFinal = 2.0, -- ~10 s in all
-		revealStartScale = 0.45, -- size of the bear when the reveal starts (x its real size)
+		-- the "1 IN ?" reveal (client timeline, the server only waits for its end):
+		-- transform = the landed fish turns into a black silhouette + star burst
+		-- spin      = the silhouette morphs between animals (fast, then slower and slower) and grows
+		-- hold      = the last silhouette trembles, the heartbeat races, a beat of silence
+		-- result    = the animal in colour + rarity / NAME / NEW! / $/s / 1 IN X
+		Reveal = { transform = 0.55, spin = 5.2, hold = 0.9, result = 1.4, total = 8.05, autoBack = 25 },
 		-- LUCK BONUS rolled by the server during the reveal: rerolls the rarity with luck x mult
 		-- and keeps the better result (only shown when it really upgrades the bear)
 		luckBonus = { { mult = 25, chance = 0.003 }, { mult = 10, chance = 0.012 }, { mult = 5, chance = 0.05 }, { mult = 2, chance = 0.14 } },

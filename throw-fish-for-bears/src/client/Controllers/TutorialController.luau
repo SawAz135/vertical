@@ -129,9 +129,12 @@ STEPS = {
 		end,
 	},
 	{ -- 8
-		icon = "🐻", text = 'A bear smells your fish... <font color="#7CFF46">watch it come!</font>',
+		icon = "❓", text = 'Your fish turns into... <font color="#FFD23F">1 IN ?</font> Then tap <font color="#3CB4FF">GO BACK</font>!',
 		enter = function() entered.bears = bearCounts() end,
-		done = function() return state() == "CarryingCapturedBear" or (bearCounts()) > (entered.bears or 0) end,
+		done = function()
+			local st = state()
+			return (st == "CarryingCapturedBear" or st == "Idle") and (bearCounts()) > (entered.bears or 0)
+		end,
 		back = function()
 			if state() == "Idle" and (bearCounts()) <= (entered.bears or 0) then
 				return if holding() == "Fish" then 6 elseif fishCount() > 0 then 5 else 1
@@ -140,7 +143,7 @@ STEPS = {
 		end,
 	},
 	{ -- 9
-		icon = "🏠", text = 'It\'s yours! Go home and <font color="#7CFF46">tap inside your base</font> to place it!',
+		icon = "🏠", text = 'It\'s yours! <font color="#7CFF46">Tap inside your base</font> to place it!',
 		target = function() local b = base() return b and Layout.BASE_CENTERS[b] end,
 		enter = function() local _, placed = bearCounts() entered.placed = placed end,
 		done = function() local _, placed = bearCounts() return placed > (entered.placed or 0) or (placed > 0 and state() == "Idle" and holding() ~= "Bear") end,
