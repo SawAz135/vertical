@@ -126,7 +126,7 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 	end
 	fm.PrimaryPart.Anchored = true -- root anchored, joints stay animatable (flop)
 	local fh = fm:GetAttribute("Height") or 1
-	fm:PivotTo(CFrame.new(landing.X, fh * 0.32 + 0.15, landing.Z) * CFrame.Angles(0, rand:NextNumber() * 6.28, math.pi / 2))
+	fm:PivotTo(CFrame.new(landing.X, Layout.groundY(landing) + fh * 0.32 + 0.15, landing.Z) * CFrame.Angles(0, rand:NextNumber() * 6.28, math.pi / 2))
 	fm.Name = "LandedFish"
 	fm:SetAttribute("Anim", "Flop")
 	fm.Parent = R.MapService.fxFolder
@@ -143,7 +143,7 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 	end
 	local agent = R.BearAI.spawn({
 		species = outcome.s, weight = outcome.w, variant = outcome.v, rarity = outcome.r,
-		cf = CFrame.lookAt(den, Vector3.new(landing.X, 0, landing.Z)), mode = "Responder",
+		cf = CFrame.lookAt(den, Vector3.new(landing.X, den.Y, landing.Z)), mode = "Responder",
 	})
 	c.agent = agent
 	agent:setAnim("Idle")
@@ -375,7 +375,7 @@ function CaptureService.fail(player: Player, reason: string)
 		local dens = Layout.zoneDens(c.zone)
 		local agent = R.BearAI.spawn({
 			species = c.outcome.s, weight = c.outcome.w, variant = c.outcome.v, rarity = c.outcome.r,
-			cf = CFrame.new(pos.X, 0, pos.Z), mode = "Return",
+			cf = CFrame.new(pos.X, Layout.groundY(pos), pos.Z), mode = "Return",
 		})
 		agent:moveTo({ dens[1] }, 14, "Run", function(a) a:destroy() end)
 		task.delay(40, function()
@@ -473,7 +473,7 @@ function CaptureService.spawnAmbient()
 		for k, species in z.ambient do
 			local r = rects[(k - 1) % #rects + 1]
 			local spec = BearConfig.get(species)
-			local p = Vector3.new((r.minX + r.maxX) / 2, 0, r.minZ + (r.maxZ - r.minZ) * (k / (#z.ambient + 1)))
+			local p = Vector3.new((r.minX + r.maxX) / 2, Layout.CORRIDOR_Y, r.minZ + (r.maxZ - r.minZ) * (k / (#z.ambient + 1)))
 			local agent = R.BearAI.spawn({
 				species = species, weight = spec.weight.min + (spec.weight.ref - spec.weight.min) * rand:NextNumber(),
 				cf = CFrame.new(p) * CFrame.Angles(0, rand:NextNumber() * 6.28, 0), mode = "Zone", rects = rects,

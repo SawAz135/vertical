@@ -10,15 +10,15 @@ local Layout = {}
 Layout.GROUND_Y = 0
 Layout.MAX_PLAYERS = 4
 
--- Bases -------------------------------------------------------------------
-Layout.BASE_SIZE = 90
-Layout.BASE_HALF = 45
-Layout.BASE_Z = 115
+-- Bases: 4 SMALL plots side by side (reference: compact garden plots in a row) ---------
+Layout.BASE_SIZE = 64
+Layout.BASE_HALF = 32
+Layout.BASE_Z = 120
 Layout.BASE_CENTERS = {
-	Vector3.new(-144, 0, 115), -- (was +-150 / +-50: bases a bit closer, narrower spawn)
-	Vector3.new(-48, 0, 115),
-	Vector3.new(48, 0, 115),
-	Vector3.new(144, 0, 115),
+	Vector3.new(-102, 0, 120),
+	Vector3.new(-34, 0, 120),
+	Vector3.new(34, 0, 120),
+	Vector3.new(102, 0, 120),
 }
 Layout.BASE_COLORS = {
 	Color3.fromRGB(255, 85, 85),
@@ -30,8 +30,8 @@ Layout.BASE_COLOR_NAMES = { "Red", "Blue", "Green", "Yellow" }
 Layout.BASE_GATE_WIDTH = 16 -- openings in the front and rear fences
 
 -- Lake / docks ------------------------------------------------------------
-Layout.SAND = { minX = -198, maxX = 198, minZ = 160, maxZ = 184 }
-Layout.LAKE = { minX = -203, maxX = 203, minZ = 184, maxZ = 360 }
+Layout.SAND = { minX = -146, maxX = 146, minZ = 160, maxZ = 184 }
+Layout.LAKE = { minX = -150, maxX = 150, minZ = 184, maxZ = 360 }
 Layout.WATER_Y = -1.2
 Layout.DOCK_START_Z = 180
 Layout.DOCK_END_Z = 238
@@ -40,8 +40,8 @@ Layout.DOCK_TOP_Y = 0.8
 Layout.FISH_SPOT_RADIUS = 9 -- distance from the dock end where casting is allowed
 
 -- Front area --------------------------------------------------------------
-Layout.COMPOUND = { minX = -200, maxX = 200, minZ = -24, maxZ = 184 } -- front wall closer to the bases
-Layout.FRONT = { minX = -193, maxX = 193, minZ = -20, maxZ = 68 }
+Layout.COMPOUND = { minX = -150, maxX = 150, minZ = -24, maxZ = 184 } -- front wall closer to the bases
+Layout.FRONT = { minX = -143, maxX = 143, minZ = -20, maxZ = 84 }
 -- throw zone: the whole width between the side walls, from the front wall to the throw line
 Layout.THROW_AREA = { minX = -62, maxX = 62, minZ = -22, maxZ = 0 } -- rectangle in front of the corridor entrance
 Layout.THROW_LINE_Z = -20
@@ -64,7 +64,15 @@ Layout.SPAWN_POS = Vector3.new(0, 0, 40)
 
 -- Corridor and zones ------------------------------------------------------
 Layout.CORRIDOR_HALF = 60
-Layout.CORRIDOR_START_Z = -20
+-- the corridor is a TRENCH: its floor is 20 studs below the plateau (spawn, bases, lake),
+-- the front cliff of the plateau is at z = CORRIDOR_START_Z
+Layout.CORRIDOR_START_Z = -24
+Layout.CORRIDOR_Y = -20
+Layout.CORRIDOR_DEPTH = 20
+-- stairs (left) / ramp (right) from the plateau down into the trench: x ranges, length
+Layout.STAIRS = { minX = -60, maxX = -48 }
+Layout.RAMP = { minX = 48, maxX = 60 }
+Layout.DESCENT_LEN = 40
 Layout.ZONE_LENGTH = 300
 Layout.ZONE_COUNT = 10 -- Green Forest -> Tropical Beach (ZoneConfig)
 Layout.CORRIDOR_END_Z = Layout.CORRIDOR_START_Z - Layout.ZONE_LENGTH * Layout.ZONE_COUNT
@@ -78,7 +86,17 @@ end
 
 function Layout.zoneCenter(i: number): Vector3
 	local a, b = Layout.zoneRange(i)
-	return Vector3.new(0, 0, (a + b) / 2)
+	return Vector3.new(0, Layout.CORRIDOR_Y, (a + b) / 2)
+end
+
+-- inside the trench (the corridor floor, below the plateau)?
+function Layout.inTrench(pos: Vector3): boolean
+	return math.abs(pos.X) <= Layout.CORRIDOR_HALF + 0.5 and pos.Z < Layout.CORRIDOR_START_Z
+end
+
+-- height of the walkable ground under a point (plateau 0, trench CORRIDOR_Y)
+function Layout.groundY(pos: Vector3): number
+	return if Layout.inTrench(pos) then Layout.CORRIDOR_Y else Layout.GROUND_Y
 end
 
 -- zone index at a world position (nil when not inside the corridor)
@@ -136,7 +154,7 @@ end
 
 -- any position a player-controlled bear may legally stand on (compound or corridor)
 function Layout.isWalkable(pos: Vector3): boolean
-	if pos.Y < -8 then return false end
+	if pos.Y < Layout.CORRIDOR_Y - 8 then return false end
 	if inRect(Layout.LAKE, pos, 0) and pos.Z > Layout.DOCK_START_Z + 6 then
 		return false
 	end
@@ -151,10 +169,11 @@ end
 function Layout.zoneDens(i: number): { Vector3 }
 	local a = Layout.zoneRange(i)
 	local dens = {}
+	local first = if i == 1 then Layout.DESCENT_LEN + 12 else 0 -- not on the stairs / ramp
 	for k = 0, 5 do
-		local z = a - 25 - k * 48
-		table.insert(dens, Vector3.new(-(Layout.CORRIDOR_HALF - 12), 0, z))
-		table.insert(dens, Vector3.new(Layout.CORRIDOR_HALF - 12, 0, z - 25))
+		local z = a - 25 - first - k * 44
+		table.insert(dens, Vector3.new(-(Layout.CORRIDOR_HALF - 12), Layout.CORRIDOR_Y, z))
+		table.insert(dens, Vector3.new(Layout.CORRIDOR_HALF - 12, Layout.CORRIDOR_Y, z - 22))
 	end
 	return dens
 end
@@ -162,9 +181,11 @@ end
 -- rectangles in which ambient bears of a zone roam (both sides, centre path kept clear)
 function Layout.zoneRoamRects(i: number)
 	local a, b = Layout.zoneRange(i)
+	local top = a - 14
+	if i == 1 then top = a - Layout.DESCENT_LEN - 10 end -- keep off the stairs / ramp
 	return {
-		{ minX = -(Layout.CORRIDOR_HALF - 6), maxX = -22, minZ = b + 14, maxZ = a - 14 },
-		{ minX = 22, maxX = Layout.CORRIDOR_HALF - 6, minZ = b + 14, maxZ = a - 14 },
+		{ minX = -(Layout.CORRIDOR_HALF - 6), maxX = -22, minZ = b + 14, maxZ = top },
+		{ minX = 22, maxX = Layout.CORRIDOR_HALF - 6, minZ = b + 14, maxZ = top },
 	}
 end
 

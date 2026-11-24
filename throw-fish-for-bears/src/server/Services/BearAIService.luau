@@ -12,6 +12,7 @@ local Shared = ReplicatedStorage.Shared
 local BearBuilder = require(Shared.Models.BearBuilder)
 local BearConfig = require(Shared.Config.BearConfig)
 local GameConfig = require(Shared.Config.GameConfig)
+local Layout = require(Shared.Layout)
 local R = require(script.Parent.Parent.Registry)
 
 local BearAI = {}
@@ -84,7 +85,7 @@ function BearAI.spawn(params)
 
 	local spec = BearConfig.get(params.species)
 	local self = setmetatable({
-		model = model, root = root, ap = ap, ao = ao, rootY = rootY,
+		model = model, root = root, ap = ap, ao = ao, rootY = cf.Position.Y + rootY, -- absolute (plateau or trench)
 		mode = params.mode, rects = params.rects, owner = params.owner, bearId = params.bearId,
 		species = params.species, scale = model:GetAttribute("Scale"), spec = spec,
 		state = "Idle", timer = rand:NextNumber() * 3, target = nil, path = nil,
@@ -148,8 +149,9 @@ local function clearLine(a: Vector3, b: Vector3): boolean
 	local decor = R.MapService.decor
 	if not decor then return true end
 	params.FilterDescendantsInstances = { decor }
-	local from = Vector3.new(a.X, 1.5, a.Z)
-	local to = Vector3.new(b.X, 1.5, b.Z)
+	local gy = Layout.groundY(a) + 1.5 -- knee height above the ground there (plateau or trench)
+	local from = Vector3.new(a.X, gy, a.Z)
+	local to = Vector3.new(b.X, gy, b.Z)
 	return workspace:Raycast(from, to - from, params) == nil
 end
 

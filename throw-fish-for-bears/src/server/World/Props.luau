@@ -117,14 +117,15 @@ function Props.fence(parent: Instance, a: Vector3, b: Vector3, gap: number?)
 		if l < 1 then return end
 		local mid = (p0 + p1) / 2
 		local rot = CFrame.lookAt(mid, mid + d)
-		for _, h in { 1.6, 3.2 } do
-			Studs.static(m, "Rail", V3(0.5, 0.6, l), rot + V3(0, h, 0), Props.WOOD)
+		-- a LOW garden fence (small plots side by side, like the reference)
+		for _, h in { 0.9, 1.9 } do
+			Studs.static(m, "Rail", V3(0.4, 0.5, l), rot + V3(0, h, 0), Props.WOOD)
 		end
-		local n = math.max(1, math.floor(l / 5))
+		local n = math.max(1, math.floor(l / 4))
 		for i = 0, n do
 			local p = p0:Lerp(p1, i / n)
-			Studs.static(m, "Post", V3(1, 4.4, 1), CFrame.lookAt(p + V3(0, 2.2, 0), p + V3(0, 2.2, 0) + d), if i % 2 == 0 then Props.WOOD_DARK else Props.WOOD)
-			Studs.static(m, "PostCap", V3(1.2, 0.4, 1.2), CF(p + V3(0, 4.5, 0)), Studs.shade(Props.WOOD, 1.1))
+			Studs.static(m, "Post", V3(0.8, 2.6, 0.8), CFrame.lookAt(p + V3(0, 1.3, 0), p + V3(0, 1.3, 0) + d), if i % 2 == 0 then Props.WOOD_DARK else Props.WOOD)
+			Studs.static(m, "PostCap", V3(1, 0.35, 1), CF(p + V3(0, 2.75, 0)), Studs.shade(Props.WOOD, 1.1))
 		end
 	end
 	if gap and gap > 0 then
@@ -730,6 +731,174 @@ function Props.fishUpTier(m: Model, tierIndex: number)
 		trophy:PivotTo(CF(post + V3(0, 6.5, -0.4)) * ANG(0, side * math.pi / 2, 0) * ANG(0.35, 0, 0))
 		trophy.Parent = m
 	end
+end
+
+-- ===================== PLATEAU / TRENCH TERRAIN (reference: garden-sim map) =====================
+Props.DIRT_A = C(150, 96, 52)
+Props.DIRT_B = C(124, 76, 40)
+Props.GRASS_TOP = C(96, 200, 40)
+
+local function allStuds(opts)
+	opts = opts or {}
+	opts.allStuds = true
+	return opts
+end
+
+--[[ A CLIFF FACE: a dirt wall in a brown CHECKER (studs on every face), with a stepped GRASS
+     bank on top and grass "drips" hanging over the edge (like the reference).
+     p0 -> p1 : the horizontal line of the wall (centre of its 4-stud thickness)
+     normal   : the direction the visible face looks at (unit, horizontal)
+     style    : { a, b, cap } colours (a / b = checker, cap = grass) ]]
+function Props.cliffFace(parent: Instance, p0: Vector3, p1: Vector3, yBottom: number, yTop: number, normal: Vector3, style: any?, rand: Random, rim: any?)
+	local m = model(parent, "Cliff")
+	local ca, cb = (style and style.a) or Props.DIRT_A, (style and style.b) or Props.DIRT_B
+	local cap = (style and style.cap) or Props.GRASS_TOP
+	local d = p1 - p0
+	local len = d.Magnitude
+	if len < 1 then return m end
+	local along = d.Unit
+	local h = yTop - yBottom
+	local mid = (p0 + p1) / 2
+	local function frameAt(center: Vector3)
+		return CFrame.lookAt(center, center + along) -- X = across (normal axis), Z = along
+	end
+	-- the solid wall (one block, colour A)
+	Studs.static(m, "Wall", V3(4, h, len), frameAt(V3(mid.X, yBottom + h / 2, mid.Z)), ca, allStuds())
+	-- the checker: colour-B tiles laid on the visible face
+	local T = 5
+	local cols = math.max(1, math.floor(len / T + 0.5))
+	local tw = len / cols
+	local rows = math.max(1, math.floor(h / T + 0.5))
+	local th = h / rows
+	for k = 0, cols - 1 do
+		for r = 0, rows - 1 do
+			if (k + r) % 2 == 1 then
+				local c = p0 + along * ((k + 0.5) * tw) + normal * 2.15
+				Studs.static(m, "Tile", V3(0.3, th, tw), frameAt(V3(c.X, yBottom + (r + 0.5) * th, c.Z)), cb, allStuds({ noShadow = true }))
+			end
+		end
+	end
+	-- stepped GRASS bank on top: 3 steps going up and back from the edge
+	local steps = rim or { { from = 2.6, to = -6, y = 0 }, { from = -1, to = -9, y = 1.2 }, { from = -4.5, to = -12, y = 2.4 } }
+	for i, st in steps do
+		local w = st.from - st.to
+		local cOff = (st.from + st.to) / 2
+		local c = mid + normal * cOff
+		local gh = st.h or 1.2
+		Studs.static(m, "Grass" .. i, V3(w, gh, len + (if i == 1 then 0.6 else 0)), frameAt(V3(c.X, yTop + st.y + gh / 2, c.Z)),
+			if i == 2 then Studs.shade(cap, 1.08) else cap, allStuds())
+	end
+	-- grass drips hanging over the face (irregular, like the reference)
+	local s = rand:NextNumber() * 3
+	while s < len - 1 do
+		local w = 1.2 + rand:NextNumber() * 2.2
+		local dh = 0.8 + rand:NextInteger(0, 3) * 0.9
+		local c = p0 + along * (s + w / 2) + normal * 2.45
+		Studs.static(m, "Drip", V3(0.6, dh, w), frameAt(V3(c.X, yTop - dh / 2 + 0.05, c.Z)), Studs.shade(cap, 0.9 + rand:NextNumber() * 0.15), allStuds({ noShadow = true, noCollide = true }))
+		s += w + 2 + rand:NextNumber() * 6
+	end
+	return m
+end
+
+--[[ GRASS TERRACES rising away from a line (the hills around the plateau = the "bowl" of the
+     reference): `tiers` steps of tierH high and tierD deep, dirt fronts in checker, grass
+     tops with studs. inward = the direction the fronts face (towards the playable area). ]]
+function Props.terraces(parent: Instance, p0: Vector3, p1: Vector3, inward: Vector3, tiers: number, tierH: number, tierD: number, rand: Random)
+	local m = model(parent, "Terraces")
+	local d = p1 - p0
+	local len = d.Magnitude
+	if len < 1 then return m end
+	local along = d.Unit
+	local out = -inward
+	local mid = (p0 + p1) / 2
+	local function frameAt(center: Vector3)
+		return CFrame.lookAt(center, center + along)
+	end
+	local tops = {}
+	for t = 1, tiers do
+		local top = t * tierH
+		local depth = tierD * (tiers - t + 1) -- each tier runs to the back of the hill
+		local c = mid + out * ((t - 1) * tierD + depth / 2)
+		Studs.static(m, "Hill" .. t, V3(depth, top - 0.2, len), frameAt(V3(c.X, (top - 0.2) / 2, c.Z)), if t % 2 == 0 then Props.DIRT_B else Props.DIRT_A, allStuds())
+		-- checker band on the front face of the tier (one row)
+		local T = 4
+		local cols = math.max(1, math.floor(len / T + 0.5))
+		local tw = len / cols
+		local front = mid + out * ((t - 1) * tierD) + inward * 0.15
+		for k = 0, cols - 1 do
+			if (k + t) % 2 == 1 then
+				local fc = p0 + out * ((t - 1) * tierD) + inward * 0.15 + along * ((k + 0.5) * tw)
+				Studs.static(m, "HillTile", V3(0.3, tierH - 0.2, tw), frameAt(V3(fc.X, top - tierH / 2 - 0.1, fc.Z)), if t % 2 == 0 then Props.DIRT_A else Props.DIRT_B, allStuds({ noShadow = true }))
+			end
+		end
+		local _ = front
+		-- the grass cap of the tier (slight overhang = the stepped grass edge)
+		local gc = mid + out * ((t - 1) * tierD + depth / 2) + inward * 0.3
+		Studs.static(m, "HillGrass" .. t, V3(depth + 0.6, 1, len), frameAt(V3(gc.X, top + 0.3, gc.Z)), if t % 2 == 0 then Studs.shade(Props.GRASS_TOP, 1.06) else Props.GRASS_TOP, allStuds())
+		tops[t] = { y = top + 0.8, from = (t - 1) * tierD + 0.8, to = (t - 1) * tierD + tierD - 0.8 }
+	end
+	m:SetAttribute("Len", len)
+	return m, tops, along, out
+end
+
+-- a WHITE BIRCH: white trunk with dark stud marks, blocky light-green crown
+function Props.birch(parent: Instance, pos: Vector3, size: number, rand: Random)
+	local m = model(parent, "Birch")
+	local k = size
+	local tH = 9 * k
+	Studs.static(m, "Trunk", V3(1.4 * k, tH, 1.4 * k), CF(pos + V3(0, tH / 2, 0)), C(240, 238, 228), allStuds())
+	for i = 1, 4 do
+		local y = (1 + i * 1.8 + rand:NextNumber()) * k
+		Studs.static(m, "Mark", V3(0.9 * k, 0.35 * k, 1.5 * k), CF(pos + V3((rand:NextNumber() - 0.5) * 0.4 * k, y, 0)), C(46, 44, 42), { noCollide = true })
+	end
+	local top = pos + V3(0, tH, 0)
+	local leaf = C(140, 214, 60)
+	Studs.static(m, "Crown", V3(5 * k, 4 * k, 5 * k), CF(top + V3(0, 1.2 * k, 0)), leaf, allStuds())
+	Studs.static(m, "CrownTop", V3(3.4 * k, 2.6 * k, 3.4 * k), CF(top + V3(0.4 * k, 4.2 * k, -0.3 * k)), Studs.shade(leaf, 1.1), allStuds())
+	Studs.static(m, "CrownSide", V3(3 * k, 3 * k, 3 * k), CF(top + V3(-2.4 * k, -0.4 * k, 1.2 * k)), Studs.shade(leaf, 0.9), allStuds())
+	return m
+end
+
+-- a SUNFLOWER: tall stem, two leaves, big yellow head with a brown centre
+function Props.sunflower(parent: Instance, pos: Vector3, rand: Random)
+	local m = model(parent, "Sunflower")
+	local h = 3.4 + rand:NextNumber() * 1.6
+	Studs.static(m, "Stem", V3(0.35, h, 0.35), CF(pos + V3(0, h / 2, 0)), C(60, 150, 40), { noCollide = true })
+	Studs.static(m, "Leaf", V3(1.1, 0.2, 0.5), CF(pos + V3(0.5, h * 0.4, 0)), C(80, 170, 50), { noCollide = true })
+	Studs.static(m, "Leaf", V3(1.1, 0.2, 0.5), CF(pos + V3(-0.5, h * 0.6, 0)), C(80, 170, 50), { noCollide = true })
+	local head = CF(pos + V3(0, h + 0.4, 0)) * CFrame.Angles(0.35, rand:NextNumber() * 6.28, 0)
+	Studs.static(m, "Petals", V3(2, 2, 0.3), head, C(255, 206, 30), allStuds({ noCollide = true }))
+	Studs.static(m, "Petals2", V3(1.4, 2.6, 0.25), head, C(255, 190, 20), { noCollide = true })
+	Studs.static(m, "Petals3", V3(2.6, 1.4, 0.25), head, C(255, 190, 20), { noCollide = true })
+	Studs.static(m, "Seeds", V3(1.1, 1.1, 0.45), head, C(110, 70, 30), allStuds({ noCollide = true }))
+	return m
+end
+
+-- a little red MUSHROOM with white dots
+function Props.mushroom(parent: Instance, pos: Vector3, size: number)
+	local m = model(parent, "Mushroom")
+	local k = size
+	Studs.static(m, "Stalk", V3(0.8 * k, 1.2 * k, 0.8 * k), CF(pos + V3(0, 0.6 * k, 0)), C(245, 238, 220), allStuds({ noCollide = true }))
+	Studs.static(m, "Cap", V3(2 * k, 0.8 * k, 2 * k), CF(pos + V3(0, 1.5 * k, 0)), C(220, 40, 40), allStuds({ noCollide = true }))
+	Studs.static(m, "CapTop", V3(1.3 * k, 0.5 * k, 1.3 * k), CF(pos + V3(0, 2.1 * k, 0)), C(230, 50, 50), allStuds({ noCollide = true }))
+	for _, o in { V3(0.6, 0, 0.3), V3(-0.5, 0, -0.4), V3(0.1, 0.45, 0.2) } do
+		Studs.static(m, "Dot", V3(0.4 * k, 0.15 * k, 0.4 * k), CF(pos + V3(o.X * k, (1.95 + o.Y) * k, o.Z * k)), C(255, 255, 255), { noCollide = true, smooth = true })
+	end
+	return m
+end
+
+-- an invisible collision wall (keeps players on the plateau; never blocks the camera)
+function Props.invisibleWall(parent: Instance, p0: Vector3, p1: Vector3, y0: number, height: number)
+	local d = p1 - p0
+	local len = d.Magnitude
+	if len < 0.5 then return nil end
+	local mid = (p0 + p1) / 2
+	local c = V3(mid.X, y0 + height / 2, mid.Z)
+	local w = Studs.static(parent, "InvisibleWall", V3(1, height, len), CFrame.lookAt(c, c + d.Unit), C(255, 255, 255), { noShadow = true, smooth = true })
+	w.Transparency = 1
+	w.CanQuery = false
+	w.CanTouch = false
+	return w
 end
 
 return Props

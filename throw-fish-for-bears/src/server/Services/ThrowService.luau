@@ -72,7 +72,11 @@ function ThrowService.throw(player: Player, aim: number)
 	local from = root.Position + Vector3.new(0, 2.2, -1.5)
 	local lx = math.clamp(from.X + aim * dist * 0.14, -Layout.LANDING_HALF, Layout.LANDING_HALF)
 	local lz = math.max(Layout.CORRIDOR_END_Z + 22, from.Z - dist)
-	local to = Vector3.new(lx, 0.2, lz)
+	if lz > Layout.CORRIDOR_START_Z - Layout.DESCENT_LEN - 4 then
+		-- never inside the stairs / the ramp going down into the trench
+		lx = math.clamp(lx, Layout.STAIRS.maxX + 3, Layout.RAMP.minX - 3)
+	end
+	local to = Vector3.new(lx, Layout.CORRIDOR_Y + 0.2, lz) -- on the trench floor, below the plateau
 	local flight = Formulas.flightTime((to - from).Magnitude)
 	local apex = Formulas.apex((to - from).Magnitude)
 

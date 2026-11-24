@@ -62,8 +62,8 @@ end
 
 -- toy-like vivid colours for the world: boosts saturation (and a little brightness)
 -- of coloured parts; whites, greys and blacks stay as they are
-Studs.VIVID_SAT = 1.28
-Studs.VIVID_VAL = 1.07
+Studs.VIVID_SAT = 1.4
+Studs.VIVID_VAL = 1.09
 function Studs.vivid(c: Color3): Color3
 	local r, g, b = c.R, c.G, c.B
 	local hi, lo = math.max(r, g, b), math.min(r, g, b)
