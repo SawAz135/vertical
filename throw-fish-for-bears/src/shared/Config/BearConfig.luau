@@ -316,6 +316,193 @@ animal("Raccoon", "Raccoon", { fur = C(130, 128, 130), fur2 = C(104, 102, 106), 
 		animal = { plan = "quad", body = { w = 1.8, h = 1.6, l = 2.6 }, legLen = 0.85, legT = 0.42, head = { s = 1.5, l = 0.5, snoutW = 0.44, snoutH = 0.3 },
 			ears = 0.45, mask = C(34, 32, 36), whiskers = true, tail = { l = 1.9, w = 0.75, segs = 6, taper = 0.25, rings = C(40, 38, 42), tip = C(40, 38, 42), droop = -0.25, fall = 0.1 } } })
 
+-- wave 2 · more fish-eating birds ----------------------------------------------------------
+local function bird(id, name, cols, inc, zones, w, a)
+	a.plan = a.plan or "bird"
+	animal(id, name, cols, { income = inc, zones = zones, weight = w, speed = a.speed or 28, gait = a.gait or 1.1, animal = a })
+end
+bird("Cormorant", "Cormorant", { fur = C(40, 44, 40), fur2 = C(28, 32, 30), belly = C(52, 56, 50), beak = C(70, 64, 56), leg = C(30, 30, 32), wing = C(46, 52, 44),
+	wingTip = C(20, 22, 22), head = C(36, 40, 38), neck = C(40, 44, 40), crown = C(30, 34, 32) }, 9, { 3, 7 }, { min = 1.5, max = 3.5, ref = 2.4 },
+	{ body = { w = 1.5, h = 1.6, l = 2.6 }, legLen = 0.7, legT = 0.24, upright = 0.35, neck = { len = 1.1, lean = 0.12, w = 0.5 }, head = 0.85,
+		beak = { l = 1.0, w = 0.24, h = 0.22, hook = true }, tail = { l = 1.0, w = 0.5 }, iris = C(60, 200, 120) })
+bird("Seagull", "Seagull", { fur = C(250, 250, 250), fur2 = C(186, 194, 204), belly = C(255, 255, 255), beak = C(250, 214, 60), leg = C(240, 170, 90),
+	wing = C(180, 188, 200), wingTip = C(30, 30, 34), head = C(255, 255, 255), tail = C(250, 250, 250) }, 38, { 10, 1 }, { min = 0.4, max = 1.2, ref = 0.8 },
+	{ body = { w = 1.4, h = 1.4, l = 2.2 }, legLen = 0.75, neck = { len = 0.4, lean = 0.1, w = 0.75 }, head = 1.0,
+		beak = { l = 0.9, w = 0.26, h = 0.26, tip = C(220, 40, 40) }, tail = { l = 0.8, w = 0.6 }, wingK = 1.1, iris = C(250, 230, 120) })
+bird("HerringGull", "Herring Gull", { fur = C(246, 246, 246), fur2 = C(150, 160, 172), belly = C(255, 255, 255), beak = C(250, 200, 40), leg = C(236, 160, 160),
+	wing = C(150, 160, 172), wingTip = C(24, 24, 28), head = C(250, 250, 250), tail = C(246, 246, 246) }, 40, { 10, 8 }, { min = 0.7, max = 1.6, ref = 1.1 },
+	{ body = { w = 1.6, h = 1.6, l = 2.6 }, legLen = 0.85, neck = { len = 0.5, lean = 0.1, w = 0.85 }, head = 1.1,
+		beak = { l = 1.05, w = 0.3, h = 0.32, hook = true, tip = C(230, 40, 40) }, tail = { l = 0.9, w = 0.6 }, wingK = 1.15, iris = C(250, 230, 120) })
+bird("Albatross", "Albatross", { fur = C(250, 250, 248), fur2 = C(70, 70, 76), belly = C(255, 255, 255), beak = C(250, 220, 170), leg = C(230, 200, 200),
+	wing = C(60, 60, 66), wingTip = C(30, 30, 34), head = C(255, 255, 255), tail = C(60, 60, 66) }, 44, { 10, 5 }, { min = 6, max = 11, ref = 8.5 },
+	{ body = { w = 1.9, h = 1.8, l = 3.0 }, legLen = 0.9, legT = 0.26, neck = { len = 0.6, lean = 0.12, w = 0.95 }, head = 1.2,
+		beak = { l = 1.4, w = 0.34, h = 0.36, hook = true }, tail = { l = 0.8, w = 0.6 }, wingK = 1.55, iris = C(40, 30, 30) })
+bird("Gannet", "Northern Gannet", { fur = C(252, 252, 250), fur2 = C(240, 240, 236), belly = C(255, 255, 255), beak = C(176, 190, 206), leg = C(60, 64, 70),
+	wing = C(246, 246, 242), wingTip = C(26, 26, 30), head = C(250, 220, 130), neck = C(252, 240, 210), tail = C(250, 250, 248) }, 31, { 8, 10 }, { min = 2.3, max = 3.6, ref = 3 },
+	{ body = { w = 1.7, h = 1.7, l = 2.8 }, legLen = 0.7, neck = { len = 0.7, lean = 0.15, w = 0.8 }, head = 1.05,
+		beak = { l = 1.3, w = 0.3, h = 0.32 }, tail = { l = 1.1, w = 0.5 }, wingK = 1.2, iris = C(170, 200, 255) })
+bird("Puffin", "Atlantic Puffin", { fur = C(28, 28, 32), fur2 = C(20, 20, 24), belly = C(255, 255, 255), beak = C(250, 110, 40), leg = C(250, 120, 50),
+	wing = C(26, 26, 30), wingTip = C(16, 16, 20), head = C(30, 30, 34), tail = C(24, 24, 28) }, 30, { 8, 4 }, { min = 0.4, max = 0.6, ref = 0.5 },
+	{ body = { w = 1.4, h = 1.6, l = 1.7 }, legLen = 0.45, legT = 0.24, upright = 0.4, neck = { len = 0.3, lean = 0, w = 0.9 }, head = 1.15,
+		beak = { l = 0.58, w = 0.3, h = 0.52, bands = { C(70, 90, 120), C(250, 220, 80) } }, tail = { l = 0.4, w = 0.5 }, toe = 0.4, faceWhite = true, iris = C(30, 30, 30) })
+bird("Stork", "White Stork", { fur = C(252, 252, 250), fur2 = C(240, 240, 236), belly = C(255, 255, 255), beak = C(236, 50, 40), leg = C(236, 80, 60),
+	wing = C(244, 244, 240), wingTip = C(24, 24, 28), head = C(255, 255, 255), neck = C(252, 252, 250), tail = C(250, 250, 248) }, 3.4, { 1, 6 }, { min = 2.3, max = 4.5, ref = 3.4 },
+	{ body = { w = 1.6, h = 1.6, l = 2.6 }, legLen = 2.8, legT = 0.22, neck = { len = 1.5, lean = 0.2, w = 0.5 }, head = 0.85,
+		beak = { l = 1.7, w = 0.26, h = 0.26 }, tail = { l = 0.7, w = 0.6 }, toe = 0.6, iris = C(40, 30, 30) })
+bird("Egret", "Great Egret", { fur = C(255, 255, 255), fur2 = C(244, 244, 244), belly = C(255, 255, 255), beak = C(250, 200, 40), leg = C(26, 26, 30),
+	wing = C(250, 250, 250), wingTip = C(240, 240, 240), head = C(255, 255, 255), neck = C(255, 255, 255), tail = C(250, 250, 250) }, 20, { 6, 3 }, { min = 0.7, max = 1.5, ref = 1 },
+	{ body = { w = 1.2, h = 1.3, l = 2.1 }, legLen = 2.8, legT = 0.18, neck = { len = 2.3, lean = 0.32, w = 0.36, s = true }, head = 0.72,
+		beak = { l = 1.5, w = 0.22, h = 0.22 }, tail = { l = 0.6, w = 0.6 }, toe = 0.6, iris = C(250, 220, 60) })
+bird("Ibis", "Scarlet Ibis", { fur = C(236, 40, 40), fur2 = C(210, 30, 34), belly = C(246, 70, 60), beak = C(120, 40, 36), leg = C(230, 60, 60),
+	wing = C(230, 36, 40), wingTip = C(30, 20, 24), head = C(240, 50, 48), neck = C(236, 44, 44), tail = C(220, 34, 38) }, 22, { 6, 9 }, { min = 0.6, max = 1.4, ref = 0.9 },
+	{ body = { w = 1.3, h = 1.3, l = 2.1 }, legLen = 1.8, legT = 0.18, neck = { len = 1.2, lean = 0.22, w = 0.42 }, head = 0.78,
+		beak = { l = 1.7, w = 0.2, h = 0.2, curve = 0.9 }, tail = { l = 0.6, w = 0.6 }, toe = 0.55, iris = C(250, 220, 60) })
+bird("BlackSwan", "Black Swan", { fur = C(30, 28, 34), fur2 = C(22, 20, 26), belly = C(40, 38, 44), beak = C(220, 30, 40), leg = C(30, 30, 34),
+	wing = C(26, 24, 30), wingTip = C(240, 240, 240), head = C(30, 28, 34), neck = C(32, 30, 36), tail = C(26, 24, 30) }, 8.5, { 3, 1 }, { min = 4, max = 9, ref = 6 },
+	{ body = { w = 2.0, h = 1.6, l = 3.2 }, legLen = 0.5, legT = 0.3, neck = { len = 2.4, lean = 0.3, w = 0.5, s = true }, head = 0.9,
+		beak = { l = 0.9, w = 0.36, h = 0.26, tip = C(250, 250, 250) }, tail = { l = 0.7, w = 0.6 }, toe = 0.7, iris = C(220, 40, 40) })
+bird("Merganser", "Merganser", { fur = C(250, 250, 248), fur2 = C(36, 40, 44), belly = C(255, 255, 250), beak = C(220, 40, 30), leg = C(240, 110, 50),
+	wing = C(50, 54, 60), wingTip = C(20, 22, 26), head = C(20, 80, 60), crown = C(16, 60, 46), tail = C(90, 96, 104) }, 23, { 7, 3 }, { min = 1, max = 2, ref = 1.4 },
+	{ body = { w = 1.5, h = 1.3, l = 2.5 }, legLen = 0.4, legT = 0.26, neck = { len = 0.5, lean = 0.15, w = 0.7 }, head = 0.95,
+		beak = { l = 0.85, w = 0.2, h = 0.2, hook = true }, crest = C(16, 60, 46), tail = { l = 0.7, w = 0.6 }, toe = 0.55, iris = C(200, 30, 30) })
+bird("Loon", "Common Loon", { fur = C(24, 26, 30), fur2 = C(16, 18, 22), belly = C(250, 250, 250), beak = C(26, 26, 30), leg = C(30, 32, 36), mark = C(240, 240, 240),
+	wing = C(22, 24, 28), wingTip = C(240, 240, 240), head = C(20, 50, 40), tail = C(22, 24, 28) }, 10, { 3, 4 }, { min = 2.7, max = 6, ref = 4 },
+	{ body = { w = 1.8, h = 1.3, l = 3.1 }, legLen = 0.35, legT = 0.28, neck = { len = 0.7, lean = 0.2, w = 0.7 }, head = 1.0,
+		beak = { l = 1.1, w = 0.26, h = 0.26 }, ring = C(240, 240, 240), tail = { l = 0.4, w = 0.5 }, toe = 0.6, iris = C(220, 30, 30) })
+bird("Frigatebird", "Frigatebird", { fur = C(24, 24, 30), fur2 = C(16, 16, 22), belly = C(30, 30, 36), beak = C(90, 90, 100), leg = C(40, 40, 46),
+	wing = C(22, 22, 28), wingTip = C(14, 14, 18), head = C(26, 26, 32), tail = C(20, 20, 26) }, 46, { 10, 8 }, { min = 1, max = 1.7, ref = 1.3 },
+	{ body = { w = 1.4, h = 1.5, l = 2.4 }, legLen = 0.5, legT = 0.2, neck = { len = 0.5, lean = 0.1, w = 0.7 }, head = 0.95,
+		beak = { l = 1.2, w = 0.24, h = 0.24, hook = true }, pouch = C(236, 30, 40), tail = { l = 1.2, w = 0.4, fork = 1.6 }, wingK = 1.6, iris = C(30, 30, 30) })
+bird("Tern", "Arctic Tern", { fur = C(250, 250, 250), fur2 = C(210, 216, 226), belly = C(255, 255, 255), beak = C(230, 40, 40), leg = C(230, 50, 50),
+	wing = C(206, 212, 222), wingTip = C(120, 124, 134), head = C(255, 255, 255), crown = C(20, 20, 24), tail = C(250, 250, 250) }, 41, { 10, 4 }, { min = 0.08, max = 0.13, ref = 0.1 },
+	{ body = { w = 1.1, h = 1.1, l = 1.8 }, legLen = 0.3, legT = 0.16, neck = { len = 0.3, lean = 0.05, w = 0.7 }, head = 0.85,
+		beak = { l = 0.8, w = 0.18, h = 0.18 }, tail = { l = 0.8, w = 0.4, fork = 1.3 }, wingK = 1.35, toe = 0.35, iris = C(30, 30, 30) })
+bird("Mallard", "Mallard Duck", { fur = C(200, 196, 190), fur2 = C(130, 110, 90), belly = C(230, 226, 220), beak = C(250, 210, 40), leg = C(250, 140, 40),
+	wing = C(150, 130, 110), wingTip = C(60, 80, 200), head = C(20, 130, 70), neck = C(20, 120, 64), tail = C(40, 40, 44), mark = C(140, 90, 60) }, 2.8, { 1, 3 }, { min = 0.7, max = 1.6, ref = 1.1 },
+	{ body = { w = 1.6, h = 1.3, l = 2.4 }, legLen = 0.45, legT = 0.24, neck = { len = 0.6, lean = 0.1, w = 0.7 }, head = 0.95,
+		beak = { l = 0.7, w = 0.5, h = 0.16 }, ring = C(250, 250, 250), tail = { l = 0.5, w = 0.5 }, toe = 0.5, iris = C(30, 30, 30) })
+-- penguins
+local function penguin(id, name, cols, inc, zones, w, a)
+	a.plan = "penguin"
+	animal(id, name, cols, { income = inc, zones = zones, weight = w, speed = 20, gait = a.gait or 1.2, animal = a })
+end
+penguin("EmperorPenguin", "Emperor Penguin", { fur = C(26, 28, 36), belly = C(252, 250, 240), beak = C(30, 30, 36), leg = C(30, 30, 36), face = C(26, 28, 36),
+	mark = C(250, 190, 60), accent = C(252, 220, 120) }, 20, { 5, 4 }, { min = 22, max = 45, ref = 32 },
+	{ body = { w = 2.3, h = 3.4, l = 2.0 }, head = 1.4, chestBand = true, gait = 0.95 })
+penguin("KingPenguin", "King Penguin", { fur = C(40, 44, 56), belly = C(252, 250, 244), beak = C(40, 40, 44), leg = C(40, 40, 44), face = C(30, 30, 36),
+	mark = C(250, 140, 40), accent = C(250, 180, 70) }, 14, { 4, 5 }, { min = 9, max = 18, ref = 13 },
+	{ body = { w = 2.0, h = 3.0, l = 1.8 }, head = 1.3, chestBand = true, gait = 1.05 })
+penguin("AdeliePenguin", "Adelie Penguin", { fur = C(24, 26, 32), belly = C(252, 252, 252), beak = C(36, 30, 30), leg = C(236, 150, 160), face = C(24, 26, 32) },
+	17, { 5, 4 }, { min = 3.5, max = 6, ref = 4.6 }, { body = { w = 1.7, h = 2.3, l = 1.5 }, head = 1.2, gait = 1.35 })
+
+-- wave 3 · fish-eating mammals --------------------------------------------------------------
+local function mammal(id, name, cols, inc, zones, w, a, o)
+	o = o or {}
+	animal(id, name, cols, { income = inc, zones = zones, weight = w, speed = o.speed or 30, gait = o.gait or 1.05, animal = a })
+end
+mammal("LeopardSeal", "Leopard Seal", { fur = C(110, 116, 128), fur2 = C(84, 90, 102), belly = C(206, 210, 218), muzzle = C(130, 136, 148), flipper = C(80, 86, 98), nose = C(24, 22, 26) },
+	18, { 5, 4 }, { min = 200, max = 600, ref = 380 }, { plan = "swim", body = { w = 2.0, h = 1.7, l = 5.2 }, head = 1.8, flipper = 1.2, tailL = 1.6, spots = C(46, 50, 60) }, { gait = 0.8, speed = 22 })
+mammal("ElephantSeal", "Elephant Seal", { fur = C(130, 110, 96), fur2 = C(110, 92, 80), belly = C(170, 150, 134), muzzle = C(150, 128, 112), flipper = C(100, 84, 72), nose = C(40, 30, 28) },
+	16, { 4, 10 }, { min = 900, max = 3600, ref = 2000 }, { plan = "swim", body = { w = 3.0, h = 2.6, l = 6.2 }, head = 2.1, flipper = 1.2, tailL = 1.8, trunk = true }, { gait = 0.7, speed = 18 })
+mammal("SeaLion", "Sea Lion", { fur = C(120, 82, 52), fur2 = C(98, 66, 42), belly = C(150, 108, 72), muzzle = C(140, 100, 66), flipper = C(70, 50, 34), nose = C(30, 22, 20) },
+	39, { 10, 8 }, { min = 100, max = 350, ref = 200 }, { plan = "swim", body = { w = 2.0, h = 2.0, l = 4.4 }, head = 1.5, flipper = 1.5, tailL = 1.4, earFlaps = true, headUp = 0.9 }, { gait = 0.9, speed = 24 })
+mammal("Walrus", "Walrus", { fur = C(170, 120, 96), fur2 = C(150, 104, 82), belly = C(196, 146, 120), muzzle = C(210, 170, 140), flipper = C(140, 96, 76), nose = C(60, 40, 34) },
+	14, { 4, 5 }, { min = 800, max = 1700, ref = 1200 }, { plan = "swim", body = { w = 3.2, h = 2.6, l = 5.4 }, head = 2.1, flipper = 1.4, tailL = 1.6, tusks = 1.2 }, { gait = 0.7, speed = 18 })
+mammal("Dolphin", "Bottlenose Dolphin", { fur = C(130, 144, 160), fur2 = C(110, 124, 140), belly = C(214, 220, 228), muzzle = C(130, 144, 160), flipper = C(110, 124, 140) },
+	42, { 10, 7 }, { min = 150, max = 650, ref = 300 }, { plan = "swim", orca = true, body = { w = 2.0, h = 2.0, l = 6.4 }, head = 1.9, flipper = 1.3, tailL = 2.2, dorsal = 1.4, rostrum = 0.9, eyePatch = false }, { gait = 1.0, speed = 26 })
+mammal("RedFox", "Red Fox", { fur = C(214, 100, 40), fur2 = C(190, 84, 32), belly = C(250, 246, 240), muzzle = C(250, 246, 240), paw = C(40, 30, 28), paw2 = C(60, 40, 32), nose = C(30, 24, 22),
+	ear = C(200, 90, 36), earIn = C(250, 240, 230), earTip = C(40, 30, 28), cheek = C(250, 246, 240) },
+	3.2, { 1, 2 }, { min = 3, max = 14, ref = 7 }, { plan = "quad", body = { w = 1.5, h = 1.4, l = 2.8 }, legLen = 1.1, legT = 0.36, head = { s = 1.4, l = 0.7, snoutW = 0.4, snoutH = 0.3 },
+		ears = 0.55, pointy = true, whiskers = true, tail = { l = 2.2, w = 0.8, segs = 5, taper = 0.2, tip = C(250, 248, 244), droop = -0.35, fall = 0.12 } }, { gait = 1.2 })
+mammal("ArcticFox", "Arctic Fox", { fur = C(248, 248, 250), fur2 = C(230, 232, 238), belly = C(255, 255, 255), muzzle = C(255, 255, 255), paw = C(236, 236, 240), nose = C(26, 24, 26),
+	ear = C(244, 244, 248), earIn = C(230, 220, 220) },
+	13, { 4, 5 }, { min = 2.5, max = 9, ref = 5 }, { plan = "quad", body = { w = 1.5, h = 1.4, l = 2.5 }, legLen = 0.85, legT = 0.38, head = { s = 1.4, l = 0.5, snoutW = 0.42, snoutH = 0.3 },
+		ears = 0.4, whiskers = true, tail = { l = 2, w = 0.9, segs = 5, taper = 0.15, droop = -0.35, fall = 0.12 }, iris = C(60, 40, 20) }, { gait = 1.2 })
+mammal("SeaWolf", "Coastal Wolf", { fur = C(150, 140, 130), fur2 = C(110, 104, 98), belly = C(220, 214, 206), muzzle = C(214, 208, 200), paw = C(120, 112, 104), nose = C(28, 24, 22),
+	ear = C(120, 110, 100), earIn = C(200, 190, 180), cheek = C(220, 214, 206) },
+	33, { 8, 2 }, { min = 25, max = 60, ref = 40 }, { plan = "quad", body = { w = 1.9, h = 1.8, l = 3.6 }, legLen = 1.5, legT = 0.45, head = { s = 1.7, l = 0.85, snoutW = 0.44, snoutH = 0.34 },
+		ears = 0.55, pointy = true, whiskers = true, tail = { l = 2, w = 0.75, segs = 4, taper = 0.3, tip = C(50, 46, 44), droop = -0.45, fall = 0.15 }, iris = C(230, 190, 60) }, { gait = 1.0, speed = 32 })
+mammal("Cat", "Tabby Cat", { fur = C(230, 150, 70), fur2 = C(210, 130, 56), belly = C(250, 236, 214), muzzle = C(250, 240, 224), paw = C(250, 240, 224), paw2 = C(230, 150, 70), nose = C(240, 140, 150),
+	ear = C(230, 150, 70), earIn = C(250, 190, 190), cheek = C(244, 200, 150) },
+	2.6, { 1, 3 }, { min = 3, max = 7, ref = 4.5 }, { plan = "quad", body = { w = 1.3, h = 1.2, l = 2.2 }, legLen = 0.9, legT = 0.3, head = { s = 1.35, l = 0.25, snoutW = 0.46, snoutH = 0.26 },
+		ears = 0.45, pointy = true, whiskers = true, stripes = C(180, 96, 36), tail = { l = 2, w = 0.36, segs = 5, taper = 0.2, rings = C(190, 106, 40), droop = 0.35, fall = -0.1 }, iris = C(120, 200, 80) }, { gait = 1.3 })
+mammal("FishingCat", "Fishing Cat", { fur = C(150, 140, 120), fur2 = C(126, 116, 98), belly = C(220, 212, 196), muzzle = C(230, 222, 206), paw = C(140, 130, 112), nose = C(160, 110, 110),
+	ear = C(110, 100, 86), earIn = C(200, 180, 170), cheek = C(200, 190, 170) },
+	21, { 6, 7 }, { min = 6, max = 16, ref = 10 }, { plan = "quad", body = { w = 1.6, h = 1.4, l = 2.7 }, legLen = 0.95, legT = 0.38, head = { s = 1.45, l = 0.32, snoutW = 0.48, snoutH = 0.28 },
+		ears = 0.36, whiskers = true, spots = C(50, 44, 40), spotN = 26, tail = { l = 1.3, w = 0.42, segs = 4, taper = 0.2, rings = C(60, 52, 46), droop = 0.1 }, iris = C(200, 200, 80) }, { gait = 1.15 })
+mammal("Jaguar", "Jaguar", { fur = C(236, 170, 60), fur2 = C(220, 150, 46), belly = C(252, 238, 210), muzzle = C(250, 236, 210), paw = C(236, 170, 60), nose = C(150, 90, 80),
+	ear = C(220, 150, 50), earIn = C(250, 230, 200), cheek = C(250, 230, 200) },
+	37, { 9, 6 }, { min = 56, max = 120, ref = 85 }, { plan = "quad", body = { w = 2.2, h = 1.9, l = 4.0 }, legLen = 1.3, legT = 0.6, head = { s = 1.9, l = 0.45, snoutW = 0.5, snoutH = 0.32 },
+		ears = 0.42, whiskers = true, spots = C(40, 30, 26), spotN = 40, tail = { l = 2.6, w = 0.5, segs = 5, taper = 0.3, rings = C(50, 38, 30), droop = 0.15, fall = 0.05 }, iris = C(230, 200, 60) }, { gait = 0.95, speed = 33 })
+mammal("Lynx", "Lynx", { fur = C(200, 170, 130), fur2 = C(176, 146, 108), belly = C(244, 236, 222), muzzle = C(244, 236, 222), paw = C(190, 160, 120), nose = C(150, 100, 90),
+	ear = C(170, 140, 100), earIn = C(240, 230, 214) },
+	12, { 4, 2 }, { min = 10, max = 30, ref = 18 }, { plan = "quad", body = { w = 1.8, h = 1.7, l = 2.9 }, legLen = 1.4, legT = 0.48, head = { s = 1.65, l = 0.3, snoutW = 0.5, snoutH = 0.3 },
+		ears = 0.5, tufts = true, ruff = true, whiskers = true, spots = C(120, 90, 66), spotN = 14, tail = { l = 0.6, w = 0.5, segs = 2, taper = 0.2, tip = C(30, 26, 24), droop = 0.3 }, iris = C(230, 200, 80) }, { gait = 1.05 })
+mammal("Mink", "Mink", { fur = C(70, 44, 30), fur2 = C(56, 34, 24), belly = C(84, 54, 38), muzzle = C(90, 60, 42), paw = C(50, 32, 22), nose = C(24, 18, 16), cheek = C(240, 236, 230) },
+	8, { 3, 7 }, { min = 0.5, max = 1.6, ref = 1 }, { plan = "quad", body = { w = 1.1, h = 1.0, l = 3.0 }, legLen = 0.5, legT = 0.32, head = { s = 1.05, l = 0.35, snoutW = 0.5, snoutH = 0.3 },
+		ears = 0.22, whiskers = true, tail = { l = 1.6, w = 0.5, segs = 4, taper = 0.35, droop = -0.1, fall = 0.05 } }, { gait = 1.35 })
+mammal("Beaver", "Beaver", { fur = C(116, 76, 44), fur2 = C(96, 62, 36), belly = C(140, 98, 64), muzzle = C(130, 90, 58), paw = C(60, 44, 36), nose = C(26, 20, 18) },
+	24, { 7, 3 }, { min = 11, max = 30, ref = 20 }, { plan = "quad", body = { w = 2.1, h = 1.8, l = 2.9 }, legLen = 0.55, legT = 0.48, head = { s = 1.55, l = 0.45, snoutW = 0.6, snoutH = 0.34 },
+		ears = 0.24, buckTeeth = true, whiskers = true, tail = { l = 1.9, w = 1.4, segs = 2, taper = 0.05, flat = 0.18, droop = 0.05, fall = 0.0, tip = C(70, 60, 56) } }, { gait = 0.9, speed = 24 })
+
+-- wave 4 · reptiles, sharks and other fish eaters --------------------------------------------
+mammal("Alligator", "Alligator", { fur = C(50, 66, 48), fur2 = C(40, 54, 38), belly = C(214, 206, 170), muzzle = C(56, 72, 52), paw = C(44, 58, 40), nose = C(26, 30, 24), claw = C(230, 224, 200) },
+	35, { 9, 6 }, { min = 200, max = 500, ref = 360 }, { plan = "quad", body = { w = 2.6, h = 1.3, l = 5.2 }, legLen = 0.6, legT = 0.52, sprawl = 1, scutes = true, teeth = true, eyesTop = true,
+		head = { s = 1.7, l = 2.2, snoutW = 0.85, snoutH = 0.32, flat = 0.6, up = 0 }, tail = { l = 5, w = 1.4, segs = 6, taper = 0.85, flat = 0.75, droop = 0.02, fall = 0.02 }, iris = C(220, 200, 80) }, { gait = 0.75, speed = 22 })
+mammal("Gavial", "Gharial", { fur = C(92, 110, 80), fur2 = C(76, 92, 66), belly = C(220, 214, 180), muzzle = C(100, 118, 88), paw = C(80, 96, 70), nose = C(60, 70, 54), claw = C(230, 224, 200) },
+	36, { 9, 7 }, { min = 150, max = 700, ref = 400 }, { plan = "quad", body = { w = 2.2, h = 1.2, l = 5.2 }, legLen = 0.55, legT = 0.48, sprawl = 1, scutes = true, teeth = true, eyesTop = true,
+		head = { s = 1.4, l = 3.4, snoutW = 0.32, snoutH = 0.24, flat = 0.6, up = 0 }, tail = { l = 5, w = 1.2, segs = 6, taper = 0.85, flat = 0.75, droop = 0.02, fall = 0.02 }, iris = C(220, 200, 80) }, { gait = 0.75, speed = 22 })
+mammal("SeaTurtle", "Sea Turtle", { fur = C(130, 150, 90), fur2 = C(110, 128, 76), belly = C(236, 226, 170), muzzle = C(140, 160, 100), paw = C(120, 140, 84), nose = C(40, 40, 30) },
+	40, { 10, 7 }, { min = 70, max = 200, ref = 130 }, { plan = "quad", body = { w = 2.6, h = 1.1, l = 3.0 }, legLen = 0.4, legT = 0.6, sprawl = 1, shell = C(120, 90, 50),
+		head = { s = 1.1, l = 0.35, snoutW = 0.6, snoutH = 0.34, up = 0 }, tail = { l = 0.6, w = 0.4, segs = 1, taper = 0.4, droop = 0.1 }, iris = C(60, 40, 20) }, { gait = 0.6, speed = 16 })
+mammal("WaterMonitor", "Water Monitor", { fur = C(60, 62, 50), fur2 = C(44, 46, 38), belly = C(210, 200, 140), muzzle = C(66, 68, 56), paw = C(54, 56, 46), nose = C(30, 30, 26), claw = C(40, 38, 34) },
+	20, { 6, 9 }, { min = 10, max = 25, ref = 18 }, { plan = "quad", body = { w = 1.6, h = 1.0, l = 3.4 }, legLen = 0.7, legT = 0.38, sprawl = 0.8, tongue = true, spots = C(220, 210, 120), spotN = 22,
+		head = { s = 1.1, l = 0.9, snoutW = 0.5, snoutH = 0.3, flat = 0.7, up = 0.1 }, tail = { l = 4.2, w = 0.8, segs = 6, taper = 0.85, flat = 0.8, droop = 0.02, fall = 0.02 }, iris = C(200, 150, 60) }, { gait = 1.0, speed = 26 })
+mammal("GiantSalamander", "Giant Salamander", { fur = C(96, 80, 60), fur2 = C(80, 66, 48), belly = C(130, 112, 86), muzzle = C(104, 88, 66), paw = C(90, 74, 56), nose = C(40, 32, 26), claw = C(90, 74, 56) },
+	7.5, { 3, 7 }, { min = 10, max = 50, ref = 25 }, { plan = "quad", body = { w = 2.0, h = 0.9, l = 3.2 }, legLen = 0.4, legT = 0.42, sprawl = 0.9, spots = C(50, 40, 30), spotN = 30,
+		head = { s = 1.6, l = 0.3, snoutW = 0.9, snoutH = 0.3, flat = 0.5, up = 0 }, tail = { l = 2.4, w = 0.9, segs = 4, taper = 0.6, flat = 0.5, droop = 0.02, fall = 0.02 }, iris = C(40, 40, 40) }, { gait = 0.7, speed = 16 })
+local function fishy(id, name, cols, inc, zones, w, a, o)
+	a.plan = "swim"
+	a.orca = true
+	a.fishTail = true
+	a.eyePatch = false
+	animal(id, name, cols, { income = inc, zones = zones, weight = w, speed = (o and o.speed) or 26, gait = (o and o.gait) or 0.9, animal = a })
+end
+fishy("GreatWhite", "Great White Shark", { fur = C(110, 122, 136), fur2 = C(94, 106, 120), belly = C(240, 242, 244), muzzle = C(110, 122, 136), flipper = C(100, 112, 126) },
+	62, { 10, 8 }, { min = 700, max = 2200, ref = 1200 }, { body = { w = 2.6, h = 2.8, l = 8.6 }, head = 2.4, flipper = 2.0, tailL = 2.8, dorsal = 2.4, gills = true, teeth = true }, { gait = 0.75 })
+fishy("TigerShark", "Tiger Shark", { fur = C(126, 120, 100), fur2 = C(104, 98, 80), belly = C(238, 236, 226), muzzle = C(126, 120, 100), flipper = C(110, 104, 86) },
+	45, { 10, 9 }, { min = 400, max = 900, ref = 600 }, { body = { w = 2.2, h = 2.4, l = 7.6 }, head = 2.0, flipper = 1.8, tailL = 2.6, dorsal = 2.0, gills = true, teeth = true, spots = C(70, 64, 50) }, { gait = 0.8 })
+fishy("Hammerhead", "Hammerhead Shark", { fur = C(130, 140, 150), fur2 = C(110, 120, 130), belly = C(236, 238, 240), muzzle = C(130, 140, 150), flipper = C(116, 126, 136) },
+	48, { 10, 8 }, { min = 200, max = 500, ref = 300 }, { body = { w = 2.0, h = 2.2, l = 7.2 }, head = 1.8, flipper = 1.6, tailL = 2.6, dorsal = 2.4, gills = true, hammer = true }, { gait = 0.85 })
+fishy("Barracuda", "Barracuda", { fur = C(150, 166, 180), fur2 = C(110, 124, 140), belly = C(230, 236, 240), muzzle = C(150, 166, 180), flipper = C(120, 134, 150) },
+	39, { 10, 8 }, { min = 5, max = 40, ref = 15 }, { body = { w = 1.1, h = 1.2, l = 5.2 }, head = 1.6, flipper = 0.7, tailL = 1.4, dorsal = 0.7, teeth = true, rostrum = 0.6, spots = C(40, 44, 52) }, { gait = 1.1 })
+fishy("Pike", "Northern Pike", { fur = C(90, 120, 60), fur2 = C(70, 96, 46), belly = C(230, 226, 190), muzzle = C(90, 120, 60), flipper = C(170, 120, 60) },
+	9, { 3, 7 }, { min = 2, max = 18, ref = 7 }, { body = { w = 1.1, h = 1.3, l = 4.6 }, head = 1.5, flipper = 0.7, tailL = 1.3, dorsal = 0.6, teeth = true, rostrum = 0.5, spots = C(220, 220, 150) }, { gait = 1.05 })
+local function serpent(id, name, cols, inc, zones, w, a, o)
+	a.plan = "serpent"
+	animal(id, name, cols, { income = inc, zones = zones, weight = w, speed = (o and o.speed) or 24, gait = (o and o.gait) or 1, animal = a })
+end
+serpent("WaterSnake", "Water Snake", { fur = C(90, 80, 56), fur2 = C(70, 62, 44), belly = C(220, 200, 150), muzzle = C(96, 86, 60), nose = C(30, 26, 20) },
+	21, { 7, 6 }, { min = 0.3, max = 2, ref = 0.8 }, { body = { w = 0.8, h = 0.7, l = 7 }, head = 1.0, bands = C(50, 44, 32), tongue = true, iris = C(220, 160, 40) })
+serpent("MorayEel", "Moray Eel", { fur = C(90, 110, 50), fur2 = C(70, 90, 40), belly = C(150, 170, 90), muzzle = C(96, 116, 56), nose = C(30, 30, 20) },
+	43, { 10, 8 }, { min = 5, max = 30, ref = 12 }, { body = { w = 1.1, h = 1.3, l = 7.5 }, head = 1.4, spots = C(240, 230, 120), ribbon = C(80, 100, 44), ribbonTop = true, teeth = true, iris = C(240, 220, 80) })
+serpent("ElectricEel", "Electric Eel", { fur = C(60, 60, 64), fur2 = C(46, 46, 50), belly = C(230, 170, 60), muzzle = C(66, 66, 70), nose = C(24, 24, 26) },
+	24, { 7, 9 }, { min = 5, max = 20, ref = 10 }, { body = { w = 1.0, h = 1.1, l = 8 }, head = 1.3, ribbon = C(240, 180, 60), iris = C(40, 40, 40) })
+local function tentacle(id, name, cols, inc, zones, w, a, o)
+	a.plan = "tentacle"
+	animal(id, name, cols, { income = inc, zones = zones, weight = w, speed = (o and o.speed) or 18, gait = (o and o.gait) or 0.9, animal = a })
+end
+tentacle("Octopus", "Octopus", { fur = C(220, 90, 70), fur2 = C(190, 70, 56), belly = C(250, 200, 180), mark = C(240, 120, 100) },
+	44, { 10, 8 }, { min = 3, max = 15, ref = 8 }, { kind = "octopus", body = { w = 2.0, h = 2.0, l = 2.0 }, armL = 2.6, head = 1, iris = C(240, 200, 60) })
+tentacle("GiantSquid", "Giant Squid", { fur = C(200, 70, 80), fur2 = C(170, 54, 64), belly = C(250, 190, 190), mark = C(230, 110, 120) },
+	58, { 10, 5 }, { min = 150, max = 400, ref = 250 }, { kind = "squid", body = { w = 2.0, h = 2.0, l = 2.0 }, armL = 3, head = 1, spots = C(150, 40, 50), iris = C(250, 240, 200) }, { gait = 0.7 })
+tentacle("Jellyfish", "Moon Jellyfish", { fur = C(200, 210, 250), fur2 = C(170, 180, 240), belly = C(230, 230, 255), mark = C(250, 160, 220) },
+	41, { 10, 3 }, { min = 0.5, max = 4, ref = 1.5 }, { kind = "jelly", body = { w = 2.4, h = 1.2, l = 2.4 }, armL = 2.6, armT = 0.4, head = 1 }, { gait = 0.6, speed = 12 })
+bird("FishingBat", "Fishing Bat", { fur = C(130, 90, 60), fur2 = C(100, 68, 46), belly = C(180, 140, 100), beak = C(60, 40, 36), leg = C(70, 50, 40),
+	wing = C(70, 48, 40), wingTip = C(50, 34, 28), head = C(130, 90, 60), tail = C(70, 48, 40) }, 25, { 9, 7 }, { min = 0.03, max = 0.07, ref = 0.05 },
+	{ body = { w = 1.1, h = 1.2, l = 1.4 }, legLen = 0.3, legT = 0.16, upright = 0.5, neck = { len = 0.2, lean = 0, w = 0.8 }, head = 1.0,
+		beak = { l = 0.3, w = 0.36, h = 0.24 }, batEars = true, tail = { l = 0.5, w = 0.6 }, wingK = 1.3, talons = true, toe = 0.35, iris = C(30, 30, 30) })
+
 BearConfig.ZoneAffinity = 24 -- a zone's own species are ~24x more likely there
 
 function BearConfig.get(id: string)

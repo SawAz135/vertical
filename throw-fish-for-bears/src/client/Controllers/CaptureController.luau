@@ -408,7 +408,7 @@ local function startReveal(d)
 	local wanted = {}
 	for i = 1, math.min(6, #others) do table.insert(wanted, others[i]) end
 	local function makeSil(id: string)
-		local ok, m = pcall(BearBuilder.build, id, { scale = 1 })
+		local ok, m = pcall(BearBuilder.build, id, { scale = 1, brickBudget = 60 })
 		if not ok or not m or not m.PrimaryPart then return nil end
 		prepModel(m)
 		blacken(m)

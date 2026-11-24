@@ -313,6 +313,10 @@ function BearBuilder.build(speciesId: string, opts: any?): Model
 	model:SetAttribute("BodyLength", l + hs * 0.9)
 	model:SetAttribute("Anim", "Idle")
 
+	-- brick relief (fur texture made of little studded plates), before the mutation recolours
+	if not opts.noBricks then
+		Studs.brickify(model, s, #speciesId * 761 + 5, opts.brickBudget or 100)
+	end
 	if opts.variant and opts.variant ~= "Normal" then
 		require(script.Parent.Variants).apply(model, opts.variant)
 	end

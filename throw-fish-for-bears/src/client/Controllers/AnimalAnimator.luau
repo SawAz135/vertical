@@ -29,7 +29,7 @@ local frame = 0
 local sin, cos, abs, clamp, noise = math.sin, math.cos, math.abs, math.clamp, math.noise
 local TAU = math.pi * 2
 local JOINTS = { "BodyJoint", "Neck", "Jaw", "EarL", "EarR", "LegFL", "LegFR", "LegBL", "LegBR", "Tail",
-	"PawFL", "PawFR", "PawBL", "PawBR", "WingL", "WingR" }
+	"PawFL", "PawFR", "PawBL", "PawBR", "WingL", "WingR", "Tail2", "Tail3" }
 local LEGS = { FL = "LegFL", FR = "LegFR", BL = "LegBL", BR = "LegBR" }
 
 local function newPose()
@@ -529,6 +529,40 @@ local function planLayer(p, e, t, s, moving, anim, animT)
 	local seed = e.seed or 0
 	local happy = anim == "Happy" or anim == "Roar" or anim == "Transform"
 	local hk = if happy then clamp(1 - animT / 2.6, 0, 1) else 0
+	if plan == "serpent" then
+		-- an S-wave travelling down the body (faster and wider when it moves), the head stays
+		-- steady and looks ahead, the tongue flicks now and then
+		local sp = t * (2.2 + 4 * moving) + seed
+		local amp = 0.14 + 0.3 * moving
+		rot(p, "BodyJoint", 0, sin(sp) * amp * 0.5, 0)
+		rot(p, "Tail", 0, sin(sp - 1.1) * amp, 0)
+		rot(p, "Tail2", 0, sin(sp - 2.2) * amp * 1.2, 0)
+		rot(p, "Tail3", 0, sin(sp - 3.3) * amp * 1.4, 0)
+		rot(p, "Neck", -0.1 - 0.15 * (if happy then hk else 0), -sin(sp) * amp * 0.45, 0)
+		local flick = math.max(0, sin(t * 1.3 + seed) - 0.9) * 10
+		rot(p, "Jaw", -0.12 * flick - (if happy then abs(sin(animT * 9)) * 0.5 * hk else 0))
+		return
+	elseif plan == "tentacle" then
+		-- arms ripple one after the other; the jellyfish bell pulses and rises on each pulse
+		local jelly = e.model:GetAttribute("Species") == "Jellyfish"
+		local sp = t * (if jelly then 2.4 else 1.6 + 2.5 * moving) + seed
+		local legs = { "LegFL", "LegFR", "LegBL", "LegBR" }
+		for i, j in legs do
+			local ph2 = sp - i * 0.9
+			rot(p, j, sin(ph2) * (0.14 + 0.18 * moving) + (if happy then sin(animT * 10 + i) * 0.4 * hk else 0), cos(ph2) * 0.12, sin(ph2 * 0.7) * 0.1)
+		end
+		if jelly then
+			local pulse = math.max(0, sin(sp))
+			pos(p, "BodyJoint", 0, pulse * 0.35 * s + sin(t * 0.8) * 0.15 * s, 0)
+		else
+			pos(p, "BodyJoint", 0, sin(sp * 0.5) * 0.08 * s, 0)
+			rot(p, "BodyJoint", sin(sp * 0.5) * 0.05, 0, 0)
+			rot(p, "WingL", sin(sp - 0.5) * 0.25, sin(sp) * 0.2, 0)
+			rot(p, "WingR", sin(sp - 1.5) * 0.25, -sin(sp) * 0.2, 0)
+			if happy then pos(p, "BodyJoint", 0, abs(sin(animT * 6)) * 0.4 * s * hk, 0) end
+		end
+		return
+	end
 	if plan == "bird" then
 		-- walking: head bob (thrust forward, hold) + tail flick
 		rot(p, "Neck", -math.max(0, sin(ph * 2)) * 0.16 * moving, 0, 0)
@@ -559,7 +593,7 @@ local function planLayer(p, e, t, s, moving, anim, animT)
 		rot(p, "Neck", 0, -w * 0.1 * moving, -w * 0.12 * moving)
 		rot(p, "Tail", 0, w * 0.4 * moving)
 	elseif plan == "swim" then
-		local orca = e.model:GetAttribute("Species") == "Orca"
+		local orca = e.motors.WingL ~= nil -- whales / dolphins / sharks: pectoral fins (seals: front flippers)
 		-- moving: a travelling wave from the head to the tail
 		local wave = sin(ph * 2)
 		rot(p, "BodyJoint", wave * 0.12 * moving)
@@ -715,7 +749,7 @@ local function updateBear(e, dt, now)
 		local sp = newPose()
 		stateFn(sp, e, math.max(0, animT), s)
 		local plan = e.plan
-		local tame = plan == "bird" or plan == "penguin" or plan == "swim"
+		local tame = plan == "bird" or plan == "penguin" or plan == "swim" or plan == "serpent" or plan == "tentacle"
 		for j, q in sp do
 			local d = p[j]
 			local k = w

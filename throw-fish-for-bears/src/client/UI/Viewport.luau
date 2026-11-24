@@ -50,7 +50,7 @@ function Viewport.create(parent: GuiObject, opts)
 		if opts.kind == "Fish" then
 			m = FishBuilder.build(opts.id, { scale = opts.scale or 1, variant = opts.variant })
 		elseif opts.kind == "Bear" then
-			m = BearBuilder.build(opts.id, { scale = opts.scale or 1, variant = opts.variant })
+			m = BearBuilder.build(opts.id, { scale = opts.scale or 1, variant = opts.variant, brickBudget = 45 })
 		elseif opts.kind == "Dumbbell" then
 			m = DumbbellBuilder.build(opts.id or 1)
 		else
