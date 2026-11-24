@@ -167,6 +167,11 @@ end
 	opts.character = true -> adds a Humanoid so a player can control it ]]
 function BearBuilder.build(speciesId: string, opts: any?): Model
 	opts = opts or {}
+	local aspec = BearConfig.get(speciesId)
+	if aspec and aspec.animal then
+		-- pelicans, otters, orcas...: their own skeletons (same rig vocabulary)
+		return require(script.Parent.AnimalBuilder).build(speciesId, opts)
+	end
 	local spec = BearConfig.get(speciesId) or BearConfig.get(BearConfig.Order[1])
 	local s = opts.scale or (opts.weight and BearConfig.scaleFor(speciesId, opts.weight)) or 1
 	local c = spec.colors

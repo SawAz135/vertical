@@ -241,6 +241,81 @@ bear("CosmicBear", "Cosmic Bear", { fur = C(78, 44, 168), fur2 = C(54, 30, 128),
 	accent = C(255, 220, 120), extra = C(140, 230, 255), mark = C(255, 160, 240) },
 	{ preset = "large", income = 300, spawn = 0, traits = { "stars", "aurora", "crown", "glowEyes", "aura", "crescent" }, fixedRarity = "Impossible", head = { s = 3.4 } })
 
+-- ANIMALS: the other fish eaters of the real world (they eat NOTHING in the game). Same
+-- rarities, mutations, income and base life as the bears; built by Models/AnimalBuilder.
+-- `animal` = the body plan + its proportions (see AnimalBuilder).
+local function animal(id: string, name: string, cols, o)
+	local fur = cols.fur
+	local a = o.animal
+	local bw = a.body.w
+	local legLen = a.legLen or 0
+	BearConfig.Species[id] = {
+		name = name, isAnimal = true,
+		income = o.income, spawn = o.spawn or 6, zones = o.zones or {},
+		weight = table.clone(o.weight), speed = o.speed or 28, gait = o.gait or 1,
+		-- bear-like dimensions (carrying, base spacing, personality)
+		body = { w = bw, h = a.body.h, l = a.body.l }, leg = { len = legLen, t = a.legT or 0.4 },
+		head = { s = if type(a.head) == "table" then a.head.s else (a.head or 1), muzzle = 0.5, ear = 0.5 },
+		colors = {
+			fur = fur, fur2 = cols.fur2 or shade(fur, 0.84), belly = cols.belly or shade(fur, 1.18),
+			muzzle = cols.muzzle or shade(fur, 1.1), paw = cols.paw or shade(fur, 0.78), ear = cols.ear or fur,
+			nose = cols.nose or C(28, 22, 22), claw = cols.claw or C(238, 226, 200), mark = cols.mark, patch = cols.patch,
+			extra = cols.extra or shade(fur, 1.3), accent = cols.accent or C(240, 80, 90),
+			beak = cols.beak, leg = cols.leg, wing = cols.wing, wingTip = cols.wingTip, tail = cols.tail, head = cols.head,
+			neck = cols.neck, crown = cols.crown, face = cols.face, flipper = cols.flipper, cheek = cols.cheek, earIn = cols.earIn,
+			paw2 = cols.paw2,
+		},
+		traits = {}, animal = a,
+	}
+	table.insert(BearConfig.Order, id)
+end
+
+-- wave 1 ----------------------------------------------------------------------------------
+animal("Pelican", "Pelican", { fur = C(246, 244, 236), fur2 = C(226, 222, 212), belly = C(255, 252, 246), beak = C(250, 196, 60), leg = C(240, 150, 60),
+	wing = C(236, 232, 222), wingTip = C(40, 40, 46), head = C(255, 252, 240), crown = C(255, 236, 170), neck = C(250, 248, 240) },
+	{ income = 40, zones = { 10, 3 }, weight = { min = 4, max = 14, ref = 8 }, speed = 26, gait = 0.95,
+		animal = { plan = "bird", body = { w = 2.2, h = 2.0, l = 3.0 }, legLen = 1.2, legT = 0.24, neck = { len = 1.3, lean = 0.25, w = 0.62 }, head = 1.05,
+			beak = { l = 2.6, w = 0.5, h = 0.26, tip = C(230, 90, 60) }, pouch = C(252, 170, 70), tail = { l = 0.9, w = 0.6 }, iris = C(250, 220, 90) } })
+animal("Otter", "River Otter", { fur = C(112, 74, 46), fur2 = C(92, 60, 36), belly = C(170, 130, 90), muzzle = C(196, 160, 120), paw = C(74, 50, 32), nose = C(30, 22, 20) },
+	{ income = 22, zones = { 7, 3 }, weight = { min = 5, max = 35, ref = 12 }, speed = 30, gait = 1.2,
+		animal = { plan = "quad", body = { w = 1.5, h = 1.3, l = 3.4 }, legLen = 0.55, legT = 0.42, head = { s = 1.35, l = 0.45, snoutW = 0.62, snoutH = 0.34, flat = 0.78 },
+			ears = 0.32, whiskers = true, tail = { l = 2.6, w = 0.7, segs = 4, taper = 0.7, flat = 0.6, droop = -0.05 } } })
+animal("Seal", "Harbor Seal", { fur = C(150, 156, 164), fur2 = C(120, 126, 136), belly = C(200, 204, 210), muzzle = C(176, 180, 186), flipper = C(104, 110, 120), nose = C(24, 22, 26) },
+	{ income = 36, zones = { 10, 5 }, weight = { min = 50, max = 160, ref = 90 }, speed = 22, gait = 0.85,
+		animal = { plan = "swim", body = { w = 2.1, h = 1.8, l = 4.4 }, head = 1.6, flipper = 0.9, tailL = 1.4, spots = C(84, 88, 98) } })
+animal("Penguin", "Gentoo Penguin", { fur = C(34, 36, 44), belly = C(250, 250, 250), beak = C(250, 110, 40), leg = C(250, 140, 60), face = C(34, 36, 44), mark = C(250, 250, 250) },
+	{ income = 16, zones = { 5, 4 }, weight = { min = 4, max = 9, ref = 6 }, speed = 22, gait = 1.25,
+		animal = { plan = "penguin", body = { w = 1.8, h = 2.5, l = 1.6 }, head = 1.25 } })
+animal("Osprey", "Osprey", { fur = C(250, 248, 242), fur2 = C(86, 60, 42), belly = C(252, 250, 244), beak = C(40, 38, 42), leg = C(220, 220, 200), mark = C(92, 64, 44),
+	wing = C(96, 68, 46), wingTip = C(52, 38, 28), tail = C(110, 80, 56), head = C(252, 250, 246) },
+	{ income = 30, zones = { 8, 2 }, weight = { min = 1.2, max = 2.2, ref = 1.6 }, speed = 30, gait = 1.1,
+		animal = { plan = "bird", body = { w = 1.7, h = 1.9, l = 2.3 }, legLen = 0.9, legT = 0.26, upright = 0.3, neck = { len = 0.5, lean = 0.05, w = 0.8 }, head = 1.15,
+			beak = { l = 0.6, w = 0.4, h = 0.42, hook = true }, stripe = C(60, 44, 32), talons = true, tail = { l = 1.2, w = 0.6 }, iris = C(250, 210, 40) } })
+animal("Kingfisher", "Kingfisher", { fur = C(40, 150, 220), fur2 = C(20, 110, 190), belly = C(250, 140, 50), beak = C(30, 30, 34), leg = C(230, 70, 60), mark = C(80, 210, 240),
+	wing = C(24, 120, 200), wingTip = C(16, 70, 130), tail = C(30, 100, 180), head = C(40, 150, 220), crown = C(60, 190, 240) },
+	{ income = 18, zones = { 7, 1 }, weight = { min = 0.03, max = 0.06, ref = 0.045 }, speed = 30, gait = 1.35,
+		animal = { plan = "bird", body = { w = 1.2, h = 1.2, l = 1.6 }, legLen = 0.35, legT = 0.18, upright = 0.2, neck = { len = 0.3, lean = 0, w = 0.8 }, head = 1.0,
+			beak = { l = 1.05, w = 0.26, h = 0.22 }, tail = { l = 0.6, w = 0.6 }, toe = 0.3 } })
+animal("Heron", "Grey Heron", { fur = C(176, 182, 192), fur2 = C(140, 146, 158), belly = C(236, 238, 242), beak = C(240, 196, 70), leg = C(196, 170, 110),
+	wing = C(150, 156, 170), wingTip = C(50, 52, 60), head = C(246, 246, 248), neck = C(236, 238, 242) },
+	{ income = 11, zones = { 3, 7 }, weight = { min = 1, max = 2.5, ref = 1.6 }, speed = 28, gait = 0.95,
+		animal = { plan = "bird", body = { w = 1.3, h = 1.4, l = 2.2 }, legLen = 2.9, legT = 0.2, neck = { len = 2.2, lean = 0.32, w = 0.4, s = true }, head = 0.8,
+			beak = { l = 1.6, w = 0.24, h = 0.24 }, crest = C(30, 30, 36), tail = { l = 0.6, w = 0.6 }, toe = 0.6, iris = C(250, 220, 60) } })
+animal("Crocodile", "Crocodile", { fur = C(70, 110, 52), fur2 = C(56, 90, 42), belly = C(200, 196, 140), muzzle = C(78, 120, 58), paw = C(60, 96, 46), nose = C(30, 40, 26),
+	claw = C(230, 224, 200) },
+	{ income = 34, zones = { 9, 6 }, weight = { min = 100, max = 900, ref = 380 }, speed = 24, gait = 0.8,
+		animal = { plan = "quad", body = { w = 2.4, h = 1.2, l = 5.0 }, legLen = 0.6, legT = 0.5, sprawl = 1, scutes = true, teeth = true, eyesTop = true,
+			head = { s = 1.6, l = 2.6, snoutW = 0.7, snoutH = 0.3, flat = 0.6, up = 0 }, tail = { l = 5, w = 1.3, segs = 6, taper = 0.85, flat = 0.75, droop = 0.02, fall = 0.02 },
+			iris = C(220, 200, 60) } })
+animal("Orca", "Orca", { fur = C(24, 24, 30), fur2 = C(30, 30, 38), belly = C(250, 250, 252), muzzle = C(24, 24, 30), flipper = C(24, 24, 30) },
+	{ income = 65, zones = { 5, 10 }, weight = { min = 2000, max = 7000, ref = 4000 }, speed = 22, gait = 0.7,
+		animal = { plan = "swim", orca = true, body = { w = 3.2, h = 3.2, l = 10 }, head = 2.8, flipper = 2.2, tailL = 3.2, dorsal = 3.4, saddle = C(150, 154, 164) } })
+animal("Raccoon", "Raccoon", { fur = C(130, 128, 130), fur2 = C(104, 102, 106), belly = C(176, 172, 170), muzzle = C(236, 234, 230), paw = C(40, 38, 42), nose = C(24, 22, 24),
+	ear = C(110, 108, 112), earIn = C(236, 234, 230), cheek = C(220, 218, 214) },
+	{ income = 3, zones = { 1, 2 }, weight = { min = 4, max = 14, ref = 8 }, speed = 30, gait = 1.2,
+		animal = { plan = "quad", body = { w = 1.8, h = 1.6, l = 2.6 }, legLen = 0.85, legT = 0.42, head = { s = 1.5, l = 0.5, snoutW = 0.44, snoutH = 0.3 },
+			ears = 0.45, mask = C(34, 32, 36), whiskers = true, tail = { l = 1.9, w = 0.75, segs = 6, taper = 0.25, rings = C(40, 38, 42), tip = C(40, 38, 42), droop = -0.25, fall = 0.1 } } })
+
 BearConfig.ZoneAffinity = 24 -- a zone's own species are ~24x more likely there
 
 function BearConfig.get(id: string)

@@ -29,7 +29,7 @@ local frame = 0
 local sin, cos, abs, clamp, noise = math.sin, math.cos, math.abs, math.clamp, math.noise
 local TAU = math.pi * 2
 local JOINTS = { "BodyJoint", "Neck", "Jaw", "EarL", "EarR", "LegFL", "LegFR", "LegBL", "LegBR", "Tail",
-	"PawFL", "PawFR", "PawBL", "PawBR" }
+	"PawFL", "PawFR", "PawBL", "PawBR", "WingL", "WingR" }
 local LEGS = { FL = "LegFL", FR = "LegFR", BL = "LegBL", BR = "LegBR" }
 
 local function newPose()
@@ -79,6 +79,8 @@ local function registerBear(model: Model, into: any?)
 	-- PERSONALITY from the species: light bears are playful, big ones heavy and proud,
 	-- round ones (pandas...) lazy
 	local e = into[model]
+	-- body plan: "bear" (default), "quad" (otter, raccoon, crocodile), "bird", "penguin", "swim"
+	e.plan = model:GetAttribute("Plan") or "bear"
 	local spec = BearConfig.get(model:GetAttribute("Species") or "")
 	local g = e.gait
 	e.playful = clamp((g - 1.0) / 0.25, 0, 1)
@@ -514,6 +516,80 @@ local function idleLayer(p, e, t, s, still)
 	end
 end
 
+--[[ BODY PLANS of the non-bear animals, layered on top of the shared poses:
+     BIRD    : the head bobs with every step (pigeon walk), wings stay tucked but balance in
+               turns, ruffle and stretch now and then, FLAP hard when happy (with little hops)
+     PENGUIN : side-to-side waddle, flippers out for balance, flapping fits of joy
+     SWIM    : no legs: the body undulates as it moves (seal humping, orca kicking its fluke),
+               flippers paddle, slow tail sway at rest, flipper claps / tail slaps of joy ]]
+local function planLayer(p, e, t, s, moving, anim, animT)
+	local plan = e.plan
+	if plan == "bear" or plan == "quad" then return end
+	local ph = e.phase or 0
+	local seed = e.seed or 0
+	local happy = anim == "Happy" or anim == "Roar" or anim == "Transform"
+	local hk = if happy then clamp(1 - animT / 2.6, 0, 1) else 0
+	if plan == "bird" then
+		-- walking: head bob (thrust forward, hold) + tail flick
+		rot(p, "Neck", -math.max(0, sin(ph * 2)) * 0.16 * moving, 0, 0)
+		pos(p, "Neck", 0, 0, -sin(ph * 2) * 0.08 * s * moving)
+		rot(p, "Tail", sin(ph * 2) * 0.12 * moving)
+		-- idle ruffle: every few seconds the wings half open and shake
+		local ruffle = math.max(0, sin(t * 0.55 + seed) - 0.94) * 16 * (1 - moving)
+		local flap = 0
+		if happy then
+			-- big flapping (fast, then slowing), hops on every downstroke
+			flap = (0.5 + 0.7 * abs(sin(animT * 15))) * hk
+			pos(p, "BodyJoint", 0, abs(sin(animT * 7.5)) * 0.5 * s * hk, 0)
+			rot(p, "Jaw", -abs(sin(animT * 11)) * 0.35 * hk) -- beak clacks
+		end
+		local open = flap + ruffle * (0.3 + 0.15 * sin(t * 30)) + 0.08 * moving
+		rot(p, "WingL", 0, -0.1 * open, -open)
+		rot(p, "WingR", 0, 0.1 * open, open)
+		-- calm breathing of the folded wings
+		rot(p, "WingL", 0, 0, -0.03 * sin(t * 2.2))
+		rot(p, "WingR", 0, 0, 0.03 * sin(t * 2.2))
+	elseif plan == "penguin" then
+		local w = sin(ph)
+		rot(p, "BodyJoint", 0, w * 0.08 * moving, w * 0.2 * moving)
+		local out = 0.35 * moving + 0.1 * sin(t * 1.7)
+		if happy then out += (0.6 + 0.8 * abs(sin(animT * 16))) * hk end
+		rot(p, "WingL", 0, 0, -out)
+		rot(p, "WingR", 0, 0, out)
+		rot(p, "Neck", 0, -w * 0.1 * moving, -w * 0.12 * moving)
+		rot(p, "Tail", 0, w * 0.4 * moving)
+	elseif plan == "swim" then
+		local orca = e.model:GetAttribute("Species") == "Orca"
+		-- moving: a travelling wave from the head to the tail
+		local wave = sin(ph * 2)
+		rot(p, "BodyJoint", wave * 0.12 * moving)
+		pos(p, "BodyJoint", 0, math.max(0, wave) * 0.25 * s * moving, 0)
+		rot(p, "Neck", -sin(ph * 2 - 0.8) * 0.12 * moving)
+		rot(p, "Tail", sin(ph * 2 - 1.6) * 0.55 * moving + sin(t * 1.4 + seed) * 0.12 * (1 - moving))
+		-- flippers paddle
+		local fl = if orca then "WingL" else "LegFL"
+		local fr = if orca then "WingR" else "LegFR"
+		local pad = sin(ph * 2) * 0.45 * moving + sin(t * 1.1 + seed) * 0.08
+		rot(p, fl, pad, 0, 0)
+		rot(p, fr, pad, 0, 0)
+		if happy then
+			if orca then
+				-- tail SLAP + head up
+				rot(p, "Tail", -abs(sin(animT * 6)) * 0.9 * hk)
+				rot(p, "Neck", -0.25 * hk)
+			else
+				-- seal: flipper CLAPS, head up, a bark
+				local clap = abs(sin(animT * 12)) * hk
+				rot(p, fl, 0, -0.9 * clap, -0.5 * clap)
+				rot(p, fr, 0, 0.9 * clap, 0.5 * clap)
+				rot(p, "Neck", -0.45 * hk)
+				rot(p, "Jaw", -abs(sin(animT * 6)) * 0.4 * hk)
+				rot(p, "Tail", -0.5 * hk)
+			end
+		end
+	end
+end
+
 local function locomotion(p, e, t, s, speed, dt)
 	local sNorm = speed / math.max(0.4, s)
 	local runK = clamp((sNorm - 9) / 8, 0, 1)
@@ -638,13 +714,20 @@ local function updateBear(e, dt, now)
 		local w = 1 - moving / 0.6
 		local sp = newPose()
 		stateFn(sp, e, math.max(0, animT), s)
+		local plan = e.plan
+		local tame = plan == "bird" or plan == "penguin" or plan == "swim"
 		for j, q in sp do
 			local d = p[j]
-			d.x += q.x * w d.y += q.y * w d.z += q.z * w
-			d.px += q.px * w d.py += q.py * w d.pz += q.pz * w
+			local k = w
+			-- bear acting (rearing up on the hind legs, pawing the air) is toned down for
+			-- birds, penguins and swimmers: their own plan layer does the acting
+			if tame and (j == "BodyJoint" or j == "LegFL" or j == "LegFR" or j == "LegBL" or j == "LegBR") then k *= 0.25 end
+			d.x += q.x * k d.y += q.y * k d.z += q.z * k
+			d.px += q.px * k d.py += q.py * k d.pz += q.pz * k
 		end
 	end
 	idleLayer(p, e, t, s, moving < 0.2 and (anim == "Idle" or anim == "Walk" or anim == "Run"))
+	planLayer(p, e, t, s, moving, anim, math.max(0, animT))
 	if air and not carried then airLayer(p, e, s, vy) end
 	if e.squash > 0 then
 		local q = Easing.bump(1 - e.squash)

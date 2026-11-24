@@ -477,9 +477,9 @@ local function buildIndex()
 	local w = makeWindow("Index", { title = "Index", grad = "pink", size = Vector2.new(960, 540), factor = 0.84 }) -- wide: pills + tabs outside
 	-- RIGHT (outside the window): Fish / Bears
 	local tabs = {}
-	for i, cat in { "Fish", "Bears" } do
-		tabs[cat] = Sim.button(w.frame, { Name = "Tab" .. cat, Grad = if cat == "Fish" then "blue" else "orange", Size = Vector2.new(170, 62),
-			Position = UDim2.fromOffset(w.W + 100, 120 + (i - 1) * 76), Text = cat, Max = 34, Icon = if cat == "Fish" then K.Icons.Bait else K.Icons.Paw }, function()
+	for i, cat in { "Fish", "Bears", "Animals" } do
+		tabs[cat] = Sim.button(w.frame, { Name = "Tab" .. cat, Grad = if cat == "Fish" then "blue" elseif cat == "Animals" then "teal" else "orange", Size = Vector2.new(170, 62),
+			Position = UDim2.fromOffset(w.W + 100, 120 + (i - 1) * 76), Text = cat, Max = if cat == "Animals" then 28 else 34, Icon = if cat == "Fish" then K.Icons.Bait else K.Icons.Paw }, function()
 			indexCat = cat
 			indexSel = nil
 			renderers.Index(true)
@@ -530,7 +530,9 @@ local function buildIndex()
 		local isFish = indexCat == "Fish"
 		local book = if isFish then (index.fish or {}) else (index.bears or {})
 		local sections = IndexConfig.sections(indexCat, indexVar)
-		local accent = if indexVar then VAR_LOOK[indexVar] else (if isFish then { RGB(150, 230, 255), RGB(40, 140, 240) } else { RGB(255, 214, 120), RGB(240, 130, 30) })
+		local accent = if indexVar then VAR_LOOK[indexVar] else (if isFish then { RGB(150, 230, 255), RGB(40, 140, 240) }
+			elseif indexCat == "Animals" then { RGB(140, 255, 214), RGB(20, 175, 150) } else { RGB(255, 214, 120), RGB(240, 130, 30) })
+		local pendKey = if indexCat == "Animals" then "Bears" else indexCat -- animal discoveries pay into the bears' purse
 
 		-- TOP BAR: title · overall progress · pending discovery money ---------------------------
 		local all, got = 0, 0
@@ -555,10 +557,10 @@ local function buildIndex()
 			game:GetService("TweenService"):Create(tf, TweenInfo.new(0.8, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Size = UDim2.fromScale(pct, 1) }):Play()
 		end
 		Sim.text(tb, ("%d / %d  ·  %d%%"):format(got, all, math.floor(pct * 100 + 0.5)), { Size = UDim2.new(1, -10, 0.78, 0), Max = 20, Stroke = 2.5, ZIndex = 8 })
-		local pending = d.indexPending and d.indexPending[indexCat] or 0
+		local pending = d.indexPending and d.indexPending[pendKey] or 0
 		local claim = Sim.button(w.content, { Grad = if pending > 0 then "green" else "grey", Size = Vector2.new(250, 40), Position = UDim2.fromOffset(810, 34),
 			Text = if pending > 0 then "Collect " .. Format.money(pending) else "Discoveries collected", Max = 20, Icon = K.Icons.Cash, IconSize = 0.8, ZIndex = 6 }, function()
-			Net.event("ClaimIndex"):FireServer(indexCat)
+			Net.event("ClaimIndex"):FireServer(pendKey)
 		end)
 		if pending > 0 then K.shine(claim, 1.8) end
 
@@ -713,7 +715,7 @@ local function buildIndex()
 			if spec then
 				local rar = if isFish then spec.rarity else (spec.fixedRarity or bestRarity(entry) or "Common")
 				local card, centre = Sim.card(w.content, { Size = Vector2.new(268, 380), Rarity = if found then rar else "Secret", Title = if found or entry then spec.name else "???",
-					RarityText = if isFish or entry then RarityConfig.get(rar).name else "Bear", CenterTop = 76, CenterCut = 196 })
+					RarityText = if isFish or entry then RarityConfig.get(rar).name elseif indexCat == "Animals" then "Animal" else "Bear", CenterTop = 76, CenterCut = 196 })
 				card.Position = UDim2.fromOffset(CW - 268 - 8, 64)
 				Sim.model(centre, { kind = if isFish then "Fish" else "Bear", id = id, variant = if indexVar and found then indexVar else nil, silhouette = not found, spin = found,
 					size = UDim2.fromScale(1, 1.1) })

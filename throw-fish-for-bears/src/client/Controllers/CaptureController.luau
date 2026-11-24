@@ -389,6 +389,11 @@ local function startReveal(d)
 	end
 	rs.final = final
 	local finalH = if final then heightOf(final) else 6
+	local finalW = 4
+	if final then
+		local ok, sz = pcall(function() return final:GetExtentsSize() end)
+		if ok and sz then finalW = math.max(sz.X, sz.Z) end
+	end
 
 	-- 3) the silhouettes: other animals + the real one last (built over a few frames)
 	local others = {}
@@ -595,11 +600,14 @@ local function startReveal(d)
 			lookY = hh * 0.5
 			fov = 58 - 6 * k
 		else
-			-- the result: a springy pull back, the animal centred under its texts
+			-- the result: a springy pull back that fits the WHOLE animal between its texts (top
+			-- half of the screen) and the GO BACK button: ~26 % of the screen height, centred
+			-- 14 % under the middle (a tall heron or a long orca never hides under the texts)
 			local k = Easing.backOut(math.clamp((t - T_RESULT) / 0.55, 0, 1))
-			d0 = dist * (0.95 + 0.15 * k)
-			camY = 1 + hh * 0.5
-			lookY = hh * (0.5 + 0.2 * k) -- the animal sits a bit low: the texts float above it
+			local fit = math.max(finalH / 0.34, finalW / 1.7, 8)
+			d0 = dist * 0.9 + (fit - dist * 0.9) * k
+			lookY = hh * 0.5 + 0.075 * fit * k
+			camY = 1 + hh * 0.5 + (0.06 * fit) * k
 			fov = 52 + 6 * k
 		end
 		local yaw = 0.16 * math.sin(t * 0.33) + (if t > T_RESULT then (t - T_RESULT) * 0.035 else 0)

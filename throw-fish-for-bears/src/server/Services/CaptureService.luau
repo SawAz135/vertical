@@ -48,7 +48,9 @@ function CaptureService.speciesWeights(zone: number): { [string]: number }
 	for _, id in BearConfig.Order do
 		local s = BearConfig.get(id)
 		if s.fixedRarity then continue end -- one-of-a-kind species (Impossible) are never rolled here
-		local w = s.spawn
+		-- every species (bears AND animals) has the SAME base chance; its home zones still
+		-- make it much more likely there
+		local w = 1
 		if table.find(s.zones, zone) then w *= BearConfig.ZoneAffinity end
 		out[id] = w
 	end

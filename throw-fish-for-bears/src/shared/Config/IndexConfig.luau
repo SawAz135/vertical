@@ -1,6 +1,7 @@
 --[[ IndexConfig: how the Index is organised and what completing it gives.
      Sections:
        Bears : one section per zone (a bear's first home zone), + "Special" (cosmic...)
+       Animals : the other fish eaters (pelican, otter, orca...), one section per home zone
        Fish  : one section per rarity (Common, Uncommon, ... Impossible)
      Each section exists in 4 versions: Normal (just discovered) and one per mutation
      (Golden / Diamond / Rainbow: discovered IN that mutation).
@@ -43,11 +44,15 @@ function I.sections(cat: string, variant: string?)
 	local ck = cat .. v
 	if cache[ck] then return cache[ck] end
 	local list = {}
-	if cat == "Bears" then
+	if cat == "Bears" or cat == "Animals" then
+		-- Bears and Animals (pelicans, otters, orcas...) have their own tabs, both by home zone
+		local animals = cat == "Animals"
+		local pre = if animals then ":A" else ":B"
 		local byZone = {}
 		local special = {}
 		for _, id in BearConfig.Order do
 			local spec = BearConfig.get(id)
+			if (spec.isAnimal == true) ~= animals then continue end
 			local z = spec.zones and spec.zones[1]
 			if z then
 				byZone[z] = byZone[z] or {}
@@ -59,11 +64,11 @@ function I.sections(cat: string, variant: string?)
 		for z = 1, 10 do
 			if byZone[z] then
 				local zc = ZoneConfig.get(z)
-				table.insert(list, { key = v .. ":B" .. z, title = ("ZONE %d · %s"):format(z, zc.name:upper()), ids = byZone[z], rank = z, color = zc.sign })
+				table.insert(list, { key = v .. pre .. z, title = ("ZONE %d · %s"):format(z, zc.name:upper()), ids = byZone[z], rank = z, color = zc.sign })
 			end
 		end
 		if #special > 0 then
-			table.insert(list, { key = v .. ":BSpecial", title = "SPECIAL", ids = special, rank = 11, color = Color3.fromRGB(190, 120, 255) })
+			table.insert(list, { key = v .. pre .. "Special", title = "SPECIAL", ids = special, rank = 11, color = Color3.fromRGB(190, 120, 255) })
 		end
 	else
 		local byR = {}
@@ -89,7 +94,7 @@ function I.sections(cat: string, variant: string?)
 end
 
 function I.byKey(key: string)
-	for _, cat in { "Bears", "Fish" } do
+	for _, cat in { "Bears", "Fish", "Animals" } do
 		for _, v in { "Normal", "Golden", "Diamond", "Ancient", "Rainbow", "Clockwork" } do
 			for _, s in I.sections(cat, if v == "Normal" then nil else v) do
 				if s.key == key then return s end
@@ -101,7 +106,7 @@ end
 
 -- is this species found (in this variant)?
 function I.found(index, cat: string, id: string, variant: string?): boolean
-	local book = if cat == "Bears" then index and index.bears else index and index.fish
+	local book = if cat == "Fish" then index and index.fish else index and index.bears -- animals share the bears' book
 	local e = book and book[id]
 	if not e then return false end
 	if variant then return e.v ~= nil and e.v[variant] == true end
