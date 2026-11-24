@@ -100,16 +100,17 @@ local function buildGround(map)
 		-- (half the parts of a full grid): 22 x 22 cells of 4 studs. The beach is not touched.
 		local folder = Instance.new("Folder")
 		folder.Name = "BaseChecker" .. i
-		local span = Layout.BASE_SIZE - 2
-		local n = 16 -- big checker squares, studs clearly visible
-		local tile = span / n
-		Studs.static(folder, "BasePlate", V3(span, 0.2, span), CF(c.X, 0.1, c.Z), CHECK_LIGHT, { noCollide = true, noShadow = true, raw = true })
-		for a = 0, n - 1 do
+		local spanX, span = Layout.BASE_SIZE_X - 2, Layout.BASE_SIZE - 2
+		local tile = 4 -- big checker squares, studs clearly visible
+		local nx, n = math.floor(spanX / tile + 0.5), math.floor(span / tile + 0.5)
+		local tx, tz = spanX / nx, span / n
+		Studs.static(folder, "BasePlate", V3(spanX, 0.2, span), CF(c.X, 0.1, c.Z), CHECK_LIGHT, { noCollide = true, noShadow = true, raw = true })
+		for a = 0, nx - 1 do
 			for b = 0, n - 1 do
 				if (a + b) % 2 == 1 then
-					local x = c.X - span / 2 + (a + 0.5) * tile
-					local z = c.Z - span / 2 + (b + 0.5) * tile
-					Studs.static(folder, "BaseTile", V3(tile, 0.22, tile), CF(x, 0.11, z), CHECK_DARK, { noCollide = true, noShadow = true, raw = true })
+					local x = c.X - spanX / 2 + (a + 0.5) * tx
+					local z = c.Z - span / 2 + (b + 0.5) * tz
+					Studs.static(folder, "BaseTile", V3(tx, 0.22, tz), CF(x, 0.11, z), CHECK_DARK, { noCollide = true, noShadow = true, raw = true })
 				end
 			end
 		end
@@ -188,69 +189,57 @@ local function buildCompound(map, rand)
 	local cy = Layout.CORRIDOR_Y
 	-- 1) the plateau's FRONT CLIFF above the trench (face looks down the corridor), low grass lip
 	Props.cliffFace(map, V3(-H, 0, c.minZ + 2), V3(H, 0, c.minZ + 2), cy, 0, V3(0, 0, -1), CLIFF.forest, rand, LOW_RIM)
-	-- invisible wall along the edge (the stairs / ramp stay open on both sides)
-	Props.invisibleWall(map, V3(Layout.STAIRS.maxX, 0, c.minZ - 0.4), V3(Layout.RAMP.minX, 0, c.minZ - 0.4), 0, 40)
-	-- the strips between the stairs / ramp and the trench walls, and the trench wall tops along
-	-- the descent: nobody walks onto the cliff rims (that leads out of the map)
-	for _, sx in { -1, 1 } do
-		Props.invisibleWall(map, V3(sx * H, 0, c.minZ + 0.6), V3(sx * (H + 6), 0, c.minZ + 0.6), 0, 40)
-		Props.invisibleWall(map, V3(sx * (H + 0.4), 0, c.minZ), V3(sx * (H + 0.4), 0, c.minZ - Layout.DESCENT_LEN - 6), cy, 60)
-	end
-	-- 2) STAIRS (left) down into the trench: 20 studded steps; RAMP (right) to climb back up
-	local st = Layout.STAIRS
-	local n = Layout.CORRIDOR_DEPTH
-	local stepD = Layout.DESCENT_LEN / n
-	for i = 1, n - 1 do
-		local top = -i
-		local z1 = c.minZ - (i - 1) * stepD
-		local z0 = z1 - stepD
-		local hgt = top - cy
-		Studs.static(map, "Step", V3(st.maxX - st.minX, hgt, stepD), CF((st.minX + st.maxX) / 2, cy + hgt / 2, (z0 + z1) / 2),
-			if i % 2 == 0 then C(170, 170, 178) else C(150, 150, 158), { allStuds = true })
-	end
+	-- invisible wall along the edge (the ramp stays open)
 	local rp = Layout.RAMP
+	Props.invisibleWall(map, V3(-H - 4, 0, c.minZ - 0.4), V3(rp.minX, 0, c.minZ - 0.4), 0, 40)
+	-- the trench wall top next to the ramp: nobody walks onto the cliff rim
+	Props.invisibleWall(map, V3(H + 0.4, 0, c.minZ), V3(H + 0.4, 0, c.minZ - Layout.DESCENT_LEN - 6), cy, 60)
+	Props.invisibleWall(map, V3(rp.maxX, 0, c.minZ + 0.6), V3(H + 6, 0, c.minZ + 0.6), 0, 40)
+	-- 2) the RAMP (right, along the corridor wall): down into the trench and back up
 	Studs.static(map, "Ramp", V3(rp.maxX - rp.minX, Layout.CORRIDOR_DEPTH, Layout.DESCENT_LEN),
 		CF((rp.minX + rp.maxX) / 2, cy + Layout.CORRIDOR_DEPTH / 2, c.minZ - Layout.DESCENT_LEN / 2), C(150, 150, 158), { wedge = true })
-	-- 3) the BOWL: stepped grass hills all around the plateau (sides + front corners), with
-	--    an invisible wall at their foot so nobody climbs out
-	local hills = {
-		{ V3(c.minX - 3, 0, c.minZ - 18), V3(c.minX - 3, 0, Layout.LAKE.maxZ + 6), V3(1, 0, 0) },
-		{ V3(c.maxX + 3, 0, c.minZ - 18), V3(c.maxX + 3, 0, Layout.LAKE.maxZ + 6), V3(-1, 0, 0) },
-		{ V3(c.maxX + 3, 0, Layout.LAKE.maxZ + 6), V3(c.minX - 3, 0, Layout.LAKE.maxZ + 6), V3(0, 0, -1) },
-		{ V3(c.minX, 0, c.minZ), V3(-H - 4, 0, c.minZ), V3(0, 0, 1) },
-		{ V3(H + 4, 0, c.minZ), V3(c.maxX, 0, c.minZ), V3(0, 0, 1) },
+	-- 3) the PLATEAU WALLS: the same dirt-checker cliffs as the corridor, just as high (20),
+	--    all around the spawn (front corners beside the trench, both sides, behind the lake),
+	--    grass rim on top with still decor (birches, blocky trees, sunflowers, mushrooms)
+	local P = Layout.PLATEAU_HALF
+	local WH = Layout.PLATEAU_WALL
+	local backZ = Layout.LAKE.maxZ + 2
+	local walls = {
+		{ V3(-P - 2, 0, c.minZ - 2), V3(-P - 2, 0, backZ + 2), V3(1, 0, 0) },
+		{ V3(P + 2, 0, c.minZ - 2), V3(P + 2, 0, backZ + 2), V3(-1, 0, 0) },
+		{ V3(-P - 4, 0, backZ + 2), V3(P + 4, 0, backZ + 2), V3(0, 0, -1) },
+		{ V3(-P - 4, 0, c.minZ - 2), V3(-H - 4, 0, c.minZ - 2), V3(0, 0, 1) },
+		{ V3(H + 4, 0, c.minZ - 2), V3(P + 4, 0, c.minZ - 2), V3(0, 0, 1) },
 	}
-	for _, hdef in hills do
-		local m, tops, along, out = Props.terraces(map, hdef[1], hdef[2], hdef[3], 3, 4, 6, rand)
-		Props.invisibleWall(map, hdef[1] + hdef[3] * 0.6, hdef[2] + hdef[3] * 0.6, 0, 60)
-		-- decor on the tiers: birches and blocky trees at the back, sunflowers, flowers,
-		-- mushrooms and bushes on the steps (everything still: no animation)
-		local len = m:GetAttribute("Len") or 0
-		local sPos = 3
-		while sPos < len - 3 do
-			local t = rand:NextInteger(1, 3)
-			local tp = tops[t]
-			local off = tp.from + rand:NextNumber() * (tp.to - tp.from)
-			local pos = hdef[1] + along * sPos + out * off + V3(0, tp.y, 0)
+	for _, wd in walls do
+		local m = Props.cliffFace(map, wd[1], wd[2], 0, WH, wd[3], CLIFF.forest, rand)
+		local d = wd[2] - wd[1]
+		local len = d.Magnitude
+		local along = d.Unit
+		local out = -wd[3]
+		local sPos = 2 + rand:NextNumber() * 3
+		while sPos < len - 2 do
+			-- on the highest grass step (offsets 4.5 .. 12 behind the face, top at WH + 3.6)
+			local pos = wd[1] + along * sPos + out * (5.5 + rand:NextNumber() * 5.5) + V3(0, WH + 3.6, 0)
 			local roll = rand:NextNumber()
-			if t == 3 and roll < 0.35 then
+			if roll < 0.22 then
 				Props.birch(m, pos, 0.8 + rand:NextNumber() * 0.4, rand)
-				sPos += 7
-			elseif t == 3 and roll < 0.6 then
-				Props.tree(m, pos, 0.7 + rand:NextNumber() * 0.3, rand, C(92, 190, 50))
-				sPos += 9
-			elseif roll < 0.75 then
+				sPos += 8
+			elseif roll < 0.42 then
+				Props.tree(m, pos, 0.75 + rand:NextNumber() * 0.35, rand, C(92, 190, 50))
+				sPos += 10
+			elseif roll < 0.62 then
 				Props.sunflower(m, pos, rand)
-				sPos += 2.5
-			elseif roll < 0.85 then
+				sPos += 3
+			elseif roll < 0.74 then
 				Props.mushroom(m, pos, 0.8 + rand:NextNumber() * 0.4)
-				sPos += 2.5
-			elseif roll < 0.92 then
-				Props.bush(m, pos, 0.7, rand)
-				sPos += 4
+				sPos += 3
+			elseif roll < 0.86 then
+				Props.bush(m, pos, 0.8, rand)
+				sPos += 5
 			else
 				Props.flower(m, pos, rand)
-				sPos += 1.6
+				sPos += 2
 			end
 		end
 	end
@@ -302,18 +291,18 @@ local function buildBases(map)
 		folder.Name = "Base" .. i
 		folder.Parent = map
 		MapService.baseFolders[i] = folder
-		local h = Layout.BASE_HALF
+		local hx, h = Layout.BASE_HALF_X, Layout.BASE_HALF
 		local gate = Layout.BASE_GATE_WIDTH
 		local col = Layout.BASE_COLORS[i]
-		Props.fence(folder, V3(c.X - h, 0, c.Z - h), V3(c.X + h, 0, c.Z - h), gate)
-		Props.fence(folder, V3(c.X - h, 0, c.Z + h), V3(c.X + h, 0, c.Z + h), gate)
-		Props.fence(folder, V3(c.X - h, 0, c.Z - h), V3(c.X - h, 0, c.Z + h))
-		Props.fence(folder, V3(c.X + h, 0, c.Z - h), V3(c.X + h, 0, c.Z + h))
+		Props.fence(folder, V3(c.X - hx, 0, c.Z - h), V3(c.X + hx, 0, c.Z - h), gate)
+		Props.fence(folder, V3(c.X - hx, 0, c.Z + h), V3(c.X + hx, 0, c.Z + h), gate)
+		Props.fence(folder, V3(c.X - hx, 0, c.Z - h), V3(c.X - hx, 0, c.Z + h))
+		Props.fence(folder, V3(c.X + hx, 0, c.Z - h), V3(c.X + hx, 0, c.Z + h))
 		-- owner colour border inside the fence
 		for _, side in { -1, 1 } do
-			local b1 = Studs.static(folder, "Border", V3(Layout.BASE_SIZE - 4, 0.16, 1.2), CF(c.X, 0.15, c.Z + side * (h - 2)), col)
+			local b1 = Studs.static(folder, "Border", V3(Layout.BASE_SIZE_X - 4, 0.16, 1.2), CF(c.X, 0.15, c.Z + side * (h - 2)), col)
 			b1.CanCollide = false
-			local b2 = Studs.static(folder, "Border", V3(1.2, 0.16, Layout.BASE_SIZE - 4), CF(c.X + side * (h - 2), 0.15, c.Z), col)
+			local b2 = Studs.static(folder, "Border", V3(1.2, 0.16, Layout.BASE_SIZE - 4), CF(c.X + side * (hx - 2), 0.15, c.Z), col)
 			b2.CanCollide = false
 		end
 		-- FISH-UP training station at the outer front corner of the base
@@ -412,18 +401,8 @@ local function buildCorridor(map, rand)
 			local strip = Studs.static(folder, "ZoneBlend", V3(H * 2, 0.22, 6), CF(0, 0.11, a - 1), prev.ground:Lerp(zone.ground, 0.5))
 			strip.CanCollide = false
 		end
-		-- entrance arch: zone name + recommended strength (zone 1: after the stairs / ramp)
-		local az = if i == 1 then a - Layout.DESCENT_LEN - 10 else a - 4
+		-- (no signs at all in the corridor: the zone name shows as a banner on screen)
 		local zStart = if i == 1 then a - Layout.DESCENT_LEN - 16 else a - 10
-		Studs.static(folder, "ArchL", V3(3, 20, 3), CF(-H + 4, 10, az), Props.TRUNK)
-		Studs.static(folder, "ArchR", V3(3, 20, 3), CF(H - 4, 10, az), Props.TRUNK)
-		local arch = Studs.static(folder, "ArchBoard", V3(44, 6, 1.2), CF(0, 19, az), zone.sign)
-		Studs.static(folder, "ArchFrame", V3(46, 7, 0.8), CF(0, 19, az + 0.6), Props.WOOD_DARK)
-		Studs.static(folder, "ArchTop", V3(50, 2, 3), CF(0, 22.6, az), zone.groundAlt)
-		local rec = Formulas.zoneStrength(i)
-		Props.signText(arch, ("ZONE %d  ·  %s"):format(i, zone.name:upper()), Enum.NormalId.Back)
-		Props.signText(arch, if rec > 0 then ("💪 %s+  ·  BASES ↓"):format(rec >= 1000 and (math.floor(rec / 100) / 10 .. "K") or tostring(rec)) else "BASES ↓", Enum.NormalId.Front)
-		arch:SetAttribute("Zone", i)
 
 		-- decor on both sides (centre lane |x| < 18 kept clear)
 		local function sidePos(minX, maxX)

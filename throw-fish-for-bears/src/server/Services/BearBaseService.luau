@@ -260,7 +260,7 @@ function BearBase.placeBest(player: Player)
 	for _, b in stored do
 		if BearBase.placedCount(player) >= cap then break end
 		for _ = 1, 25 do
-			local pos = Vector3.new(c.X + (rand:NextNumber() - 0.5) * (Layout.BASE_SIZE - 16), 0, c.Z + (rand:NextNumber() - 0.5) * (Layout.BASE_SIZE - 16))
+			local pos = Vector3.new(c.X + (rand:NextNumber() - 0.5) * (Layout.BASE_SIZE_X - 12), 0, c.Z + (rand:NextNumber() - 0.5) * (Layout.BASE_SIZE - 16))
 			if spacingOk(player, pos) then
 				b.placed = true
 				b.x = math.floor((pos.X - c.X) * 10) / 10
@@ -287,7 +287,7 @@ local function autoPlace(player: Player, b): boolean
 	if not base then return false end
 	local c = Layout.BASE_CENTERS[base]
 	for _ = 1, 40 do
-		local pos = Vector3.new(c.X + (rand:NextNumber() - 0.5) * (Layout.BASE_SIZE - 16), 0, c.Z + (rand:NextNumber() - 0.5) * (Layout.BASE_SIZE - 16))
+		local pos = Vector3.new(c.X + (rand:NextNumber() - 0.5) * (Layout.BASE_SIZE_X - 12), 0, c.Z + (rand:NextNumber() - 0.5) * (Layout.BASE_SIZE - 16))
 		if spacingOk(player, pos) then
 			b.placed = true
 			b.x = math.floor((pos.X - c.X) * 10) / 10

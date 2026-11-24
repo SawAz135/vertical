@@ -11,14 +11,17 @@ Layout.GROUND_Y = 0
 Layout.MAX_PLAYERS = 4
 
 -- Bases: 4 SMALL plots side by side (reference: compact garden plots in a row) ---------
-Layout.BASE_SIZE = 64
-Layout.BASE_HALF = 32
+-- narrow plots: 44 studs wide (X) x 64 deep (Z), 4 studs apart
+Layout.BASE_SIZE = 64 -- depth (Z)
+Layout.BASE_HALF = 32 -- half depth (Z)
+Layout.BASE_SIZE_X = 44 -- width (X)
+Layout.BASE_HALF_X = 22 -- half width (X)
 Layout.BASE_Z = 120
 Layout.BASE_CENTERS = {
-	Vector3.new(-102, 0, 120),
-	Vector3.new(-34, 0, 120),
-	Vector3.new(34, 0, 120),
-	Vector3.new(102, 0, 120),
+	Vector3.new(-72, 0, 120),
+	Vector3.new(-24, 0, 120),
+	Vector3.new(24, 0, 120),
+	Vector3.new(72, 0, 120),
 }
 Layout.BASE_COLORS = {
 	Color3.fromRGB(255, 85, 85),
@@ -30,8 +33,8 @@ Layout.BASE_COLOR_NAMES = { "Red", "Blue", "Green", "Yellow" }
 Layout.BASE_GATE_WIDTH = 16 -- openings in the front and rear fences
 
 -- Lake / docks ------------------------------------------------------------
-Layout.SAND = { minX = -146, maxX = 146, minZ = 160, maxZ = 184 }
-Layout.LAKE = { minX = -150, maxX = 150, minZ = 184, maxZ = 360 }
+Layout.SAND = { minX = -100, maxX = 100, minZ = 160, maxZ = 184 }
+Layout.LAKE = { minX = -102, maxX = 102, minZ = 184, maxZ = 330 }
 Layout.WATER_Y = -1.2
 Layout.DOCK_START_Z = 180
 Layout.DOCK_END_Z = 238
@@ -40,20 +43,23 @@ Layout.DOCK_TOP_Y = 0.8
 Layout.FISH_SPOT_RADIUS = 9 -- distance from the dock end where casting is allowed
 
 -- Front area --------------------------------------------------------------
-Layout.COMPOUND = { minX = -150, maxX = 150, minZ = -24, maxZ = 184 } -- front wall closer to the bases
-Layout.FRONT = { minX = -143, maxX = 143, minZ = -20, maxZ = 84 }
+-- the spawn plateau (narrower than before; its walls are as high as the corridor's: 20)
+Layout.PLATEAU_HALF = 102 -- inner face of the side walls
+Layout.PLATEAU_WALL = 20
+Layout.COMPOUND = { minX = -102, maxX = 102, minZ = -24, maxZ = 184 }
+Layout.FRONT = { minX = -98, maxX = 98, minZ = -20, maxZ = 84 }
 -- throw zone: the whole width between the side walls, from the front wall to the throw line
 Layout.THROW_AREA = { minX = -62, maxX = 62, minZ = -22, maxZ = 0 } -- rectangle in front of the corridor entrance
 Layout.THROW_LINE_Z = -20
 -- SELL and SHOP stand in the corners of the corridor entrance, against the front wall (inner face z = -22), facing the bases
-Layout.SELL_POS = Vector3.new(-72, 0, -18.5)
-Layout.SHOP_POS = Vector3.new(72, 0, -18.5)
+Layout.SELL_POS = Vector3.new(-92, 0, -18.5)
+Layout.SHOP_POS = Vector3.new(92, 0, -18.5)
 Layout.TRAIN_RADIUS = 3.6
 -- one FISH-UP training station per base, at the outer front corner (outside the fence)
 function Layout.trainPos(i: number): Vector3
 	local c = Layout.BASE_CENTERS[i]
 	local side = if c.X < 0 then -1 else 1
-	return Vector3.new(c.X + side * (Layout.BASE_HALF - 7), 0, c.Z - Layout.BASE_HALF - 7.5)
+	return Vector3.new(c.X + side * (Layout.BASE_HALF_X - 7), 0, c.Z - Layout.BASE_HALF - 7.5)
 end
 
 function Layout.isInTraining(i: number, pos: Vector3): boolean
@@ -63,15 +69,14 @@ end
 Layout.SPAWN_POS = Vector3.new(0, 0, 40)
 
 -- Corridor and zones ------------------------------------------------------
-Layout.CORRIDOR_HALF = 60
+Layout.CORRIDOR_HALF = 72 -- a bit wider than before (60), still a corridor; the plateau is wider (102)
 -- the corridor is a TRENCH: its floor is 20 studs below the plateau (spawn, bases, lake),
 -- the front cliff of the plateau is at z = CORRIDOR_START_Z
 Layout.CORRIDOR_START_Z = -24
 Layout.CORRIDOR_Y = -20
 Layout.CORRIDOR_DEPTH = 20
--- stairs (left) / ramp (right) from the plateau down into the trench: x ranges, length
-Layout.STAIRS = { minX = -60, maxX = -48 }
-Layout.RAMP = { minX = 48, maxX = 60 }
+-- the ramp (right side, along the corridor wall) between the plateau and the trench
+Layout.RAMP = { minX = 58, maxX = 72 }
 Layout.DESCENT_LEN = 40
 Layout.ZONE_LENGTH = 300
 Layout.ZONE_COUNT = 10 -- Green Forest -> Tropical Beach (ZoneConfig)
@@ -115,8 +120,8 @@ Layout.inRect = inRect
 
 function Layout.baseRect(i: number)
 	local c = Layout.BASE_CENTERS[i]
-	local h = Layout.BASE_HALF
-	return { minX = c.X - h, maxX = c.X + h, minZ = c.Z - h, maxZ = c.Z + h }
+	local hx, hz = Layout.BASE_HALF_X, Layout.BASE_HALF
+	return { minX = c.X - hx, maxX = c.X + hx, minZ = c.Z - hz, maxZ = c.Z + hz }
 end
 
 function Layout.isInBase(i: number, pos: Vector3, margin: number?): boolean
