@@ -667,8 +667,7 @@ local function startReveal(d)
 			for _, fc in fishCols do fc.p.Color = fc.c:Lerp(SHADOW, b) end
 		end
 		if not rs.starOpen and t > T_SPIN * 0.35 then
-			star = buildStar()
-			rs.star = star
+			-- (no star burst behind the shape: just the black shadow and its "1 IN ?")
 			rs.starOpen = os.clock()
 			ui.spin.label.Text = "1 IN ?"
 			slam(ui.spin, rs)
