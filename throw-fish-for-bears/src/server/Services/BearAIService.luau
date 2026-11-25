@@ -50,6 +50,7 @@ end
 function BearAI.spawn(params)
 	local model = BearBuilder.build(params.species, {
 		weight = params.weight, scale = params.scale, variant = params.variant, rarity = params.rarity,
+		brickBudget = params.brickBudget,
 	})
 	setNoCollide(model)
 	local root = model.PrimaryPart

@@ -202,13 +202,24 @@ function CaptureService.spawnAmbient()
 	for i = 1, Layout.ZONE_COUNT do
 		local z = ZoneConfig.get(i)
 		local rects = Layout.zoneRoamRects(i)
-		for k, species in z.ambient do
+		-- the zone's own wildlife: its bears + up to 2 of the animals that live there
+		local list = table.clone(z.ambient)
+		local added = 0
+		for _, id in BearConfig.Order do
+			local spec = BearConfig.get(id)
+			if spec.isAnimal and spec.zones[1] == i and added < 2 then
+				table.insert(list, id)
+				added += 1
+			end
+		end
+		for k, species in list do
 			local r = rects[(k - 1) % #rects + 1]
 			local spec = BearConfig.get(species)
-			local p = Vector3.new((r.minX + r.maxX) / 2, Layout.CORRIDOR_Y, r.minZ + (r.maxZ - r.minZ) * (k / (#z.ambient + 1)))
+			local p = Vector3.new((r.minX + r.maxX) / 2, Layout.CORRIDOR_Y, r.minZ + (r.maxZ - r.minZ) * (k / (#list + 1)))
 			local agent = R.BearAI.spawn({
 				species = species, weight = spec.weight.min + (spec.weight.ref - spec.weight.min) * rand:NextNumber(),
 				cf = CFrame.new(p) * CFrame.Angles(0, rand:NextNumber() * 6.28, 0), mode = "Zone", rects = rects,
+				brickBudget = 60, -- wildlife far away: a lighter brick relief
 			})
 			agent.timer = rand:NextNumber() * 4
 		end
