@@ -887,6 +887,19 @@ function Props.mushroom(parent: Instance, pos: Vector3, size: number)
 	return m
 end
 
+-- a clump of TALL GRASS: a few thin blades of different heights and greens (still)
+function Props.tallGrass(parent: Instance, pos: Vector3, rand: Random, tint: Color3?)
+	local m = model(parent, "TallGrass")
+	local base = tint or C(84, 180, 52)
+	for i = 1, 4 + rand:NextInteger(0, 2) do
+		local h = 1.2 + rand:NextNumber() * 1.8
+		local off = V3((rand:NextNumber() - 0.5) * 1.2, 0, (rand:NextNumber() - 0.5) * 1.2)
+		Studs.static(m, "Blade", V3(0.3, h, 0.3), CF(pos + off + V3(0, h / 2, 0)) * CFrame.Angles((rand:NextNumber() - 0.5) * 0.3, rand:NextNumber() * 3, (rand:NextNumber() - 0.5) * 0.3),
+			Studs.shade(base, 0.85 + rand:NextNumber() * 0.3), { noCollide = true, noShadow = true })
+	end
+	return m
+end
+
 -- an invisible collision wall (keeps players on the plateau; never blocks the camera)
 function Props.invisibleWall(parent: Instance, p0: Vector3, p1: Vector3, y0: number, height: number)
 	local d = p1 - p0

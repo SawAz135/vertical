@@ -465,6 +465,71 @@ local function buildCorridor(map, rand)
 				Props.umbrella(folder, sidePos(24, 40), ({ C(240, 60, 60), C(60, 160, 240), C(250, 200, 40), C(90, 200, 90) })[k])
 			end
 		end
+		-- A BEAUTIFUL VIEW: a line of themed trees / plants on top of both corridor walls (seen
+		-- against the sky from down in the corridor), flowers and tall grass all along the foot
+		-- of the walls, and more flower patches on the floor
+		local WH = Layout.PLATEAU_WALL
+		local top = { forest = { "tree", "birch", "tree", "bush" }, pine = { "pine", "pine", "rock" }, lake = { "birch", "tree", "reeds" },
+			snow = { "snowPine", "snowPine", "snowPile" }, ice = { "snowPine", "ice", "snowPile" }, bamboo = { "bamboo", "bamboo", "pink" },
+			river = { "tree", "birch", "bush" }, rocky = { "rock", "pine", "cliff" }, deep = { "dark", "mushroom", "dark" }, beach = { "palm", "palm", "bush" } }
+		local list = top[theme] or top.forest
+		local function topItem(kind: string, pos: Vector3)
+			if kind == "tree" then Props.tree(folder, pos, 0.8 + rand:NextNumber() * 0.5, rand, C(92, 190, 50))
+			elseif kind == "birch" then Props.birch(folder, pos, 0.8 + rand:NextNumber() * 0.4, rand)
+			elseif kind == "bush" then Props.bush(folder, pos, 0.9, rand)
+			elseif kind == "pine" then Props.snowPine(folder, pos, 0.9 + rand:NextNumber() * 0.5, rand, false)
+			elseif kind == "snowPine" then Props.snowPine(folder, pos, 0.9 + rand:NextNumber() * 0.5, rand, true)
+			elseif kind == "snowPile" then Props.snowPile(folder, pos, 0.9, rand)
+			elseif kind == "ice" then Props.iceBlock(folder, pos, 0.9, rand)
+			elseif kind == "rock" then Props.rock(folder, pos, 0.9 + rand:NextNumber() * 0.5, rand)
+			elseif kind == "cliff" then Props.cliff(folder, pos, 0.8, rand)
+			elseif kind == "reeds" then Props.reeds(folder, pos, rand)
+			elseif kind == "bamboo" then Props.bamboo(folder, pos, 0.9 + rand:NextNumber() * 0.3, rand)
+			elseif kind == "pink" then Props.tree(folder, pos, 0.9, rand, C(250, 170, 200))
+			elseif kind == "dark" then Props.tree(folder, pos, 1 + rand:NextNumber() * 0.4, rand, C(36, 100, 40))
+			elseif kind == "mushroom" then Props.giantMushroom(folder, pos, 0.8, rand)
+			elseif kind == "palm" then Props.palm(folder, pos, 0.9 + rand:NextNumber() * 0.3, rand) end
+		end
+		for _, sx in { -1, 1 } do
+			-- on the wall top (the highest grass step: 4.5 .. 12 behind the face)
+			local z = a - 4 - rand:NextNumber() * 6
+			while z > b + 4 do
+				topItem(list[rand:NextInteger(1, #list)], V3(sx * (H + 2 + 6 + rand:NextNumber() * 5), WH + 3.6, z))
+				z -= 18 + rand:NextNumber() * 10 -- airy: a tree every ~20 studs
+			end
+			-- along the foot of the wall, inside the corridor (sunk with the rest of the floor)
+			z = zStart - rand:NextNumber() * 3
+			while z > b + 3 do
+				local p = V3(sx * (H - 1.5 - rand:NextNumber() * 4), 0, z)
+				local roll = rand:NextNumber()
+				if theme == "snow" or theme == "ice" then
+					if roll < 0.3 then Props.snowPile(folder, p, 0.5 + rand:NextNumber() * 0.4, rand)
+					elseif roll < 0.55 then Props.tallGrass(folder, p, rand, C(150, 176, 150)) end
+				elseif theme == "beach" then
+					if roll < 0.35 then Props.shell(folder, p, rand)
+					elseif roll < 0.6 then Props.tallGrass(folder, p, rand, C(170, 190, 90)) end
+				elseif theme == "lake" or theme == "river" then
+					if roll < 0.3 then Props.reeds(folder, p, rand)
+					elseif roll < 0.65 then Props.flower(folder, p, rand)
+					else Props.tallGrass(folder, p, rand) end
+				else
+					if roll < 0.55 then Props.flower(folder, p, rand)
+					elseif roll < 0.85 then Props.tallGrass(folder, p, rand, if theme == "deep" then C(50, 130, 50) else nil)
+					elseif theme == "forest" or theme == "deep" then Props.mushroom(folder, p, 0.7 + rand:NextNumber() * 0.3) end
+				end
+				z -= 7 + rand:NextNumber() * 6 -- light touches, not a hedge
+			end
+		end
+		-- flower patches scattered on the floor (centre lane kept clear for the landings)
+		if theme ~= "snow" and theme ~= "ice" then
+			for _ = 1, 3 do
+				local c0 = sidePos(18, 50)
+				for _ = 1, 4 do
+					Props.flower(folder, c0 + V3((rand:NextNumber() - 0.5) * 4, 0, (rand:NextNumber() - 0.5) * 4), rand)
+				end
+				Props.tallGrass(folder, c0 + V3(1.5, 0, 1.5), rand)
+			end
+		end
 		if i == Layout.ZONE_COUNT then
 			-- the corridor ends on the sea: water + sand bank against the end wall
 			local pz = b + 22

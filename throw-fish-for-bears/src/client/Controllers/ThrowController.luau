@@ -156,9 +156,7 @@ local function onThrow(player: Player, d)
 			local z = Layout.zoneAt(fp)
 			if z and z ~= lastZone then
 				lastZone = z
-				local zc = ZoneConfig.get(z)
-				Cine.zoneBanner(("ZONE %d · %s"):format(z, zc.name:upper()), zc.sign)
-				Sound.play("Notify")
+				-- (no "ZONE X" banner during the throw: the picture stays clean)
 			end
 			if u < 0.16 then
 				-- C) slow-motion side tracking, shallow focus on the fish
