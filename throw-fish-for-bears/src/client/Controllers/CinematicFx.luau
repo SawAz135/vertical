@@ -772,6 +772,47 @@ function Cine.resetEaten()
 end
 
 -- clean every film effect (end of a cinematic / skip / failure)
+--[[ CLEAR SHOT: the decor (bushes, trees, rocks, flowers...) that would block a cinematic
+     camera is faded out LOCALLY (LocalTransparencyModifier: only this player sees it gone).
+     pos / radius: everything around the subject; segEnd: also everything along the line from
+     the subject to where the camera is (a capsule of `radius`). The corridor walls, the floor
+     and the mountains are never touched. Cine.restoreClear() brings everything back. ]]
+local cleared = {}
+function Cine.clearAround(pos: Vector3, radius: number, segEnd: Vector3?, segRadius: number?)
+	local map = workspace:FindFirstChild("Map")
+	local decor = map and map:FindFirstChild("Decor")
+	if not decor then return end
+	local function distToSeg(p: Vector3): number
+		if not segEnd then return math.huge end
+		local a, b = Vector3.new(pos.X, 0, pos.Z), Vector3.new(segEnd.X, 0, segEnd.Z)
+		local q = Vector3.new(p.X, 0, p.Z)
+		local ab = b - a
+		local t = math.clamp((q - a):Dot(ab) / math.max(ab:Dot(ab), 1e-6), 0, 1)
+		return (a + ab * t - q).Magnitude
+	end
+	for _, p in decor:GetDescendants() do
+		if p:IsA("BasePart") and cleared[p] == nil then
+			local sz = p.Size
+			local pp = p.Position
+			-- only things standing in the corridor (not the walls, floor, mountains or wall-top trees)
+			if sz.X < 30 and sz.Z < 30 and sz.Y < 40 and pp.Y < pos.Y + 22 and p.Name ~= "ZoneGround" and p.Name ~= "ZoneBlend"
+				and not p:FindFirstAncestor("Backdrop") and not p:FindFirstAncestor("Cliff") then
+				local flat = Vector3.new(pp.X - pos.X, 0, pp.Z - pos.Z).Magnitude
+				if flat < radius or distToSeg(pp) < (segRadius or radius) then
+					cleared[p] = p.LocalTransparencyModifier
+					p.LocalTransparencyModifier = 1
+				end
+			end
+		end
+	end
+end
+function Cine.restoreClear()
+	for p, v in cleared do
+		if p.Parent then p.LocalTransparencyModifier = v end
+	end
+	cleared = {}
+end
+
 function Cine.resetAll()
 	Cine.dof(nil, 0)
 	Cine.skipButton(nil)

@@ -443,6 +443,7 @@ local function cleanup(rs, instant: boolean?)
 	Cine.hideHud(false)
 	Cine.dof(nil, 0)
 	Cine.gradeOff(0.6)
+	Cine.restoreClear()
 end
 
 local function goBack(rs)
@@ -576,6 +577,9 @@ local function startReveal(d)
 	end
 	local dist = distFor(finalH)
 	local side = pickSide(ground, dist * 1.2, 2 + finalH * 0.5)
+	-- nothing between the camera and the creature: bushes / trees / rocks on the camera side
+	-- (a wide band, the camera drifts a little) and right around the creature fade out locally
+	Cine.clearAround(ground, math.max(6, finalW * 0.7 + 3), ground + side * (dist * 1.9 + 10), 9 + finalW * 0.3)
 	local faceDir = CFrame.Angles(0, 0.38, 0):VectorToWorldSpace(side) -- a 3/4 view, never flat profile
 	local faceCF = CFrame.lookAt(ground, ground + faceDir)
 
@@ -800,6 +804,16 @@ local function startReveal(d)
 		local dir = CFrame.Angles(0, yaw, 0):VectorToWorldSpace(side)
 		local pos = ground + dir * d0 + Vector3.new(0, camY, 0)
 		local look = ground + Vector3.new(0, lookY, 0)
+		-- a wall (or anything solid left) between the creature and the lens: the camera comes
+		-- in front of it
+		local map = workspace:FindFirstChild("Map")
+		if map then
+			camParams.FilterDescendantsInstances = { map }
+			local hit = workspace:Raycast(look, pos - look, camParams)
+			if hit and hit.Instance.LocalTransparencyModifier < 0.5 and hit.Instance.Transparency < 0.5 then
+				pos = hit.Position - (pos - look).Unit * 1.2
+			end
+		end
 		camShake = math.max(0, camShake - (dt or 0.016) * 4)
 		if camShake > 0 then
 			pos += Vector3.new(math.noise(t * 30, 1) * camShake * 0.25, math.noise(t * 30, 2) * camShake * 0.25, 0)

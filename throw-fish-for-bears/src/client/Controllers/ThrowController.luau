@@ -75,6 +75,11 @@ local function onThrow(player: Player, d)
 	addTrail(model.PrimaryPart, Color3.fromRGB(255, 255, 255))
 	local dir = d.to - d.from
 	local yaw = math.atan2(-dir.X, -dir.Z)
+	if isLocal and d.ok then
+		-- the landing close-ups never get stuck in a bush: the decor around the landing spot
+		-- fades out for this player (it comes back after the reveal)
+		Cine.clearAround(d.to, 16)
+	end
 	local handStart: Vector3? = nil
 	-- SMOOTH CLOCK: GetServerTimeNow() wobbles a little every frame (time sync), which made the
 	-- 200-400 studs/s fish stutter. Lock the offset once and run on the steady local clock.
