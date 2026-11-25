@@ -45,7 +45,7 @@ Layout.FISH_SPOT_RADIUS = 9 -- distance from the dock end where casting is allow
 -- Front area --------------------------------------------------------------
 -- the spawn plateau (narrower than before; its walls are as high as the corridor's: 20)
 Layout.PLATEAU_HALF = 102 -- inner face of the side walls
-Layout.PLATEAU_WALL = 20
+Layout.PLATEAU_WALL = 28 -- spawn AND corridor walls reach this height above the plateau
 Layout.COMPOUND = { minX = -102, maxX = 102, minZ = -24, maxZ = 184 }
 Layout.FRONT = { minX = -98, maxX = 98, minZ = -20, maxZ = 84 }
 -- throw zone: the whole width between the side walls, from the front wall to the throw line
@@ -69,7 +69,7 @@ end
 Layout.SPAWN_POS = Vector3.new(0, 0, 40)
 
 -- Corridor and zones ------------------------------------------------------
-Layout.CORRIDOR_HALF = 72 -- a bit wider than before (60), still a corridor; the plateau is wider (102)
+Layout.CORRIDOR_HALF = 64 -- the corridor is narrower than the plateau (102)
 -- the corridor is a TRENCH: its floor is 20 studs below the plateau (spawn, bases, lake),
 -- the front cliff of the plateau is at z = CORRIDOR_START_Z
 Layout.CORRIDOR_START_Z = -24
