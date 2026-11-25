@@ -428,9 +428,7 @@ local function cleanup(rs, instant: boolean?)
 		kill()
 	else
 		-- the animal leaves for the base: a puff of white studs where it stood
-		if rs.final and rs.final.PrimaryPart then
-			Fx.puff(rs.final.PrimaryPart.Position, WHITE, 18, 4)
-		end
+		-- (no puff: the animal simply goes home with you)
 		if rs.ui then
 			for _, k in { "rarity", "name", "sub", "new", "income", "odds", "spin" } do
 				local t = rs.ui[k]
@@ -627,26 +625,18 @@ local function startReveal(d)
 		hop = 1
 		swaps += 1
 		Sound.play("Tick", { pitch = 0.9 + math.min(0.7, swaps * 0.02), volume = 0.7 })
-		-- a few black studs fly off at every switch (the shell re-forming)
-		if swaps % 2 == 0 then
-			Fx.blocks(ground + Vector3.new(0, h * 0.5, 0), SHADOW, 3, 10, 0.3, { life = 0.5, up = 1.5, spread = h * 0.3, gravity = 50 })
-		end
 	end
 
 	-- RESULT ---------------------------------------------------------------------------
 	local function result()
 		resultDone = true
 		local center = ground + Vector3.new(0, finalH * 0.5, 0)
-		-- the black shell bursts into studs, the animal stands there in colour
+		-- no burst: the shadow simply BECOMES the animal (same place, black, then the colour
+		-- washes up while it leaps)
+		local _ = center
 		if cur then cur.model.Parent = nil end
 		if rs.finalSil then rs.finalSil.model.Parent = nil end
-		Fx.blocks(center, SHADOW, 22, 26, 0.45 * math.max(1, finalH / 6), { life = 1.1, up = 2, spread = finalH * 0.35, gravity = 70,
-			colors = { SHADOW, Color3.fromRGB(40, 36, 46), WHITE } })
-		Fx.blocks(center + Vector3.new(0, finalH * 0.3, 0), tier.color, 26, 30, 0.4, { life = 1.5, up = 2.6, spread = finalH * 0.3, gravity = 45,
-			colors = { tier.color, WHITE, Color3.fromRGB(255, 220, 60), Color3.fromRGB(110, 255, 90), Color3.fromRGB(80, 190, 255) } })
-		Fx.ring(ground + Vector3.new(0, 0.25, 0), WHITE, 0.5, 6 + finalH, 0.55)
-		Fx.dust(ground, 1 + finalH * 0.15)
-		CameraController.shake(0.9, 0.4)
+		CameraController.shake(0.5, 0.3)
 		CameraController.punch(10)
 		Sound.play("Transform")
 		Sound.play("Reveal" .. math.clamp(tier.reveal or 1, 1, 4))
@@ -852,7 +842,6 @@ local function startReveal(d)
 		if t >= T_SPIN and not resultDone then
 			h = heightAt(t)
 			if fish and fish.Parent then
-				Fx.blocks(fish:GetPivot().Position, SHADOW, 8, 12, 0.3, { life = 0.6, up = 1.6, spread = 1, gravity = 50 })
 				fish:Destroy()
 				fish = nil
 				rs.fish = nil
@@ -939,13 +928,10 @@ local function startReveal(d)
 				local spin = (1 - Easing.cubicOut(k)) * math.pi * 2
 				stand(final, faceCF, CFrame.new(0, up, 0) * CFrame.Angles(0, spin, 0))
 				if k >= 1 and not rs.landed then
-					-- LANDING: thud, dust ring, a confetti burst in the rarity colours, camera hit
+					-- LANDING: a thud and a little dust under the feet, a camera hit (no burst)
 					rs.landed = true
 					stand(final, faceCF)
-					Fx.dust(ground, 1.2 + finalH * 0.18)
-					Fx.ring(ground + Vector3.new(0, 0.2, 0), Color3.fromRGB(240, 230, 210), 0.5, 4 + finalH * 1.2, 0.5)
-					Fx.blocks(ground + Vector3.new(0, finalH * 0.7, 0), tier.color, 34, 30, 0.4, { life = 1.6, up = 3, spread = finalH * 0.3, gravity = 40,
-						colors = { tier.color, WHITE, Color3.fromRGB(255, 220, 60), Color3.fromRGB(110, 255, 90), Color3.fromRGB(80, 190, 255), Color3.fromRGB(255, 110, 200) } })
+					Fx.dust(ground, 0.8 + finalH * 0.12)
 					CameraController.shake(0.7, 0.3)
 					CameraController.punch(-6)
 					Sound.play("Place")
@@ -1015,12 +1001,7 @@ local function onFx(phase: string, d)
 		task.delay(0.35, function()
 			local char = player.Character
 			local root = char and char:FindFirstChild("HumanoidRootPart")
-			if root then
-				Fx.blocks(root.Position + Vector3.new(0, 4, 0), WHITE, 26, 20, 0.4, {
-					colors = { Color3.fromRGB(255, 80, 80), Color3.fromRGB(255, 220, 60), Color3.fromRGB(80, 200, 255), Color3.fromRGB(120, 255, 120) },
-					life = 1.3, up = 2.5, gravity = 40,
-				})
-			end
+			local _ = root
 			Sound.play("Place")
 		end)
 	elseif phase == "Failed" then
