@@ -16,7 +16,7 @@
    ===================================================================== */
 import * as THREE from 'three';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-import { fetchAsset, assetId, imageURL } from '../assets.js?v=10';
+import { fetchAsset, assetId, imageURL } from '../assets.js?v=11';
 
 const dec = new TextDecoder();
 /* ---------- parsing ---------- */
@@ -101,3 +101,36 @@ export function meshTexture(texId, color, onReady) {
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; texs.set(key, t); onReady?.(); };
   im.onerror = () => { texs.set(key, null); }; im.src = imageURL(texId, '512x512'); return undefined;
 }
+
+/* ---------- unions (UnionOperation): drawn from the parts they were made of ----------
+   A union keeps its source parts serialized (ChildData2 / ChildData, a binary model). The positive parts are drawn
+   (negated volumes cannot be carved without CSG, they are left out), placed relative to their bounding box centre
+   and stretched to the union's current Size, like Roblox scales a union. */
+const unions = new Map();
+export function unionGeometry(o, readBinary) {
+  if (unions.has(o)) return unions.get(o); let out = null;
+  try {
+    const raw = o.props.get('ChildData2') || o.props.get('ChildData'); const b = raw instanceof Uint8Array ? raw : null;
+    if (b && b.length > 16 && dec.decode(b.subarray(0, 8)) === '<roblox!') {
+      const parts = []; const walk = (n) => { if (n.cls !== 'NegateOperation' && /Part$|Operation$/.test(n.cls) && n.props.CFrame && (n.props.size || n.props.Size)) parts.push(n); for (const c of n.children) walk(c); };
+      for (const r of readBinary(b)) walk(r);
+      if (parts.length) {
+        const geos = [], box = new THREE.Box3(); const mats = parts.map((n) => { const c = n.props.CFrame; return new THREE.Matrix4().set(c.rot[0], c.rot[1], c.rot[2], c.pos[0], c.rot[3], c.rot[4], c.rot[5], c.pos[1], c.rot[6], c.rot[7], c.rot[8], c.pos[2], 0, 0, 0, 1); });
+        parts.forEach((n, i) => { const sz = n.props.size || n.props.Size, sh = n.props.shape ?? n.props.Shape; const shape = sh === 0 ? 'Ball' : sh === 2 ? 'Cylinder' : 'Block';
+          const g = new THREE.BoxGeometry(1, 1, 1); let geo;
+          if (shape === 'Ball') geo = new THREE.SphereGeometry(0.5, 20, 14).scale(sz[0], sz[0], sz[0]); else if (shape === 'Cylinder') geo = new THREE.CylinderGeometry(0.5, 0.5, 1, 24).rotateZ(Math.PI / 2).scale(sz[0], sz[1], sz[2]);
+          else if (n.cls === 'WedgePart') { geo = new THREE.BufferGeometry(); const v = [[-0.5, -0.5, -0.5], [0.5, -0.5, -0.5], [-0.5, -0.5, 0.5], [0.5, -0.5, 0.5], [-0.5, 0.5, 0.5], [0.5, 0.5, 0.5]]; const f = [[0, 2, 1], [1, 2, 3], [2, 4, 3], [3, 4, 5], [0, 1, 4], [1, 5, 4], [0, 4, 2], [1, 3, 5]]; const pos = []; for (const t of f) for (const k of t) pos.push(...v[k]); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals(); geo.scale(sz[0], sz[1], sz[2]); }
+          else geo = g.scale(sz[0], sz[1], sz[2]);
+          geo = geo.index ? geo.toNonIndexed() : geo; geo.applyMatrix4(mats[i]); for (const a of Object.keys(geo.attributes)) if (a !== 'position' && a !== 'normal') geo.deleteAttribute(a); geo.computeBoundingBox(); box.union(geo.boundingBox); geos.push(geo); });
+        const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3()); const cnt = geos.reduce((n, g) => n + g.attributes.position.count, 0); const pos = new Float32Array(cnt * 3), nor = new Float32Array(cnt * 3); let off = 0;
+        for (const g of geos) { pos.set(g.attributes.position.array, off * 3); nor.set(g.attributes.normal.array, off * 3); off += g.attributes.position.count; g.dispose(); }
+        const G = new THREE.BufferGeometry(); G.setAttribute('position', new THREE.BufferAttribute(pos, 3)); G.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); G.translate(-c.x, -c.y, -c.z);
+        const uv = new Float32Array(cnt * 2); for (let i = 0; i < cnt; i++) { uv[i * 2] = pos[i * 3] - c.x; uv[i * 2 + 1] = pos[i * 3 + 1] - c.y; } G.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+        out = { geo: G, size: s };
+      }
+    }
+  } catch (e) { console.warn('union', e.message); }
+  unions.set(o, out); return out;
+}
+/* the union's geometry at its current Size (local space), or null to draw a block */
+export function unionShape(o, readBinary) { const u = unionGeometry(o, readBinary); if (!u) return null; const s = o.props.get('Size') || { x: 1, y: 1, z: 1 }, g = u.geo.clone(); g.scale(s.x / Math.max(1e-3, u.size.x), s.y / Math.max(1e-3, u.size.y), s.z / Math.max(1e-3, u.size.z)); return g; }

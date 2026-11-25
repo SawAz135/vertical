@@ -10,8 +10,8 @@
    4. Workspace's parts (and Lighting) come back as a Forge map.
    Client scripts and the game loop are not run here.
    ===================================================================== */
-import { parse, Interpreter, createGlobals, LuaTable, LuaError, tostr, call } from './luau.js?v=10';
-import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, bounds, UDim2, UDim, NumberRange, Keypoint, KNOWN_VALUES } from './roblox.js?v=10';
+import { parse, Interpreter, createGlobals, LuaTable, LuaError, tostr, call } from './luau.js?v=11';
+import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, bounds, UDim2, UDim, NumberRange, Keypoint, KNOWN_VALUES } from './roblox.js?v=11';
 
 const fn = (f) => f;
 const dec = new TextDecoder();
@@ -48,10 +48,35 @@ export function installServices(rt) {
   CM.Debris = { AddItem: fn((a) => { rt.start(fn(() => { if (a[1] && a[1].$index) Instance.methods.Destroy([a[1]]); return []; }), [], Number(a[2] ?? 10)); return []; }) };
   CM.HttpService = { JSONEncode: fn((a) => [JSON.stringify(toJS(a[1]))]), JSONDecode: fn((a) => [fromJS(JSON.parse(str(a[1])))]), GenerateGUID: fn((a) => { const g = crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2); return [a[1] === false ? g : '{' + g + '}']; }), UrlEncode: fn((a) => [encodeURIComponent(str(a[1]))]),
     GetAsync: fn(() => { throw new LuaError('HttpService is not allowed in this place'); }), PostAsync: fn(() => { throw new LuaError('HttpService is not allowed in this place'); }), RequestAsync: fn(() => { throw new LuaError('HttpService is not allowed in this place'); }) };
-  const store = () => { const d = new Map(); const ds = new Instance('DataStore', rt); rt.classMethods.DataStore = { GetAsync: fn((a) => [d.get(a[1])]), SetAsync: fn((a) => { d.set(a[1], a[2]); return []; }), UpdateAsync: fn((a) => { const v = call(a[2], [d.get(a[1])])[0]; if (v !== undefined) d.set(a[1], v); return [v]; }), RemoveAsync: fn((a) => { const v = d.get(a[1]); d.delete(a[1]); return [v]; }), IncrementAsync: fn((a) => { const v = (d.get(a[1]) || 0) + (a[2] ?? 1); d.set(a[1], v); return [v]; }),
-    GetSortedAsync: fn(() => [new Instance('DataStorePages', rt)]) }; return ds; };
-  CM.DataStoreService = { GetDataStore: fn(() => [store()]), GetOrderedDataStore: fn(() => [store()]), GetGlobalDataStore: fn(() => [store()]), GetRequestBudgetForRequestType: fn(() => [100]) };
-  CM.DataStorePages = { GetCurrentPage: fn(() => [new LuaTable()]), AdvanceToNextPageAsync: fn(() => []) }; svc('DataStoreService');
+  /* DataStores keep their data on this device (localStorage), per game: progress survives between sessions like on Roblox */
+  const LS = (() => { try { return typeof localStorage !== 'undefined' ? localStorage : null; } catch { return null; } })(); const mem = new Map();
+  const dsKey = (name, scope, k) => `forgeplay.ds.${rt.placeKey || 'place'}.${name}.${scope || 'global'}.${k}`;
+  const dsGet = (name, scope, k) => { const key = dsKey(name, scope, k); if (LS) { try { const v = LS.getItem(key); return v == null ? undefined : fromJS(JSON.parse(v)); } catch { return undefined; } } return mem.get(key); };
+  const dsSet = (name, scope, k, v) => { const key = dsKey(name, scope, k); if (LS) { try { if (v === undefined) LS.removeItem(key); else LS.setItem(key, JSON.stringify(toJS(v))); } catch {} } else if (v === undefined) mem.delete(key); else mem.set(key, v); };
+  const dsKeys = (name, scope) => { const pre = dsKey(name, scope, ''); const out = []; if (LS) { for (let i = 0; i < LS.length; i++) { const k = LS.key(i); if (k && k.startsWith(pre)) out.push(k.slice(pre.length)); } } else for (const k of mem.keys()) if (k.startsWith(pre)) out.push(k.slice(pre.length)); return out; };
+  const info = () => { const i = new Instance('DataStoreKeyInfo', rt); i.props.set('Version', String(Date.now())); i.props.set('CreatedTime', Date.now()); i.props.set('UpdatedTime', Date.now()); return i; };
+  const store = (name, scope, ordered) => { const ds = new Instance(ordered ? 'OrderedDataStore' : 'DataStore', rt); ds.props.set('Name', String(name || 'DataStore')); ds.dsName = String(name || 'DataStore'); ds.dsScope = scope; return ds; };
+  const DSM = {
+    GetAsync: fn((a) => [dsGet(a[0].dsName, a[0].dsScope, str(a[1])), info()]),
+    SetAsync: fn((a) => { dsSet(a[0].dsName, a[0].dsScope, str(a[1]), a[2]); return [String(Date.now())]; }),
+    UpdateAsync: fn((a) => { const k = str(a[1]); const v = call(a[2], [dsGet(a[0].dsName, a[0].dsScope, k), info()])[0]; if (v !== undefined) dsSet(a[0].dsName, a[0].dsScope, k, v); return [v, info()]; }),
+    RemoveAsync: fn((a) => { const k = str(a[1]), v = dsGet(a[0].dsName, a[0].dsScope, k); dsSet(a[0].dsName, a[0].dsScope, k, undefined); return [v, info()]; }),
+    IncrementAsync: fn((a) => { const k = str(a[1]), v = (Number(dsGet(a[0].dsName, a[0].dsScope, k)) || 0) + (a[2] ?? 1); dsSet(a[0].dsName, a[0].dsScope, k, v); return [v]; }),
+    ListKeysAsync: fn((a) => { const pg = new Instance('DataStoreKeyPages', rt); pg.items = dsKeys(a[0].dsName, a[0].dsScope).map((k) => { const o = new Instance('DataStoreKey', rt); o.props.set('KeyName', k); return o; }); pg.props.set('IsFinished', true); return [pg]; }),
+    GetSortedAsync: fn((a) => { const asc = !!a[1], size = Math.max(1, Math.min(100, a[2] || 50)), lo = a[3], hi = a[4];
+      let items = dsKeys(a[0].dsName, a[0].dsScope).map((k) => ({ key: k, value: Number(dsGet(a[0].dsName, a[0].dsScope, k)) || 0 })).filter((e) => (lo == null || e.value >= lo) && (hi == null || e.value <= hi)).sort((x, y) => (asc ? x.value - y.value : y.value - x.value));
+      const pg = new Instance('DataStorePages', rt); pg.all = items; pg.size = size; pg.at = 0; pg.props.set('IsFinished', items.length <= size); return [pg]; }),
+    GetVersionAsync: fn((a) => [dsGet(a[0].dsName, a[0].dsScope, str(a[1])), info()]), ListVersionsAsync: fn(() => [new Instance('DataStoreVersionPages', rt)]), RemoveVersionAsync: fn(() => []),
+  };
+  CM.DataStore = DSM; CM.OrderedDataStore = DSM; CM.GlobalDataStore = DSM;
+  CM.DataStoreService = { GetDataStore: fn((a) => [store(a[1], a[2])]), GetOrderedDataStore: fn((a) => [store(a[1], a[2], true)]), GetGlobalDataStore: fn(() => [store('global')]), GetRequestBudgetForRequestType: fn(() => [100]), ListDataStoresAsync: fn(() => [new Instance('DataStoreListingPages', rt)]) };
+  CM.DataStorePages = { GetCurrentPage: fn((a) => { const p = a[0], page = (p.all || []).slice(p.at || 0, (p.at || 0) + (p.size || 50)); return [LuaTable.from(page.map((e) => LuaTable.from({ key: e.key, value: e.value })))]; }),
+    AdvanceToNextPageAsync: fn((a) => { const p = a[0]; p.at = (p.at || 0) + (p.size || 50); p.props.set('IsFinished', p.at + (p.size || 50) >= (p.all || []).length); return []; }) };
+  CM.DataStoreKeyPages = { GetCurrentPage: fn((a) => [LuaTable.from(a[0].items || [])]), AdvanceToNextPageAsync: fn(() => []) };
+  svc('DataStoreService');
+  /* Teams */
+  CM.Teams = { GetTeams: fn(() => [LuaTable.from(svc('Teams').kids.filter((k) => k.cls === 'Team'))]) };
+  CM.Team = { GetPlayers: fn((a) => [LuaTable.from(svc('Players').kids.filter((p) => p.cls === 'Player' && p.props.get('Team') === a[0]))]) };
   CM.MarketplaceService = { UserOwnsGamePassAsync: fn(() => [false]), PlayerOwnsAsset: fn(() => [false]), PromptGamePassPurchase: fn(() => []), PromptProductPurchase: fn(() => []), PromptPurchase: fn(() => []), GetProductInfo: fn(() => [LuaTable.from({ Name: 'Produit', PriceInRobux: 0 })]) };
   CM.PhysicsService = { RegisterCollisionGroup: fn(() => []), CreateCollisionGroup: fn(() => [0]), CollisionGroupSetCollidable: fn(() => []), SetPartCollisionGroup: fn(() => []), IsCollisionGroupRegistered: fn(() => [true]), GetRegisteredCollisionGroups: fn(() => [new LuaTable()]), CollisionGroupsAreCollidable: fn(() => [true]) };
   CM.TextService = { GetTextSize: fn((a) => [new Vector2(str(a[1]).length * (a[2] || 14) * 0.55, a[2] || 14)]), FilterStringAsync: fn((a) => { const r = new Instance('TextFilterResult', rt); rt.classMethods.TextFilterResult = { GetNonChatStringForBroadcastAsync: fn(() => [a[1]]), GetChatForUserAsync: fn(() => [a[1]]), GetNonChatStringForUserAsync: fn(() => [a[1]]) }; return [r]; }) };
@@ -89,6 +114,7 @@ const toJS = (v) => { if (v instanceof LuaTable) { if (v.hash.size === 0) return
 const fromJS = (v) => (Array.isArray(v) ? LuaTable.from(v.map(fromJS)) : v && typeof v === 'object' ? LuaTable.from(Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fromJS(x)]))) : v === null ? undefined : v);
 
 /* ---------------------------------------------------------------- place → runtime */
+const BYTES = new Set(['ChildData', 'ChildData2', 'MeshData', 'MeshData2', 'PhysicalConfigData', 'PhysicsData', 'SmoothGrid', 'PhysicsGrid', 'MaterialColors', 'ValuesAndTimes']); // binary payloads kept as bytes
 /* saved enum properties hold a number: which enum each property uses */
 const PROP_ENUM = { TextXAlignment: 'TextXAlignment', TextYAlignment: 'TextYAlignment', ScaleType: 'ScaleType', SizeConstraint: 'SizeConstraint', AutomaticSize: 'AutomaticSize', FillDirection: 'FillDirection', HorizontalAlignment: 'HorizontalAlignment',
   VerticalAlignment: 'VerticalAlignment', SortOrder: 'SortOrder', AspectType: 'AspectType', DominantAxis: 'DominantAxis', ZIndexBehavior: 'ZIndexBehavior', ApplyStrokeMode: 'ApplyStrokeMode', LineJoinMode: 'LineJoinMode', ScreenInsets: 'ScreenInsets',
@@ -98,7 +124,7 @@ const PROP_ENUM = { TextXAlignment: 'TextXAlignment', TextYAlignment: 'TextYAlig
 const ENUM_BY_VALUE = new Map(); const enumByValue = (t, v) => { if (!ENUM_BY_VALUE.has(t)) ENUM_BY_VALUE.set(t, new Map(Object.entries(KNOWN_VALUES[t] || {}).map(([n, x]) => [x, n]))); const n = ENUM_BY_VALUE.get(t).get(v); return n === undefined ? undefined : enumItem(t, n); };
 const FONT_WEIGHT = { 100: 'Thin', 200: 'ExtraLight', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold', 900: 'Heavy' };
 function convProp(cls, k, v) {
-  if (v instanceof Uint8Array) return k === 'Source' || k === 'AttributesSerialize' || k === 'Tags' ? v : str(v);
+  if (v instanceof Uint8Array) return k === 'Source' || k === 'AttributesSerialize' || k === 'Tags' || BYTES.has(k) ? v : str(v);
   if (v && typeof v === 'object' && !Array.isArray(v)) {
     if (v.udim2) return UDim2(...v.udim2);
     if (v.udim) return UDim(...v.udim);
@@ -109,7 +135,7 @@ function convProp(cls, k, v) {
     if (v.cseq) return new Simple('ColorSequence', { Keypoints: LuaTable.from(v.cseq.map((x) => Keypoint(x[0], new Color3(x[1], x[2], x[3])))) });
     if (v.font) return new Simple('Font', { Family: v.font.family, Weight: enumItem('FontWeight', FONT_WEIGHT[v.font.weight] || 'Regular'), Style: enumItem('FontStyle', v.font.style ? 'Italic' : 'Normal'), Bold: v.font.weight >= 600 });
     if (v.ray) return new Simple('Ray', { Origin: new Vector3(v.ray[0], v.ray[1], v.ray[2]), Direction: new Vector3(v.ray[3], v.ray[4], v.ray[5]) });
-    if (v.faces !== undefined) return new Simple('Faces', { Right: !!(v.faces & 1), Top: !!(v.faces & 2), Back: !!(v.faces & 4), Left: !!(v.faces & 8), Bottom: !!(v.faces & 16), Front: !!(v.faces & 32) });
+    if (v.faces !== undefined) return k === 'Axes' || cls === 'ArcHandles' ? new Simple('Axes', { X: !!(v.faces & 1), Y: !!(v.faces & 2), Z: !!(v.faces & 4) }) : new Simple('Faces', { Front: !!(v.faces & 1), Bottom: !!(v.faces & 2), Left: !!(v.faces & 4), Back: !!(v.faces & 8), Top: !!(v.faces & 16), Right: !!(v.faces & 32) });
   }
   if (typeof v === 'number' && PROP_ENUM[k]) { const e = enumByValue(PROP_ENUM[k], v); if (e) return e; }
   if (Array.isArray(v) && v.length === 3) return new Vector3(...v);

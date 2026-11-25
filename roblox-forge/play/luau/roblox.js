@@ -8,7 +8,7 @@
    reads as nil and an unknown service is an empty Instance, so scripts
    get as far as they can without a full engine.
    ===================================================================== */
-import { LuaTable, LuaError, call, callGen, tostr, typeOf, isTruthy } from './luau.js?v=10';
+import { LuaTable, LuaError, call, callGen, tostr, typeOf, isTruthy } from './luau.js?v=11';
 
 const err = (m) => { throw new LuaError(m); };
 const num = (v, d = 0) => (typeof v === 'number' ? v : v === undefined || v === null ? d : +v || d);
@@ -255,7 +255,7 @@ const CLASS_TREE = {
   Camera: 'PVInstance', Player: 'Instance', Animation: 'Instance', AnimationController: 'Instance', Animator: 'Instance', AlignPosition: 'Constraint', AlignOrientation: 'Constraint', LinearVelocity: 'Constraint', AngularVelocity: 'Constraint', VectorForce: 'Constraint', RopeConstraint: 'Constraint', HingeConstraint: 'Constraint', BallSocketConstraint: 'Constraint', Constraint: 'Instance',
 };
 const isA = (cls, want) => { let c = cls; while (c) { if (c === want) return true; c = CLASS_TREE[c]; } return want === 'Instance'; };
-const EVENTS = new Set(['Changed', 'ChildAdded', 'ChildRemoved', 'DescendantAdded', 'DescendantRemoving', 'AncestryChanged', 'Destroying', 'AttributeChanged', 'Touched', 'TouchEnded', 'Triggered', 'TriggerEnded', 'PromptButtonHoldBegan', 'PromptShown', 'PromptHidden', 'MouseClick', 'MouseButton1Click', 'MouseButton1Down', 'MouseButton1Up', 'MouseButton2Click', 'MouseEnter', 'MouseLeave', 'Activated', 'InputBegan', 'InputEnded', 'InputChanged', 'FocusLost', 'Focused',
+const EVENTS = new Set(['Hit', 'MouseHoverEnter', 'MouseHoverLeave', 'RightMouseClick', 'MouseButton2Down', 'MouseButton2Up', 'MouseWheelForward', 'MouseWheelBackward', 'MouseMoved', 'TouchLongPress', 'TouchPinch', 'TouchSwipe', 'TouchPan', 'TouchRotate', 'FreeFalling', 'Climbing', 'GettingUp', 'FallingDown', 'Ragdoll', 'PlatformStanding', 'Strafing', 'Swimming', 'AnimationPlayed', 'Paused', 'Resumed', 'Loaded', 'Button1Down', 'Button1Up', 'Button2Down', 'Button2Up', 'Move', 'WheelForward', 'WheelBackward', 'KeyDown', 'KeyUp', 'Idle', 'SelectionGained', 'SelectionLost', 'SelectionChanged', 'WindowFocused', 'WindowFocusReleased', 'TextBoxFocused', 'TextBoxFocusReleased', 'GamepadConnected', 'GamepadDisconnected', 'DeviceRotationChanged', 'OnTeleport', 'Blocked', 'Unblocked', 'ReachedConnectingWaypoints', 'MouseButton1Clicked', 'ChildRemoving', 'ToolActivated', 'Shot', 'Opened', 'Closed', 'ReturnPressed', 'PlayerChatted', 'OnIncomingMessage', 'MessageReceived', 'SendingMessage', 'BubbleChatSettingsChanged', 'MenuOpened', 'MenuClosed', 'Pressed', 'Released', 'Triggered', 'Touched', 'MouseDrag', 'MouseButton1Release', 'Fired', 'ServerEvent', 'ClientEvent', 'OnClose', 'ThrottleChanged', 'SteerChanged', 'Equipped', 'Unequipped', 'RemoteEvent', 'DragStart', 'DragContinue', 'DragEnd', 'DragStopped', 'Dragging', 'PlaybackRegionsChanged', 'Changed', 'ChildAdded', 'ChildRemoved', 'DescendantAdded', 'DescendantRemoving', 'AncestryChanged', 'Destroying', 'AttributeChanged', 'Touched', 'TouchEnded', 'Triggered', 'TriggerEnded', 'PromptButtonHoldBegan', 'PromptShown', 'PromptHidden', 'MouseClick', 'MouseButton1Click', 'MouseButton1Down', 'MouseButton1Up', 'MouseButton2Click', 'MouseEnter', 'MouseLeave', 'Activated', 'InputBegan', 'InputEnded', 'InputChanged', 'FocusLost', 'Focused',
   'Heartbeat', 'RenderStepped', 'Stepped', 'PreRender', 'PreSimulation', 'PostSimulation', 'PlayerAdded', 'PlayerRemoving', 'CharacterAdded', 'CharacterRemoving', 'CharacterAppearanceLoaded', 'Died', 'HealthChanged', 'StateChanged', 'Running', 'Jumping', 'MoveToFinished', 'Seated',
   'OnServerEvent', 'OnClientEvent', 'Event', 'Equipped', 'Unequipped', 'Deactivated', 'Played', 'Ended', 'Stopped', 'Completed', 'DidLoop', 'KeyframeReached', 'Chatted', 'Idled', 'TextChanged', 'ReturnPressedFromOnScreenKeyboard', 'PromptTriggered', 'PromptTriggerEnded', 'TouchTap', 'TouchStarted', 'TouchEnded', 'TouchMoved', 'JumpRequest', 'LastInputTypeChanged', 'MessageReceived', 'Close', 'ChildRemoving', 'PropertyChangedSignal']);
 let refN = 0;
@@ -278,8 +278,8 @@ export class Instance extends UD {
     if (k === 'ClassName') return this.cls; if (k === 'className') return this.cls;
     if (this.props.has(k)) return derive(this, k, this.props.get(k));
     const d = derived(this, k); if (d !== undefined) return d;
-    const m = Instance.methods[k] || (this.rt.classMethods[this.cls] && this.rt.classMethods[this.cls][k]); if (m) return m;
-    if (EVENTS.has(k)) return this.sig(k);
+    const m = (this.rt.classMethods[this.cls] && this.rt.classMethods[this.cls][k]) || Instance.methods[k]; if (m) return m; // the class's own method wins (Humanoid:MoveTo over Model:MoveTo)
+    if (EVENTS.has(k) || this.sigs.has(k)) return this.sig(k); // also events a service declared itself (MarketplaceService.Prompt…Finished…)
     const c = this.child(k); if (c) return c;
     const svc = this.rt.extraMember?.(this, k); if (svc !== undefined) return svc;
     return undefined;
@@ -290,8 +290,11 @@ export class Instance extends UD {
     this.props.set(k, v); this.changed(k);
   }
   changed(k) { this.sigs.get('Changed')?.fire([k]); this.sigs.get('Prop:' + k)?.fire([]); this.rt.onChange?.(this, k); }
-  clone() { if (!this.archivable) return undefined; const c = new Instance(this.cls, this.rt); c.props = new Map(this.props); c.attrs = new Map(this.attrs); c.tags = new Set(this.tags); c.source = this.source; c.ast = this.ast;
-    for (const k of this.kids) { const kc = k.clone(); if (kc) { kc.parent = c; c.kids.push(kc); } } return c; }
+  clone(map) { if (!this.archivable) return undefined; const top = !map; map = map || new Map(); const c = new Instance(this.cls, this.rt); c.props = new Map(this.props); c.attrs = new Map(this.attrs); c.tags = new Set(this.tags); c.source = this.source; c.ast = this.ast; c.disabled = this.disabled; c.runContext = this.runContext; map.set(this, c);
+    for (const k of this.kids) { const kc = k.clone(map); if (kc) { kc.parent = c; c.kids.push(kc); } }
+    // like Roblox, references inside the cloned tree (Part0 / Part1, PrimaryPart, RootPart, Adornee, ObjectValue…) point to the copies
+    if (top) for (const copy of map.values()) for (const [k, v] of copy.props) if (v instanceof Instance && map.has(v)) copy.props.set(k, map.get(v));
+    return c; }
   pivot() { if (isA(this.cls, 'BasePart')) return this.props.get('CFrame'); const pp = this.props.get('PrimaryPart'); if (pp && pp.props) return pp.props.get('CFrame'); const wp = this.props.get('WorldPivot'); if (wp) return wp;
     const parts = this.descendants().filter((d) => isA(d.cls, 'BasePart')); if (!parts.length) return new CFrame(); const b = bounds(parts); return new CFrame([(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2]); }
   pivotTo(cf) { const cur = this.pivot(), delta = cf.mulCF(cur.inverse());
@@ -412,7 +415,7 @@ Object.assign(Instance.methods, {
   GetExtentsSize: fn((a) => [Instance.methods.GetBoundingBox(a)[1]]),
   GetConnectedParts: fn(() => [new LuaTable()]), GetTouchingParts: fn(() => [new LuaTable()]), BreakJoints: fn(() => []), MakeJoints: fn(() => []),
   SetNetworkOwner: fn(() => []), GetNetworkOwner: fn(() => []), SetNetworkOwnershipAuto: fn(() => []), CanSetNetworkOwnership: fn(() => [true]), GetMass: fn((a) => [derived(a[0], 'Mass') || 1]),
-  ApplyImpulse: fn(() => []), ApplyAngularImpulse: fn(() => []), ApplyImpulseAtPosition: fn(() => []), GetVelocityAtPosition: fn(() => [new Vector3()]), GetRootPart: fn((a) => [a[0]]),
+  ApplyImpulse: fn((a) => { a[0].rt.physicsSim?.impulse(a[0], a[1], false); return []; }), ApplyAngularImpulse: fn((a) => { a[0].rt.physicsSim?.impulse(a[0], a[1], true); return []; }), ApplyImpulseAtPosition: fn((a) => { a[0].rt.physicsSim?.impulse(a[0], a[1], false); return []; }), GetVelocityAtPosition: fn(() => [new Vector3()]), GetRootPart: fn((a) => [a[0]]),
   GetActor: fn(() => []), GetDebugId: fn((a) => [String(a[0].id)]), GetStyled: fn(() => []),
 });
 Instance.EVENTS = EVENTS;

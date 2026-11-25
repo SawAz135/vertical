@@ -6,8 +6,8 @@
    interpolated, with a name tag and chat bubbles.
    ===================================================================== */
 import * as THREE from 'three';
-import { Avatar } from '../avatar.js?v=10';
-import { online } from './online.js?v=10';
+import { Avatar } from '../avatar.js?v=11';
+import { online } from './online.js?v=11';
 
 function tag(name) { const c = document.createElement('canvas'); c.width = 512; c.height = 96; const g = c.getContext('2d'); g.font = '700 46px "F-Mont",system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 8; g.strokeStyle = 'rgba(0,0,0,.6)'; g.strokeText(name, 256, 50); g.fillStyle = '#fff'; g.fillText(name, 256, 50);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false })); s.scale.set(6, 1.1, 1); s.renderOrder = 6; return s; }

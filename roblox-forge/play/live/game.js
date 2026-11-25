@@ -12,13 +12,14 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { LiveEngine, Vector3, CFrame, enumItem, isA, LuaTable } from '../luau/engine.js?v=10';
-import { LiveWorld } from './render3d.js?v=10';
-import { GuiRenderer, GUI_CSS } from './gui.js?v=10';
-import { Avatar } from '../avatar.js?v=10';
-import { preloadClip } from '../luau/anim.js?v=10';
+import { LiveEngine, Vector3, CFrame, enumItem, isA, LuaTable } from '../luau/engine.js?v=11';
+import { LiveWorld } from './render3d.js?v=11';
+import { GuiRenderer, GUI_CSS } from './gui.js?v=11';
+import { Avatar } from '../avatar.js?v=11';
+import { preloadClip } from '../luau/anim.js?v=11';
+import { imageURL as imageURLOf } from '../assets.js?v=11';
 // Roblox's default R15 animations (the clips its Animate script plays)
-const DEFAULT_ANIMS = { idle: [507766388, 507766666, 507766951], walk: [507777826], run: [507767714], jump: [507765000], fall: [507767968], toolnone: [507768375] };
+const DEFAULT_ANIMS = { idle: [507766388, 507766666, 507766951], walk: [507777826], run: [507767714], jump: [507765000], fall: [507767968], toolnone: [507768375], sit: [2506281703] };
 
 const GRAV = 196.2;
 const MOTOR = { LowerTorso: 'Root', UpperTorso: 'Waist', Head: 'Neck', LeftUpperArm: 'LeftShoulder', LeftLowerArm: 'LeftElbow', LeftHand: 'LeftWrist', RightUpperArm: 'RightShoulder', RightLowerArm: 'RightElbow', RightHand: 'RightWrist',
@@ -31,6 +32,7 @@ export class LiveGame {
   constructor({ renderer, camera, hud, record, roots, readAttributes, look, quality, onToast, onLeave }) {
     this.renderer = renderer; this.camera = camera; this.hud = hud; this.g = record; this.look = look; this.q = quality; this.toast = onToast; this.leave = onLeave;
     this.engine = new LiveEngine(roots, readAttributes, { look, log: () => {} });
+    this.engine.rt.placeKey = String((record && (record.gid || record.cloudId || record.id)) || (record && record.title) || 'place').replace(/[^\w-]/g, '_'); // DataStores are saved per game
     this.P = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), grounded: false, input: new THREE.Vector2(), keyIn: new THREE.Vector2(), jump: false, jumpHeld: false, coyote: 0, airT: 0, yaw: Math.PI };
     this.cam = { yaw: Math.PI, pitch: 0.35, zoom: 12.5, dist: 12.5, cur: new THREE.Vector3(), lock: false };
     this.running = false; this.anim = new Avatar(look);
@@ -45,8 +47,9 @@ export class LiveGame {
     E.onEmit = (em, n) => this.world.burst(em, n);
     E.worldToScreen = (v, inset = 58) => { const p = new THREE.Vector3(v.x, v.y, v.z).project(this.camera); return [new Vector3((p.x * 0.5 + 0.5) * innerWidth, (-p.y * 0.5 + 0.5) * innerHeight - inset, p.z), p.z < 1 && Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1]; };
     E.screenRay = (x, y) => { const rc = new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1), this.camera); const o = rc.ray.origin, d = rc.ray.direction; return E.rt.G.get('Ray').get('new')([new Vector3(o.x, o.y, o.z), new Vector3(d.x, d.y, d.z)])[0]; };
+    E.onPurchase = (info) => this.purchase(info);
     E.onSystemMessage = (t) => this.sys(t); E.onCoreGui = () => this.coreGui(); E.onCharacter = (m) => this.onCharacter(m);
-    if (this.q.bloom) { this.composer = new EffectComposer(this.renderer); this.composer.addPass(new RenderPass(this.world.scene, this.camera)); this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.35, 0.4, 0.95); this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass()); }
+    if (this.q.bloom) { this.composer = new EffectComposer(this.renderer, new THREE.WebGLRenderTarget(innerWidth * this.renderer.getPixelRatio(), innerHeight * this.renderer.getPixelRatio(), { type: THREE.HalfFloatType, stencilBuffer: true, depthBuffer: true })); /* stencil for Highlight outlines */ this.composer.addPass(new RenderPass(this.world.scene, this.camera)); this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.35, 0.4, 0.95); this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass()); }
     this.gui = new GuiRenderer(E, this.hud, { camera: this.camera, world: this.world });
     this.buildChrome(); this.bindInput(); this.onCharacter(E.char); this.coreGui(); this.resize();
     await step('C’est parti !', 1);
@@ -71,7 +74,8 @@ export class LiveGame {
     const T = D.tracks, play = (name, fade) => { if (D.cur === name) return; for (const [k, ts] of Object.entries(T)) if (k !== 'toolnone' && k !== name && !(name === 'walk' && k === 'run')) for (const t of ts) E.anims.stop(t, fade);
         if (name === 'idle') { const t = T.idle[Math.random() < 0.9 ? 0 : 1 + Math.floor(Math.random() * (T.idle.length - 1))]; E.anims.play(t, fade, 1, 1); } else if (name === 'walk') { E.anims.play(T.walk[0], fade, 1, 1); E.anims.play(T.run[0], fade, 1e-4, 1); } else E.anims.play(T[name][0], fade, 1, 1); D.cur = name; };
     const P = this.P, hv = Math.hypot(P.vel.x, P.vel.z), hum = m.humanoid;
-    if (!P.grounded) { if (P.vel.y > 0 && D.cur !== 'fall' && (D.cur !== 'jump' || D.jumpT > 0)) { if (D.cur !== 'jump') D.jumpT = 0.31; play('jump', 0.1); D.jumpT -= dt; } else if (D.jumpT <= 0 || P.vel.y <= 0) play('fall', 0.2); }
+    if (hum.props.get('Sit')) play('sit', 0.2);
+    else if (!P.grounded) { if (P.vel.y > 0 && D.cur !== 'fall' && (D.cur !== 'jump' || D.jumpT > 0)) { if (D.cur !== 'jump') D.jumpT = 0.31; play('jump', 0.1); D.jumpT -= dt; } else if (D.jumpT <= 0 || P.vel.y <= 0) play('fall', 0.2); }
     else if (hv > 0.75) { play('walk', 0.2); const run = hv / 16 / Math.max(0.5, (hum.props.get('HipHeight') || 2) / 2); const w = T.walk[0], r = T.run[0];
       if (run < 0.33) { E.anims.play(w, 0.2, 1); E.anims.play(r, 0.2, 1e-4); } else if (run < 0.66) { const k = (run - 0.33) / 0.33; E.anims.play(w, 0.2, 1 - k + 1e-4); E.anims.play(r, 0.2, k + 1e-4); } else { E.anims.play(w, 0.2, 1e-4); E.anims.play(r, 0.2, 1); }
       w.props.set('Speed', run); r.props.set('Speed', run); }
@@ -92,6 +96,8 @@ export class LiveGame {
   move(dt) {
     const m = this.char, E = this.engine; if (!m || !m.parent) return; const hum = m.humanoid, hrp = m.parts.HumanoidRootPart, P = this.P;
     if ((hum.props.get('Health') ?? 100) <= 0) { if (!this.dead) this.die(); return; }
+    // sitting in a Seat / VehicleSeat: the SeatWeld carries the character; jumping gets up
+    if (hum.props.get('SeatPart')) { const c = hrp.props.get('CFrame'); P.pos.set(c.p[0], c.p[1] - 3, c.p[2]); P.vel.set(0, 0, 0); if (P.jump || P.jumpHeld) { hum.props.set('Jump', true); P.jump = false; } this.lastHRP = c.p.slice(); hum.props.set('MoveDirection', new Vector3()); return; }
     // the server may teleport the character (PivotTo / CFrame): follow it
     const cur = hrp.props.get('CFrame'); if (this.lastHRP && (Math.abs(cur.p[0] - this.lastHRP[0]) > 0.01 || Math.abs(cur.p[1] - this.lastHRP[1]) > 0.01 || Math.abs(cur.p[2] - this.lastHRP[2]) > 0.01)) { P.pos.set(cur.p[0], cur.p[1] - 3, cur.p[2]); P.vel.set(0, 0, 0); const lv = cur.get('LookVector'); P.yaw = Math.atan2(-lv.x, -lv.z); }
     if (hrp.props.get('Anchored')) { this.lastHRP = cur.p.slice(); return; }
@@ -137,6 +143,19 @@ export class LiveGame {
     // first person: hide the local character
     const fade = Math.max(0, Math.min(1, (C.shown - 0.9) / 2.2)); if (this.char) for (const p of Object.values(this.char.parts)) { const e = this.world.live.get(p); if (e) e.mesh.visible = fade > 0.02 && (p.props.get('Transparency') || 0) < 1; }
   }
+  /* ---------------- purchase dialog (test purchase: no Robux is spent, the game gets its receipt) ---------------- */
+  purchase(info) {
+    return new Promise((res) => {
+      const d = document.createElement('div'); d.className = 'lv-buy'; const coin = '<svg viewBox="0 0 24 24"><path fill="#fff" d="M12 2l8.66 5v10L12 22l-8.66-5V7z"/><path fill="#232527" d="M12 6.5l4.76 2.75v5.5L12 17.5l-4.76-2.75v-5.5z"/><rect x="10" y="10" width="4" height="4" fill="#fff"/></svg>';
+      const price = info.owned ? 'Déjà possédé' : info.PriceInRobux == null ? 'Prix inconnu' : info.PriceInRobux === 0 ? 'Gratuit' : `${coin}${Number(info.PriceInRobux).toLocaleString('fr')}`;
+      const icon = info.IconImageAssetId ? `background-image:url("${imageURLOf(info.IconImageAssetId)}")` : info.kind === 'asset' ? `background-image:url("${imageURLOf(info.id)}")` : '';
+      const kind = info.kind === 'pass' ? 'Game Pass' : info.kind === 'product' ? 'Article du jeu' : 'Article';
+      d.innerHTML = `<div class="card"><h3>${info.owned ? 'Tu l’as déjà' : 'Acheter un article'}</h3><div class="row"><div class="ic" style='${icon}'></div><div><div class="nm"></div><div style="font-size:12px;color:#b8bcc2;margin-top:2px">${kind}</div><div class="pr">${price}</div></div></div>
+        <p class="note">Achat test, comme dans Roblox Studio : aucun Robux n’est dépensé.</p><div class="bt"><button class="no">${info.owned ? 'OK' : 'Annuler'}</button>${info.owned ? '' : '<button class="ok">Acheter</button>'}</div></div>`;
+      d.querySelector('.nm').textContent = info.Name; const done = (v) => { d.remove(); res(v); };
+      d.querySelector('.no').onclick = () => done(false); const ok = d.querySelector('.ok'); if (ok) ok.onclick = () => done(true); d.addEventListener('pointerdown', (e) => e.stopPropagation()); this.hud.appendChild(d);
+    });
+  }
   /* ---------------- frame ---------------- */
   frame(dt) {
     const E = this.engine;
@@ -147,14 +166,16 @@ export class LiveGame {
     this.gui.render(innerWidth, innerHeight, 58); this.prompts(dt); if ((this.frameN = (this.frameN || 0) + 1) % 15 === 0) { this.drawLB(); this.drawHealth(); this.hotbar(); }
   }
   /* ---------------- input → UserInputService / Mouse / Tool ---------------- */
-  inputObject(type, state, key, pos, delta) { const E = this.engine, io = new E.Instance('InputObject', E.rt); io.props.set('UserInputType', enumItem('UserInputType', type)); io.props.set('UserInputState', enumItem('UserInputState', state)); io.props.set('KeyCode', enumItem('KeyCode', key || 'Unknown')); io.props.set('Position', new Vector3(pos ? pos[0] : 0, pos ? pos[1] - 58 : 0, 0)); io.props.set('Delta', new Vector3(delta ? delta[0] : 0, delta ? delta[1] : 0, 0)); return io; }
+  inputObject(type, state, key, pos, delta, wheel = 0) { const E = this.engine, io = new E.Instance('InputObject', E.rt); io.props.set('UserInputType', enumItem('UserInputType', type)); io.props.set('UserInputState', enumItem('UserInputState', state)); io.props.set('KeyCode', enumItem('KeyCode', key || 'Unknown')); io.props.set('Position', new Vector3(pos ? pos[0] : 0, pos ? pos[1] - 58 : 0, wheel)); io.props.set('Delta', new Vector3(delta ? delta[0] : 0, delta ? delta[1] : 0, 0)); return io; }
+  uisSig(ev, args) { const s = this.engine.service('UserInputService').sigs.get(ev); if (s && s.conns.length) { const E = this.engine, prev = E.I.side; E.I.side = 'client'; try { s.fire(args); } finally { E.I.side = prev; } } }
+  mouseSig(ev, args) { const s = this.engine.mouse.sigs.get(ev); if (s && s.conns.length) { const E = this.engine, prev = E.I.side; E.I.side = 'client'; try { s.fire(args); } finally { E.I.side = prev; } } }
   ioMove(io, state, x, y, dx, dy) { io.props.set('UserInputState', enumItem('UserInputState', state)); io.props.set('Position', new Vector3(x, y - 58, 0)); io.props.set('Delta', new Vector3(dx, dy, 0)); io.changed('Position'); }
   uis(ev, io, processed = false) { const E = this.engine, s = E.service('UserInputService').sigs.get(ev); if (s && s.conns.length) { const prev = E.I.side; E.I.side = 'client'; try { s.fire([io, processed]); } finally { E.I.side = prev; } }
     if (ev === 'InputBegan' && !processed) for (const [, a] of E.actions) { if (a.inputs.some((x) => x && x.name === io.props.get('KeyCode').name || x && x.name === io.props.get('UserInputType').name)) { const prev = E.I.side; E.I.side = 'client'; try { E.rt.spawn(a.f, [undefined, enumItem('UserInputState', 'Begin'), io]); } finally { E.I.side = prev; } } } }
-  pollInput() { const E = this.engine; E.input.touch = !!this.touch; }
+  pollInput() { const E = this.engine; E.input.touch = !!this.touch; const P = this.P, inp = P.input.lengthSq() > P.keyIn.lengthSq() ? P.input : P.keyIn; E.input.move = { x: inp.x, z: inp.y }; }
   activate(x, y) { // click / tap in the world: Mouse.Button1Down + the equipped Tool
     const E = this.engine, hit = this.mouseHit(x, y); E.mouse.props.set('Hit', hit.cf); E.mouse.props.set('Target', hit.inst); E.mouse.props.set('X', x); E.mouse.props.set('Y', y - 58);
-    const prev = E.I.side; E.I.side = 'client'; try { E.mouse.sig('Button1Down').fire([]); E.mouse.sig('Button1Up').fire([]); const tool = this.char && this.char.kids.find((k) => k.cls === 'Tool'); if (tool) { tool.sig('Activated').fire([]); E.I.side = 'server'; tool.sig('Activated').fire([]); } } finally { E.I.side = prev; }
+    const prev = E.I.side; E.I.side = 'client'; try { if (this.touch) { E.mouse.sig('Button1Down').fire([]); E.mouse.sig('Button1Up').fire([]); } /* with a real mouse they fired on press / release */ const tool = this.char && this.char.kids.find((k) => k.cls === 'Tool'); if (tool) { tool.sig('Activated').fire([]); E.I.side = 'server'; tool.sig('Activated').fire([]); } } finally { E.I.side = prev; }
     // ClickDetectors
     if (hit.inst) { const cd = hit.inst.kids.find((k) => k.cls === 'ClickDetector'); if (cd) { E.I.side = 'server'; cd.sig('MouseClick').fire([E.player]); E.I.side = prev; } } }
   mouseHit(x, y) { const rc = new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1), this.camera); const r = this.world.raycast(new Vector3(rc.ray.origin.x, rc.ray.origin.y, rc.ray.origin.z), new Vector3(rc.ray.direction.x * 1000, rc.ray.direction.y * 1000, rc.ray.direction.z * 1000), null);
@@ -168,9 +189,11 @@ export class LiveGame {
       if (inStick && stickId == null) { stickId = e.pointerId; stickC = [e.clientX, e.clientY]; const s = this.$('stick'); s.style.left = e.clientX + 'px'; s.style.top = e.clientY + 'px'; s.classList.add('on'); return; }
       // like Roblox, one finger / button keeps the same InputObject from Began to Ended (scripts compare them)
       const io = this.inputObject(this.touch ? 'Touch' : e.button === 2 ? 'MouseButton2' : 'MouseButton1', 'Begin', null, [e.clientX, e.clientY]);
-      ptr.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0, b: e.button, io }); try { view.setPointerCapture(e.pointerId); } catch {}
+      ptr.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: 0, b: e.button, io }); try { view.setPointerCapture(e.pointerId); } catch {}
       if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: C.zoom }; }
       this.uis('InputBegan', io);
+      if (this.touch) { this.uisSig('TouchStarted', [io, false]); const pid = e.pointerId; clearTimeout(this.longT); this.longT = setTimeout(() => { const q = ptr.get(pid); if (q && q.moved < 10) { q.long = true; this.uisSig('TouchLongPress', [LuaTable.from([new Vector3(q.x, q.y - 58, 0)]), enumItem('UserInputState', 'Begin'), false]); } }, 500); }
+      else this.mouseSig('Button' + (e.button === 2 ? 2 : 1) + 'Down', []);
     });
     on(view, 'pointermove', (e) => { this.engine.input.mx = e.clientX; this.engine.input.my = e.clientY;
       if (e.pointerId === stickId) { let dx = e.clientX - stickC[0], dy = e.clientY - stickC[1]; const l = Math.hypot(dx, dy), mx = 52; if (l > mx) { dx *= mx / l; dy *= mx / l; } this.$('knob').style.transform = `translate(${dx}px,${dy}px)`; P.input.set(dx / mx, dy / mx); return; }
@@ -178,11 +201,17 @@ export class LiveGame {
       const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; p.moved += Math.abs(dx) + Math.abs(dy);
       if (ptr.size === 2 && pinch) { const [a, b] = [...ptr.values()]; C.zoom = Math.max(0.5, Math.min(128, pinch.z * pinch.d / Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)))); return; }
       if (this.touch || (e.buttons & 2)) { C.yaw -= dx * 0.0065; C.pitch = Math.max(-1.4, Math.min(1.4, C.pitch + dy * 0.005)); }
-      if (this.touch) { this.ioMove(p.io, 'Change', e.clientX, e.clientY, dx, dy); this.uis('InputChanged', p.io); } else this.uis('InputChanged', this.inputObject('MouseMovement', 'Change', null, [e.clientX, e.clientY], [dx, dy])); });
+      if (this.touch) { this.ioMove(p.io, 'Change', e.clientX, e.clientY, dx, dy); this.uis('InputChanged', p.io); this.uisSig('TouchMoved', [p.io, false]); if (ptr.size === 2 && pinch) { const [a, b] = [...ptr.values()]; this.uisSig('TouchPinch', [LuaTable.from([new Vector3(a.x, a.y - 58, 0), new Vector3(b.x, b.y - 58, 0)]), Math.hypot(a.x - b.x, a.y - b.y) / Math.max(1, pinch.d), 0, enumItem('UserInputState', 'Change'), false]); } }
+      else this.uis('InputChanged', this.inputObject('MouseMovement', 'Change', null, [e.clientX, e.clientY], [dx, dy])); });
     const up = (e) => { if (e.pointerId === stickId) { stickId = null; P.input.set(0, 0); this.$('knob').style.transform = ''; this.$('stick').classList.remove('on'); return; }
       const p = ptr.get(e.pointerId); if (!p) return; ptr.delete(e.pointerId); if (ptr.size < 2) pinch = null;
-      this.ioMove(p.io, 'End', e.clientX, e.clientY, 0, 0); this.uis('InputEnded', p.io);
+      this.ioMove(p.io, 'End', e.clientX, e.clientY, 0, 0); this.uis('InputEnded', p.io); clearTimeout(this.longT);
+      if (this.touch) { this.uisSig('TouchEnded', [p.io, false]); if (p.long) this.uisSig('TouchLongPress', [LuaTable.from([new Vector3(e.clientX, e.clientY - 58, 0)]), enumItem('UserInputState', 'End'), false]);
+        const sx = e.clientX - p.sx, sy = e.clientY - p.sy; if (Math.hypot(sx, sy) > 60 && performance.now() - p.t < 500) this.uisSig('TouchSwipe', [enumItem('SwipeDirection', Math.abs(sx) > Math.abs(sy) ? (sx > 0 ? 'Right' : 'Left') : (sy > 0 ? 'Down' : 'Up')), 1, false]); }
+      else this.mouseSig('Button' + (p.b === 2 ? 2 : 1) + 'Up', []);
       if (p.moved < 10 && performance.now() - p.t < 400 && p.b !== 2) { this.activate(e.clientX, e.clientY); if (this.touch) { const s = this.engine.service('UserInputService').sigs.get('TouchTap'); if (s) s.fire([LuaTable.from([new Vector3(e.clientX, e.clientY - 58, 0)]), false]); } } };
+    on(view, 'pointermove', (e) => { if (e.pointerType === 'mouse') { const E = this.engine; E.mouse.props.set('X', e.clientX); E.mouse.props.set('Y', e.clientY - 58); this.mouseSig('Move', []); } });
+    on(view, 'wheel', (e) => { const z = e.deltaY < 0 ? 1 : -1; this.mouseSig(z > 0 ? 'WheelForward' : 'WheelBackward', []); this.uis('InputChanged', this.inputObject('MouseWheel', 'Change', null, [e.clientX, e.clientY], [0, 0], z)); C.zoom = Math.max(0.5, Math.min(128, C.zoom * (z > 0 ? 0.9 : 1.1))); }, { passive: true });
     on(view, 'pointerup', up); on(view, 'pointercancel', up); on(view, 'contextmenu', (e) => e.preventDefault());
     on(view, 'wheel', (e) => { e.preventDefault(); C.zoom = Math.max(0.5, Math.min(128, C.zoom * (e.deltaY > 0 ? 1.25 : 0.8))); this.uis('InputChanged', this.inputObject('MouseWheel', 'Change', null, [e.clientX, e.clientY], [0, -Math.sign(e.deltaY)])); }, { passive: false });
     const jb = this.$('jump'); on(jb, 'pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); P.jumpHeld = true; P.jump = true; jb.classList.add('on'); }); const jup = () => { P.jumpHeld = false; jb.classList.remove('on'); }; on(jb, 'pointerup', jup); on(jb, 'pointercancel', jup);
@@ -271,6 +300,14 @@ const LIVE_CSS = `
 .lv-jump{position:absolute;right:calc(max(18px,env(safe-area-inset-right)) + 12px);bottom:calc(env(safe-area-inset-bottom) + 34px);width:84px;height:84px;border-radius:50%;border:0;background:rgba(0,0,0,.28);box-shadow:0 0 0 2px rgba(255,255,255,.45) inset;display:grid;place-items:center}.lv-jump svg{width:40px;height:40px}.lv-jump.on{transform:scale(.9)}
 @media (pointer:fine){.lv-stick,.lv-jump{display:none}}
 .lv-vign{position:absolute;inset:0;pointer-events:none!important;background:radial-gradient(ellipse at center,transparent 55%,rgba(150,0,0,.55));opacity:0;transition:opacity .4s}
+.lv-buy{position:absolute;inset:0;z-index:40;display:grid;place-items:center;background:rgba(0,0,0,.45);pointer-events:auto;animation:lvfade .18s ease}
+.lv-buy .card{width:min(88vw,340px);border-radius:14px;background:#232527;color:#fff;padding:18px 18px 14px;box-shadow:0 18px 50px rgba(0,0,0,.5);font-family:system-ui,sans-serif;animation:lvpop .26s cubic-bezier(.2,1.4,.4,1)}
+.lv-buy h3{margin:0 0 12px;font-size:17px;font-weight:700}.lv-buy .row{display:flex;gap:12px;align-items:center}
+.lv-buy .ic{width:74px;height:74px;border-radius:10px;background:#393b3d center/cover no-repeat;flex:none}.lv-buy .nm{font-weight:700;font-size:15px;line-height:1.25}
+.lv-buy .pr{display:flex;align-items:center;gap:5px;margin-top:6px;font-weight:800;font-size:15px}.lv-buy .pr svg{width:16px;height:16px}
+.lv-buy .note{margin:12px 0 0;font-size:12px;color:#b8bcc2}.lv-buy .bt{display:flex;gap:10px;margin-top:14px}
+.lv-buy button{flex:1;height:42px;border:0;border-radius:9px;font-weight:800;font-size:15px;color:#fff;background:#393b3d;cursor:pointer}.lv-buy button.ok{background:#335fff}.lv-buy button:active{transform:scale(.97)}
+@keyframes lvfade{from{opacity:0}}@keyframes lvpop{from{transform:scale(.86);opacity:0}}
 .lv-menu{position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:grid;place-items:center;color:#fff}
 .lv-mbox{width:min(92vw,460px);text-align:center}.lv-mbox h3{margin:0 0 4px;font-size:22px}.lv-mbox p{color:#bbb;font-size:13px}
 .lv-macts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}.lv-macts button{height:56px;border:0;border-radius:12px;background:rgba(255,255,255,.14);color:#fff;font:800 13px "F-Mont",system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer}.lv-macts small{font-size:10.5px;color:#bbb}.lv-macts .res{background:#fff;color:#111}.lv-macts .quit{background:#e5484d}
