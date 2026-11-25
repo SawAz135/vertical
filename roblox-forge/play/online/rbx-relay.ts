@@ -33,6 +33,11 @@ Deno.serve(async (req) => {
   const u = new URL(req.url); const id = (u.searchParams.get('id') || '').replace(/\D/g, ''); const k = u.searchParams.get('k') || 'img';
   if (!id) return new Response('id?', { status: 400, headers: CORS });
   const cache = { 'cache-control': 'public, max-age=604800, immutable' };
+  if (k === 'info') { // name, price and icon of an asset / game pass (for the purchase dialog)
+    const t = u.searchParams.get('t') || 'asset'; const url = t === 'pass' ? `https://apis.roblox.com/game-passes/v1/game-passes/${id}/product-info` : `https://economy.roblox.com/v2/assets/${id}/details`;
+    try { const r = await fetch(url, { headers: { accept: 'application/json' } }); if (r.ok) { const j = await r.json(); return new Response(JSON.stringify({ Name: j.Name, Description: j.Description, PriceInRobux: j.PriceInRobux, IconImageAssetId: j.IconImageAssetId, Creator: j.Creator && j.Creator.Name }), { headers: { ...CORS, 'content-type': 'application/json', 'cache-control': 'public, max-age=3600' } }); } } catch { /* fall through */ }
+    return new Response('{}', { status: 404, headers: { ...CORS, 'content-type': 'application/json' } });
+  }
   if (k === 'img') {
     // the original image file (exact pixels, for sprite sheets); a Decal points to its image; else the thumbnail
     let cur = id;

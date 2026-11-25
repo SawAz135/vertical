@@ -121,10 +121,10 @@ export async function importFile(file) {
   const name = file.name.replace(/\.[^.]+$/, '').replace(/^[0-9a-f]{8}-/, '').replace(/_/g, ' '), buf = await file.arrayBuffer(), u8 = new Uint8Array(buf), dec = new TextDecoder();
   const head = dec.decode(u8.subarray(0, 64));
   if (head.startsWith('<roblox!') || /<roblox[\s>]/.test(head) || /\.rbx[lm]x?$/i.test(file.name)) { // Roblox Studio place / model
-    const RB = await import('./rbxl.js?v=10'); const r = RB.readRoblox(buf, name); let spec = null, map = r.map, notes = [];
+    const RB = await import('./rbxl.js?v=11'); const r = RB.readRoblox(buf, name); let spec = null, map = r.map, notes = [];
     // the world is built by the place's own server scripts: run them like a Roblox server would
     const nScripts = RB.hasServerScripts(r.roots);
-    if (nScripts) { try { const { runPlace } = await import('./luau/runner.js?v=10'); const run = runPlace(r.roots, RB.readAttributes, { title: r.map?.name || name });
+    if (nScripts) { try { const { runPlace } = await import('./luau/runner.js?v=11'); const run = runPlace(r.roots, RB.readAttributes, { title: r.map?.name || name });
         if (run.stats.parts) { map = run.map; notes.push(`monde construit par les scripts du jeu : ${run.stats.parts.toLocaleString('fr')} pièces en ${(run.ms / 1000).toFixed(1)} s`); if (run.errors.length) notes.push(`${run.errors.length} erreur(s) de script : ${run.errors[0].slice(0, 120)}`); }
         else if (run.errors.length) notes.push('scripts : ' + run.errors[0].slice(0, 140)); }
       catch (e) { console.warn(e); notes.push('les scripts n’ont pas pu tourner : ' + (e.message || e)); } }

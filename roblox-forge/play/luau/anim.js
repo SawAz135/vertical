@@ -13,10 +13,10 @@
      Animator samples each playing track (pose easing styles included),
      blends them by priority and weight, and writes Motor6D.Transform.
    ===================================================================== */
-import { Instance, CFrame, Signal, enumItem, EnumItem } from './roblox.js?v=10';
-import { LuaTable } from './luau.js?v=10';
-import { readBinary, readXml } from '../rbxl.js?v=10';
-import { assetId, fetchAsset } from '../assets.js?v=10';
+import { Instance, CFrame, Signal, enumItem, EnumItem } from './roblox.js?v=11';
+import { LuaTable } from './luau.js?v=11';
+import { readBinary, readXml } from '../rbxl.js?v=11';
+import { assetId, fetchAsset } from '../assets.js?v=11';
 
 const fn = (f) => f;
 const dec = new TextDecoder();

@@ -13,12 +13,17 @@
    - collisions for the player and Workspace:Raycast for scripts.
    ===================================================================== */
 import * as THREE from 'three';
-import { World, material, studMat, partGeo, colliderGeo, sizeOf, studTop, voxMat, matTex } from '../world.js?v=10';
-import { headGeo, faceTex } from '../avatar.js?v=10';
-import { isA, EnumItem, Color3, Vector3 } from '../luau/engine.js?v=10';
+import { World, material, studMat, partGeo, colliderGeo, sizeOf, studTop, voxMat, matTex } from '../world.js?v=11';
+import { headGeo, faceTex } from '../avatar.js?v=11';
+import { isA, EnumItem, Color3, Vector3 } from '../luau/engine.js?v=11';
 import * as MC from '../../map/map-core.js';
-import { meshSpec, meshGeometry, meshTexture } from './mesh.js?v=10';
-import { BeamSystem } from './beams.js?v=10';
+import { meshSpec, meshGeometry, meshTexture, unionShape } from './mesh.js?v=11';
+import { readBinary } from '../rbxl.js?v=11';
+import { BeamSystem } from './beams.js?v=11';
+import { Decor } from './decor.js?v=11';
+import { TerrainView } from './terrain3d.js?v=11';
+import { Effects } from './effects.js?v=11';
+import { MATS as TMATS, VOX as TVOX } from '../luau/terrain.js?v=11';
 
 const MAT_OK = new Set(['Plastic', 'SmoothPlastic', 'Neon', 'Wood', 'WoodPlanks', 'Brick', 'Cobblestone', 'Concrete', 'Slate', 'Granite', 'Marble', 'Basalt', 'Rock', 'Pebble', 'Grass', 'LeafyGrass', 'Sand', 'Snow', 'Ice', 'Glacier', 'Glass', 'ForceField', 'Metal', 'DiamondPlate', 'CorrodedMetal', 'Foil', 'Fabric', 'Asphalt', 'Pavement', 'CrackedLava', 'Sandstone']);
 const MAT_ALIAS = { Limestone: 'Sandstone', Mud: 'Grass', Ground: 'Grass', Salt: 'Sand', Cardboard: 'WoodPlanks', Carpet: 'Fabric', Leather: 'Fabric', Plaster: 'Concrete', Rubber: 'SmoothPlastic', Water: 'Glass', Air: 'Glass' };
@@ -41,7 +46,7 @@ const cfMat = (cf, m = new THREE.Matrix4()) => { const r = cf.r, p = cf.p; retur
 export class LiveWorld extends World {
   constructor(renderer, quality, engine) {
     super(renderer, quality); this.E = engine; this.THREE = THREE; this.live = new Map(); this.groups = new Map(); this.partGroup = new Map(); this.dirtyGroups = new Set(); this.colliderOf = new Map();
-    this.lights = []; this.particles = []; this.beams = new BeamSystem(this, engine); this.tmpM = new THREE.Matrix4(); this.map = { lighting: { preset: 'jour', over: {} }, root: { children: [] } };
+    this.lights = []; this.particles = []; this.beams = new BeamSystem(this, engine); this.decor = new Decor(this, engine); this.terrainView = new TerrainView(this, engine.terrain); this.effects = new Effects(this, engine); engine.onExplosion = (p, r) => this.effects.explode(p, r); this.tmpM = new THREE.Matrix4(); this.map = { lighting: { preset: 'jour', over: {} }, root: { children: [] } };
     engine.onTrack = (o, p, inWorld) => this.onTrack(o, inWorld);
     const prev = engine.rt.onChange; engine.rt.onChange = (o, k) => { prev?.(o, k); this.onChange(o, k); };
   }
@@ -59,7 +64,7 @@ export class LiveWorld extends World {
     const G = this.groups.get(key); if (!G) return; for (const m of G.meshes) { this.root.remove(m); m.geometry.dispose(); } G.meshes = [];
     const byMat = new Map(), studs = []; const col = new THREE.Color();
     for (const o of G.parts) { const d = partDesc(o), cf = o.props.get('CFrame'); if (!cf || d.transparency >= 1) continue; const ms = meshSpec(o); let g;
-      if (ms) { g = meshGeometry(o, ms, () => this.dirtyGroups.add(key)); if (g === undefined) continue; if (g === null) g = partGeo(d); else { g = g.index ? g.toNonIndexed() : g; for (const a of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(a)) g.deleteAttribute(a); } } else g = partGeo(d);
+      if (ms) { g = meshGeometry(o, ms, () => this.dirtyGroups.add(key)); if (g === undefined) continue; if (g === null) g = partGeo(d); else { g = g.index ? g.toNonIndexed() : g; for (const a of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(a)) g.deleteAttribute(a); } } else g = (/Operation$/.test(o.cls) && unionShape(o, readBinary)) || partGeo(d);
       const mtx = cfMat(cf); g.applyMatrix4(mtx); col.set(d.color);
       const c = new Float32Array(g.attributes.position.count * 3); for (let i = 0; i < c.length; i += 3) { c[i] = col.r; c[i + 1] = col.g; c[i + 2] = col.b; } g.setAttribute('color', new THREE.BufferAttribute(c, 3));
       const kind = d.cls === 'TrussPart' ? 'Truss' : d.material; if (!byMat.has(kind)) byMat.set(kind, []); byMat.get(kind).push(g); if (d.studs && d.cls === 'Part' && d.shape === 'Block') studs.push(studTop(d, mtx, col)); }
@@ -78,7 +83,7 @@ export class LiveWorld extends World {
     else { const ms = meshSpec(o); const g = ms ? meshGeometry(o, ms, () => { e.key = ''; }) : null;
       if (ms && g === undefined) { geo = new THREE.BufferGeometry(); mat = material(d); } // the mesh is on its way
       else if (g) { geo = g; const tex = ms.tex ? meshTexture(ms.tex, d.color, () => { e.key = ''; }) : null; mat = tex ? texMat(tex, d) : material(d); }
-      else { geo = partGeo(d); mat = material(d, d.cls === 'TrussPart' ? 'Truss' : undefined); if (d.cls === 'SpawnLocation') mat = [mat, mat, material(d, 'Spawn'), mat, mat, mat]; } }
+      else { geo = (/Operation$/.test(o.cls) && unionShape(o, readBinary)) || partGeo(d); mat = material(d, d.cls === 'TrussPart' ? 'Truss' : undefined); if (d.cls === 'SpawnLocation') mat = [mat, mat, material(d, 'Spawn'), mat, mat, mat]; } }
     const m = new THREE.Mesh(geo, mat); m.matrixAutoUpdate = false; m.castShadow = d.material !== 'Neon' && d.material !== 'ForceField' && d.transparency < 0.6; m.receiveShadow = true; m.visible = d.transparency < 1;
     if (d.studs && d.cls === 'Part' && d.shape === 'Block' && d.transparency <= 0) { const sm = new THREE.Mesh(studTop(d, new THREE.Matrix4(), new THREE.Color(d.color)), studMat()); sm.receiveShadow = true; m.add(sm); }
     const face = o.kids.find((k) => k.cls === 'Decal' && /face/i.test(String(k.props.get('Name')))); if (face && d.head) { const fm = new THREE.Mesh(new THREE.CylinderGeometry(0.625, 0.625, 1.05, 32, 1, true, Math.PI - 0.95, 1.9), new THREE.MeshStandardMaterial({ map: faceTex(this.E.look?.face || 'sourire'), transparent: true, depthWrite: false, roughness: 0.7 })); fm.scale.set(d.size[0] / 1.2, d.size[1] / 1.2, d.size[2] / 1.2); m.add(fm); }
@@ -122,7 +127,7 @@ export class LiveWorld extends World {
     const rc = this.rc || (this.rc = new THREE.Raycaster()); rc.set(o, d); rc.far = len; const hits = rc.intersectObjects([...cands], false);
     for (const h of hits) { const inst = h.object.userData.inst || [...this.live.values()].find((e) => e.mesh === h.object)?.o; if (!inst || !inst.parent || (params && params.f && params.f.RespectCanCollide && inst.props.get('CanCollide') === false) || inst.props.get('CanQuery') === false || !okInst(inst)) continue;
       const n = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : new THREE.Vector3(0, 1, 0); const R = this.E.rt; void R;
-      const res = new this.E.Instance('RaycastResult', this.E.rt); res.props.set('Instance', inst); res.props.set('Position', new Vector3(h.point.x, h.point.y, h.point.z)); res.props.set('Normal', new Vector3(n.x, n.y, n.z)); res.props.set('Distance', h.distance); res.props.set('Material', inst.props.get('Material')); return res; }
+      const res = new this.E.Instance('RaycastResult', this.E.rt); res.props.set('Instance', inst); res.props.set('Position', new Vector3(h.point.x, h.point.y, h.point.z)); res.props.set('Normal', new Vector3(n.x, n.y, n.z)); res.props.set('Distance', h.distance); res.props.set('Material', h.object.userData.terrain ? (() => { const q = h.point.clone().addScaledVector(d, 0.05); return this.E.enumItem('Material', TMATS[this.E.terrain.get(Math.floor(q.x / TVOX), Math.floor(q.y / TVOX), Math.floor(q.z / TVOX))[0]] || 'Grass'); })() : inst.props.get('Material')); return res; }
     return undefined;
   }
   groundAt(x, y, z, self) { const rc = this.rc2 || (this.rc2 = new THREE.Raycaster()); rc.set(new THREE.Vector3(x, y, z), new THREE.Vector3(0, -1, 0)); rc.far = 400; const hits = rc.intersectObjects(this.solidNear(new THREE.Vector3(x, y, z), 6), false); for (const h of hits) if (h.object.userData.inst !== self) return h.point.y; return null; }
@@ -136,9 +141,7 @@ export class LiveWorld extends World {
     const preset = over.ClockTime >= 5.5 && over.ClockTime <= 18.5 ? (over.ClockTime > 16.5 ? 'coucher' : over.ClockTime < 8 ? 'aube' : 'jour') : 'nuit';
     this.map = { lighting: { preset, over }, root: { children: [] } }; this.lighting();
     // post effects read by the app (CSS filters on the canvas)
-    const blur = [...L.kids, ...(this.E.workspace.props.get('CurrentCamera')?.kids || [])].filter((k) => k.cls === 'BlurEffect' && k.props.get('Enabled') !== false).reduce((s, k) => s + (k.props.get('Size') ?? 24), 0);
-    this.post = { blur: blur / 4, sat: cc ? 1 + (cc.props.get('Saturation') || 0) : 1, con: cc ? 1 + (cc.props.get('Contrast') || 0) : 1, bri: cc ? 1 + (cc.props.get('Brightness') || 0) : 1, tint: cc ? hx(cc.props.get('TintColor')) : null };
-    this.lightDirty = false;
+    this.updatePost(); this.lightDirty = false;
   }
   /* ---- lights and particles ---- */
   scanEffects() {
@@ -166,15 +169,24 @@ export class LiveWorld extends World {
       p.points.material.size = Math.max(0.3, (p.ps[0]?.sz || 1) * 1.2); p.points.geometry.setDrawRange(0, k); pos.needsUpdate = true; col.needsUpdate = true; }
   }
   burst(em, n) { const p = this.particles.find((x) => x.em === em) || (this.particles.push(this.makeEmitter(em)), this.particles[this.particles.length - 1]); this.emit(p, n); }
+  /* post effects (CSS filters on the canvas), every frame: menus tween BlurEffect / ColorCorrection sizes and they must follow at once.
+     Like Roblox, every enabled effect in Lighting and in the camera adds up. */
+  updatePost() {
+    const L = this.E.service('Lighting'), cam = this.E.workspace.props.get('CurrentCamera'); let blur = 0, sat = 1, con = 1, bri = 1, tint = null;
+    for (const k of [...L.kids, ...(cam ? cam.kids : [])]) { if (k.props.get('Enabled') === false) continue;
+      if (k.cls === 'BlurEffect') blur += k.props.get('Size') ?? 24;
+      else if (k.cls === 'ColorCorrectionEffect') { sat += k.props.get('Saturation') || 0; con += k.props.get('Contrast') || 0; bri += k.props.get('Brightness') || 0; const t = k.props.get('TintColor'); if (t instanceof Color3 && (t.r < 0.99 || t.g < 0.99 || t.b < 0.99)) tint = t.hex(); } }
+    this.post = { blur: blur / 4, sat: Math.max(0, sat), con: Math.max(0, con), bri: Math.max(0, bri), tint };
+  }
   /* ---- per frame ---- */
   update(dt) {
     for (const e of this.live.values()) { const o = e.o; if (!o.parent) continue; const k = this.lookKey(o); if (k !== e.key) this.makeMesh(e); else this.place(e); }
     let n = 0; for (const g of this.dirtyGroups) { this.rebuildGroup(g); this.dirtyGroups.delete(g); if (++n > 3) break; }
     if (this.effectsDirty) { this.scanEffects(); this.beams.dirty = true; }
-    this.beams.update(dt);
+    this.beams.update(dt); this.decor.update(); this.terrainView.update(); this.effects.update(dt);
     for (const { l, obj } of this.lights) { const part = l.parent, cf = part && part.props && part.props.get('CFrame'); if (cf) obj.position.set(cf.p[0], cf.p[1], cf.p[2]); obj.visible = l.props.get('Enabled') !== false; obj.intensity = (l.props.get('Brightness') ?? 1) * 5; obj.distance = l.props.get('Range') ?? 8; }
     this.stepParticles(dt);
-    if (this.lightDirty || (this.E.frameN % 30 === 0)) this.applyLighting();
+    if (this.lightDirty || (this.E.frameN % 30 === 0)) this.applyLighting(); else this.updatePost();
   }
 }
 export { THREE, MC };

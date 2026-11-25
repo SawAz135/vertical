@@ -11,9 +11,9 @@
    Buttons fire MouseButton1Click / Activated / MouseEnter… on the client.
    Rects are also what scripts read back as AbsolutePosition/AbsoluteSize.
    ===================================================================== */
-import { isA, EnumItem, Vector2, Color3 } from '../luau/engine.js?v=10';
-import { ViewportRenderer } from './viewport.js?v=10';
-import { assetId, imageURL } from '../assets.js?v=10';
+import { isA, EnumItem, Vector2, Color3 } from '../luau/engine.js?v=11';
+import { ViewportRenderer } from './viewport.js?v=11';
+import { assetId, imageURL } from '../assets.js?v=11';
 
 const FONT = { FredokaOne: '"F-Fredoka","Fredoka One",system-ui', Fredoka: '"F-Fredoka",system-ui', GothamBlack: '"F-Mont",system-ui', GothamBold: '"F-Mont",system-ui', GothamMedium: '"F-Mont",system-ui', Gotham: '"F-Mont",system-ui', GothamSemibold: '"F-Mont",system-ui',
   BuilderSans: '"F-Mont",system-ui', BuilderSansBold: '"F-Mont",system-ui', BuilderSansExtraBold: '"F-Mont",system-ui', Montserrat: '"F-Mont",system-ui', LuckiestGuy: '"F-Luckiest",system-ui', Bangers: '"F-Bangers",system-ui', PermanentMarker: '"F-Marker",system-ui',
@@ -24,6 +24,15 @@ const rgba = (c, t = 0) => (c instanceof Color3 ? `rgba(${Math.round(c.r * 255)}
 const en = (v, d) => (v instanceof EnumItem ? v.name : d);
 const ud = (u, size, scaleK = 1) => (u ? u.f.Scale * size + u.f.Offset * scaleK : 0);
 let measureCtx = null; const textWidth = (txt, px, font) => { measureCtx ||= document.createElement('canvas').getContext('2d'); measureCtx.font = `700 ${px}px ${font}`; return measureCtx.measureText(txt).width; };
+/* TextScaled like Roblox: the biggest size whose word-wrapped text fits the box (measured by the browser itself) */
+let fitBox = null;
+function fitText(html, plain, f, w, h, lh, minS, maxS) {
+  if (!fitBox) { fitBox = document.createElement('div'); fitBox.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;white-space:pre-wrap;overflow-wrap:normal;word-break:normal;'; document.body.appendChild(fitBox); }
+  const b = fitBox; b.style.fontFamily = f.css; b.style.fontWeight = f.weight; b.style.lineHeight = lh; b.style.width = w + 'px'; if (html) b.innerHTML = html; else b.textContent = plain || ' ';
+  const fits = (px) => { b.style.fontSize = px + 'px'; return b.scrollHeight <= h + 0.5 && b.scrollWidth <= w + 0.5; };
+  let lo = minS, hi = Math.max(minS, Math.min(maxS, h)); if (fits(hi)) return hi;
+  for (let i = 0; i < 14; i++) { const mid = (lo + hi) / 2; if (fits(mid)) lo = mid; else hi = mid; } return Math.max(minS, Math.floor(lo * 4) / 4);
+}
 function fontOf(o) { const F = o.props.get('FontFace') || o.props.get('Font'); let fam = 'Legacy', weight = 400;
   if (F instanceof EnumItem) fam = F.name; else if (F && F.f) { const s = String(F.f.Family || ''); fam = (s.match(/\/([A-Za-z0-9]+)\.json$/) || [, s])[1] || 'Legacy'; const w = F.f.Weight; weight = w instanceof EnumItem ? ({ Thin: 100, Light: 300, Regular: 400, Medium: 500, SemiBold: 600, Bold: 700, ExtraBold: 800, Heavy: 900 }[w.name] || 400) : 400; }
   return { css: FONT[fam] || FONT[fam.replace(/[^A-Za-z]/g, '')] || 'system-ui,sans-serif', weight: BOLD.test(fam) ? Math.max(weight, 700) : weight }; }
@@ -140,7 +149,38 @@ export class GuiRenderer {
     this.frameN++; const guis = this.layout(W, H, inset); const seen = new Set();
     let z = 0; for (const g of guis) { z += 1000; this.drawTree(g, this.layer, seen, z); }
     for (const [o, el] of this.els) if (!seen.has(o)) { el.remove(); this.els.delete(o); if (o.cls === 'ViewportFrame') this.vp.drop(o); }
-    this.billboards(seen);
+    this.billboards(seen); this.surfaces(seen);
+  }
+  /* ---------------- SurfaceGuis (on a face of a part) ----------------
+     laid out flat at their canvas size, then projected on the face with a CSS perspective transform
+     (the homography that sends the canvas corners to the face corners on screen); buttons stay clickable */
+  surfaces(seen) {
+    const cam = this.camera; if (!cam || !this.world) return; const T = this.world.THREE, W = this.W, H = this.H; const sgs = []; const pg = this.E.player && this.E.player.child('PlayerGui');
+    const scan = (o) => { for (const k of o.kids) { if (k.cls === 'SurfaceGui' && k.props.get('Enabled') !== false) sgs.push(k); if (k.kids.length && !isA(k.cls, 'GuiObject')) scan(k); } };
+    scan(this.E.workspace); if (pg) for (const k of pg.kids) if (k.cls === 'SurfaceGui' && k.props.get('Enabled') !== false) sgs.push(k);
+    for (const g of sgs) {
+      const part = g.props.get('Adornee') || g.parent; const cf = part && part.props && part.props.get('CFrame'), size = part && part.props && part.props.get('Size'); if (!cf || !size) continue;
+      const face = (g.props.get('Face') && g.props.get('Face').name) || 'Front'; const F = SURFACE_FACES[face] || SURFACE_FACES.Front; const fw = Math.abs(F.r[0] * size.x + F.r[1] * size.y + F.r[2] * size.z), fh = Math.abs(F.u[0] * size.x + F.u[1] * size.y + F.u[2] * size.z);
+      const ppsMode = g.props.get('SizingMode'); const pps = g.props.get('PixelsPerStud') ?? 50; const cs = g.props.get('CanvasSize');
+      const cw = ppsMode && ppsMode.name === 'PixelsPerStud' ? fw * pps : cs ? cs.x : 800, ch = ppsMode && ppsMode.name === 'PixelsPerStud' ? fh * pps : cs ? cs.y : 600;
+      const half = [size.x / 2, size.y / 2, size.z / 2], off = (g.props.get('ZOffset') || 0) * 0.01 + 0.01; const c = [F.n[0] * (half[0] + off), F.n[1] * (half[1] + off), F.n[2] * (half[2] + off)];
+      const corner = (sx, sy) => { const l = [c[0] + F.r[0] * fw / 2 * sx + F.u[0] * fh / 2 * sy, c[1] + F.r[1] * fw / 2 * sx + F.u[1] * fh / 2 * sy, c[2] + F.r[2] * fw / 2 * sx + F.u[2] * fh / 2 * sy];
+        const w = cf.pointToWorld({ x: l[0], y: l[1], z: l[2] }); return new T.Vector3(w.x, w.y, w.z); };
+      const pts = [corner(-1, 1), corner(1, 1), corner(-1, -1), corner(1, -1)];
+      // only the front of the face shows it, and only in front of the camera
+      const n = cf.vecToWorld({ x: F.n[0], y: F.n[1], z: F.n[2] }); const toCam = cam.position.clone().sub(pts[0]); if (toCam.x * n.x + toCam.y * n.y + toCam.z * n.z <= 0) continue;
+      const dist = cam.position.distanceTo(pts[0]); if (dist > (g.props.get('MaxDistance') || Infinity)) continue;
+      // hidden behind walls (checked a few times a second), unless AlwaysOnTop
+      if (!g.props.get('AlwaysOnTop') && this.world.raycast) { if (!g.$occT || this.frameN - g.$occT > 6) { g.$occT = this.frameN; const ctr = pts[0].clone().add(pts[3]).multiplyScalar(0.5), dir = ctr.clone().sub(cam.position), len = dir.length();
+          const V = this.E.Vector3, hit = this.world.raycast(new V(cam.position.x, cam.position.y, cam.position.z), new V(dir.x / len * (len - 0.3), dir.y / len * (len - 0.3), dir.z / len * (len - 0.3)), null); const hi = hit && hit.props.get('Instance');
+          g.$occ = !!(hi && hi !== part && !(part.cls === 'Model' && part.descendants().includes(hi))); } if (g.$occ) continue; }
+      const scr = []; let behind = false; for (const p of pts) { const q = p.clone().applyMatrix4(cam.matrixWorldInverse); if (q.z > -0.05) { behind = true; break; } const v = p.clone().project(cam); scr.push([(v.x * 0.5 + 0.5) * W, (-v.y * 0.5 + 0.5) * H]); } if (behind) continue;
+      const r = [0, 0, cw, ch]; this.rects.set(g, [...r, 1]); seen.add(g);
+      let el = this.els.get(g); if (!el) { el = document.createElement('div'); el.className = 'rxbb rxsg'; el.$kids = el; this.els.set(g, el); this.bb.insertBefore(el, this.bb.firstChild); }
+      const m = homography([[0, 0], [cw, 0], [0, ch], [cw, ch]], scr);
+      el.style.cssText = `left:0;top:0;width:${cw}px;height:${ch}px;transform-origin:0 0;transform:matrix3d(${m.join(',')});z-index:${Math.max(0, Math.round(5000 - dist))};pointer-events:none`;
+      this.layoutKids(g, r, 1); this.drawTree(g, el, seen, 0);
+    }
   }
   drawTree(o, parentEl, seen, zBase) {
     for (const k of o.kids) { if (!isA(k.cls, 'GuiObject')) continue; const r = this.rects.get(k); if (!r) continue; seen.add(k);
@@ -214,8 +254,8 @@ export class GuiRenderer {
     const P = o.props; let txt = String(P.get('Text') ?? ''); const rich = !!P.get('RichText'); const f = fontOf(o); const tt = P.get('TextTransparency') ?? 0;
     let size = (P.get('TextSize') || 14) * sc; const plain = rich ? txt.replace(/<[^>]+>/g, '') : txt;
     if (P.get('TextScaled')) { const lim = o.kids.find((c) => c.cls === 'UITextSizeConstraint'); const maxS = lim ? (lim.props.get('MaxTextSize') || 100) * sc : 100 * sc, minS = lim ? (lim.props.get('MinTextSize') || 1) * sc : 1;
-      const w = Math.max(1, r[2] - 4), h = Math.max(1, r[3]); const k = plain + '|' + Math.round(w) + '|' + Math.round(h) + '|' + f.css;
-      if (el.$fitK !== k) { el.$fitK = k; let lo = minS, hi = Math.min(maxS, h * 1.05); const wrap = !!P.get('TextWrapped') || true; for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; const lw = textWidth(plain, mid, f.css), lines = wrap ? Math.max(1, Math.ceil(lw / w)) : 1; if ((lines * mid * 1.12 <= h && (wrap || lw <= w)) && (lines === 1 || lw / lines <= w * 1.05)) lo = mid; else hi = mid; } el.$fit = Math.max(minS, lo); } size = el.$fit; }
+      const w = Math.max(1, r[2] - 4), h = Math.max(1, r[3]); const k = txt + '|' + Math.round(w) + '|' + Math.round(h) + '|' + f.css;
+      if (el.$fitK !== k) { el.$fitK = k; el.$fit = fitText(rich ? richToHtml(txt) : null, plain, f, w, h, (P.get('LineHeight') || 1) * 1.15, minS, maxS); } size = el.$fit; }
     const xa = en(P.get('TextXAlignment'), 'Center'), ya = en(P.get('TextYAlignment'), 'Center'), wrap = !!(P.get('TextWrapped') || P.get('TextScaled'));
     let shadow = ''; const st = P.get('TextStrokeTransparency') ?? 1; if (st < 1) { const c = rgba(P.get('TextStrokeColor3'), st), w = Math.max(1, size * 0.07); shadow = textOutline(w, c); }
     if (stroke) { const sp = stroke.props, w = (sp.get('Thickness') || 1) * sc, c = rgba(sp.get('Color'), sp.get('Transparency') || 0); shadow = textOutline(w, c); }
@@ -246,6 +286,17 @@ export class GuiRenderer {
       this.layoutKids(b, r, 1); this.drawTree(b, el, seen, 0);
     }
   }
+}
+/* SurfaceGui faces: outward normal, and the canvas' right / up directions as seen by someone facing that side */
+const SURFACE_FACES = { Front: { n: [0, 0, -1], r: [-1, 0, 0], u: [0, 1, 0] }, Back: { n: [0, 0, 1], r: [1, 0, 0], u: [0, 1, 0] }, Right: { n: [1, 0, 0], r: [0, 0, -1], u: [0, 1, 0] }, Left: { n: [-1, 0, 0], r: [0, 0, 1], u: [0, 1, 0] },
+  Top: { n: [0, 1, 0], r: [1, 0, 0], u: [0, 0, -1] }, Bottom: { n: [0, -1, 0], r: [1, 0, 0], u: [0, 0, 1] } };
+/* the CSS matrix3d of the projective map sending 4 points to 4 points */
+function homography(src, dst) {
+  const A = [], b = []; for (let i = 0; i < 4; i++) { const [x, y] = src[i], [u, v] = dst[i]; A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u); A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v); }
+  for (let i = 0; i < 8; i++) { let mx = i; for (let r = i + 1; r < 8; r++) if (Math.abs(A[r][i]) > Math.abs(A[mx][i])) mx = r; [A[i], A[mx]] = [A[mx], A[i]]; [b[i], b[mx]] = [b[mx], b[i]]; const d = A[i][i] || 1e-12;
+    for (let r = 0; r < 8; r++) if (r !== i) { const f = A[r][i] / d; for (let c = i; c < 8; c++) A[r][c] -= f * A[i][c]; b[r] -= f * b[i]; } }
+  const h = b.map((v, i) => v / (A[i][i] || 1e-12)); // [a b c d e f g h]: u = (ax+by+c)/(gx+hy+1)
+  return [h[0], h[3], 0, h[6], h[1], h[4], 0, h[7], 0, 0, 1, 0, h[2], h[5], 0, 1];
 }
 function sampleNum(kps, t) { if (!kps.length) return 0; let a = kps[0]; for (const k of kps) { if (k.f.Time >= t) { const u = (t - a.f.Time) / Math.max(1e-6, k.f.Time - a.f.Time); return a.f.Value + (k.f.Value - a.f.Value) * Math.max(0, Math.min(1, u)); } a = k; } return a.f.Value; }
 function textOutline(w, c) { const o = []; for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; o.push(`${(Math.cos(a) * w).toFixed(2)}px ${(Math.sin(a) * w).toFixed(2)}px 0 ${c}`); } return o.join(','); }

@@ -14,7 +14,7 @@
    when the place was made with Roblox Forge.
    Luau scripts are not run: only the Forge rules are played.
    ===================================================================== */
-import { decompress as zstd } from './vendor/fzstd.js?v=10';
+import { decompress as zstd } from './vendor/fzstd.js?v=11';
 
 const dec = new TextDecoder();
 
@@ -124,7 +124,7 @@ function readValues(r, t, n, shared) {
     case 0x1B: { const b = r.bytes(n * 8), out = []; for (let i = 0; i < n; i++) { let v = 0n; for (let k = 0; k < 8; k++) v = (v << 8n) | BigInt(b[k * n + i]); const z = (v >> 1n) ^ -(v & 1n); out.push(Number(z)); } return out; }
     case 0x20: { const v = []; for (let i = 0; i < n; i++) { const family = r.str(), weight = r.d.getUint16(r.p, true); r.p += 2; const style = r.u8(); r.str(); v.push({ font: { family, weight, style } }); } return v; }
     case 0x22: { // Content: a source type per value, then the URIs (and object / external refs, unused here)
-      const types = r.ints(n), nu = r.u32(), uris = []; for (let i = 0; i < nu; i++) uris.push(r.str()); let u = 0; return types.map((t) => (t === 1 ? uris[u++] : null)); }
+      const types = Array.from(r.inter(n)), nu = r.u32(), uris = []; for (let i = 0; i < nu; i++) uris.push(r.str()); let u = 0; return types.map((t) => (t === 1 ? uris[u++] : null)); }
     default: return null;
   }
 }

@@ -13,11 +13,19 @@
      Motor6D, Weld, WeldConstraint) → PostSimulation / Heartbeat → waiting
      threads → tweens (TweenService with all Roblox easing styles).
    ===================================================================== */
-import { parse, Interpreter, createGlobals, LuaTable, LuaError, call, callGen, tostr } from './luau.js?v=10';
-import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, UDim2 } from './roblox.js?v=10';
-import { installServices, loadPlace } from './runner.js?v=10';
-import { AnimSystem } from './anim.js?v=10';
-import { SoundSystem } from './sound.js?v=10';
+import { parse, Interpreter, createGlobals, LuaTable, LuaError, call, callGen, tostr } from './luau.js?v=11';
+import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, UDim2 } from './roblox.js?v=11';
+import { installServices, loadPlace } from './runner.js?v=11';
+import { AnimSystem } from './anim.js?v=11';
+import { SoundSystem } from './sound.js?v=11';
+import { Contacts } from './contacts.js?v=11';
+import { TerrainData } from './terrain.js?v=11';
+import { Humanoids } from './humanoids.js?v=11';
+import { Market } from './market.js?v=11';
+import { Explosions } from './explosions.js?v=11';
+import { Physics } from './physics.js?v=11';
+const PHYS_CONSTRAINTS = new Set(['HingeConstraint', 'BallSocketConstraint', 'RopeConstraint', 'RodConstraint', 'SpringConstraint', 'PrismaticConstraint', 'CylindricalConstraint']);
+const PHYS_FORCES = new Set(['VectorForce', 'BodyForce', 'LinearVelocity', 'AngularVelocity', 'BodyVelocity', 'BodyAngularVelocity', 'BodyPosition', 'BodyGyro', 'Torque', 'AlignPosition', 'AlignOrientation', 'BodyThrust']);
 
 const fn = (f) => f;
 const D2R = Math.PI / 180;
@@ -53,7 +61,7 @@ const R15 = {
 };
 // joint: name, part0, part1, C0 position (in part0), C1 position (in part1)
 const JOINTS = [
-  ['Root', 'HumanoidRootPart', 'LowerTorso', [0, -0.8, 0], [0, -0.2, 0]], ['Waist', 'LowerTorso', 'UpperTorso', [0, 0.2, 0], [0, -0.8, 0]], ['Neck', 'UpperTorso', 'Head', [0, 0.8, 0], [0, -0.6, 0]],
+  ['Root', 'HumanoidRootPart', 'LowerTorso', [0, -1.07, 0], [0, -0.2, 0]], ['Waist', 'LowerTorso', 'UpperTorso', [0, 0.2, 0], [0, -0.8, 0]], ['Neck', 'UpperTorso', 'Head', [0, 0.8, 0], [0, -0.6, 0]],
   ['LeftShoulder', 'UpperTorso', 'LeftUpperArm', [-1, 0.56, 0], [0.5, 0.39, 0]], ['LeftElbow', 'LeftUpperArm', 'LeftLowerArm', [0, -0.33, 0], [0, 0.29, 0]], ['LeftWrist', 'LeftLowerArm', 'LeftHand', [0, -0.5, 0], [0, 0.125, 0]],
   ['RightShoulder', 'UpperTorso', 'RightUpperArm', [1, 0.56, 0], [-0.5, 0.39, 0]], ['RightElbow', 'RightUpperArm', 'RightLowerArm', [0, -0.33, 0], [0, 0.29, 0]], ['RightWrist', 'RightLowerArm', 'RightHand', [0, -0.5, 0], [0, 0.125, 0]],
   ['LeftHip', 'LowerTorso', 'LeftUpperLeg', [-0.5, -0.2, 0], [0, 0.42, 0]], ['LeftKnee', 'LeftUpperLeg', 'LeftLowerLeg', [0, -0.42, 0], [0, 0.29, 0]], ['LeftAnkle', 'LeftLowerLeg', 'LeftFoot', [0, -0.55, 0], [0, 0.1, 0]],
@@ -69,8 +77,8 @@ export class LiveEngine {
     this.I = new Interpreter(this.G); this.I.budget = 4e6;
     const rt = (this.rt = new Runtime(this.I, this.G, { parse: (src, name) => parse(src, name), warn: (s) => this.logs.push('❌ ' + s) }));
     rt.serviceNames = new Set(['Workspace', 'Lighting', 'ReplicatedStorage', 'ReplicatedFirst', 'ServerScriptService', 'ServerStorage', 'StarterGui', 'StarterPack', 'StarterPlayer', 'SoundService', 'Teams', 'Chat', 'TextChatService', 'Players', 'MaterialService', 'TestService', 'LocalizationService', 'HttpService', 'CollectionService', 'TweenService', 'RunService', 'ProximityPromptService', 'VoiceChatService']);
-    installServices(rt); loadPlace(rt, roots, readAttributes); this.extend(); this.anims = new AnimSystem(rt, this); this.sounds = new SoundSystem(rt, this);
-    this.tweens = new Set(); this.joints = new Set(); this.aligns = new Set(); this.prompts = new Set(); this.welds = new Map();
+    installServices(rt); loadPlace(rt, roots, readAttributes); this.extend(); this.anims = new AnimSystem(rt, this); this.sounds = new SoundSystem(rt, this); this.contacts = new Contacts(this); this.terrain = new TerrainData(this); this.humanoids = new Humanoids(this); this.market = new Market(this); this.explosions = new Explosions(this); this.physicsSim = new Physics(this); rt.physicsSim = this.physicsSim;
+    this.tweens = new Set(); this.joints = new Set(); this.aligns = new Set(); this.prompts = new Set(); this.welds = new Map(); this.constraints = new Set(); this.forces = new Set();
     rt.onParent = (o, p) => this.track(o, p); for (const d of rt.workspace.descendants()) this.track(d, d.parent);
     this.t = 0; this.frameN = 0; this.Instance = Instance; this.enumItem = enumItem; this.Vector3 = Vector3; this.CFrame = CFrame;
   }
@@ -83,8 +91,10 @@ export class LiveEngine {
       if (c === 'Motor6D' || c === 'Weld' || c === 'ManualWeld' || c === 'Motor' || c === 'Snap' || c === 'Glue' || c === 'WeldConstraint' || c === 'RigidConstraint') { if (inWorld) this.joints.add(x); else this.joints.delete(x); }
       else if (c === 'AlignPosition' || c === 'AlignOrientation' || c === 'LinearVelocity' || c === 'BodyVelocity' || c === 'BodyPosition' || c === 'BodyGyro') { if (inWorld) this.aligns.add(x); else this.aligns.delete(x); }
       else if (c === 'ProximityPrompt') { if (inWorld) this.prompts.add(x); else this.prompts.delete(x); }
+      if (PHYS_CONSTRAINTS.has(c)) { if (inWorld) this.constraints.add(x); else this.constraints.delete(x); }
+      if (PHYS_FORCES.has(c)) { if (inWorld) this.forces.add(x); else this.forces.delete(x); }
       for (const k of x.kids) visit(k); };
-    visit(o); this.jointsDirty = true; this.onTrack?.(o, p, inWorld);
+    visit(o); this.jointsDirty = true; this.contacts?.track(o, inWorld); this.explosions?.track(o, inWorld); this.onTrack?.(o, p, inWorld);
   }
   inWorld(o) { let p = o.parent; while (p) { if (p === this.rt.workspace) return true; p = p.parent; } return false; }
   /* ---- Roblox APIs the live game needs beyond the static runner ---- */
@@ -249,7 +259,7 @@ export class LiveEngine {
     }
     // free roots: integrate velocity + gravity; land on the ground
     for (const root of this.freeRoots || []) {
-      if (root.aligned === this.frameN || root.props.get('Anchored') || root === this.char?.parts?.HumanoidRootPart || !root.parent) continue;
+      if (root.aligned === this.frameN || root.props.get('Anchored') || root === this.char?.parts?.HumanoidRootPart || !root.parent || this.physicsSim?.bodies.has(root) || (this.physicsSim?.want && !this.physicsSim.ready)) continue;
       let v = root.props.get('AssemblyLinearVelocity') || new Vector3(); const cf = root.props.get('CFrame'); if (root.grounded && Math.hypot(v.x, v.z) < 0.05 && Math.abs(v.y) < 0.05) continue;
       v = new Vector3(v.x, v.y - (this.rt.workspace.props.get('Gravity') || 196.2) * dt, v.z); let ny = cf.p[1] + v.y * dt;
       const hit = this.groundAt ? this.groundAt(cf.p[0], cf.p[1] + 1, cf.p[2], root) : null; const half = (root.props.get('Size') || new Vector3(1, 1, 1)).y / 2;
@@ -273,9 +283,13 @@ export class LiveEngine {
     hooks.animate?.(dt);
     fire('PreAnimation', [dt]); this.anims.step(dt); fire('PreSimulation', [dt]); fire('Stepped', [this.t, dt]);
     hooks.character?.(dt);
+    try { this.humanoids.step(dt); } catch (e) { console.warn('humanoids', e); }
     if (this.jointsDirty || !this.jointOrder || this.frameN % 30 === 0) { this.orderJoints(); this.rebuildAssemblies(); }
     this.physics(dt);
+    try { this.physicsSim.step(dt); } catch (e) { console.warn('physics', e); }
     for (const j of this.jointOrder) this.applyJoint(j);
+    try { this.contacts.step(); } catch (e) { console.warn('contacts', e); }
+    try { this.explosions.step(); } catch (e) { console.warn('explosions', e); }
     fire('PostSimulation', [dt]); fire('Heartbeat', [dt]);
     rt.step(dt); this.stepTweens(dt); this.sounds.step();
     if (this.char && this.char.humanoid && this.char.humanoid.onHealth) this.char.humanoid.onHealth();
