@@ -222,12 +222,13 @@ local function buildUi()
 	end
 	ui.spin = text("Spin", 378, 700, 120, 120, WHITE, 7) -- under the shape's feet
 	ui.spin.label.Size = UDim2.fromScale(0.84, 0.84)
-	ui.rarity = text("Rarity", 44, 520, 34, 32, WHITE, 4)
-	ui.name = text("Name", 90, 940, 62, 62, WHITE, 6)
-	ui.sub = text("Sub", 132, 620, 24, 22, WHITE, 3)
-	ui.new = text("New", 164, 220, 34, 32, Color3.fromRGB(255, 70, 70), 4)
-	ui.income = text("Income", 200, 420, 42, 40, Color3.fromRGB(110, 255, 70), 4)
-	ui.odds = text("Odds", 252, 620, 66, 64, WHITE, 6)
+	-- the result texts sit in a compact stack at the TOP: the animal stays fully visible
+	ui.rarity = text("Rarity", 24, 520, 28, 26, WHITE, 4)
+	ui.name = text("Name", 60, 940, 52, 52, WHITE, 6)
+	ui.sub = text("Sub", 94, 620, 20, 19, WHITE, 3)
+	ui.new = text("New", 120, 220, 28, 27, Color3.fromRGB(255, 70, 70), 4)
+	ui.income = text("Income", 150, 420, 34, 32, Color3.fromRGB(110, 255, 70), 4)
+	ui.odds = text("Odds", 192, 620, 56, 54, WHITE, 6)
 	ui.nameGrad = Sim.new("UIGradient", { Rotation = 90, Color = ColorSequence.new(WHITE, WHITE) }, ui.name.label)
 	for _, k in { "spin", "odds" } do
 		ui[k].grad = Sim.new("UIGradient", { Rotation = 90, Color = ColorSequence.new(WHITE, WHITE) }, ui[k].label)
@@ -460,10 +461,10 @@ end
 local function showGoBack(rs)
 	if rs.done or rs.btn then return end
 	rs.canGoBack = true
-	local holder = Sim.new("Frame", { Name = "GoBackHolder", BackgroundTransparency = 1, Size = UDim2.fromOffset(390, 92),
-		Position = UDim2.fromOffset(500, 488), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 20 }, rs.ui.stage)
+	local holder = Sim.new("Frame", { Name = "GoBackHolder", BackgroundTransparency = 1, Size = UDim2.fromOffset(330, 78),
+		Position = UDim2.fromOffset(500, 512), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 20 }, rs.ui.stage)
 	local sc = Sim.new("UIScale", { Scale = 0 }, holder)
-	rs.btn = Sim.button(holder, { Name = "GoBack", Text = "GO BACK", Grad = "blue", Size = Vector2.new(380, 84), Position = UDim2.fromScale(0.5, 0.5),
+	rs.btn = Sim.button(holder, { Name = "GoBack", Text = "GO BACK", Grad = "blue", Size = Vector2.new(320, 70), Position = UDim2.fromScale(0.5, 0.5),
 		Max = 46, Corner = 6, Stroke = 4, TextStroke = 4, Tile = 30, ZIndex = 21 }, function() goBack(rs) end)
 	rs.btn.Selectable = true
 	tw(sc, 0.42, { Scale = 1 }, Enum.EasingStyle.Back)
@@ -608,14 +609,7 @@ local function startReveal(d)
 	for _, id in BearConfig.Order do wTotal += wOf(id) end
 	local function show(c)
 		if cur and cur ~= c then cur.model.Parent = nil end
-		if c == rs.finalSil then
-			ui.spin.label.Text = "1 IN ?" -- the last shape: the number hides again
-			rs.spinX = nil
-		else
-			local w = wOf(c.id)
-			ui.spin.label.Text = if w > 0 then "1 IN " .. commas(wTotal / w) else "1 IN ?"
-			rs.spinX = if w > 0 then wTotal / w else nil
-		end
+		local _ = wOf -- (the "1 IN" counter climbs on its own, see CLIMB below)
 		cur = c
 		c.model.Parent = Fx.folder
 		c.model:SetAttribute("Anim", "Idle")
@@ -733,11 +727,12 @@ local function startReveal(d)
 			if rs.done then return end
 			pop(ui.odds, 0.25, 0.6)
 			local target = math.max(1, d.oneIn or 1)
+			local from = math.max(1, math.min(target, (rs.spinX or 1) * 0.5))
 			local t0 = os.clock()
 			local lastTick = 0
 			while not rs.done and os.clock() - t0 < 0.6 do
 				local k = Easing.cubicOut(math.min(1, (os.clock() - t0) / 0.6))
-				rs.oddsX = 1 + (target - 1) * k -- the colour climbs with the number
+				rs.oddsX = from + (target - from) * k -- the colour climbs with the number
 				ui.odds.label.Text = "1 IN " .. commas(rs.oddsX)
 				if os.clock() - lastTick > 0.06 then
 					lastTick = os.clock()
@@ -866,20 +861,50 @@ local function startReveal(d)
 				scaleTo(cur.model, h / cur.base)
 			end
 		end
-		-- HEARTBEAT: faster and faster; silence just before the result
+		-- CLIMB: "1 IN X" counts UP the whole suspense towards the real odds of what is coming:
+		-- a common animal crawls up in white / green, a rare one rockets through gold, fire,
+		-- galaxy... (slow start, faster and faster, the last digits rolling like a slot reel)
+		local tierNow = ui.spin.tier or 0
+		if t >= T_SPIN and not resultDone then
+			local target = math.max(1, d.oneIn or 1)
+			local u = math.clamp((t - T_SPIN) / (T_RESULT - 0.08 - T_SPIN), 0, 1)
+			local x = target ^ (u ^ 1.5)
+			x *= 1 + math.noise(t * 25, 9.1) * 0.06 * (1 - u) -- reel wobble, settles at the end
+			x = math.max(1, math.min(target, x))
+			rs.spinX = x
+			ui.spin.label.Text = "1 IN " .. commas(x)
+			local ti = oddsTier(x)
+			if ti > (rs.lastTier or 0) then
+				-- a new colour tier: the number SLAMS, the screen kicks, the sound climbs
+				if (rs.lastTier or 0) > 0 then
+					slam(ui.spin, rs, 1.5)
+					Sound.play("Reveal" .. math.clamp(ti - 2, 1, 4))
+					CameraController.shake(0.15 + 0.12 * ti, 0.25)
+				end
+				rs.lastTier = ti
+			end
+			rs.tickAcc = (rs.tickAcc or 0) + dt
+			if rs.tickAcc > 0.07 then
+				rs.tickAcc = 0
+				Sound.play("Tick", { pitch = 0.9 + 0.8 * u, volume = 0.45 })
+			end
+		end
+		-- HEARTBEAT: faster and faster (and faster still when the odds are high); silence just
+		-- before the result
 		local stress = math.clamp(t / (T_RESULT - 0.3), 0, 1)
+		local hype = 1 + 0.22 * tierNow -- the rarer it is getting, the more intense everything is
 		if not resultDone and t >= nextBeat and t < T_RESULT - 0.3 then
-			nextBeat = t + (0.9 - 0.6 * stress)
+			nextBeat = t + (0.9 - 0.6 * stress) / (1 + 0.08 * tierNow)
 			rs.beatKick = 1
 			Sound.play("Heartbeat", { volume = 0.5 + 0.5 * stress, pitch = 0.5 + 0.1 * stress })
-			if t > T_SPIN then CameraController.shake(0.08 + 0.3 * stress, 0.1) end
+			if t > T_SPIN then CameraController.shake((0.08 + 0.3 * stress) * hype, 0.1) end
 		end
 		rs.beatKick = math.max(0, rs.beatKick - dt * 6)
 		hop = math.max(0, hop - dt * 9)
 		-- the silhouette: tremble (stronger and stronger) + a hop on every switch
 		if cur and not resultDone and cur.model.Parent then
 			local holdK = math.clamp((t - T_HOLD) / RV.hold, 0, 1)
-			local amp = (0.02 + 0.06 * stress + 0.18 * holdK) * h * 0.25
+			local amp = (0.02 + 0.06 * stress + 0.18 * holdK) * h * 0.25 * hype
 			if t > T_RESULT - 0.25 then amp *= 1.6 end
 			local n1, n2 = math.noise(t * 23, 1.1), math.noise(t * 23, 7.7)
 			-- the shake slides it on the ground and twists it a little: the feet never leave the floor
@@ -902,9 +927,9 @@ local function startReveal(d)
 		-- "1 IN ?" breathes with the heart, shakes with the stress
 		if not resultDone then
 			-- the heartbeat swells the letters (on the label: the holder keeps its slam / pop scale)
-			local b = 0.84 * (1 + 0.14 * rs.beatKick)
+			local b = 0.84 * (1 + 0.14 * rs.beatKick) * (1 + 0.035 * tierNow) -- bigger letters as it climbs
 			ui.spin.label.Size = UDim2.fromScale(b, b)
-			local amp = 2 + 9 * stress
+			local amp = (2 + 9 * stress) * hype
 			ui.spin.holder.Position = UDim2.fromOffset(500 + math.noise(t * 13, 2) * amp, ui.spin.y + math.noise(t * 13, 5) * amp)
 			ui.spin.holder.Rotation = math.noise(t * 9, 4) * (1 + 3 * stress)
 		end
