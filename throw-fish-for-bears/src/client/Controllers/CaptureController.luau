@@ -455,8 +455,24 @@ local function startReveal(d)
 		return fishH + (finalH - fishH) * Easing.sineInOut(u)
 	end
 
+	-- the base odds of a species in this zone (same rules as the server: every species the
+	-- same weight, x ZoneAffinity in its home zones): shown on the slot machine while it spins
+	local zoneHere = Layout.zoneAt(ground) or 1
+	local wTotal = 0
+	local function wOf(id: string): number
+		local sp = BearConfig.get(id)
+		if not sp or sp.fixedRarity then return 0 end
+		return if table.find(sp.zones, zoneHere) then BearConfig.ZoneAffinity else 1
+	end
+	for _, id in BearConfig.Order do wTotal += wOf(id) end
 	local function show(c)
 		if cur and cur ~= c then cur.model.Parent = nil end
+		if c == rs.finalSil then
+			ui.spin.label.Text = "1 IN ?" -- the last shape: the number hides again
+		else
+			local w = wOf(c.id)
+			ui.spin.label.Text = if w > 0 then "1 IN " .. commas(wTotal / w) else "1 IN ?"
+		end
 		cur = c
 		c.model.Parent = Fx.folder
 		c.model:SetAttribute("Anim", "Idle")
