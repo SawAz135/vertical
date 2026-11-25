@@ -335,7 +335,7 @@ local function buildCorridor(map, rand)
 	local _ = z0
 	-- end of the trench: a cliff closing the corridor + plateau-level land behind it
 	local lastZone = ZoneConfig.get(Layout.ZONE_COUNT)
-	Props.cliffFace(map, V3(-H - 4, 0, z1 - 2), V3(H + 4, 0, z1 - 2), cy, 0, V3(0, 0, 1), CLIFF[lastZone.theme], rand)
+	Props.cliffFace(map, V3(-H - 4, 0, z1 - 2), V3(H + 4, 0, z1 - 2), cy, Layout.PLATEAU_WALL, V3(0, 0, 1), CLIFF[lastZone.theme], rand)
 	Studs.static(map, "Ground", V3((H + 4) * 2, 4, 116), CF(0, -2, z1 - 4 - 58), GRASS)
 
 	local decor = Instance.new("Folder")
@@ -367,11 +367,12 @@ local function buildCorridor(map, rand)
 		end
 		-- the trench walls: dirt cliffs in the zone's colours, stepped grass rim on top
 		local cs = CLIFF[zone.theme] or CLIFF.forest
-		Props.cliffFace(folder, V3(-H - 2, 0, a), V3(-H - 2, 0, b), cy, 0, V3(1, 0, 0), cs, rand)
-		Props.cliffFace(folder, V3(H + 2, 0, a), V3(H + 2, 0, b), cy, 0, V3(-1, 0, 0), cs, rand)
+		-- as high as the spawn walls: their tops line up (20 above the plateau, 40 above the floor)
+		Props.cliffFace(folder, V3(-H - 2, 0, a), V3(-H - 2, 0, b), cy, Layout.PLATEAU_WALL, V3(1, 0, 0), cs, rand)
+		Props.cliffFace(folder, V3(H + 2, 0, a), V3(H + 2, 0, b), cy, Layout.PLATEAU_WALL, V3(-1, 0, 0), cs, rand)
 		pcall(Props.groundDetails, folder, zone.theme, a, b, H, rand)
 		for _, side in { -1, 1 } do
-			local ok, err = pcall(Backdrop.build, folder, zone.theme, a, b, side, H + 12, i * 7919 + (if side > 0 then 13 else 0), 6, i == 1)
+			local ok, err = pcall(Backdrop.build, folder, zone.theme, a, b, side, H + 12, i * 7919 + (if side > 0 then 13 else 0), Layout.PLATEAU_WALL + 6, i == 1)
 			if not ok then warn("[TFB] backdrop", err) end
 		end
 		-- soft transition strip at the zone border (blends both grounds)
