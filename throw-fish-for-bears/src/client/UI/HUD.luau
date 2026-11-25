@@ -297,7 +297,12 @@ function HUD.renderHotbar()
 	if fish then
 		setSlotModel(2, "fish:" .. fish.s .. (fish.v or ""), { kind = "Fish", id = fish.s, variant = fish.v, size = UDim2.fromScale(1, 1) })
 		slots[2].label.Text = FishConfig.get(fish.s).name
-		slots[2].count.Text = "x" .. #d.fish
+		-- only the SAME fish stack (same species AND same mutation): different fish never add up
+		local same = 0
+		for _, f in d.fish do
+			if f.s == fish.s and (f.v or "Normal") == (fish.v or "Normal") then same += 1 end
+		end
+		slots[2].count.Text = if same > 1 then "x" .. same else ""
 	end
 	local heldBear = holding == "Bear" and d.bears and d.bears[char:GetAttribute("HeldId")] or nil
 	slots[3].button.Visible = heldBear ~= nil
