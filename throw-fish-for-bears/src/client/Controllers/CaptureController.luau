@@ -229,6 +229,10 @@ local function buildUi()
 	ui.income = text("Income", 200, 420, 42, 40, Color3.fromRGB(110, 255, 70), 4)
 	ui.odds = text("Odds", 252, 620, 66, 64, WHITE, 6)
 	ui.nameGrad = Sim.new("UIGradient", { Rotation = 90, Color = ColorSequence.new(WHITE, WHITE) }, ui.name.label)
+	for _, k in { "spin", "odds" } do
+		ui[k].grad = Sim.new("UIGradient", { Rotation = 90, Color = ColorSequence.new(WHITE, WHITE) }, ui[k].label)
+		ui[k].holder.ClipsDescendants = false
+	end
 	ui.new.holder.Rotation = -4
 	return ui
 end
@@ -249,6 +253,130 @@ local function slam(t, rs, from: number?)
 			if t.scale.Parent then tw(t.scale, 0.18, { Scale = 1 }, Enum.EasingStyle.Back) end
 		end)
 	end)
+end
+
+--[[ "1 IN X" COLOURS: the rarer, the wilder. Plain tones for common odds, a shine sweep for
+     rare ones, then animated FIRE (flames rolling up the letters + embers), GALACTIC
+     (cosmic colours turning + twinkling stars) and PRISM (rainbow + stars) at the top.
+     Pure UI (gradients, little studded squares): no glow. ]]
+local RGB = Color3.fromRGB
+local ODDS_TIERS = {
+	{ max = 10, kind = "plain", a = WHITE, b = RGB(220, 220, 230) },
+	{ max = 100, kind = "plain", a = RGB(214, 255, 170), b = RGB(70, 215, 50) },
+	{ max = 1000, kind = "plain", a = RGB(180, 230, 255), b = RGB(40, 140, 255) },
+	{ max = 10000, kind = "shine", a = RGB(236, 190, 255), b = RGB(150, 60, 240) },
+	{ max = 100000, kind = "shine", a = RGB(255, 244, 160), b = RGB(250, 150, 20) },
+	{ max = 1000000, kind = "fire" },
+	{ max = 10000000, kind = "galaxy" },
+	{ max = math.huge, kind = "prism" },
+}
+local function oddsTier(x: number?)
+	if not x then return 0, nil end
+	for i, t in ODDS_TIERS do
+		if x < t.max then return i, t end
+	end
+	return #ODDS_TIERS, ODDS_TIERS[#ODDS_TIERS]
+end
+
+-- a little effect square around the text (ember / star), animated with tweens
+local function oddsParticle(holder: Frame, kind: string)
+	local W, H = holder.AbsoluteSize.X, holder.AbsoluteSize.Y
+	W = if W > 2 then holder.Size.X.Offset else holder.Size.X.Offset
+	H = holder.Size.Y.Offset
+	if kind == "fire" then
+		local sz = math.random(6, 13)
+		local f = Sim.new("Frame", { BackgroundColor3 = ({ RGB(255, 210, 60), RGB(255, 130, 30), RGB(255, 70, 30) })[math.random(1, 3)], BorderSizePixel = 0,
+			Size = UDim2.fromOffset(sz, sz), Position = UDim2.fromOffset(W * (0.15 + math.random() * 0.7), H * (0.55 + math.random() * 0.3)),
+			AnchorPoint = Vector2.new(0.5, 0.5), Rotation = math.random(0, 90), ZIndex = 8 }, holder)
+		Sim.stroke(f, 2, RGB(120, 20, 10))
+		local dur = 0.7 + math.random() * 0.6
+		tw(f, dur, { Position = f.Position + UDim2.fromOffset(math.random(-20, 20), -H * (0.9 + math.random() * 0.6)), Rotation = f.Rotation + math.random(-180, 180),
+			Size = UDim2.fromOffset(2, 2), BackgroundColor3 = RGB(255, 60, 20) }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		task.delay(dur, function() f:Destroy() end)
+	else
+		-- a 4-point star (two crossed bars) that pops in and out
+		local sz = math.random(10, 22)
+		local col = if kind == "prism" then Color3.fromHSV(math.random(), 0.5, 1) else ({ WHITE, RGB(170, 220, 255), RGB(255, 170, 240) })[math.random(1, 3)]
+		local holderF = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(sz, sz),
+			Position = UDim2.fromOffset(W * (-0.05 + math.random() * 1.1), H * (-0.2 + math.random() * 1.4)), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 10 }, holder)
+		local sc = Sim.new("UIScale", { Scale = 0 }, holderF)
+		for _, rot in { 0, 90 } do
+			Sim.new("Frame", { BackgroundColor3 = col, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, math.max(2, sz // 5)), Position = UDim2.fromScale(0.5, 0.5),
+				AnchorPoint = Vector2.new(0.5, 0.5), Rotation = rot, ZIndex = 10 }, holderF)
+		end
+		tw(sc, 0.22, { Scale = 1 }, Enum.EasingStyle.Back)
+		tw(holderF, 0.9, { Rotation = 90 })
+		task.delay(0.5, function() if holderF.Parent then tw(sc, 0.35, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In) end end)
+		task.delay(0.9, function() holderF:Destroy() end)
+	end
+end
+
+-- per frame: colour / animate a "1 IN" label for its odds (o = ui.spin / ui.odds, x = the number)
+local function styleOdds(o, x: number?, now: number, dt: number)
+	local i, tier = oddsTier(x)
+	if not tier then
+		-- "1 IN ?": white, black outline
+		o.grad.Color = ColorSequence.new(WHITE, WHITE)
+		o.grad.Rotation = 90
+		o.grad.Offset = Vector2.zero
+		o.stroke.Color = BLACK
+		o.tier = 0
+		return
+	end
+	o.tier = i
+	o.fxAcc = (o.fxAcc or 0) + dt
+	if tier.kind == "plain" then
+		o.grad.Color = ColorSequence.new(tier.a, tier.b)
+		o.grad.Rotation = 90
+		o.grad.Offset = Vector2.zero
+		o.stroke.Color = BLACK
+	elseif tier.kind == "shine" then
+		local lite = tier.a:Lerp(WHITE, 0.8)
+		local band = ((now * 0.7) % 1.6) - 0.3 -- a bright band crossing the letters every 1.6 s
+		o.grad.Rotation = 20
+		o.grad.Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, tier.b), ColorSequenceKeypoint.new(0.4, tier.a), ColorSequenceKeypoint.new(0.5, lite),
+			ColorSequenceKeypoint.new(0.6, tier.a), ColorSequenceKeypoint.new(1, tier.b) })
+		o.grad.Offset = Vector2.new(band * 2 - 1, 0)
+		o.stroke.Color = BLACK
+	elseif tier.kind == "fire" then
+		-- flames roll up through the letters, flickering
+		local flick = math.noise(now * 9, 1.7) * 0.12
+		o.grad.Rotation = 90
+		o.grad.Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, RGB(255, 250, 200)), ColorSequenceKeypoint.new(0.3, RGB(255, 220, 60)),
+			ColorSequenceKeypoint.new(0.62, RGB(255, 120, 20)), ColorSequenceKeypoint.new(1, RGB(210, 30, 20)) })
+		o.grad.Offset = Vector2.new(0, -0.15 + ((now * 1.3) % 1) * 0.3 + flick)
+		o.stroke.Color = RGB(70, 8, 4):Lerp(RGB(140, 30, 10), 0.5 + 0.5 * math.sin(now * 14))
+		if o.fxAcc > 0.05 then
+			o.fxAcc = 0
+			oddsParticle(o.holder, "fire")
+		end
+	elseif tier.kind == "galaxy" then
+		-- deep space colours slowly turning through the letters, stars twinkle around
+		o.grad.Rotation = (now * 40) % 360
+		o.grad.Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, RGB(40, 20, 120)), ColorSequenceKeypoint.new(0.3, RGB(120, 60, 255)),
+			ColorSequenceKeypoint.new(0.5, RGB(255, 140, 240)), ColorSequenceKeypoint.new(0.7, RGB(80, 200, 255)), ColorSequenceKeypoint.new(1, RGB(30, 10, 90)) })
+		o.grad.Offset = Vector2.new(math.sin(now * 0.8) * 0.25, math.cos(now * 0.6) * 0.2)
+		o.stroke.Color = RGB(14, 4, 40)
+		if o.fxAcc > 0.09 then
+			o.fxAcc = 0
+			oddsParticle(o.holder, "galaxy")
+		end
+	else
+		-- PRISM: the whole rainbow flowing through, stars of every colour
+		local h0 = now * 0.35
+		local kps = {}
+		for k = 0, 5 do
+			table.insert(kps, ColorSequenceKeypoint.new(k / 5, Color3.fromHSV((h0 + k * 0.17) % 1, 0.65, 1)))
+		end
+		o.grad.Rotation = 15
+		o.grad.Color = ColorSequence.new(kps)
+		o.grad.Offset = Vector2.zero
+		o.stroke.Color = RGB(20, 10, 30)
+		if o.fxAcc > 0.06 then
+			o.fxAcc = 0
+			oddsParticle(o.holder, "prism")
+		end
+	end
 end
 
 local VARIANT_GRAD = {
@@ -480,9 +608,11 @@ local function startReveal(d)
 		if cur and cur ~= c then cur.model.Parent = nil end
 		if c == rs.finalSil then
 			ui.spin.label.Text = "1 IN ?" -- the last shape: the number hides again
+			rs.spinX = nil
 		else
 			local w = wOf(c.id)
 			ui.spin.label.Text = if w > 0 then "1 IN " .. commas(wTotal / w) else "1 IN ?"
+			rs.spinX = if w > 0 then wTotal / w else nil
 		end
 		cur = c
 		c.model.Parent = Fx.folder
@@ -584,7 +714,8 @@ local function startReveal(d)
 			local lastTick = 0
 			while not rs.done and os.clock() - t0 < 0.6 do
 				local k = Easing.cubicOut(math.min(1, (os.clock() - t0) / 0.6))
-				ui.odds.label.Text = "1 IN " .. commas(1 + (target - 1) * k)
+				rs.oddsX = 1 + (target - 1) * k -- the colour climbs with the number
+				ui.odds.label.Text = "1 IN " .. commas(rs.oddsX)
 				if os.clock() - lastTick > 0.06 then
 					lastTick = os.clock()
 					Sound.play("Tick", { pitch = 1.2 + k * 0.6, volume = 0.5 })
@@ -593,6 +724,13 @@ local function startReveal(d)
 			end
 			if rs.done then return end
 			ui.odds.label.Text = "1 IN " .. commas(target)
+			rs.oddsX = target
+			local ti = oddsTier(target)
+			if ti >= 6 then
+				-- fire / galactic / prism odds: a bigger hit
+				CameraController.shake(0.6 + 0.2 * (ti - 6), 0.4)
+				Sound.play("Reveal4")
+			end
 			slam(ui.odds, rs)
 			Sound.play("Land", { pitch = 0.8 })
 		end)
@@ -755,6 +893,9 @@ local function startReveal(d)
 				stand(final, faceCF)
 			end
 		end
+		-- the "1 IN" colours (spinning number / final odds)
+		if not resultDone then styleOdds(ui.spin, rs.spinX, os.clock(), dt) end
+		if rs.oddsX then styleOdds(ui.odds, rs.oddsX, os.clock(), dt) end
 		-- rainbow tiers keep cycling
 		if resultDone and tier.rainbow then
 			ui.rarity.label.TextColor3 = RarityConfig.color(o.r, os.clock())
