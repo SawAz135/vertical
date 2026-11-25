@@ -158,15 +158,9 @@ function CaptureService.goBack(player: Player, force: boolean?)
 	if base and char and char.PrimaryPart then
 		char:PivotTo(Layout.baseSpawn(base))
 	end
-	local data = R.PlayerData.get(player)
+	-- the new animal is IN YOUR ARMS when you get back: place it in your base (or store it)
 	local placed = false
-	if data and base and R.BearBase.placedCount(player) < Formulas.capacity(data.capacity) then
-		R.BearBase.equip(player, record.id)
-		placed = record.placed == true
-	end
-	if not placed then R.Notify(player, "Base full! Place your new animal or store it.", "warn") end
-	if not placed and char and not char:GetAttribute("IsBear") then
-		-- base full: you carry it (place it, or store it)
+	if char and char.Parent and not char:GetAttribute("IsBear") then
 		R.EquipService.equipBear(player, record)
 		R.State.set(player, "CarryingCapturedBear", true)
 	end

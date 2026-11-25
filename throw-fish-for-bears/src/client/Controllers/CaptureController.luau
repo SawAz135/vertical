@@ -45,6 +45,8 @@ local reveal = nil -- the running reveal (one at a time)
 Capture.Reveal = nil -- set by ClientMain (kept for compatibility)
 Capture.Flash = nil
 Capture.Unlock = nil
+-- the "1 IN" suspense effect (same look, different motion): "classic", "reels", "wave", "echo"
+Capture.SpinStyle = "classic"
 
 local RV = GameConfig.Capture.Reveal
 local T_SPIN = RV.transform
@@ -378,6 +380,146 @@ local function styleOdds(o, x: number?, now: number, dt: number)
 			oddsParticle(o.holder, "prism")
 		end
 	end
+end
+
+--[[ SUSPENSE NUMBER EFFECTS (same font / outline / colours, a different motion):
+     reels : every character sits in its own little window; when it changes, the old one rolls
+             out upward and the new one rolls in from below, like a slot machine
+     wave  : every character dances in a travelling wave (up / down + tilt), wilder the rarer
+     echo  : coloured ghost copies trail behind the number as it shakes, and a big copy blasts
+             out of it on every new rarity tier ]]
+local function charsOf(text: string): { string }
+	local out = {}
+	for _, cp in utf8.codes(text) do table.insert(out, utf8.char(cp)) end
+	return out
+end
+local function newChar(parent: Instance, ch: string, size: Vector2, z: number)
+	local l = Sim.new("TextLabel", { BackgroundTransparency = 1, Size = UDim2.fromOffset(size.X, size.Y), AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5), Font = Sim.FONT, Text = ch, TextScaled = true, TextColor3 = WHITE, ZIndex = z }, parent)
+	Sim.new("UIStroke", { Name = "S", Thickness = 6, Color = BLACK, LineJoinMode = Enum.LineJoinMode.Round }, l)
+	Sim.new("UIGradient", { Name = "G", Rotation = 90 }, l)
+	return l
+end
+local function copyLook(from, l: TextLabel)
+	local g, st = l:FindFirstChild("G") :: UIGradient, l:FindFirstChild("S") :: UIStroke
+	if g then g.Color = from.grad.Color g.Rotation = from.grad.Rotation g.Offset = from.grad.Offset end
+	if st then st.Color = from.stroke.Color end
+end
+local function spinFx(style: string, o, rs, t: number, dt: number)
+	if style == "classic" then return end
+	local text = o.label.Text
+	local chars = charsOf(text)
+	local tier = o.tier or 0
+	local H = o.holder.Size.Y.Offset * 0.84
+	local CW = H * 0.62 -- the width of one character cell
+	if style == "reels" or style == "wave" then
+		-- the characters are drawn by their own labels: hide the main one
+		o.label.TextTransparency = 1
+		o.stroke.Transparency = 1
+		if not o.row then
+			o.row = Sim.new("Frame", { Name = "Row", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 9 }, o.holder)
+			o.cells = {}
+		end
+		-- each character gets a cell as wide as it really is (thin "1", "I", ",", spaces)
+		local function wOf(ch: string): number
+			if ch == " " then return CW * 0.45 end
+			if ch == "," or ch == "." then return CW * 0.42 end
+			if ch == "1" or ch == "I" then return CW * 0.62 end
+			if ch == "N" then return CW * 1.08 end
+			return CW * 0.92
+		end
+		local n = #chars
+		local total = 0
+		for _, ch in chars do total += wOf(ch) end
+		local xs = {}
+		local x = -total / 2
+		for k, ch in chars do
+			xs[k] = x + wOf(ch) / 2
+			x += wOf(ch)
+		end
+		for i = 1, math.max(n, #o.cells) do
+			local cell = o.cells[i]
+			if i > n then
+				if cell then cell.frame:Destroy() o.cells[i] = nil end
+				continue
+			end
+			if not cell then
+				local f = Sim.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(CW * 1.15, H * 1.05), AnchorPoint = Vector2.new(0.5, 0.5),
+					ClipsDescendants = style == "reels", ZIndex = 9 }, o.row)
+				cell = { frame = f, ch = "", lab = nil }
+				o.cells[i] = cell
+			end
+			cell.frame.Position = UDim2.new(0.5, xs[i], 0.5, 0)
+			if cell.ch ~= chars[i] then
+				local old = cell.lab
+				local new = newChar(cell.frame, chars[i], Vector2.new(CW * 1.1, H), 10)
+				copyLook(o, new)
+				if style == "reels" and old then
+					-- roll: the old character slides out the top, the new one in from the bottom
+					new.Position = UDim2.fromScale(0.5, 1.5)
+					tw(new, 0.09, { Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Quad)
+					tw(old, 0.09, { Position = UDim2.fromScale(0.5, -0.5) }, Enum.EasingStyle.Quad)
+					task.delay(0.1, function() old:Destroy() end)
+				elseif old then
+					old:Destroy()
+				end
+				cell.lab = new
+				cell.ch = chars[i]
+			end
+			if cell.lab then
+				copyLook(o, cell.lab)
+				if style == "wave" then
+					local amp = (4 + tier * 2.2)
+					local k = t * (6 + tier * 0.8) - i * 0.7
+					cell.lab.Position = UDim2.new(0.5, 0, 0.5, math.sin(k) * amp)
+					cell.lab.Rotation = math.sin(k + 0.8) * (4 + tier * 1.5)
+					local sc = 1 + 0.08 * math.max(0, math.sin(k))
+					cell.lab.Size = UDim2.fromOffset(CW * 1.1 * sc, H * sc)
+				end
+			end
+		end
+	elseif style == "echo" then
+		-- ghost copies lag behind the shaking number, in the tier colour
+		if not o.ghosts then
+			o.ghosts = {}
+			for k = 1, 3 do
+				local g = Sim.new("TextLabel", { BackgroundTransparency = 1, Size = UDim2.fromScale(0.84, 0.84), AnchorPoint = Vector2.new(0.5, 0.5),
+					Position = UDim2.fromScale(0.5, 0.5), Font = Sim.FONT, TextScaled = true, TextColor3 = WHITE, ZIndex = 8 - k }, o.holder.Parent)
+				Sim.new("UITextSizeConstraint", { MaxTextSize = 120, MinTextSize = 8 }, g)
+				table.insert(o.ghosts, { lab = g, hist = {} })
+			end
+			o.hist = {}
+		end
+		table.insert(o.hist, 1, { p = o.holder.Position, r = o.holder.Rotation })
+		if #o.hist > 12 then table.remove(o.hist) end
+		local kps = o.grad.Color.Keypoints
+		local col = if kps and kps[1] then kps[#kps].Value else WHITE
+		for k, gh in o.ghosts do
+			local h = o.hist[math.min(#o.hist, k * 3)]
+			gh.lab.Text = text
+			gh.lab.Size = o.holder.Size
+			gh.lab.Position = h.p
+			gh.lab.Rotation = h.r
+			gh.lab.TextColor3 = col
+			gh.lab.TextTransparency = 0.35 + k * 0.17
+		end
+		-- a new tier: a big copy blasts out of the number
+		if tier > (o.echoTier or 0) then
+			o.echoTier = tier
+			if tier > 1 then
+				local b = Sim.new("TextLabel", { BackgroundTransparency = 1, Size = o.holder.Size, AnchorPoint = Vector2.new(0.5, 0.5), Position = o.holder.Position,
+					Font = Sim.FONT, Text = text, TextScaled = true, TextColor3 = col, TextTransparency = 0.2, ZIndex = 5 }, o.holder.Parent)
+				local sc = Sim.new("UIScale", { Scale = 1 }, b)
+				tw(sc, 0.5, { Scale = 2.4 }, Enum.EasingStyle.Quart)
+				tw(b, 0.5, { TextTransparency = 1 }, Enum.EasingStyle.Quad)
+				task.delay(0.55, function() b:Destroy() end)
+			end
+		end
+	end
+end
+local function spinFxClear(o)
+	if o.row then o.row:Destroy() o.row = nil o.cells = nil end
+	if o.ghosts then for _, g in o.ghosts do g.lab:Destroy() end o.ghosts = nil end
 end
 
 local VARIANT_GRAD = {
@@ -995,7 +1137,13 @@ local function startReveal(d)
 			end
 		end
 		-- the "1 IN" colours (spinning number / final odds)
-		if not resultDone then styleOdds(ui.spin, rs.spinX, os.clock(), dt) end
+		if not resultDone then
+			styleOdds(ui.spin, rs.spinX, os.clock(), dt)
+			if t >= T_SPIN then spinFx(Capture.SpinStyle, ui.spin, rs, os.clock(), dt) end
+		elseif not rs.fxCleared then
+			rs.fxCleared = true
+			spinFxClear(ui.spin)
+		end
 		if rs.oddsX then styleOdds(ui.odds, rs.oddsX, os.clock(), dt) end
 		-- rainbow tiers keep cycling
 		if resultDone and tier.rainbow then

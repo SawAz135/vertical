@@ -233,7 +233,9 @@ end
 ------------------------------------------------------------------------------------------
 local slots = {}
 local iconKeys = {}
-local function slot(parent, i)
+local FISH_SLOTS = 6 -- slots 2..7 hold one fish each; slot 8 = the animal in your arms
+local fishInSlot = {} -- [slot] = fish id
+local function slot(parent, i, num: string?)
 	local b = new("ImageButton", { Name = "Slot" .. i, AutoButtonColor = false, Image = "", BackgroundColor3 = RGB(40, 90, 36), BackgroundTransparency = 0.2,
 		Size = UDim2.fromOffset(88, 88), LayoutOrder = i, ZIndex = 3 }, parent)
 	Sim.corner(b, 6)
@@ -241,7 +243,7 @@ local function slot(parent, i)
 	Sim.studs(b, { dark = true, tile = 22, transparency = 0.6, z = 3 })
 	local icon = new("Frame", { Name = "Icon", BackgroundTransparency = 1, Size = UDim2.new(1, -8, 1, -24), Position = UDim2.fromOffset(4, 4), ZIndex = 4 }, b)
 	local label = Sim.text(b, "", { Size = UDim2.new(1, -6, 0, 20), Position = UDim2.new(0.5, 0, 1, -12), Max = 17, Stroke = 2.5, ZIndex = 8 })
-	Sim.text(b, tostring(i), { Size = UDim2.fromOffset(18, 18), Position = UDim2.fromOffset(12, 12), Max = 16, Stroke = 2.5, ZIndex = 8 })
+	Sim.text(b, num or tostring(i), { Size = UDim2.fromOffset(18, 18), Position = UDim2.fromOffset(12, 12), Max = 16, Stroke = 2.5, ZIndex = 8 })
 	local count = Sim.text(b, "", { Size = UDim2.fromOffset(40, 18), Position = UDim2.new(1, -22, 0, 12), Max = 16, Stroke = 2.5, ZIndex = 8 })
 	new("UIScale", { Name = "ButtonScale" }, b)
 	slots[i] = { button = b, icon = icon, label = label, stroke = st, count = count }
@@ -249,22 +251,23 @@ local function slot(parent, i)
 end
 
 local function buildHotbar()
-	local root = Sim.root(gui, "Hotbar", Vector2.new(330, 200), UDim2.new(0.5, 0, 1, -6), Vector2.new(0.5, 1))
-	local row = new("Frame", { Name = "Row", BackgroundTransparency = 1, Size = UDim2.fromOffset(330, 90), Position = UDim2.fromOffset(0, 108) }, root)
+	-- the INVENTORY BAR: rod, then one slot PER FISH (each fish is its own item: tap one to
+	-- hold it, tap it again to put it away), then the animal you carry
+	local W = (2 + FISH_SLOTS) * 98
+	local root = Sim.root(gui, "Hotbar", Vector2.new(W, 200), UDim2.new(0.5, 0, 1, -6), Vector2.new(0.5, 1))
+	local row = new("Frame", { Name = "Row", BackgroundTransparency = 1, Size = UDim2.fromOffset(W, 90), Position = UDim2.fromOffset(0, 108) }, root)
 	new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 10),
 		SortOrder = Enum.SortOrder.LayoutOrder }, row)
-	for i = 1, 3 do slot(row, i) end
+	for i = 1, 1 + FISH_SLOTS do slot(row, i) end
+	slot(row, 2 + FISH_SLOTS, "")
 	Motion.BindButton(slots[1].button, 1.06, Sim.sounds, function() Net.event("EquipSlot"):FireServer("Rod") end)
-	-- slot 2: tap = hold your fish; tap again while holding = open the fish bag to pick another
-	Motion.BindButton(slots[2].button, 1.06, Sim.sounds, function()
-		local char = player.Character
-		if char and char:GetAttribute("Holding") == "Fish" then
-			HUD.menus.open("Bag")
-		else
-			Net.event("EquipSlot"):FireServer("Fish")
-		end
-	end)
-	Motion.BindButton(slots[3].button, 1.06, Sim.sounds, function() HUD.menus.open("Inventory") end)
+	for i = 2, 1 + FISH_SLOTS do
+		Motion.BindButton(slots[i].button, 1.06, Sim.sounds, function()
+			local id = fishInSlot[i]
+			if id then Net.event("EquipSlot"):FireServer("Fish", id) end
+		end)
+	end
+	Motion.BindButton(slots[2 + FISH_SLOTS].button, 1.06, Sim.sounds, function() HUD.menus.open("Inventory") end)
 	refs.hotbarRoot = root
 end
 
@@ -292,22 +295,43 @@ function HUD.renderHotbar()
 	local rodId = d.rods and d.rods.equipped or "Starter"
 	setSlotModel(1, "rod:" .. rodId, { kind = "Rod", id = rodId, zoom = 0.85, size = UDim2.fromScale(1, 1) })
 	slots[1].label.Text = RodConfig.get(rodId).name
-	local fish = Data.fishById(d.selectedFish) or (d.fish and d.fish[1])
-	slots[2].button.Visible = fish ~= nil
-	if fish then
-		setSlotModel(2, "fish:" .. fish.s .. (fish.v or ""), { kind = "Fish", id = fish.s, variant = fish.v, size = UDim2.fromScale(1, 1) })
-		slots[2].label.Text = FishConfig.get(fish.s).name
-		-- no stacks at all: every fish is its own fish (the slot shows the one you hold)
-		slots[2].count.Text = ""
+	-- the fish in the bar: the most recent ones (the one you hold always shows)
+	local all = d.fish or {}
+	local heldId = if holding == "Fish" then char:GetAttribute("HeldId") else nil
+	local shown = {}
+	for k = math.max(1, #all - FISH_SLOTS + 1), #all do table.insert(shown, all[k]) end
+	if heldId then
+		local inBar = false
+		for _, f in shown do if f.id == heldId then inBar = true end end
+		if not inBar then
+			local hf = Data.fishById(heldId)
+			if hf then
+				if #shown >= FISH_SLOTS then table.remove(shown, 1) end
+				table.insert(shown, 1, hf)
+			end
+		end
 	end
+	table.clear(fishInSlot)
+	for k = 1, FISH_SLOTS do
+		local i = 1 + k
+		local f = shown[k]
+		slots[i].button.Visible = f ~= nil
+		if f then
+			fishInSlot[i] = f.id
+			setSlotModel(i, "fish:" .. f.s .. (f.v or ""), { kind = "Fish", id = f.s, variant = f.v, size = UDim2.fromScale(1, 1) })
+			slots[i].label.Text = (if f.v and f.v ~= "Normal" then f.v .. " " else "") .. FishConfig.get(f.s).name
+			slots[i].count.Text = ""
+		end
+	end
+	local A = 2 + FISH_SLOTS
 	local heldBear = holding == "Bear" and d.bears and d.bears[char:GetAttribute("HeldId")] or nil
-	slots[3].button.Visible = heldBear ~= nil
+	slots[A].button.Visible = heldBear ~= nil
 	if heldBear then
-		setSlotModel(3, "bear:" .. heldBear.s .. (heldBear.v or ""), { kind = "Bear", id = heldBear.s, variant = heldBear.v, size = UDim2.fromScale(1, 1) })
-		slots[3].label.Text = BearConfig.get(heldBear.s).name
+		setSlotModel(A, "bear:" .. heldBear.s .. (heldBear.v or ""), { kind = "Bear", id = heldBear.s, variant = heldBear.v, size = UDim2.fromScale(1, 1) })
+		slots[A].label.Text = BearConfig.get(heldBear.s).name
 	end
 	for i, s in slots do
-		local active = (i == 1 and holding == "Rod") or (i == 2 and holding == "Fish") or (i == 3 and holding == "Bear")
+		local active = (i == 1 and holding == "Rod") or (fishInSlot[i] ~= nil and fishInSlot[i] == heldId) or (i == A and holding == "Bear")
 		s.stroke.Color = if active then RGB(255, 255, 255) else RGB(18, 40, 16)
 		s.stroke.Thickness = if active then 4 else 3
 		s.button.BackgroundColor3 = if active then RGB(70, 150, 50) else RGB(40, 90, 36)
@@ -720,12 +744,13 @@ end
 
 UserInputService.InputBegan:Connect(function(input, gp)
 	if gp then return end
-	if input.KeyCode == Enum.KeyCode.One then
+	-- 1 = rod, 2..7 = the fish in those slots
+	local KEYS = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six, Enum.KeyCode.Seven }
+	local n = table.find(KEYS, input.KeyCode)
+	if n == 1 then
 		Net.event("EquipSlot"):FireServer("Rod")
-	elseif input.KeyCode == Enum.KeyCode.Two then
-		Net.event("EquipSlot"):FireServer("Fish")
-	elseif input.KeyCode == Enum.KeyCode.Three then
-		if HUD.menus then HUD.menus.open("Inventory") end
+	elseif n and fishInSlot[n] then
+		Net.event("EquipSlot"):FireServer("Fish", fishInSlot[n])
 	end
 end)
 
