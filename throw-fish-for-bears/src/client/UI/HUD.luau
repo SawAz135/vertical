@@ -4,7 +4,7 @@
        right middle: square tiles (Gifts / Daily / Bears) + red ">" tab -> bears panel
        bottom left : strength (red) + money (green, +$/s)
        bottom mid  : dark green hotbar slots with 3D models, Bag / Store buttons
-       bottom right: speed + contextual action button; throw meter; reel mini-game ]]
+       bottom right: luck potions (UI/Potions); throw meter; reel mini-game ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -379,11 +379,7 @@ end
 
 ------------------------------------------------------------------------------------------
 local function buildActionAndSpeed()
-	local root = Sim.root(gui, "Action", Vector2.new(250, 240), UDim2.new(1, -10, 1, -6), Vector2.new(1, 1))
-	new("ImageLabel", { BackgroundTransparency = 1, Image = K.Icons.Shoe, ScaleType = Enum.ScaleType.Fit, Size = UDim2.fromOffset(44, 44),
-		Position = UDim2.fromOffset(150, 64), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = -8, ZIndex = 3 }, root)
-	refs.speed = Sim.text(root, "20", { Size = UDim2.fromOffset(80, 38), Position = UDim2.fromOffset(174, 64), AnchorPoint = Vector2.new(0, 0.5),
-		AlignX = Enum.TextXAlignment.Left, Max = 36, Stroke = 3.5, Gradient = { RGB(160, 230, 255), RGB(40, 140, 255) }, ZIndex = 3 })
+	-- (speed display removed on request: the luck potions own the bottom-right corner)
 	-- no action button: a small hint tells what to do (tap the lake, hold to reel / throw...)
 	local hintRoot = Sim.root(gui, "Hint", Vector2.new(520, 50), UDim2.new(0.5, 0, 1, -214), Vector2.new(0.5, 1))
 	local hint = Sim.infoBar(hintRoot, "", { Size = UDim2.fromOffset(500, 44), Position = UDim2.fromScale(0.5, 0.5), Max = 26, ZIndex = 3 })
@@ -774,9 +770,6 @@ function HUD.mount(g: ScreenGui)
 			end
 		end
 		renderEvent()
-		local char = player.Character
-		local hum = char and char:FindFirstChildOfClass("Humanoid")
-		refs.speed.Text = tostring(if hum then math.floor(hum.WalkSpeed + 0.5) else 0)
 		HUD.renderHotbar()
 	end)
 	HUD.renderStats()
