@@ -629,9 +629,23 @@ local function startReveal(d)
 	local T_RESULT = T_HOLD + RV.hold
 	local climb = {}
 	do
+		-- each stop is a RANDOM-looking number just past the colour step (13, 147, 1 384...),
+		-- never a round one, always below the next stop and below the real odds
 		local pts = { 1 }
+		local steps = {}
 		for _, v in RV.tierSteps do
-			if target > v then table.insert(pts, v) end
+			if target > v then table.insert(steps, v) end
+		end
+		for k, v in steps do
+			local cap = math.min(target, steps[k + 1] or target) * 0.97
+			local x = v * (1.08 + math.random() * 0.8)
+			x = math.max(v + 1, math.min(x, cap))
+			if x >= 1000 then x = math.floor(x) + math.random(1, 9) end -- no trailing zeros
+			x = math.floor(x)
+			if x % 10 == 0 then x += math.random(1, 9) end
+			x = math.min(x, math.floor(cap))
+			if x <= pts[#pts] then x = pts[#pts] + 1 end
+			table.insert(pts, x)
 		end
 		table.insert(pts, target)
 		local spans, tot = {}, 0
@@ -650,16 +664,16 @@ local function startReveal(d)
 			end
 		end
 	end
-	local function climbAt(t: number): (number, boolean)
-		for _, seg in climb do
+	local function climbAt(t: number): (number, boolean, number)
+		for i, seg in climb do
 			if t < seg.t1 then
-				if seg.pause then return seg.x0, true end
+				if seg.pause then return seg.x0, true, i end
 				local k = math.clamp((t - seg.t0) / (seg.t1 - seg.t0), 0, 1)
 				k = Easing.sineInOut(k)
-				return seg.x0 * (seg.x1 / seg.x0) ^ k, false
+				return seg.x0 * (seg.x1 / seg.x0) ^ k, false, i
 			end
 		end
-		return target, true
+		return target, true, #climb + 1
 	end
 	local spec = BearConfig.get(o.s)
 	local tier = RarityConfig.get(o.r)
@@ -1064,7 +1078,7 @@ local function startReveal(d)
 		local tierNow = ui.spin.tier or 0
 		if t >= T_SPIN and not resultDone then
 			local u = math.clamp((t - T_SPIN) / SPIN_LEN, 0, 1)
-			local x, paused = climbAt(t)
+			local x, paused, segIdx = climbAt(t)
 			if not paused then
 				x *= 1 + math.noise(t * 25, 9.1) * 0.05 -- reel wobble between the steps
 			end
@@ -1072,9 +1086,10 @@ local function startReveal(d)
 			rs.spinX = x
 			ui.spin.label.Text = "1 IN " .. commas(x)
 			local ti = oddsTier(x)
-			if ti > (rs.lastTier or 0) then
-				-- a new colour tier: the number SLAMS, the screen kicks, the sound climbs
-				if (rs.lastTier or 0) > 0 then
+			if paused and segIdx ~= rs.lastStop and segIdx <= #climb then
+				-- the number STOPS on its new colour: it SLAMS, the screen kicks, the sound climbs
+				rs.lastStop = segIdx
+				do
 					-- the number STOPS on the new colour for a second: slam, kick, sound
 					slam(ui.spin, rs, 1.6 + 0.08 * ti)
 					Sound.play("Reveal" .. math.clamp(ti - 2, 1, 4))
@@ -1082,7 +1097,6 @@ local function startReveal(d)
 					CameraController.shake(0.25 + 0.14 * ti, 0.35)
 					CameraController.punch(-4 - ti)
 				end
-				rs.lastTier = ti
 			end
 			rs.tickAcc = (rs.tickAcc or 0) + dt
 			if not paused and rs.tickAcc > 0.07 then
