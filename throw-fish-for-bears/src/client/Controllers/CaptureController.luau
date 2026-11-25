@@ -621,7 +621,9 @@ local function startReveal(d)
 		cur = c
 		c.model.Parent = Fx.folder
 		c.model:SetAttribute("Anim", "Idle")
-		scaleTo(c.model, h / c.base)
+		-- each new shape POPS in a bit too big; the next re-scale (~0.09 s later) settles it
+		scaleTo(c.model, h / c.base * (if c == rs.finalSil then 1.2 else 1.14))
+		lastScaleAt = os.clock()
 		hop = 1
 		swaps += 1
 		Sound.play("Tick", { pitch = 0.9 + math.min(0.7, swaps * 0.02), volume = 0.7 })
@@ -649,14 +651,41 @@ local function startReveal(d)
 		Sound.play("Transform")
 		Sound.play("Reveal" .. math.clamp(tier.reveal or 1, 1, 4))
 		if final then
+			-- THE APPEARANCE: the animal bursts out of its shadow still black, leaps up spinning,
+			-- the colour washes up from its feet to its head while it flies, it lands with a
+			-- bounce (dust ring, confetti, thud), then celebrates
+			local paint = {}
+			for _, x in final:GetDescendants() do
+				if x:IsA("BasePart") and x.Transparency < 1 then
+					table.insert(paint, { p = x, c = x.Color, h = x.Position.Y })
+				end
+			end
+			local lo, hi = math.huge, -math.huge
+			for _, e in paint do lo = math.min(lo, e.h) hi = math.max(hi, e.h) end
+			for _, e in paint do
+				e.h = (e.h - lo) / math.max(0.01, hi - lo)
+				e.p.Color = SHADOW
+			end
+			rs.paint = paint
 			final.Parent = Fx.folder
 			final:SetAttribute("Anim", "Happy")
 			final:SetAttribute("AnimT", Clock.now())
 			scaleTo(final, 0.55)
 			stand(final, faceCF)
 			rs.popT = os.clock()
-			task.delay(2.6, function()
-				if final.Parent and not rs.done then final:SetAttribute("Anim", "Look") end
+			rs.landed = false
+			-- it keeps celebrating while you look at it
+			task.spawn(function()
+				task.wait(2.6)
+				while final.Parent and not rs.done do
+					final:SetAttribute("Anim", "Look")
+					final:SetAttribute("AnimT", Clock.now())
+					task.wait(3 + math.random() * 1.5)
+					if not final.Parent or rs.done then break end
+					final:SetAttribute("Anim", "Happy")
+					final:SetAttribute("AnimT", Clock.now())
+					task.wait(2.4)
+				end
 			end)
 		end
 		-- the star flies apart and is gone
@@ -843,7 +872,7 @@ local function startReveal(d)
 				nextSwap = t + interval
 			end
 			-- keep the current silhouette at the growing size (throttled: re-scaling is heavy)
-			if cur and os.clock() - lastScaleAt > 0.09 then
+			if cur and os.clock() - lastScaleAt > 0.09 and not rs.squeezed then
 				lastScaleAt = os.clock()
 				scaleTo(cur.model, h / cur.base)
 			end
@@ -890,14 +919,54 @@ local function startReveal(d)
 			ui.spin.holder.Position = UDim2.fromOffset(500 + math.noise(t * 13, 2) * amp, ui.spin.y + math.noise(t * 13, 5) * amp)
 			ui.spin.holder.Rotation = math.noise(t * 9, 4) * (1 + 3 * stress)
 		end
+		-- ANTICIPATION: the last shadow squeezes in (a crouch) right before it bursts
+		if cur and not resultDone and t > T_RESULT - 0.22 and not rs.squeezed then
+			rs.squeezed = true
+			scaleTo(cur.model, h / cur.base * 0.86)
+			stand(cur.model, faceCF)
+		end
 		-- RESULT: when the hold ends
 		if not resultDone and t >= T_RESULT then result() end
 		-- the animal pops up to its full size (springy), throttled re-scaling
 		if final and rs.popT then
-			local k = math.clamp((os.clock() - rs.popT) / 0.45, 0, 1)
-			if k < 1 or (final:GetAttribute("TFBScale") or 1) ~= 1 then
-				scaleTo(final, 0.55 + 0.45 * Easing.backOut(k))
-				stand(final, faceCF)
+			local el = os.clock() - rs.popT
+			local JUMP = 0.62
+			local k = math.clamp(el / JUMP, 0, 1)
+			if k < 1 or not rs.landed then
+				-- grows while it flies (springy), leaps in an arc, one full spin that slows down
+				scaleTo(final, 0.55 + 0.45 * Easing.backOut(math.clamp(el / 0.45, 0, 1)))
+				local up = Easing.bump(k) * finalH * 0.55
+				local spin = (1 - Easing.cubicOut(k)) * math.pi * 2
+				stand(final, faceCF, CFrame.new(0, up, 0) * CFrame.Angles(0, spin, 0))
+				if k >= 1 and not rs.landed then
+					-- LANDING: thud, dust ring, a confetti burst in the rarity colours, camera hit
+					rs.landed = true
+					stand(final, faceCF)
+					Fx.dust(ground, 1.2 + finalH * 0.18)
+					Fx.ring(ground + Vector3.new(0, 0.2, 0), Color3.fromRGB(240, 230, 210), 0.5, 4 + finalH * 1.2, 0.5)
+					Fx.blocks(ground + Vector3.new(0, finalH * 0.7, 0), tier.color, 34, 30, 0.4, { life = 1.6, up = 3, spread = finalH * 0.3, gravity = 40,
+						colors = { tier.color, WHITE, Color3.fromRGB(255, 220, 60), Color3.fromRGB(110, 255, 90), Color3.fromRGB(80, 190, 255), Color3.fromRGB(255, 110, 200) } })
+					CameraController.shake(0.7, 0.3)
+					CameraController.punch(-6)
+					Sound.play("Place")
+					Sound.play("Land", { pitch = 0.7, volume = 1.1 })
+				end
+			end
+			-- the colour wash: from the feet up to the head, each part flashes a little lighter
+			-- as the wave reaches it, then settles on its true colour
+			if rs.paint then
+				local w = el / 0.55
+				local doneAll = true
+				for _, e in rs.paint do
+					local kk = math.clamp((w - e.h * 0.6) / 0.4, 0, 1)
+					if kk < 1 then doneAll = false end
+					local flash = Easing.bump(kk) * 0.35
+					e.p.Color = SHADOW:Lerp(e.c, kk):Lerp(WHITE, flash)
+				end
+				if doneAll then
+					for _, e in rs.paint do e.p.Color = e.c end
+					rs.paint = nil
+				end
 			end
 		end
 		-- the "1 IN" colours (spinning number / final odds)
