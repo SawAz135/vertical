@@ -620,6 +620,47 @@ end
 local function startReveal(d)
 	if reveal then cleanup(reveal, true) end
 	local o = d.outcome
+	-- THE CLIMB PLAN: 1 -> each colour step below the real odds (10, 100, 1k...) -> the odds.
+	-- The number climbs between steps (log scale) and STOPS on every step for RV.pause s, so
+	-- the suspense lasts longer the rarer the animal is (the server waits just as long).
+	local target = math.max(1, d.oneIn or 1)
+	local SPIN_LEN = RV.spin + GameConfig.revealPauses(target) * RV.pause
+	local T_HOLD = T_SPIN + SPIN_LEN
+	local T_RESULT = T_HOLD + RV.hold
+	local climb = {}
+	do
+		local pts = { 1 }
+		for _, v in RV.tierSteps do
+			if target > v then table.insert(pts, v) end
+		end
+		table.insert(pts, target)
+		local spans, tot = {}, 0
+		for k = 2, #pts do
+			spans[k] = math.max(0.35, math.log10(math.max(pts[k], 1.0001)) - math.log10(pts[k - 1]))
+			tot += spans[k]
+		end
+		local tt = T_SPIN
+		for k = 2, #pts do
+			local dur = RV.spin * spans[k] / tot
+			table.insert(climb, { t0 = tt, t1 = tt + dur, x0 = pts[k - 1], x1 = pts[k] })
+			tt += dur
+			if k < #pts then
+				table.insert(climb, { t0 = tt, t1 = tt + RV.pause, x0 = pts[k], x1 = pts[k], pause = true })
+				tt += RV.pause
+			end
+		end
+	end
+	local function climbAt(t: number): (number, boolean)
+		for _, seg in climb do
+			if t < seg.t1 then
+				if seg.pause then return seg.x0, true end
+				local k = math.clamp((t - seg.t0) / (seg.t1 - seg.t0), 0, 1)
+				k = Easing.sineInOut(k)
+				return seg.x0 * (seg.x1 / seg.x0) ^ k, false
+			end
+		end
+		return target, true
+	end
 	local spec = BearConfig.get(o.s)
 	local tier = RarityConfig.get(o.r)
 	local rs = { d = d, pool = {}, t0 = os.clock(), kick = nil, beatKick = 0, done = false, pressed = false, canGoBack = false }
@@ -919,7 +960,7 @@ local function startReveal(d)
 			-- the WHOLE shape is framed in the upper middle of the screen (about a third of its
 			-- height), its feet on the ground well above the "1 IN X" text; the frame follows each
 			-- new shape (tall heron, long orca...), creeps in, and pushes in on the hold
-			local u = Easing.sineInOut(math.clamp((t - T_SPIN) / RV.spin, 0, 1))
+			local u = Easing.sineInOut(math.clamp((t - T_SPIN) / SPIN_LEN, 0, 1))
 			local k = Easing.quadIn(math.clamp((t - T_HOLD) / RV.hold, 0, 1))
 			local sc = if cur then h / cur.base else 1
 			local wide = if cur then cur.wide * sc else hh
@@ -998,7 +1039,7 @@ local function startReveal(d)
 				rs.fish = nil
 			end
 			if not finalShown and t >= nextSwap then
-				local u = math.clamp((t - T_SPIN) / RV.spin, 0, 1)
+				local u = math.clamp((t - T_SPIN) / SPIN_LEN, 0, 1)
 				local interval = 0.075 + ((math.max(0, u - 0.4) / 0.6) ^ 2.2) * 0.65
 				if (u >= 0.92 or t + interval > T_HOLD - 0.1) and rs.finalSil then
 					finalShown = true
@@ -1022,10 +1063,11 @@ local function startReveal(d)
 		-- galaxy... (slow start, faster and faster, the last digits rolling like a slot reel)
 		local tierNow = ui.spin.tier or 0
 		if t >= T_SPIN and not resultDone then
-			local target = math.max(1, d.oneIn or 1)
-			local u = math.clamp((t - T_SPIN) / (T_RESULT - 0.08 - T_SPIN), 0, 1)
-			local x = target ^ (u ^ 1.5)
-			x *= 1 + math.noise(t * 25, 9.1) * 0.06 * (1 - u) -- reel wobble, settles at the end
+			local u = math.clamp((t - T_SPIN) / SPIN_LEN, 0, 1)
+			local x, paused = climbAt(t)
+			if not paused then
+				x *= 1 + math.noise(t * 25, 9.1) * 0.05 -- reel wobble between the steps
+			end
 			x = math.max(1, math.min(target, x))
 			rs.spinX = x
 			ui.spin.label.Text = "1 IN " .. commas(x)
@@ -1033,14 +1075,17 @@ local function startReveal(d)
 			if ti > (rs.lastTier or 0) then
 				-- a new colour tier: the number SLAMS, the screen kicks, the sound climbs
 				if (rs.lastTier or 0) > 0 then
-					slam(ui.spin, rs, 1.5)
+					-- the number STOPS on the new colour for a second: slam, kick, sound
+					slam(ui.spin, rs, 1.6 + 0.08 * ti)
 					Sound.play("Reveal" .. math.clamp(ti - 2, 1, 4))
-					CameraController.shake(0.15 + 0.12 * ti, 0.25)
+					Sound.play("Land", { pitch = 0.6 + 0.05 * ti, volume = 0.9 })
+					CameraController.shake(0.25 + 0.14 * ti, 0.35)
+					CameraController.punch(-4 - ti)
 				end
 				rs.lastTier = ti
 			end
 			rs.tickAcc = (rs.tickAcc or 0) + dt
-			if rs.tickAcc > 0.07 then
+			if not paused and rs.tickAcc > 0.07 then
 				rs.tickAcc = 0
 				Sound.play("Tick", { pitch = 0.9 + 0.8 * u, volume = 0.45 })
 			end

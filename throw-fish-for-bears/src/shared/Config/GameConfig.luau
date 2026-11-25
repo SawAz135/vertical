@@ -1,5 +1,5 @@
 --[[ GameConfig: timings and gameplay tuning that are not money related. ]]
-return {
+local GameConfig = {
 	UI = {
 		-- rbxassetid of assets/stud_tile.png once uploaded to Roblox (Creator Hub > Decals/Images).
 		-- Empty = studs are drawn with GUI frames instead (same look, heavier).
@@ -38,7 +38,10 @@ return {
 		-- spin      = the silhouette morphs between animals (fast, then slower and slower) and grows
 		-- hold      = the last silhouette trembles, the heartbeat races, a beat of silence
 		-- result    = the animal in colour + rarity / NAME / NEW! / $/s / 1 IN X
-		Reveal = { transform = 0.55, spin = 5.2, hold = 0.9, result = 1.4, total = 8.05, autoBack = 25 },
+		-- the "1 IN X" climb STOPS for `pause` s on every colour step it passes (10, 100, 1k...),
+		-- so a rare animal makes a longer suspense (the server waits for it too)
+		Reveal = { transform = 0.55, spin = 5.2, hold = 0.9, result = 1.4, total = 8.05, autoBack = 25,
+			tierSteps = { 10, 100, 1000, 10000, 100000, 1000000, 10000000 }, pause = 0.9 },
 		-- LUCK BONUS rolled by the server during the reveal: rerolls the rarity with luck x mult
 		-- and keeps the better result (only shown when it really upgrades the bear)
 		luckBonus = { { mult = 25, chance = 0.003 }, { mult = 10, chance = 0.012 }, { mult = 5, chance = 0.05 }, { mult = 2, chance = 0.14 } },
@@ -48,3 +51,14 @@ return {
 		wanderInterval = { 2.5, 6 },
 	},
 }
+
+-- how many colour steps the "1 IN X" climb stops at for these odds
+function GameConfig.revealPauses(oneIn: number): number
+	local n = 0
+	for _, v in GameConfig.Capture.Reveal.tierSteps do
+		if oneIn > v then n += 1 end
+	end
+	return n
+end
+
+return GameConfig

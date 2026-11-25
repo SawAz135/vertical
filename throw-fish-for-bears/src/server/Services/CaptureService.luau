@@ -121,24 +121,26 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 	local isNew = R.IndexService.discoverBear(player, record)
 	R.PlayerData.push(player, "bears")
 	local RV = G.Reveal
+	local oneIn = CaptureService.oneIn(outcome, luck, zone, fish)
+	local revealLen = RV.total + GameConfig.revealPauses(oneIn) * RV.pause -- longer for rarer ones
 	local c = {
 		player = player, fish = fish, outcome = outcome, zone = zone, alive = true, luck = luck,
-		record = record, isNew = isNew, revealEnd = os.clock() + RV.total,
+		record = record, isNew = isNew, revealEnd = os.clock() + revealLen,
 	}
 	captures[player] = c
 	R.State.set(player, "WatchingEatingCinematic", true)
 	fx(player, "Reveal", {
 		landing = Vector3.new(landing.X, Layout.groundY(landing), landing.Z),
 		fish = { s = fish.s, w = fish.w, v = fish.v },
-		outcome = outcome, oneIn = CaptureService.oneIn(outcome, luck, zone, fish), isNew = isNew,
+		outcome = outcome, oneIn = oneIn, isNew = isNew,
 		income = Formulas.bearIncome(record), luck = luck * (outcome.mult or 1), weight = outcome.w,
 		canSkip = data.stats.bears > 1,
 	})
-	task.delay(RV.total + 0.4, function()
+	task.delay(revealLen + 0.4, function()
 		if player.Parent then R.Announce.bear(player, record) end
 	end)
 	-- nobody stays stuck on the result screen
-	task.delay(RV.total + RV.autoBack, function()
+	task.delay(revealLen + RV.autoBack, function()
 		if captures[player] == c and c.alive then CaptureService.goBack(player, true) end
 	end)
 end
