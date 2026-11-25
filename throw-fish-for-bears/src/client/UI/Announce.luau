@@ -1,8 +1,7 @@
---[[ Announce: server-wide rare catch announcements.
-     Every rare catch (Legendary+) = a coloured system line in the Roblox chat.
-     IMPOSSIBLE only (Cosmic Bear / Cosmic Koi) = full-screen stud cinematic for
-     everyone: dark vignette, rotating rays, studded rarity banner with the spinning
-     3D model, "IMPOSSIBLE!!!" stamp, stud confetti, pillar of light on the catcher. ]]
+--[[ Announce: server-wide rare pull announcements = a coloured system line in the Roblox
+     chat ("[MYTHIC] Sam captured a Golden Tiger! (412 kg) 1 IN 48,210").
+     The full-screen banner below is kept in code but the server never asks for it
+     (payload.banner is always false: chat only, by request). ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -127,7 +126,8 @@ local function chatLine(d)
 		local ch = TextChatService:FindFirstChild("TextChannels")
 		local general = ch and ch:FindFirstChild("RBXGeneral")
 		if general then
-			general:DisplaySystemMessage(('<font color="#%s"><b>[%s]</b> %s %s a %s%s! (%s)</font>'):format(col, tier.name:upper(), d.player, verb, variant, name, Format.kg(d.weight or 0)))
+			local odds = if d.oneIn and d.oneIn > 1 then (' <b>1 IN %s</b>'):format(Format.commas(math.floor(d.oneIn))) else ""
+			general:DisplaySystemMessage(('<font color="#%s"><b>[%s]</b> %s %s a %s%s! (%s)%s</font>'):format(col, tier.name:upper(), d.player, verb, variant, name, Format.kg(d.weight or 0), odds))
 		end
 	end)
 end

@@ -28,6 +28,25 @@ function Format.short(n: number): string
 	return (neg and "-" or "") .. s .. SUFFIXES[i]
 end
 
+-- 1234567 -> "1,234,567"
+function Format.commas(n: number): string
+	local s = tostring(math.floor(math.abs(n)))
+	local out = s:reverse():gsub("(%d%d%d)", "%1,"):reverse()
+	if out:sub(1, 1) == "," then out = out:sub(2) end
+	return (if n < 0 then "-" else "") .. out
+end
+
+-- long durations: "2d 4h", "3h 12m", "9:41"
+function Format.long(seconds: number): string
+	seconds = math.max(0, math.floor(seconds))
+	local d = seconds // 86400
+	local h = (seconds % 86400) // 3600
+	local m = (seconds % 3600) // 60
+	if d > 0 then return ("%dd %dh"):format(d, h) end
+	if h > 0 then return ("%dh %02dm"):format(h, m) end
+	return Format.time(seconds)
+end
+
 function Format.money(n: number): string
 	return "$" .. Format.short(n)
 end

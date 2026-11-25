@@ -52,15 +52,25 @@ function CaptureService.speciesWeights(zone: number): { [string]: number }
 		-- make it much more likely there
 		local w = 1
 		if table.find(s.zones, zone) then w *= BearConfig.ZoneAffinity end
+		-- the live limited event: its featured animals are far more likely everywhere
+		if R.EventService then w *= R.EventService.speciesBoost(id) end
 		out[id] = w
 	end
 	return out
 end
 
-function CaptureService.roll(fish, landing: Vector3, zone: number)
+function CaptureService.roll(fish, landing: Vector3, zone: number, player: Player?, first: boolean?)
 	local luck = CaptureService.luckFor(fish, landing, zone)
+	-- luck potions, the x2 Luck gamepass and the live event multiply it
+	if player and R.PotionService then luck *= R.PotionService.luckMult(player) end
 	local species = Rng.pickMap(rand, CaptureService.speciesWeights(zone))
 	local rarity = Rng.pickMap(rand, RarityConfig.weights(luck, "bearOdds"))
+	-- the very first animal of a new player is at least Uncommon
+	if first and RarityConfig.index(rarity) < 2 then
+		local w = RarityConfig.weights(luck, "bearOdds")
+		w.Common = nil
+		rarity = Rng.pickMap(rand, w)
+	end
 	-- luck bonus: a second roll with boosted luck, the better rarity wins
 	local baseRarity, mult = rarity, nil
 	local roll = rand:NextNumber()
@@ -90,14 +100,16 @@ function CaptureService.roll(fish, landing: Vector3, zone: number)
 end
 
 -- the REAL probability of this exact outcome (species x rarity x mutation), as "1 IN X"
-function CaptureService.oneIn(o, luck: number, zone: number, fish): number
+function CaptureService.oneIn(o, luck: number, zone: number, fish, first: boolean?): number
 	local function share(map, key): number
 		local tot = 0
 		for _, w in map do tot += w end
 		return (map[key] or 0) / math.max(tot, 1e-12)
 	end
 	local ps = if o.r == "Impossible" then 1 else share(CaptureService.speciesWeights(zone), o.s)
-	local pr = share(RarityConfig.weights(luck * (o.mult or 1), "bearOdds"), o.r)
+	local rw = RarityConfig.weights(luck * (o.mult or 1), "bearOdds")
+	if first then rw.Common = nil end
+	local pr = share(rw, o.r)
 	local fv = RarityConfig.Variants[fish.v] or RarityConfig.Variants.Normal
 	local pv = share(RarityConfig.variantWeights(math.sqrt(luck) * fv.fishToBearLuck), o.v or "Normal")
 	local p = ps * pr * pv
@@ -112,7 +124,7 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 		R.State.set(player, "Idle", true)
 		return
 	end
-	local outcome, luck = CaptureService.roll(fish, landing, zone)
+	local outcome, luck = CaptureService.roll(fish, landing, zone, player, data.stats.bears == 0)
 	-- saved right now: a disconnect during the reveal never loses the animal
 	local id = R.PlayerData.newId(player)
 	local record = { id = id, s = outcome.s, r = outcome.r, v = outcome.v, w = outcome.w, placed = false, t = os.time() }
@@ -121,7 +133,7 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 	local isNew = R.IndexService.discoverBear(player, record)
 	R.PlayerData.push(player, "bears")
 	local RV = G.Reveal
-	local oneIn = CaptureService.oneIn(outcome, luck, zone, fish)
+	local oneIn = CaptureService.oneIn(outcome, luck, zone, fish, data.stats.bears == 1)
 	local revealLen = RV.total + GameConfig.revealPauses(oneIn) * RV.pause -- longer for rarer ones
 	local c = {
 		player = player, fish = fish, outcome = outcome, zone = zone, alive = true, luck = luck,
@@ -137,7 +149,7 @@ function CaptureService.begin(player: Player, fish, landing: Vector3, zone: numb
 		canSkip = data.stats.bears > 1,
 	})
 	task.delay(revealLen + 0.4, function()
-		if player.Parent then R.Announce.bear(player, record) end
+		if player.Parent then R.Announce.bear(player, record, oneIn) end
 	end)
 	-- nobody stays stuck on the result screen
 	task.delay(revealLen + RV.autoBack, function()

@@ -8,6 +8,7 @@ local FishBuilder = require(Shared.Models.FishBuilder)
 local BearBuilder = require(Shared.Models.BearBuilder)
 local RodBuilder = require(Shared.Models.RodBuilder)
 local DumbbellBuilder = require(Shared.Models.DumbbellBuilder)
+local PotionBuilder = require(Shared.Models.PotionBuilder)
 local Animator = require(script.Parent.Parent.Controllers.AnimalAnimator)
 
 local Viewport = {}
@@ -53,6 +54,10 @@ function Viewport.create(parent: GuiObject, opts)
 			m = BearBuilder.build(opts.id, { scale = opts.scale or 1, variant = opts.variant, brickBudget = 45 })
 		elseif opts.kind == "Dumbbell" then
 			m = DumbbellBuilder.build(opts.id or 1)
+		elseif opts.kind == "Potion" then
+			m = PotionBuilder.build(opts.id)
+		elseif opts.kind == "Pass" then
+			m = PotionBuilder.pass(opts.id)
 		else
 			m = RodBuilder.build(opts.id)
 		end

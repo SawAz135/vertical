@@ -61,6 +61,9 @@ local function template()
 		fishers = { n = 0, lv = { 1, 1 }, bucket = 1, stored = {} }, -- hired fishermen + their bucket
 		indexClaims = {}, -- [section key] = true (Index completion rewards taken)
 		indexLuck = 0, -- permanent fishing luck bonus from Index rewards (+0.05 = +5%)
+		potions = { inv = {}, active = {} }, -- luck potions: owned counts / seconds left
+		receipts = { ids = {}, order = {} }, -- Robux purchases already granted (PurchaseId)
+		starterGift = false, -- the new-player gift was given
 		nextId = 1,
 	}
 end
@@ -122,6 +125,25 @@ local function sanitize(d)
 		end
 	end
 	fd.stored = stored
+	-- luck potions + Robux receipts
+	local PotionConfig = require(ReplicatedStorage.Shared.Config.PotionConfig)
+	local pt = d.potions
+	if type(pt.inv) ~= "table" then pt.inv = {} end
+	if type(pt.active) ~= "table" then pt.active = {} end
+	for id, n in pt.inv do
+		if not PotionConfig.get(id) or type(n) ~= "number" or n < 1 then pt.inv[id] = nil else pt.inv[id] = math.min(999, math.floor(n)) end
+	end
+	for id, left in pt.active do
+		if not PotionConfig.get(id) or type(left) ~= "number" or left <= 0 then pt.active[id] = nil
+		else pt.active[id] = math.min(left, PotionConfig.MaxMinutes * 60) end
+	end
+	local rc = d.receipts
+	if type(rc.ids) ~= "table" then rc.ids = {} end
+	if type(rc.order) ~= "table" then rc.order = {} end
+	for id in rc.ids do if type(id) ~= "string" then rc.ids[id] = nil end end
+	local order = {}
+	for _, id in rc.order do if type(id) == "string" and rc.ids[id] then table.insert(order, id) end end
+	rc.order = order
 	for id, b in d.bears do
 		if type(b) ~= "table" or not BearConfig.get(b.s) or not RarityConfig.Tiers[b.r] or type(b.w) ~= "number" then
 			d.bears[id] = nil
@@ -195,13 +217,13 @@ local function snapshot(data)
 	return HttpService:JSONDecode(HttpService:JSONEncode(copy)) -- deep copy, JSON safe
 end
 
-function PlayerData.save(player: Player, release: boolean?)
+function PlayerData.save(player: Player, release: boolean?): boolean
 	local data = profiles[player]
-	if not data then return end
+	if not data then return false end
 	local snap = snapshot(data)
 	if not store then
 		memory[key(player)] = snap
-		return
+		return true
 	end
 	for attempt = 1, 4 do
 		local ok2, err = pcall(function()
@@ -213,10 +235,16 @@ function PlayerData.save(player: Player, release: boolean?)
 				return snap
 			end)
 		end)
-		if ok2 then return end
+		if ok2 then return true end
 		warn("[TFB] save attempt", attempt, err)
 		task.wait(attempt)
 	end
+	return false
+end
+
+-- immediate save (Robux purchases): true once the DataStore really has it
+function PlayerData.saveNow(player: Player): boolean
+	return PlayerData.save(player, false)
 end
 
 -- replicate one top level key (or everything with "*") to the owner

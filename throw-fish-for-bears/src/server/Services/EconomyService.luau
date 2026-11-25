@@ -15,6 +15,8 @@ function Economy.recompute(player: Player)
 	for _, b in data.bears do
 		if b.placed then total += Formulas.bearIncome(b) end
 	end
+	-- x2 Money gamepass
+	if R.Monetization and R.Monetization.owns(player, "Money2x") then total *= 2 end
 	rates[player] = total
 	player:SetAttribute("Income", total)
 end

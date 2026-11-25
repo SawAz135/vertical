@@ -80,6 +80,7 @@ rescale()
 HUD.menus = Menus
 Menus.mount()
 HUD.mount(hudGui)
+require(UI.Potions).mount(hudGui)
 Notify.mount(overlayGui)
 Reveal.mount(overlayGui)
 
@@ -107,6 +108,12 @@ Announce.mount(hudGui)
 require(Controllers.TutorialController).init(hudGui, require(UI.Sim), HUD, Menus)
 Data.init()
 Sound.startMusic()
+-- automatic graphics level (weak phones stay smooth)
+local Quality = require(Controllers.Quality)
+Quality.onLowered = function()
+	Notify.show("Graphics lowered a bit for a smoother game.", "info")
+end
+Quality.init()
 
 -- feedback remotes --------------------------------------------------------------------------
 Net.event("Notify").OnClientEvent:Connect(function(text, kind)

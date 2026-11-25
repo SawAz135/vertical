@@ -32,6 +32,7 @@ local Fx = require(script.Parent.Fx)
 local Sound = require(script.Parent.Sound)
 local Actions = require(script.Parent.Actions)
 local CameraController = require(script.Parent.CameraController)
+local Haptics = require(script.Parent.Haptics)
 local Cine = require(script.Parent.CinematicFx)
 local Clock = require(script.Parent.Clock)
 local Sim = require(script.Parent.Parent.UI.Sim)
@@ -825,6 +826,7 @@ local function startReveal(d)
 	-- RESULT ---------------------------------------------------------------------------
 	local function result()
 		resultDone = true
+		Haptics.pulse(math.clamp(0.4 + math.log10(math.max(1, d.oneIn or 1)) * 0.08, 0.4, 1), 0.35) -- the reveal: a longer buzz, stronger when rarer
 		local center = ground + Vector3.new(0, finalH * 0.5, 0)
 		-- no burst: the shadow simply BECOMES the animal (same place, black, then the colour
 		-- washes up while it leaps)
@@ -1096,6 +1098,8 @@ local function startReveal(d)
 					Sound.play("Land", { pitch = 0.6 + 0.05 * ti, volume = 0.9 })
 					CameraController.shake(0.25 + 0.14 * ti, 0.35)
 					CameraController.punch(-4 - ti)
+					-- phone / controller vibration, stronger at each colour step
+					Haptics.pulse(0.25 + 0.1 * ti)
 				end
 			end
 			rs.tickAcc = (rs.tickAcc or 0) + dt

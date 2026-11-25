@@ -35,6 +35,9 @@ R.IndexService = require(S.IndexService)
 R.RewardService = require(S.RewardService)
 R.Announce = require(S.AnnounceService)
 R.FisherService = require(S.FisherService)
+R.EventService = require(S.EventService)
+R.PotionService = require(S.PotionService)
+R.Monetization = require(S.MonetizationService)
 
 function R.Notify(player: Player, text: string, kind: string?)
 	Net.event("Notify"):FireClient(player, text, kind or "info")
@@ -42,6 +45,27 @@ end
 
 function R.Sfx(player: Player, name: string, pos: Vector3?)
 	Net.event("Sfx"):FireClient(player, name, pos)
+end
+
+-- new players: a gift fish (a heavy Golden one) + their first animal is at least Uncommon
+-- (CaptureService). Given once per account.
+function R.StarterGift(player: Player, data)
+	if data.starterGift then return end
+	data.starterGift = true
+	if data.stats.fish > 0 or data.stats.bears > 0 then return end -- older accounts
+	local FishConfig = require(Shared.Config.FishConfig)
+	local sid = if FishConfig.get("Trout") then "Trout" else FishConfig.Order[1]
+	local spec = FishConfig.get(sid)
+	local fish = {
+		id = R.PlayerData.newId(player), s = sid, v = "Golden",
+		w = math.floor(spec.weight.avg * 1.6 * 100 + 0.5) / 100,
+	}
+	table.insert(data.fish, fish)
+	R.IndexService.discoverFish(player, fish)
+	R.PlayerData.push(player, "fish")
+	task.delay(4, function()
+		if player.Parent then R.Notify(player, "Welcome gift: a GOLDEN fish! Throw it to get your first animal.", "good") end
+	end)
 end
 
 -- world ------------------------------------------------------------------------
@@ -101,6 +125,9 @@ local function onPlayer(player: Player)
 	local data = R.PlayerData.load(player)
 	if not data or not player.Parent then return end
 	R.RewardService.onJoin(player)
+	R.Monetization.onJoin(player)
+	R.PotionService.refresh(player)
+	R.StarterGift(player, data)
 	R.MapService.setFishUpTier(base, require(Shared.Config.FishUpConfig).tierFor(data.strengthGain))
 	-- hired fishermen + their bucket on this player's dock
 	task.spawn(function()
@@ -223,6 +250,8 @@ on("BuyStrength", {}, R.UpgradeService.buyStrength)
 on("LeaveTraining", {}, R.UpgradeService.leaveTraining)
 on("SkipCapture", {}, R.CaptureService.skip)
 on("CaptureGoBack", {}, function(player) R.CaptureService.goBack(player) end)
+on("UsePotion", { "string" }, R.PotionService.use)
+on("BuyPotion", { "string" }, R.PotionService.buy)
 on("ClaimDaily", {}, R.RewardService.claimDaily)
 on("ClaimPlaytime", { "number" }, function(player, i)
 	R.RewardService.claimPlaytime(player, math.floor(i))

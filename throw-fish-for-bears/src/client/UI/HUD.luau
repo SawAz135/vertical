@@ -44,10 +44,48 @@ end
 
 ------------------------------------------------------------------------------------------
 local function buildTitle()
-	local root = Sim.root(gui, "Title", Vector2.new(520, 110), UDim2.new(0.5, 0, 0, 2), Vector2.new(0.5, 0), 0.85)
+	local root = Sim.root(gui, "Title", Vector2.new(520, 150), UDim2.new(0.5, 0, 0, 2), Vector2.new(0.5, 0), 0.85)
 	refs.title = Sim.text(root, '<font color="#3CA0FF">THROW</font> <font color="#52F05A">FISH</font> <font color="#FFD23C">FOR</font> <font color="#FF6EC8">BEARS</font>',
 		{ Rich = true, Size = UDim2.fromOffset(520, 56), Position = UDim2.new(0.5, 0, 0, 32), Max = 52, Stroke = 4, ZIndex = 3 })
 	refs.timer = Sim.infoBar(root, "", { Size = UDim2.fromOffset(330, 34), Position = UDim2.new(0.5, 0, 0, 84), Max = 22, ZIndex = 3 })
+	-- LIMITED EVENT bar: name + time left + its 3 featured animals (live 3D)
+	local ev = Sim.panel(root, { Name = "Event", Size = UDim2.fromOffset(330, 40), Position = UDim2.new(0.5, 0, 0, 124), AnchorPoint = Vector2.new(0.5, 0.5),
+		Gradient = { RGB(255, 150, 60), RGB(214, 50, 90) }, Stroke = 3, ZIndex = 3, Clip = true })
+	Sim.bands(ev, 0.62, 3)
+	refs.eventText = Sim.text(ev, "", { Size = UDim2.fromOffset(196, 32), Position = UDim2.fromOffset(8, 20), AnchorPoint = Vector2.new(0, 0.5),
+		AlignX = Enum.TextXAlignment.Left, Max = 19, Rich = true, Stroke = 2.5, ZIndex = 6 })
+	refs.eventIcons = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(120, 40), Position = UDim2.fromOffset(208, 0), ZIndex = 5 }, ev)
+	refs.event = ev
+	refs.eventScale = new("UIScale", {}, ev)
+end
+
+-- the live event (Shared/Events from the clock; the server publishes it too)
+local EventConfig = require(Shared.Config.EventConfig)
+local lastEventId = nil
+local function renderEvent()
+	local id = ReplicatedStorage:GetAttribute("EventId")
+	local ends = ReplicatedStorage:GetAttribute("EventEnds")
+	local ev
+	for _, e in EventConfig.List do if e.id == id then ev = e end end
+	if not ev or not ends then
+		refs.event.Visible = false
+		return
+	end
+	refs.event.Visible = true
+	local left = ends - workspace:GetServerTimeNow()
+	refs.eventText.Text = ('<font color="#FFF5B4">%s</font>  %s'):format(ev.name:upper(), Format.long(left))
+	if lastEventId ~= ev.id then
+		lastEventId = ev.id
+		for _, c in refs.eventIcons:GetChildren() do c:Destroy() end
+		for i, sid in ev.featured do
+			if BearConfig.get(sid) then
+				local cell = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(40, 40), Position = UDim2.fromOffset((i - 1) * 40, 0), ZIndex = 6 }, refs.eventIcons)
+				Sim.model(cell, { kind = "Bear", id = sid, size = UDim2.fromScale(1.25, 1.25), position = UDim2.fromScale(0.5, 0.55), zindex = 7 })
+			end
+		end
+		refs.eventScale.Scale = 0.6
+		tween(refs.eventScale, 0.5, { Scale = 1 }, Enum.EasingStyle.Back)
+	end
 end
 
 local function buildLeft()
@@ -75,7 +113,7 @@ local function buildLeft()
 	new("UIScale", { Name = "ButtonScale" }, sw)
 	local function render()
 		local on = Data.values.settings and Data.values.settings.lowFx == true
-		Fx.low = on
+		require(script.Parent.Parent.Controllers.Quality).setUserLow(on)
 		tween(knob, 0.22, { Position = UDim2.fromOffset(if on then 50 else 4, 4) }, Enum.EasingStyle.Back)
 		local pair = if on then Sim.G.green else Sim.G.red
 		knobGrad.Color = ColorSequence.new(pair[1], pair[2])
@@ -343,8 +381,8 @@ end
 local function buildActionAndSpeed()
 	local root = Sim.root(gui, "Action", Vector2.new(250, 240), UDim2.new(1, -10, 1, -6), Vector2.new(1, 1))
 	new("ImageLabel", { BackgroundTransparency = 1, Image = K.Icons.Shoe, ScaleType = Enum.ScaleType.Fit, Size = UDim2.fromOffset(44, 44),
-		Position = UDim2.fromOffset(150, 214), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = -8, ZIndex = 3 }, root)
-	refs.speed = Sim.text(root, "20", { Size = UDim2.fromOffset(80, 38), Position = UDim2.fromOffset(174, 214), AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromOffset(150, 64), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = -8, ZIndex = 3 }, root)
+	refs.speed = Sim.text(root, "20", { Size = UDim2.fromOffset(80, 38), Position = UDim2.fromOffset(174, 64), AnchorPoint = Vector2.new(0, 0.5),
 		AlignX = Enum.TextXAlignment.Left, Max = 36, Stroke = 3.5, Gradient = { RGB(160, 230, 255), RGB(40, 140, 255) }, ZIndex = 3 })
 	-- no action button: a small hint tells what to do (tap the lake, hold to reel / throw...)
 	local hintRoot = Sim.root(gui, "Hint", Vector2.new(520, 50), UDim2.new(0.5, 0, 1, -214), Vector2.new(0.5, 1))
@@ -685,6 +723,7 @@ function HUD.mount(g: ScreenGui)
 	gui = g
 	local _ = buildInventoryButton -- (top-left inventory button removed: the Fish / Bears tiles open it)
 	buildTitle()
+	renderEvent()
 	buildLeft()
 	buildRight()
 	buildStats()
@@ -734,6 +773,7 @@ function HUD.mount(g: ScreenGui)
 					else ('Lucky Lake in <font color="#FFD23F">%s</font>'):format(Format.time(period - dur - lt))
 			end
 		end
+		renderEvent()
 		local char = player.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		refs.speed.Text = tostring(if hum then math.floor(hum.WalkSpeed + 0.5) else 0)

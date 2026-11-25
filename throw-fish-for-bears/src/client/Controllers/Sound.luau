@@ -39,6 +39,7 @@ local LIB = {
 	Footstep = { { A .. "action_footsteps_plastic.mp3", 0.25, 0.7, 0.1 } },
 	Arrive = { { A .. "victory.wav", 0.7, 1.05, 0 } },
 	Place = { { A .. "action_jump_land.mp3", 0.7, 0.8, 0.05 }, { A .. "electronicpingshort.wav", 0.4, 1.4, 0 } },
+	Potion = { { A .. "splat.wav", 0.35, 1.6, 0.05 }, { A .. "electronicpingshort.wav", 0.35, 1.25, 0 }, { A .. "swoosh.wav", 0.3, 1.5, 0.04 } },
 	Buy = { { A .. "electronicpingshort.wav", 0.2, 0.85, 0 }, { A .. "electronicpingshort.wav", 0.14, 1.07, 0 }, { A .. "bass.wav", 0.08, 1.4, 0 } },
 	Sell = { { A .. "electronicpingshort.wav", 0.18, 0.95, 0 }, { A .. "electronicpingshort.wav", 0.13, 1.2, 0 } },
 	Reward = { { A .. "victory.wav", 0.32, 0.95, 0 } },

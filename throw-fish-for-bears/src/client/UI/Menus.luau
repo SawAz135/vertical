@@ -19,6 +19,9 @@ local RodConfig = require(Shared.Config.RodConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local FishUpConfig = require(Shared.Config.FishUpConfig)
 local RarityConfig = require(Shared.Config.RarityConfig)
+local PotionConfig = require(Shared.Config.PotionConfig)
+local MonetizationConfig = require(Shared.Config.MonetizationConfig)
+local MarketplaceService = game:GetService("MarketplaceService")
 local Formulas = require(Shared.Formulas)
 local Format = require(Shared.Util.Format)
 local Sim = require(script.Parent.Sim)
@@ -105,12 +108,14 @@ end
 ------------------------------------------------------------------------------------------
 local shopTab = "Rods"
 local strengthRefresh = nil -- live update of the Strength page (no rebuild)
+local potionRefresh = nil -- live update of the Potions page $ buttons
+local potionBuys = {}
 local function buildShop()
 	local w = makeWindow("Shop", { title = "Rod Shop", grad = "orange", size = Vector2.new(860, 470), titleWidth = 300 })
 	local tabs = {}
-	for i, name in { "Rods", "Strength" } do -- Base tab removed (capacity: "+1 Slot" in the bears panel)
-		tabs[name] = Sim.button(w.titleRoot, { Name = "Tab" .. name, Grad = "grey", Size = Vector2.new(130, 50), Position = UDim2.fromOffset(410 + (i - 1) * 140, w.HH / 2),
-			Text = name, Max = 28, ZIndex = 9 }, function()
+	for i, name in { "Rods", "Strength", "Potions", "Passes" } do -- Base tab removed (capacity: "+1 Slot" in the bears panel)
+		tabs[name] = Sim.button(w.titleRoot, { Name = "Tab" .. name, Grad = "grey", Size = Vector2.new(116, 48), Position = UDim2.fromOffset(372 + (i - 1) * 122, w.HH / 2),
+			Text = name, Max = 26, ZIndex = 9 }, function()
 			shopTab = name
 			renderers.Shop(true)
 		end)
@@ -293,6 +298,90 @@ local function buildShop()
 		end
 	end
 
+	-- $ buttons of the Potions page, recoloured live when your money changes (no rebuild)
+	potionBuys = {}
+	potionRefresh = function()
+		local money = Data.values.money or 0
+		for _, e in potionBuys do
+			if e.b.Parent then Sim.recolor(e.b, if money >= e.price then "green" else "light") end
+		end
+	end
+
+	-- Robux buttons: an id of 0 = not set up on Roblox yet -> "SOON", never prompts
+	local function robuxButton(parent, p, kind, key)
+		local cfg = if kind == "Pass" then MonetizationConfig.Passes[key] else MonetizationConfig.Products[key]
+		local ready = cfg and cfg.id ~= 0
+		p.Grad = if ready then "green" else "grey"
+		p.Text = if ready then p.Text or ("R$ " .. cfg.price) else "SOON"
+		return Sim.button(parent, p, function()
+			if not ready then
+				require(script.Parent.Notify).show("Coming soon!", "info")
+				return
+			end
+			if kind == "Pass" then
+				MarketplaceService:PromptGamePassPurchase(player, cfg.id)
+			else
+				MarketplaceService:PromptProductPurchase(player, cfg.id)
+			end
+		end)
+	end
+
+	--[[ Potions page: one card per luck potion (3D studded bottle), what it does, how
+	     many you own, BUY with $ (price follows your income), DRINK, and Robux (x1 / x3). ]]
+	local function potionsTab(animate)
+		table.clear(potionBuys)
+		local d = Data.values
+		local inv = (d.potions and d.potions.inv) or {}
+		local active = (d.potions and d.potions.active) or {}
+		local income = player:GetAttribute("Income") or 0
+		local list = scroller(body, { Size = UDim2.fromScale(1, 1), X = true, Gap = 16, PadTop = 16 })
+		for i, id in PotionConfig.Order do
+			local spec = PotionConfig.get(id)
+			local card, centre = Sim.card(list, { Name = id, LayoutOrder = i, Size = Vector2.new(250, 344), Rarity = spec.rarity, Title = spec.name,
+				RarityText = ("%d min  ·  Animals + Fish"):format(spec.minutes), CenterTop = 74, CenterCut = 214 })
+			Sim.model(centre, { kind = "Potion", id = id, spin = true, spinSpeed = 0.8, zoom = 0.78, pitch = math.rad(14), size = UDim2.fromScale(1.1, 1.25) })
+			local n = inv[id] or 0
+			local left = active[id] or 0
+			Sim.infoBar(card, if left > 0 then ('Owned <font color="#7CFF46">%d</font>  ·  <font color="#FFD23F">%s left</font>'):format(n, Format.time(left))
+				else ('Owned <font color="#7CFF46">%d</font>'):format(n), { Size = UDim2.fromOffset(226, 30), Position = UDim2.fromOffset(125, 214), Max = 18, ZIndex = 6 })
+			local price = PotionConfig.price(id, income)
+			local can = (d.money or 0) >= price
+			local buy = Sim.button(card, { Grad = if can then "green" else "light", Size = Vector2.new(140, 44), Position = UDim2.fromOffset(84, 258), ZIndex = 7,
+				Text = Format.money(price), Max = 24, Icon = K.Icons.Cash, IconSize = 0.8 }, function() Net.event("BuyPotion"):FireServer(id) end)
+			table.insert(potionBuys, { b = buy, price = price })
+			Sim.button(card, { Grad = if n > 0 then "yellow" else "light", Size = Vector2.new(80, 44), Position = UDim2.fromOffset(198, 258), ZIndex = 7,
+				Text = "DRINK", Max = 20 }, function()
+				if (((Data.values.potions or {}).inv or {})[id] or 0) > 0 then Net.event("UsePotion"):FireServer(id) end
+			end)
+			local one, three = MonetizationConfig.forPotion(id)
+			robuxButton(card, { Size = Vector2.new(110, 40), Position = UDim2.fromOffset(66, 306), ZIndex = 7, Max = 20 }, "Product", one)
+			local p3 = MonetizationConfig.Products[three]
+			robuxButton(card, { Size = Vector2.new(110, 40), Position = UDim2.fromOffset(184, 306), ZIndex = 7, Max = 18,
+				Text = if p3 then ("3x  R$ %d"):format(p3.price) else nil }, "Product", three)
+		end
+		if animate then K.cascade(list, 0.06) end
+	end
+
+	-- Passes page: the two gamepasses as big trophy cards
+	local function passesTab(animate)
+		local list = scroller(body, { Size = UDim2.fromScale(1, 1), X = true, Gap = 22, PadTop = 16, Pad = 40 })
+		for i, key in MonetizationConfig.PassOrder do
+			local pass = MonetizationConfig.Passes[key]
+			local owned = player:GetAttribute("Pass_" .. key) == true
+			local card, centre = Sim.card(list, { Name = key, LayoutOrder = i, Size = Vector2.new(360, 344), Rarity = if key == "Luck2x" then "Mythic" else "Legendary",
+				Title = pass.name, RarityText = "GAMEPASS  ·  FOREVER", CenterTop = 74, CenterCut = 206 })
+			Sim.model(centre, { kind = "Pass", id = key, spin = true, spinSpeed = 0.7, zoom = 0.8, pitch = math.rad(10), size = UDim2.fromScale(1, 1.2) })
+			Sim.text(card, pass.desc, { Size = UDim2.fromOffset(330, 44), Position = UDim2.fromOffset(180, 238), Max = 18, Wrap = true, Stroke = 2.5, ZIndex = 7 })
+			if owned then
+				Sim.button(card, { Grad = "grey", Size = Vector2.new(320, 56), Position = UDim2.fromOffset(180, 302), ZIndex = 7, Text = "OWNED", Max = 30 })
+			else
+				local b = robuxButton(card, { Size = Vector2.new(320, 56), Position = UDim2.fromOffset(180, 302), ZIndex = 7, Max = 30 }, "Pass", key)
+				K.shine(b, 2.4)
+			end
+		end
+		if animate then K.cascade(list, 0.08) end
+	end
+
 	renderers.Shop = function(animate)
 		if dumbbellVp then
 			dumbbellYaw = Viewport.yawOf(dumbbellVp) or dumbbellYaw
@@ -302,10 +391,16 @@ local function buildShop()
 		clear(body)
 		for name, b in tabs do Sim.recolor(b, if name == shopTab then "yellow" else "grey") end
 		local titleLabel = w.titleRoot:FindFirstChild("Title")
-		if titleLabel then titleLabel.Text = if shopTab == "Strength" then "Strength" else "Rod Shop" end
+		if titleLabel then
+			titleLabel.Text = if shopTab == "Strength" then "Strength" elseif shopTab == "Potions" then "Potions" elseif shopTab == "Passes" then "Passes" else "Rod Shop"
+		end
 		local d = Data.values
 		if shopTab == "Rods" then
 			rodsTab(animate)
+		elseif shopTab == "Potions" then
+			potionsTab(animate)
+		elseif shopTab == "Passes" then
+			passesTab(animate)
 		elseif shopTab == "Strength" then
 			strengthPage(animate)
 		else
@@ -1301,20 +1396,28 @@ function Menus.mount()
 	buildGifts()
 	buildConfirm()
 	local KEYS = {
-		Shop = { rods = true, strength = true, strengthGain = true, capacity = true, money = "throttle" },
+		Shop = { rods = true, strength = true, strengthGain = true, capacity = true, money = "throttle", potions = true },
 		Sell = { fish = true }, Bag = { fish = true, selectedFish = true },
 		Index = { index = true, indexPending = true, indexClaims = true }, Bears = { bears = true, capacity = true }, Inventory = { bears = true, capacity = true, fish = true, selectedFish = true }, Daily = { daily = true },
 	}
 	local lastMoney = 0
+	-- a gamepass bought: the Passes page shows OWNED at once
+	player.AttributeChanged:Connect(function(attr)
+		if attr:sub(1, 5) == "Pass_" and windows.Shop.menu.IsOpen and shopTab == "Passes" then renderers.Shop(false) end
+	end)
 	Data.Changed:Connect(function(key)
 		for name, w in windows do
 			if w.menu.IsOpen and renderers[name] then
 				local rule = KEYS[name] and KEYS[name][key]
 				if name == "Shop" and shopTab == "Strength" and strengthRefresh and (key == "strength" or key == "money") then
 					strengthRefresh() -- texts only: the 3D dumbbell keeps spinning
+				elseif key == "potions" and name == "Shop" and shopTab ~= "Potions" then
+					-- (potion timers only matter on the Potions page)
 				elseif key == "*" or rule == true then
 					renderers[name](false)
-				elseif rule == "throttle" and shopTab ~= "Rods" and os.clock() - lastMoney > 1.5 then
+				elseif name == "Shop" and shopTab == "Potions" and key == "money" then
+					if potionRefresh then potionRefresh() end
+				elseif rule == "throttle" and shopTab ~= "Rods" and shopTab ~= "Passes" and os.clock() - lastMoney > 1.5 then
 					lastMoney = os.clock()
 					renderers[name](false)
 				end

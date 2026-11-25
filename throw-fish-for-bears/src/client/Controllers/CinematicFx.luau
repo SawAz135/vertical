@@ -644,6 +644,8 @@ end
 local dofFx, motion
 -- depth of field: focus distance (studs) + how much the rest is blurred (0 = off)
 function Cine.dof(focus: number?, intensity: number?, radius: number?)
+	-- automatic quality (weak phones): no depth-of-field blur below HIGH
+	if not require(script.Parent.Quality).allowsDof() then intensity = 0 end
 	if not intensity or intensity <= 0 then
 		if dofFx then
 			local d0 = dofFx

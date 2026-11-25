@@ -47,6 +47,8 @@ function FishingService.luck(player: Player): number
 	local rod = RodConfig.get(data.rods.equipped)
 	local luck = rod.luck * (1 + math.max(0, data.indexLuck or 0)) -- + the permanent Index bonus
 	if R.RewardService.isLucky() then luck *= E.Lucky.fishLuck end
+	-- luck potions + x2 Luck gamepass + live event bonus
+	if R.PotionService then luck *= R.PotionService.luckMult(player) end
 	return luck
 end
 
@@ -189,6 +191,10 @@ function FishingService.finish(player: Player, success: boolean)
 	-- rare catch: the whole server sees it (after the personal reveal has started)
 	task.delay(1.2, function()
 		if player.Parent then R.Announce.fish(player, fish) end
+	end)
+	-- sometimes a luck potion comes up with the fish (after the catch reveal)
+	task.delay(2.4, function()
+		if player.Parent and R.PotionService then R.PotionService.rollDrop(player, rand) end
 	end)
 end
 
