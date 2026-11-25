@@ -24,7 +24,7 @@ end
 -- CINEMATIC MODE: every other interface disappears (HUD, menus, notifications, Roblox
 -- chat / leaderboard / backpack, mobile joystick + jump) and comes back afterwards.
 -- The cinematic's own screens stay (letterbox, skip, reveal stages, bear unlocked).
-local KEEP_GUI = { TFBCinematic = true, TFBRevealStages = true, TFBRevealCounters = true, BearUnlock = true, TFBEyelids = true }
+local KEEP_GUI = { TFBCinematic = true, TFBReveal = true, TFBRevealStages = true, TFBRevealCounters = true, BearUnlock = true, TFBEyelids = true }
 local hudHidden = false
 local hiddenGuis = {}
 local hudConn = nil
