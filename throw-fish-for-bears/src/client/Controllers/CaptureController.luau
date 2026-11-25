@@ -111,6 +111,15 @@ local function blacken(m: Model)
 			x.Color = SHADOW
 			x.Material = Enum.Material.SmoothPlastic
 			x.Reflectance = 0
+			-- completely black: smooth faces (studs would catch the light in grey dots)
+			if x:IsA("Part") then
+				x.TopSurface = Enum.SurfaceType.Smooth
+				x.BottomSurface = Enum.SurfaceType.Smooth
+				x.FrontSurface = Enum.SurfaceType.Smooth
+				x.BackSurface = Enum.SurfaceType.Smooth
+				x.LeftSurface = Enum.SurfaceType.Smooth
+				x.RightSurface = Enum.SurfaceType.Smooth
+			end
 		elseif x:IsA("Decal") or x:IsA("Texture") or x:IsA("SurfaceGui") or x:IsA("BillboardGui") then
 			x:Destroy()
 		end
@@ -211,7 +220,7 @@ local function buildUi()
 		local s = Sim.new("UIStroke", { Thickness = stroke, Color = BLACK, LineJoinMode = Enum.LineJoinMode.Round }, l)
 		return { holder = holder, scale = sc, label = l, stroke = s, y = y }
 	end
-	ui.spin = text("Spin", 318, 700, 120, 120, WHITE, 7)
+	ui.spin = text("Spin", 378, 700, 120, 120, WHITE, 7) -- under the shape's feet
 	ui.spin.label.Size = UDim2.fromScale(0.84, 0.84)
 	ui.rarity = text("Rarity", 44, 520, 34, 32, WHITE, 4)
 	ui.name = text("Name", 90, 940, 62, 62, WHITE, 6)
@@ -413,7 +422,9 @@ local function startReveal(d)
 		prepModel(m)
 		blacken(m)
 		m.Name = "TFBSilhouette"
-		return { model = m, base = heightOf(m), id = id }
+		local ok2, ext = pcall(function() return m:GetExtentsSize() end)
+		local wide = if ok2 and ext then math.max(ext.X, ext.Z) else 4
+		return { model = m, base = heightOf(m), wide = wide, id = id }
 	end
 	rs.finalSil = makeSil(o.s)
 	task.spawn(function()
@@ -602,19 +613,22 @@ local function startReveal(d)
 			camY = 0.9 + fishH * 0.7
 			lookY = fishH * 0.5
 			fov = 60
-		elseif t < T_HOLD then
-			local u = Easing.sineInOut((t - T_SPIN) / RV.spin)
-			d0 = follow * (1.1 - 0.06 * u)
-			camY = 0.9 + hh * 0.55
-			lookY = hh * 0.5
-			fov = 60 - 2 * u
 		elseif t < T_RESULT then
-			-- the push-in on the last shadow
-			local k = Easing.quadIn((t - T_HOLD) / RV.hold)
-			d0 = dist * (1.04 - 0.14 * k)
-			camY = 0.9 + hh * 0.55
-			lookY = hh * 0.5
-			fov = 58 - 6 * k
+			-- the WHOLE shape is framed in the upper middle of the screen (about a third of its
+			-- height), its feet on the ground well above the "1 IN X" text; the frame follows each
+			-- new shape (tall heron, long orca...), creeps in, and pushes in on the hold
+			local u = Easing.sineInOut(math.clamp((t - T_SPIN) / RV.spin, 0, 1))
+			local k = Easing.quadIn(math.clamp((t - T_HOLD) / RV.hold, 0, 1))
+			local sc = if cur then h / cur.base else 1
+			local wide = if cur then cur.wide * sc else hh
+			rs.fitS = rs.fitS or math.max(hh / 0.3, wide / 1.5, 5)
+			local want = math.max(hh / 0.3, wide / 1.5, 5)
+			rs.fitS += (want - rs.fitS) * Easing.damp(5, dt or 0.016)
+			local fit = rs.fitS * (1.08 - 0.06 * u - 0.08 * k)
+			d0 = fit
+			lookY = hh * 0.5 - 0.115 * fit -- look below the middle: the shape sits higher on screen
+			camY = hh * 0.45 + 0.04 * fit
+			fov = 60 - 2 * u - 5 * k
 		else
 			-- the result: a springy pull back that fits the WHOLE animal between its texts (top
 			-- half of the screen) and the GO BACK button: ~26 % of the screen height, centred
@@ -706,17 +720,22 @@ local function startReveal(d)
 			local amp = (0.02 + 0.06 * stress + 0.18 * holdK) * h * 0.25
 			if t > T_RESULT - 0.25 then amp *= 1.6 end
 			local n1, n2 = math.noise(t * 23, 1.1), math.noise(t * 23, 7.7)
-			local extra = CFrame.new(n1 * amp, hop * hop * h * 0.08, n2 * amp * 0.5)
-				* CFrame.Angles(0, 0, math.noise(t * 17, 3.3) * (0.03 + 0.1 * holdK))
+			-- the shake slides it on the ground and twists it a little: the feet never leave the floor
+			local extra = CFrame.new(n1 * amp, 0, n2 * amp * 0.5)
+				* CFrame.Angles(0, math.noise(t * 17, 3.3) * (0.05 + 0.12 * holdK) + hop * hop * 0.12, 0)
 			stand(cur.model, faceCF, extra)
 		end
 		-- the star: behind the silhouette, turning, pulsing on the beat
 		if star then
 			spinRot += dt * (0.25 + 1.4 * stress)
 			local open = Easing.backOut(math.clamp((os.clock() - (rs.starOpen or os.clock())) / 0.35, 0, 1))
-			local R = (math.max(h, fishH) * 0.95 + 1.6) * open * (1 + 0.12 * rs.beatKick)
+			local sc = if cur then h / cur.base else 1
+			local wide = if cur then cur.wide * sc else fishH
+			local big = math.max(h, fishH, wide * 0.6)
+			local R = (big * 0.95 + 1.6) * open * (1 + 0.12 * rs.beatKick)
 			local center = ground + Vector3.new(0, math.max(h, fishH) * 0.5, 0)
-			placeStar(star, center, camCF, math.max(0.05, R), spinRot, math.max(h, fishH) * 0.55 + 1)
+			-- pushed back past the whole body: no ray ever crosses in front of the black shape
+			placeStar(star, center, camCF, math.max(0.05, R), spinRot, math.max(h, fishH, wide) * 0.7 + 1.5)
 		end
 		-- "1 IN ?" breathes with the heart, shakes with the stress
 		if not resultDone then
