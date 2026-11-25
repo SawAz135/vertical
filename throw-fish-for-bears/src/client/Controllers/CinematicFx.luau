@@ -643,7 +643,7 @@ end
 ------------------------------------------------------------------------------------------
 local dofFx, motion
 -- depth of field: focus distance (studs) + how much the rest is blurred (0 = off)
-function Cine.dof(focus: number?, intensity: number?)
+function Cine.dof(focus: number?, intensity: number?, radius: number?)
 	if not intensity or intensity <= 0 then
 		if dofFx then
 			local d0 = dofFx
@@ -660,6 +660,7 @@ function Cine.dof(focus: number?, intensity: number?)
 		dofFx.Parent = workspace.CurrentCamera
 	end
 	dofFx.FocusDistance = focus or 10
+	dofFx.InFocusRadius = radius or 6
 	dofFx.FarIntensity = intensity
 	dofFx.NearIntensity = intensity * 0.6
 end

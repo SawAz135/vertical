@@ -349,13 +349,20 @@ local function buildCorridor(map, rand)
 		local folder = Instance.new("Folder")
 		folder.Name = "Zone" .. i .. "_" .. zone.id
 		folder.Parent = decor
-		-- zone ground: big checker of two tones (no path: studs everywhere)
-		local tile = H / 3 -- 6 tiles across the trench
-		for zz = a, b + tile, -tile do
-			for xx = -H, H - tile, tile do
-				local col = if math.round((a - zz) / tile + (xx + H) / tile) % 2 == 0 then zone.ground else zone.groundAlt
-				local g = Studs.static(folder, "ZoneGround", V3(tile, 0.2, tile), CF(xx + tile / 2, 0.1, zz - tile / 2), col)
-				g.CanCollide = false
+		-- zone ground: a finer, vivid checker (one light plate + the dark squares on top:
+		-- half the parts of a full grid), studs everywhere
+		local n = math.max(2, math.floor(H * 2 / 12 + 0.5))
+		local tile = H * 2 / n -- ~12-stud squares
+		local plate = Studs.static(folder, "ZoneGround", V3(H * 2, 0.2, a - b), CF(0, 0.1, (a + b) / 2), zone.ground)
+		plate.CanCollide = false
+		local rows = math.floor((a - b) / tile + 0.5)
+		local tz = (a - b) / rows
+		for j = 0, rows - 1 do
+			for i = 0, n - 1 do
+				if (i + j) % 2 == 1 then
+					local g = Studs.static(folder, "ZoneGround", V3(tile, 0.22, tz), CF(-H + (i + 0.5) * tile, 0.11, a - (j + 0.5) * tz), zone.groundAlt)
+					g.CanCollide = false
+				end
 			end
 		end
 		-- the trench walls: dirt cliffs in the zone's colours, stepped grass rim on top

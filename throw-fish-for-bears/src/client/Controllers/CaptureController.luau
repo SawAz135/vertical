@@ -442,6 +442,8 @@ local function cleanup(rs, instant: boolean?)
 	Cine.skipButton(nil)
 	duckMusic(false)
 	Cine.hideHud(false)
+	Cine.dof(nil, 0)
+	Cine.gradeOff(0.6)
 end
 
 local function goBack(rs)
@@ -482,6 +484,8 @@ local function startReveal(d)
 	reveal = rs
 	Cine.letterbox(false) -- the normal scenery stays visible: no black bars
 	Cine.hideHud(true)
+	-- a richer picture for the reveal: livelier colours, a touch of contrast (no glow)
+	Cine.grade({ saturation = 0.18, contrast = 0.1, brightness = 0.02 }, 0.8)
 	duckMusic(true)
 	if d.canSkip then
 		Cine.skipButton(function() Net.event("SkipCapture"):FireServer() end)
@@ -786,6 +790,9 @@ local function startReveal(d)
 		if camShake > 0 then
 			pos += Vector3.new(math.noise(t * 30, 1) * camShake * 0.25, math.noise(t * 30, 2) * camShake * 0.25, 0)
 		end
+		-- the scenery behind melts into a soft blur, the creature stays sharp (cinema look)
+		local subjectSize = math.max(hh, if t >= T_RESULT then finalW * 0.6 else 1)
+		Cine.dof((pos - look).Magnitude, if t < T_SPIN then 0.25 else 0.42, math.max(4, subjectSize * 0.9))
 		return CFrame.lookAt(pos, look), fov
 	end, 600, { smooth = 7, blendIn = 0.45 })
 
