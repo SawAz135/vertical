@@ -177,7 +177,7 @@ function Upgrade.capacity(player: Player)
 	end
 	data.capacity += 1
 	R.PlayerData.push(player, "capacity")
-	R.Notify(player, ("Base capacity: %d bears!"):format(Formulas.capacity(data.capacity)), "good")
+	R.Notify(player, ("Base capacity: %d animals!"):format(Formulas.capacity(data.capacity)), "good")
 	R.Sfx(player, "Buy")
 end
 

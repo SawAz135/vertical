@@ -1,4 +1,4 @@
---[[ BearUnlock: full-screen "BEAR UNLOCKED!" screen after a capture (stud style).
+--[[ BearUnlock: full-screen "ANIMAL UNLOCKED!" screen after a capture (stud style).
      Dark backdrop, rotating rarity sun-rays, the living 3D bear popping in, its name,
      rarity (animated colours for the top tiers), weight + $/s chips, NEW! badge and
      falling stud confetti. It stays until the player taps / clicks (or presses a key):
@@ -59,7 +59,7 @@ local function play(bear, income: number, isNew: boolean?)
 	tween(rs, 0.45, { Scale = k }, Enum.EasingStyle.Back)
 
 	-- title: text only, no banner background
-	local title = Sim.text(root, "BEAR UNLOCKED!", { Size = UDim2.fromOffset(600, 72), Position = UDim2.fromOffset(320, 46), Max = 58, Stroke = 5, ZIndex = 8,
+	local title = Sim.text(root, "ANIMAL UNLOCKED!", { Size = UDim2.fromOffset(600, 72), Position = UDim2.fromOffset(320, 46), Max = 58, Stroke = 5, ZIndex = 8,
 		Gradient = { RGB(255, 255, 255), RGB(255, 236, 140) } })
 	local titleScale = new("UIScale", { Scale = 0 }, title)
 	task.delay(0.1, function() tween(titleScale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back) end)

@@ -24,7 +24,7 @@ local CONTEXTS = {
 	Hook = { label = "HOOK!", color = "red", hold = false, icon = "❗", hint = "A bite!" },
 	Reel = { label = "REEL", color = "orange", hold = true, icon = "🌀", hint = "HOLD the screen to reel! Release when red!" },
 	Throw = { label = "THROW", color = "red", hold = true, icon = "💪", hint = "HOLD the screen to charge, release to THROW!" },
-	Place = { label = "PLACE", color = "green", hold = false, icon = "🐻", hint = "Tap a spot in your base to place the bear!" },
+	Place = { label = "PLACE", color = "green", hold = false, icon = "🐻", hint = "Tap a spot in your base to place the animal!" },
 	Sprint = { label = "SPRINT", color = "yellow", hold = true, icon = "💨" },
 }
 Actions.CONTEXTS = CONTEXTS

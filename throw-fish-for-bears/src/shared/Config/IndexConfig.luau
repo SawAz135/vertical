@@ -30,10 +30,10 @@ local VAR = {
 -- exclusive rods given by some sections (key without the variant prefix -> rod id),
 -- and one per mutation for its Bears zone 5
 I.RodRewards = {
-	["Normal:B3"] = "Forest", ["Normal:B6"] = "Glacier", ["Normal:B10"] = "Legend",
+	["Normal:A3"] = "Forest", ["Normal:A6"] = "Glacier", ["Normal:A10"] = "Legend",
 	["Normal:FRare"] = "Coral", ["Normal:FLegendary"] = "Abyss", ["Normal:FSecret"] = "Phantom",
-	["Golden:B5"] = "Gilded", ["Diamond:B5"] = "Prism", ["Ancient:B5"] = "Mossback", ["Rainbow:B5"] = "Spectrum",
-	["Clockwork:B5"] = "Gearwork",
+	["Golden:A5"] = "Gilded", ["Diamond:A5"] = "Prism", ["Ancient:A5"] = "Mossback", ["Rainbow:A5"] = "Spectrum",
+	["Clockwork:A5"] = "Gearwork",
 }
 
 local cache = {}
@@ -52,7 +52,8 @@ function I.sections(cat: string, variant: string?)
 		local special = {}
 		for _, id in BearConfig.Order do
 			local spec = BearConfig.get(id)
-			if (spec.isAnimal == true) ~= animals then continue end
+			-- "Animals" = EVERY creature (bears included), "Bears" = only the bears (legacy keys)
+			if not animals and spec.isAnimal then continue end
 			local z = spec.zones and spec.zones[1]
 			if z then
 				byZone[z] = byZone[z] or {}

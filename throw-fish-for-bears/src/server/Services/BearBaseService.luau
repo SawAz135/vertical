@@ -161,16 +161,16 @@ function BearBase.place(player: Player, pos: Vector3)
 	local data = R.PlayerData.get(player)
 	local cap = Formulas.capacity(data.capacity)
 	if BearBase.placedCount(player) >= cap then
-		R.Notify(player, ("Base full (%d/%d)! Upgrade capacity in the SHOP or store this bear."):format(cap, cap), "warn")
+		R.Notify(player, ("Base full (%d/%d)! Upgrade capacity in the SHOP or store this animal."):format(cap, cap), "warn")
 		return
 	end
 	pos = Vector3.new(pos.X, 0, pos.Z) -- any spot of the own base can be clicked / tapped
 	if not Layout.isInBase(base, pos, 6) then
-		R.Notify(player, "Place the bear inside YOUR base.", "warn")
+		R.Notify(player, "Place the animal inside YOUR base.", "warn")
 		return
 	end
 	if not spacingOk(player, pos) then
-		R.Notify(player, "Too close to another bear!", "warn")
+		R.Notify(player, "Too close to another animal!", "warn")
 		return
 	end
 	local c = Layout.BASE_CENTERS[base]
@@ -232,7 +232,7 @@ function BearBase.takeFromStorage(player: Player, id: string)
 		if held and held.id == id then return end
 	end
 	if not canTakeBear(player) then
-		R.Notify(player, "Go inside your base to place a bear.", "warn")
+		R.Notify(player, "Go inside your base to place an animal.", "warn")
 		return
 	end
 	R.EquipService.equipBear(player, bear)
@@ -275,9 +275,9 @@ function BearBase.placeBest(player: Player)
 	R.PlayerData.push(player, "bears")
 	R.EconomyService.recompute(player)
 	if placed > 0 then
-		R.Notify(player, ("Placed %d bear%s!"):format(placed, if placed > 1 then "s" else ""), "good")
+		R.Notify(player, ("Placed %d animal%s!"):format(placed, if placed > 1 then "s" else ""), "good")
 	else
-		R.Notify(player, if #stored == 0 then "No stored bears." else "Base full! Upgrade capacity in the SHOP.", "warn")
+		R.Notify(player, if #stored == 0 then "No stored animals." else "Base full! Upgrade capacity in the SHOP.", "warn")
 	end
 end
 
@@ -321,7 +321,7 @@ function BearBase.equip(player: Player, id: string)
 	if R.State.is(player, "ControllingBear", "WatchingEatingCinematic") then return end
 	local cap = Formulas.capacity(data.capacity)
 	if BearBase.placedCount(player) >= cap then
-		R.Notify(player, ("Base full (%d/%d)! Unequip a bear or upgrade capacity in the SHOP."):format(cap, cap), "warn")
+		R.Notify(player, ("Base full (%d/%d)! Unequip an animal or upgrade capacity in the SHOP."):format(cap, cap), "warn")
 		return
 	end
 	dropHeld(player, id)
@@ -372,10 +372,10 @@ function BearBase.equipBest(player: Player)
 	R.PlayerData.push(player, "bears")
 	R.EconomyService.recompute(player)
 	if changed > 0 then
-		R.Notify(player, "Your best bears are in the base!", "good")
+		R.Notify(player, "Your best animals are in the base!", "good")
 		R.Sfx(player, "Place")
 	else
-		R.Notify(player, if #all == 0 then "No bears yet." else "Already your best bears!", "info")
+		R.Notify(player, if #all == 0 then "No animals yet." else "Already your best animals!", "info")
 	end
 end
 

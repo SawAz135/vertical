@@ -93,7 +93,7 @@ end
 local function buildRight()
 	local root = Sim.root(gui, "Right", Vector2.new(492, 340), UDim2.new(1, -12, 0.45, 0), Vector2.new(1, 0.5))
 	local tiles = new("Frame", { Name = "Tiles", BackgroundTransparency = 1, Size = UDim2.fromOffset(100, 330), Position = UDim2.fromOffset(390, 5) }, root)
-	local function tile(name, grad, icon, y, open)
+	local function tile(name, grad, icon, y, open, label)
 		local b = Sim.button(tiles, { Name = name, Grad = grad, Size = Vector2.new(84, 84), Position = UDim2.fromOffset(50, y), Hover = 1.07 },
 			function()
 				if open == "Bears" then
@@ -106,12 +106,12 @@ local function buildRight()
 			end)
 		new("ImageLabel", { Name = "Icon", BackgroundTransparency = 1, Image = icon, ScaleType = Enum.ScaleType.Fit, Size = UDim2.fromOffset(70, 70),
 			Position = UDim2.fromScale(0.5, 0.45), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 7 }, b)
-		Sim.text(b, name, { Size = UDim2.new(1, 4, 0, 24), Position = UDim2.new(0.5, 0, 1, -12), Max = 22, ZIndex = 9 })
+		Sim.text(b, label or name, { Size = UDim2.new(1, 4, 0, 24), Position = UDim2.new(0.5, 0, 1, -12), Max = 22, ZIndex = 9 })
 		return b, Sim.badge(b)
 	end
 	-- (Gifts + Daily removed) the FISH inventory sits where Daily was, Bears under it
 	tile("Fish", "blue", K.Icons.Bait, 164, "Fish")
-	tile("Bears", "teal", K.Icons.Paw, 272, "Bears")
+	tile("Bears", "teal", K.Icons.Paw, 272, "Bears", "Animals")
 
 	local tab = Sim.button(root, { Name = "PanelTab", Grad = "red", Size = Vector2.new(46, 64), Position = UDim2.fromOffset(34, 164), Text = "<", Max = 40 })
 	tab.Visible = false -- the red arrow only exists while the Bears panel is open
@@ -130,7 +130,7 @@ local function buildRight()
 	head.ClipsDescendants = true
 	new("ImageLabel", { BackgroundTransparency = 1, Image = K.Icons.Paw, ScaleType = Enum.ScaleType.Fit, Size = UDim2.fromOffset(44, 44),
 		Position = UDim2.fromOffset(28, 29), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = -10, ZIndex = 6 }, head)
-	Sim.text(head, "MY BEARS", { Size = UDim2.fromOffset(140, 26), Position = UDim2.fromOffset(54, 19), AnchorPoint = Vector2.new(0, 0.5),
+	Sim.text(head, "MY ANIMALS", { Size = UDim2.fromOffset(140, 26), Position = UDim2.fromOffset(54, 19), AnchorPoint = Vector2.new(0, 0.5),
 		AlignX = Enum.TextXAlignment.Left, Max = 26, Stroke = 3.5, Gradient = { RGB(255, 255, 255), RGB(255, 226, 110) }, ZIndex = 6 })
 	refs.panelTitle = Sim.text(head, "0/5 Active", { Size = UDim2.fromOffset(130, 18), Position = UDim2.fromOffset(55, 42), AnchorPoint = Vector2.new(0, 0.5),
 		AlignX = Enum.TextXAlignment.Left, Max = 17, Stroke = 2.5, ZIndex = 6 })
@@ -207,7 +207,7 @@ function HUD.renderPanel()
 		if tl then tl.Text = ('Total  <font color="#7CFF46">%s</font>'):format(Format.perSec(total)) end
 	end
 	if #bears == 0 then
-		Sim.text(list, "No bear in your base yet!", { Size = UDim2.fromOffset(392, 60), Max = 22, ZIndex = 6 })
+		Sim.text(list, "No animal in your base yet!", { Size = UDim2.fromOffset(392, 60), Max = 22, ZIndex = 6 })
 	end
 	K.cascade(list, 0.03)
 end

@@ -154,7 +154,7 @@ STEPS = {
 		end,
 	},
 	{ -- 10
-		icon = "🏋", text = 'Your bear makes <font color="#7CFF46">$ every second</font>! Now stand on your <font color="#FFD23F">FISH-UP</font> to get stronger!',
+		icon = "🏋", text = 'Your animal makes <font color="#7CFF46">$ every second</font>! Now stand on your <font color="#FFD23F">FISH-UP</font> to get stronger!',
 		target = function() local b = base() return b and Layout.trainPos(b) end,
 		enter = function() entered.strength = Data.values.strength or 0 end,
 		done = function() return (Data.values.strength or 0) > (entered.strength or 0) end,
@@ -387,7 +387,7 @@ function Tutorial.finish(skipped: boolean?)
 	end
 	-- final message, then the bubble leaves
 	ui.tab.Text = "GOOD JOB!"
-	setText('You\'re ready! Catch <font color="#FF6EC8">rarer fish</font>, throw <font color="#FFD23F">farther</font> and collect <font color="#7CFF46">every bear</font>!', "🏆")
+	setText('You\'re ready! Catch <font color="#FF6EC8">rarer fish</font>, throw <font color="#FFD23F">farther</font> and collect <font color="#7CFF46">every animal</font>!', "🏆")
 	Sound.play("Arrive")
 	if HUD and HUD.popup then HUD.popup("TUTORIAL DONE!", RGB(255, 210, 60)) end
 	task.delay(6, function()

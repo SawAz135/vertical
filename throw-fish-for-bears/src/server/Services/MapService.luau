@@ -118,9 +118,9 @@ local function buildGround(map)
 	end
 	-- SPAWN FLOOR: small green checkerboard (damier) over the front area, bases excluded.
 	-- One light plate per rectangle + dark tiles on top. NEVER inside the throw zone: tiles are
-	-- 3.875 studs so the zone edges (x = +-62, z = 0) fall exactly on tile borders.
+	-- 4 studs so the zone edges (x = +-52, z = 0) fall exactly on tile borders.
 	do
-		local TILE = 3.875
+		local TILE = 4
 		local ta = Layout.THROW_AREA
 		local folder = Instance.new("Folder")
 		folder.Name = "SpawnChecker"

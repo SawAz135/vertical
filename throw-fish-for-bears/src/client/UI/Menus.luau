@@ -315,10 +315,10 @@ local function buildShop()
 			local placed = 0
 			for _, b in d.bears or {} do if b.placed then placed += 1 end end
 			statPage(animate, {
-				section = "Base", rarity = "Uncommon", big = Formulas.capacity(lvl) .. " Bears", small = "Capacity", icon = K.Icons.House,
+				section = "Base", rarity = "Uncommon", big = Formulas.capacity(lvl) .. " Animals", small = "Capacity", icon = K.Icons.House,
 				rows = {
-					{ "Bears placed", ("%d / %d"):format(placed, Formulas.capacity(lvl)) },
-					{ "Next capacity", ("%d bears"):format(Formulas.capacity(math.min(lvl + 1, E.Capacity.maxLevel))) },
+					{ "Animals placed", ("%d / %d"):format(placed, Formulas.capacity(lvl)) },
+					{ "Next capacity", ("%d animals"):format(Formulas.capacity(math.min(lvl + 1, E.Capacity.maxLevel))) },
 					{ "Income", Format.perSec(player:GetAttribute("Income") or 0) },
 				},
 				can = not maxed and (d.money or 0) >= cost,
@@ -477,7 +477,7 @@ local function buildIndex()
 	local w = makeWindow("Index", { title = "Index", grad = "pink", size = Vector2.new(960, 540), factor = 0.84 }) -- wide: pills + tabs outside
 	-- RIGHT (outside the window): Fish / Bears
 	local tabs = {}
-	for i, cat in { "Fish", "Bears", "Animals" } do
+	for i, cat in { "Fish", "Animals" } do
 		tabs[cat] = Sim.button(w.frame, { Name = "Tab" .. cat, Grad = if cat == "Fish" then "blue" elseif cat == "Animals" then "teal" else "orange", Size = Vector2.new(170, 62),
 			Position = UDim2.fromOffset(w.W + 100, 120 + (i - 1) * 76), Text = cat, Max = if cat == "Animals" then 28 else 34, Icon = if cat == "Fish" then K.Icons.Bait else K.Icons.Paw }, function()
 			indexCat = cat
@@ -715,7 +715,7 @@ local function buildIndex()
 			if spec then
 				local rar = if isFish then spec.rarity else (spec.fixedRarity or bestRarity(entry) or "Common")
 				local card, centre = Sim.card(w.content, { Size = Vector2.new(268, 380), Rarity = if found then rar else "Secret", Title = if found or entry then spec.name else "???",
-					RarityText = if isFish or entry then RarityConfig.get(rar).name elseif indexCat == "Animals" then "Animal" else "Bear", CenterTop = 76, CenterCut = 196 })
+					RarityText = if isFish or entry then RarityConfig.get(rar).name else "Animal", CenterTop = 76, CenterCut = 196 })
 				card.Position = UDim2.fromOffset(CW - 268 - 8, 64)
 				Sim.model(centre, { kind = if isFish then "Fish" else "Bear", id = id, variant = if indexVar and found then indexVar else nil, silhouette = not found, spin = found,
 					size = UDim2.fromScale(1, 1.1) })
@@ -854,7 +854,7 @@ local function bearCards(w, left)
 			end)
 		end
 		if #list == 0 then
-			emptyText(w.content, "No bears yet!\nThrow a fish into the forest and bring the bear home.")
+			emptyText(w.content, "No animals yet!\nThrow a fish into the corridor: it turns into an animal!")
 			return
 		end
 		local grid = scroller(w.content, { Size = UDim2.new(1, 0, 1, -56), Position = UDim2.fromOffset(0, 54), Grid = Vector2.new(196, 292), Gap = 14, PadTop = 10, Left = left })
@@ -892,7 +892,7 @@ local function bearCards(w, left)
 end
 
 local function buildBears()
-	local w = makeWindow("Bears", { title = "My Bears", grad = "purple", size = Vector2.new(860, 480) })
+	local w = makeWindow("Bears", { title = "My Animals", grad = "purple", size = Vector2.new(860, 480) })
 	renderers.Bears = bearCards(w)
 end
 
@@ -1137,13 +1137,14 @@ end
 
 local invTab = "Bears"
 local function buildInventory()
-	local w = makeWindow("Inventory", { title = "Bears + Fish", grad = "purple", size = Vector2.new(668, 470), titleWidth = 380 })
+	local w = makeWindow("Inventory", { title = "Animals + Fish", grad = "purple", size = Vector2.new(668, 470), titleWidth = 380 })
 	local sub = { Bears = bearCards(w, true), Fish = fishCards(w, "Bag", true) }
 	local skin = skinInventory(w)
 	local tabs = {}
 	for i, cat in { "Bears", "Fish" } do
 		tabs[cat] = Sim.button(w.frame, { Name = "Tab" .. cat, Grad = if cat == "Fish" then "blue" else "orange", Size = Vector2.new(170, 62),
-			Position = UDim2.fromOffset(w.W + 100, 120 + (i - 1) * 76), Text = cat, Max = 34, Icon = if cat == "Fish" then K.Icons.Bait else K.Icons.Paw }, function()
+			Position = UDim2.fromOffset(w.W + 100, 120 + (i - 1) * 76), Text = if cat == "Bears" then "Animals" else cat, Max = if cat == "Bears" then 28 else 34,
+			Icon = if cat == "Fish" then K.Icons.Bait else K.Icons.Paw }, function()
 			if invTab == cat then return end
 			invTab = cat
 			renderers.Inventory(true)
