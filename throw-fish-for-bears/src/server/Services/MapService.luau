@@ -118,7 +118,7 @@ local function buildGround(map)
 	end
 	-- SPAWN FLOOR: small green checkerboard (damier) over the front area, bases excluded.
 	-- One light plate per rectangle + dark tiles on top. NEVER inside the throw zone: tiles are
-	-- 4 studs so the zone edges (x = +-52, z = 0) fall exactly on tile borders.
+	-- 4 studs so the zone edges (x = +-48, z = 0) fall exactly on tile borders.
 	do
 		local TILE = 4
 		local ta = Layout.THROW_AREA

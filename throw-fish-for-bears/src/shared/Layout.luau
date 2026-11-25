@@ -49,7 +49,7 @@ Layout.PLATEAU_WALL = 28 -- spawn AND corridor walls reach this height above the
 Layout.COMPOUND = { minX = -102, maxX = 102, minZ = -24, maxZ = 184 }
 Layout.FRONT = { minX = -98, maxX = 98, minZ = -20, maxZ = 84 }
 -- throw zone: the whole width between the side walls, from the front wall to the throw line
-Layout.THROW_AREA = { minX = -52, maxX = 52, minZ = -22, maxZ = 0 } -- rectangle in front of the corridor entrance
+Layout.THROW_AREA = { minX = -48, maxX = 48, minZ = -22, maxZ = 0 } -- rectangle in front of the corridor entrance
 Layout.THROW_LINE_Z = -20
 -- SELL and SHOP stand in the corners of the corridor entrance, against the front wall (inner face z = -22), facing the bases
 Layout.SELL_POS = Vector3.new(-92, 0, -18.5)
@@ -69,7 +69,7 @@ end
 Layout.SPAWN_POS = Vector3.new(0, 0, 40)
 
 -- Corridor and zones ------------------------------------------------------
-Layout.CORRIDOR_HALF = 54 -- a narrow corridor (108 wide), the plateau is wider (204)
+Layout.CORRIDOR_HALF = 48 -- a narrow corridor (96 wide), the plateau is wider (204)
 -- the corridor is a TRENCH: its floor is 20 studs below the plateau (spawn, bases, lake),
 -- the front cliff of the plateau is at z = CORRIDOR_START_Z
 Layout.CORRIDOR_START_Z = -24
