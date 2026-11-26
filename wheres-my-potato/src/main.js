@@ -17,6 +17,7 @@ import { VARIETIES } from './world/potatoes.js';
 import { Player } from './player/player.js';
 import { audio } from './audio/audio.js';
 import { UI } from './ui/ui.js';
+import { Achievements } from './game/achievements.js';
 
 // =====================================================================================
 // GAME — boot, render pipeline, state machine (menu ⇄ play ⇄ pause / shop / book),
@@ -29,16 +30,19 @@ const tick = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)
 class Game {
   constructor() {
     if (isTouch()) document.body.classList.add('touch');
-    this.state = 'loading'; this.money = 0; this.levels = {}; this.stats = { jar: 0, picked: 0, gold: 0, dumped: 0, earned: 0, time: 0 };
+    this.state = 'loading'; this.money = 0; this.levels = {}; this.stats = { jar: 0, picked: 0, gold: 0, dumped: 0, earned: 0, time: 0, thrown: 0, kicked: 0, prestige: 0, lifetimeJar: 0, hour: 9.5 };
     this.shakeAmt = 0; this.fps = 60; this.renderScale = 1; this.slow = 0; this.fast = 0; this.t = 0;
     this.attract = new Set(); this.attractT = 0; this.lastGreet = -999; this.nextIdle = 40; this.overflowed = false;
   }
   level(id) { return this.levels[id] || 0; }
   val(id, key) { return itemById[id].levels[this.level(id)][key]; }
   shake(a) { this.shakeAmt = Math.max(this.shakeAmt, a); }
+  mult() { return this.val('contract', 'mult') * (1 + 0.25 * (this.stats.prestige || 0)); }
+  saleBonus() { return Math.round(this.stats.jar * 1.5 * this.mult()); }
 
   async boot() {
     this.ui = new UI(this);
+    this.ach = new Achievements(this);
     const q = settings.q;
     // ---- renderer ----
     const canvas = document.getElementById('game');
@@ -61,7 +65,7 @@ class Game {
     world.boxes = this.machine.boxes;
     this.dyn = new DynPotatoes(this.scene, { liveCap: 900, settledCap: q.jarMax, world, onImpact: (x, y, z, s, kind) => this._impact(x, y, z, s, kind), onSettleInJar: () => {} });
     this.machine.dyn = this.dyn;
-    this.dyn.onSpill = () => this._overflow();
+    this.dyn.onSpill = () => { if (this.machine.fillRatio(this.dyn) > 0.85) this._overflow(); };
     this.machine.onPay = (i, x, y, z) => this._pay(i, x, y, z);
     this.machine.onFeed = () => { if (Math.random() < 0.5) audio.thud('wood', { x: BIN.x + 0.8, y: 0.8, z: BIN.z }, 2); };
     this.ui.progress(0.7, 'Gérard enfile sa casquette…'); await tick();
@@ -128,7 +132,7 @@ class Game {
   }
   _newGame() {
     storage.del(SAVE_KEY);
-    this.money = 0; this.levels = {}; this.stats = { jar: 0, picked: 0, gold: 0, dumped: 0, earned: 0, time: 0 }; this.overflowed = false; this.ui.moneyShown = 0;
+    this.money = 0; this.levels = {}; this.stats = { jar: 0, picked: 0, gold: 0, dumped: 0, earned: 0, time: 0, thrown: 0, kicked: 0, prestige: 0, lifetimeJar: 0, hour: 9.5 }; this.overflowed = false; this.ui.moneyShown = 0;
     // empty the jar and everything loose
     for (const i of [...this.dyn.settled, ...this.dyn.live]) this.dyn.free(i);
     this.dyn.jarTop = JAR.yb;
@@ -155,7 +159,7 @@ class Game {
   _pay(i, x, y, z) {
     if (this.state === 'menu') { this.attract.add(i); return; } // demo potatoes are free
     const v = this.dyn.db.variety[i], gold = v === 5;
-    const value = VARIETIES[v].price * this.val('contract', 'mult');
+    const value = Math.round(VARIETIES[v].price * this.mult() * 10) / 10;
     this.money += value; this.stats.jar++; this.stats.earned += value; this.dyn.paid[i] = 1;
     this.ui.gain(value);
     const p = new THREE.Vector3(x, y + 0.3, z);
@@ -165,6 +169,47 @@ class Game {
     // milestones + overflow
     const m = MILESTONES.find(n => n === this.stats.jar);
     if (m) { this.ui.banner('PALIER ATTEINT', `${m.toLocaleString('fr-FR')} PATATES !`); audio.ui('fanfare'); this.say(LINES.milestone(m), 'cheer', true); this.fx.sparkle(JAR.x, JAR.rim + 0.5, JAR.z, 60, [1, 0.85, 0.4], 3); this._save(); }
+  }
+  // ---------------- La Grande Vente (prestige) ----------------
+  grandSale() {
+    if (this.stats.jar < 500) { audio.ui('deny'); this.say('Il faut au moins 500 patates dans le bocal pour intéresser la friterie !', 'shrug', true); return; }
+    this.ui.closeShop(); this.player.enabled = false; input.wantLock = false; input.unlock();
+    this.state = 'cine'; this.cineT = 0; this.ui.hideHud();
+    const d = this.dyn;
+    this.saleQueue = d.settled.filter(i => d.inJar[i] || d.paid[i]).sort((a, b) => d.db.py[b] - d.db.py[a]);
+    this.saleBonusAmt = this.saleBonus(); this.saleCount = this.stats.jar;
+    this.ui.banner('LA GRANDE VENTE', 'LA FRITERIE ACHÈTE TOUT !'); audio.ui('fanfare');
+    this.say('La friterie rachète TOUT le bocal ! Regarde-moi ça !', 'cheer', true);
+  }
+  _saleCine(dt) {
+    this.cineT += dt; const t = this.cineT, d = this.dyn;
+    // orbiting crane shot: low & close, rising and pulling back
+    const a = -1.2 + t * 0.45, rad = 4.2 + t * 0.35, h = 1.2 + t * 0.45;
+    this.camera.position.set(JAR.x + Math.cos(a) * rad, h, JAR.z + Math.sin(a) * rad);
+    this.camera.lookAt(JAR.x, 1.4 + t * 0.08, JAR.z); this.camera.fov = 55; this.camera.updateProjectionMatrix();
+    if (t > 1.2) {
+      const per = Math.max(8, Math.ceil(this.saleQueue.length / (60 * 3.2)));
+      for (let k = 0; k < per && this.saleQueue.length; k++) {
+        const i = this.saleQueue.shift(); if (d.st[i] !== ST.SETTLED) continue;
+        const x = d.db.px[i], y = d.db.py[i], z = d.db.pz[i]; d.free(i);
+        if (Math.random() < 0.35) this.fx.sparkle(x, y, z, 2, [1, 0.8, 0.3], 1.2);
+        if (Math.random() < 0.04) { this.fx.coinBurst(x, y + 0.2, z, 2); audio.coin({ x, y, z }); }
+      }
+      this.shake(0.05);
+    }
+    if (t > 1.2 && !this.saleQueue.length && !this.saleDone) {
+      this.saleDone = true; this.dyn.jarTop = JAR.yb;
+      this.money += this.saleBonusAmt; this.stats.earned += this.saleBonusAmt; this.ui.gain(this.saleBonusAmt);
+      this.stats.prestige = (this.stats.prestige || 0) + 1; this.stats.lifetimeJar = (this.stats.lifetimeJar || 0) + this.saleCount; this.stats.jar = 0; this.overflowed = false;
+      this.fx.ring(JAR.x, 1, JAR.z, [1, 0.85, 0.35], 64, 5); this.fx.sparkle(JAR.x, 2, JAR.z, 120, [1, 0.85, 0.4], 4); this.fx.coinBurst(JAR.x, 2.6, JAR.z, 30);
+      audio.ui('fanfare'); audio.coin(null, true);
+      this.ui.banner(`★ ${this.stats.prestige} · +${Math.round(this.saleBonusAmt).toLocaleString('fr-FR')} ₣`, 'VENDU !');
+      this.saleEnd = t + 3;
+    }
+    if (this.saleDone && t > this.saleEnd) {
+      this.saleDone = false; this.state = 'play'; this.ui.showHud(); this.player.enabled = true; input.wantLock = !isTouch(); input.clear(); if (!isTouch()) input.lock();
+      this.say(`Tous tes gains sont maintenant multipliés par ${this.mult().toFixed(2).replace('.', ',')} ! On recommence ?`, 'thumbs', true); this._save();
+    }
   }
   _overflow() {
     if (this.state !== 'play') return;
@@ -197,6 +242,7 @@ class Game {
     else if (a === 'new') this.ui.panel('Nouvelle partie ?', '<div style="text-align:center">Ta progression, ton argent et le bocal seront remis à zéro.</div>', [['Oui, tout recommencer', () => { this.ui.closePanel(); this._newGame(); this.hasSave = false; this.startPlay(); }, true], ['Annuler', () => this.ui.closePanel()]]);
     else if (a === 'book') this.ui.book.open();
     else if (a === 'settings') this.ui.panel('Réglages', this.ui.settingsBody(), [['Retour', () => this.ui.closePanel(), true]]);
+    else if (a === 'ach') this.ui.panel('Succès & Patatothèque', this.ach.panelHtml(), [['Retour', () => this.ui.closePanel(), true]]);
     else if (a === 'credits') this.ui.panel('Crédits', this.ui.credits(), [['Retour', () => this.ui.closePanel(), true]]);
   }
   startPlay() {
@@ -225,6 +271,7 @@ class Game {
     this.ui.panel('Pause', `<div style="text-align:center;opacity:.85">🥔 ${this.stats.jar.toLocaleString('fr-FR')} dans le bocal · ${this.stats.picked.toLocaleString('fr-FR')} ramassées · ✨ ${this.stats.gold} dorées</div>`, [
       ['Reprendre', () => this.resume(), true],
       ['Tutoriel', () => { this.ui.closePanel(); this.ui.book.open(); }],
+      ['Succès & Patatothèque', () => this.ui.panel('Succès & Patatothèque', this.ach.panelHtml(), [['Retour', () => { this.state = 'play'; this.pause(); }, true]])],
       ['Réglages', () => this.ui.panel('Réglages', this.ui.settingsBody(), [['Retour', () => { this.state = 'play'; this.pause(); }, true]])],
       ['Menu principal', () => { this._save(); this.ui.fade(true); setTimeout(() => { this.toMenu(); this.ui.fade(false); }, 600); }],
     ]);
@@ -286,8 +333,13 @@ class Game {
     else {
       if (this.state === 'play' && input.pressed('pause')) this.pause();
       this.player.update(dt, this.t);
-      if (this.state === 'play') { this.stats.time += dt; this._gerardAI(dt); }
+      if (this.state === 'play') { this.stats.time += dt; this._gerardAI(dt); this.ach.update(dt); }
+      if (this.state === 'cine') this._saleCine(dt);
     }
+    // clock: 1 in-game hour = 45 s by day, nights pass 3x faster
+    const h = this.stats.hour, night = h >= 20.5 || h < 5.5;
+    this.stats.hour = (h + dt / 45 * (night ? 3 : 1)) % 24; this.field.setTime(this.stats.hour);
+    if (this.field.night > 0.5 && Math.random() < dt * 25) { const a = Math.random() * 6.28, r = 3 + Math.random() * 14, c = this.camera.position; const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r; this.fx.glow.emit(x, ground(x, z) + 0.4 + Math.random() * 1.4, z, (Math.random() - 0.5) * 0.3, 0.05, (Math.random() - 0.5) * 0.3, 2.5 + Math.random() * 2, 0.06, 0, -0.02, 0.2, 0.75, 1, 0.35, 1); }
     this.field.followSun(this.camera.position);
     this.field.update(dt, this.camera.position, this.fx);
     this.machine.update(dt, this.dyn, this.t);

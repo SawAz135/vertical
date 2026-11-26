@@ -108,12 +108,12 @@ export class Machine {
     for (let k = 6; k >= 0; k--) { const a = k / 6 * Math.PI / 2; pts.push([J.R - 0.14 + Math.sin(a) * 0.14, J.yb + 0.14 - Math.cos(a) * 0.14]); }
     pts.push([0, J.yb]);
     const geo = new THREE.LatheGeometry(pts.map(p => new THREE.Vector2(p[0], p[1])), 64);
-    const glass = new THREE.MeshPhysicalMaterial({ color: 0xe8f6ff, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 2.2, clearcoat: 1, clearcoatRoughness: 0.05, specularIntensity: 1 });
+    const glass = new THREE.MeshPhysicalMaterial({ color: 0xe8f6ff, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 1.6, clearcoat: 0.4, clearcoatRoughness: 0.08, specularIntensity: 0.7 });
     glass.onBeforeCompile = sh => {
       sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>
       float fres = pow(1.0 - abs(dot(normalize(vNormal), vec3(0.0,0.0,1.0))), 3.0);
       gl_FragColor.a = clamp(gl_FragColor.a + fres*0.55, 0.0, 0.9);
-      gl_FragColor.rgb += vec3(0.65,0.8,0.9)*fres*0.35;`);
+      gl_FragColor.rgb += vec3(0.65,0.8,0.9)*fres*0.18;`);
     };
     const jar = new THREE.Mesh(geo, glass); jar.position.set(J.x, 0, J.z); jar.renderOrder = 10; this.scene.add(jar); this.jarMesh = jar;
     // graduations painted on the glass + live counter label
@@ -159,7 +159,7 @@ export class Machine {
   }
   _lights() {
     // warm spotlight on the jar so the glass sparkles
-    const sp = new THREE.SpotLight(0xfff0d0, 25, 14, 0.5, 0.6, 1.5); sp.position.set(JAR.x - 3, 6.5, JAR.z - 3); sp.target.position.set(JAR.x, 1.2, JAR.z);
+    const sp = new THREE.SpotLight(0xfff0d0, 9, 14, 0.5, 0.7, 1.5); sp.position.set(JAR.x - 3, 6.5, JAR.z - 3); sp.target.position.set(JAR.x, 1.2, JAR.z);
     this.scene.add(sp, sp.target);
   }
 
@@ -197,7 +197,8 @@ export class Machine {
   }
   _exit(i) {
     const dyn = this.dyn;
-    dyn.setFree(i, this.dir.x * this.speed * 0.8 + (Math.random() - 0.5) * 0.3, this.dir.y * this.speed * 0.4, (Math.random() - 0.5) * 0.3);
+    // the chute at the top brakes and deflects every potato toward the jar centre, whatever the belt speed
+    dyn.setFree(i, 0.35 + (Math.random() - 0.5) * 0.5, -0.6, (Math.random() - 0.5) * 0.5);
     dyn.wx[i] = (Math.random() - 0.5) * 10; dyn.wz[i] = (Math.random() - 0.5) * 10;
     this.onPay(i, dyn.db.px[i], dyn.db.py[i], dyn.db.pz[i]);
   }

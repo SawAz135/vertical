@@ -174,7 +174,7 @@ export class Player {
         audio.footstep(surf, hs * (this.crouch > 0.5 ? 0.4 : 1), null);
         if (surf === 'soil') g.fx.footprint(this.pos.x, this.pos.z, this.yaw, this.leftFoot, ground(this.pos.x, this.pos.z));
         if (surf !== 'wood') g.fx.dust(this.pos.x, this.pos.y, this.pos.z, this.sprinting ? 3 : 1, this.dustCol());
-        if (g.dyn.kick(this.pos.x, this.pos.y + 0.1, this.pos.z, this.vel.x, this.vel.z) > 0) audio.footstep('potatoes', hs, null);
+        const kicked = g.dyn.kick(this.pos.x, this.pos.y + 0.1, this.pos.z, this.vel.x, this.vel.z); if (kicked > 0) { audio.footstep('potatoes', hs, null); g.stats.kicked = (g.stats.kicked || 0) + kicked; }
       }
     } else this.stepDist = Math.min(this.stepDist, 0.3);
   }
@@ -288,6 +288,7 @@ export class Player {
     const g = this.g, fdb = g.field.db;
     const i = g.dyn.spawnFrom(fdb, j); if (i < 0) return;
     const gold = fdb.variety[j] === 5;
+    g.ach?.collect(fdb.variety[j], fdb.special[j]);
     g.field.take(j);
     const list = to === 'bucket' ? this.bucket : this.hands, k = list.length; list.push(i);
     g.dyn.vscale[i] = to === 'bucket' ? 0.75 * VM_BUCKET : 0.85;
@@ -317,7 +318,7 @@ export class Player {
     const g = this.g, dir = new THREE.Vector3(); this.cam.getWorldDirection(dir);
     const all = [...this.hands, ...this.bucket]; this.hands.length = 0; this.bucket.length = 0;
     all.forEach((i, k) => { const s = 3.5 + Math.random() * 2.5; g.dyn.setFree(i, dir.x * s + (Math.random() - 0.5) * 1.5 + this.vel.x, dir.y * s + 2.2 + Math.random(), dir.z * s + (Math.random() - 0.5) * 1.5 + this.vel.z); g.dyn.wx[i] = (Math.random() - 0.5) * 20; g.dyn.wz[i] = (Math.random() - 0.5) * 20; void k; });
-    this.anim.throw = 1; audio.whoosh(null);
+    this.anim.throw = 1; audio.whoosh(null); g.stats.thrown = (g.stats.thrown || 0) + all.length;
   }
 
   // where the k-th carried potato sits (world space), in the hands or in the bucket

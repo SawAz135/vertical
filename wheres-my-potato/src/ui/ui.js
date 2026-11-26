@@ -115,6 +115,10 @@ export class UI {
     clearTimeout(this._sayT); this._sayT = setTimeout(() => this.h.bubble.classList.remove('on'), Math.max(2200, dur * 1000 + 1400));
     if (!this.el.shop.classList.contains('hidden')) $('.shop-quote').textContent = `« ${text} »`;
   }
+  achievement(a) {
+    const t = document.createElement('div'); t.className = 'toast ach-toast'; t.innerHTML = `<div class="at-i">${a.icon}</div><div><div class="at-k">Succès débloqué</div><div class="at-n">${a.name}</div></div>`;
+    this.h.toasts.appendChild(t); setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, 4500);
+  }
   banner(kicker, title) { const b = this.h.banner; $('.banner-k').textContent = kicker; $('.banner-t').textContent = title; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); }
 
   // ---------------- shop ----------------
@@ -131,6 +135,14 @@ export class UI {
   renderShop(flashId, kind) {
     const g = this.g; $('.shop-money').textContent = fmtMoney(g.money);
     const grid = $('.shop-grid'); grid.innerHTML = '';
+    {
+      const ok = g.stats.jar >= 500, d = document.createElement('div'); d.className = 'item sale' + (ok ? '' : ' locked'); d.style.setProperty('--i', 0);
+      d.innerHTML = `<div class="it-head"><div class="it-ico">⭐</div><div><div class="it-cat">Prestige · ★ ${g.stats.prestige || 0}</div><div class="it-name">La Grande Vente</div></div></div>
+        <div class="it-desc">${ok ? `La friterie rachète <b>tout le bocal</b> (${g.stats.jar.toLocaleString('fr-FR')} patates) : <b>+${fmtMoney(g.saleBonus())}</b> et <b>+25 %</b> de gains pour toujours. Le bocal repart à zéro.` : `Remplis le bocal avec au moins <b>500 patates</b> (${g.stats.jar}/500) pour débloquer la vente à la friterie.`}</div>
+        <button class="it-buy ${ok ? '' : 'poor'}">${ok ? 'Tout vendre !' : '🔒 Pas encore'}</button>`;
+      d.querySelector('.it-buy').addEventListener('click', () => g.grandSale());
+      grid.appendChild(d);
+    }
     ITEMS.forEach((it, idx) => {
       const lv = g.level(it.id), cur = it.levels[lv], next = it.levels[lv + 1];
       const d = document.createElement('div'); d.className = 'item'; d.style.setProperty('--i', idx);

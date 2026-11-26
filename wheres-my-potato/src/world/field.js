@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PotatoDB, PotatoField } from './potatoes.js';
 import { Batcher, boxGeo } from './build.js';
-import { bareTree, fence } from './props.js';
+import { bareTree, fence, lampPost } from './props.js';
 import { rng, fbm2, clamp, smooth, TAU, easeOutBack } from '../core/util.js';
 import { canvasTex, textCanvas } from '../gfx/textures.js';
 
@@ -33,7 +33,8 @@ export class FieldWorld {
     this.scene = scene; this.M = M; this.q = quality; this.seed = seed;
     this.colliders = []; // player: {min,max} boxes and {x,z,r} circles
     this.time = 0;
-    this._sky(); this._lights(); this._terrain(); this._grass(); this._scenery(); this._potatoes();
+    this._sky(); this._lights(); this._terrain(); this._grass(); this._scenery(); this._lamps(); this._potatoes();
+    this.setTime(9.5);
   }
 
   // ---------------- sky ----------------
@@ -41,15 +42,16 @@ export class FieldWorld {
     const sunDir = new THREE.Vector3(-0.55, 0.42, -0.72).normalize(); this.sunDir = sunDir;
     const mat = new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
-      uniforms: { uSun: { value: sunDir }, uTime: { value: 0 } },
+      uniforms: { uSun: { value: sunDir }, uTime: { value: 0 }, uDay: { value: 1 }, uDusk: { value: 0 }, uMoon: { value: new THREE.Vector3(0.5, 0.6, 0.6).normalize() } },
       vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); vec4 p = modelViewMatrix*vec4(position,1.0); gl_Position = projectionMatrix*p; gl_Position.z = gl_Position.w; }`,
-      fragmentShader: `varying vec3 vP; uniform vec3 uSun; uniform float uTime;
+      fragmentShader: `varying vec3 vP; uniform vec3 uSun; uniform float uTime; uniform float uDay; uniform float uDusk; uniform vec3 uMoon;
         float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
         float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
         float fbm(vec2 p){ float s=0.0,a=0.5; for(int i=0;i<5;i++){ s+=a*n(p); p*=2.03; a*=0.5; } return s; }
         void main(){
           vec3 d = normalize(vP); float y = d.y;
-          vec3 zen = vec3(0.16,0.36,0.72), hor = vec3(0.86,0.8,0.68), gnd = vec3(0.42,0.4,0.33);
+          vec3 zen = mix(vec3(0.01,0.02,0.06), vec3(0.16,0.36,0.72), uDay), hor = mix(vec3(0.05,0.06,0.12), vec3(0.86,0.8,0.68), uDay), gnd = mix(vec3(0.02,0.02,0.03), vec3(0.42,0.4,0.33), uDay);
+          hor = mix(hor, vec3(1.0,0.48,0.2), uDusk*0.85); zen = mix(zen, vec3(0.32,0.24,0.45), uDusk*0.6);
           vec3 c = mix(hor, zen, pow(clamp(y,0.0,1.0), 0.55));
           c = mix(c, gnd, smoothstep(0.0, -0.08, y));
           float sd = max(dot(d, uSun), 0.0);
@@ -61,6 +63,14 @@ export class FieldWorld {
             vec3 cc = mix(vec3(1.0,0.97,0.92), vec3(0.62,0.64,0.7), smoothstep(0.6,0.95,fbm(uv*1.3+0.4)));
             cc += vec3(1.0,0.8,0.5) * pow(sd, 8.0) * 0.6;
             c = mix(c, cc, cl * smoothstep(0.02, 0.25, y) * 0.92);
+          }
+          // stars + moon at night
+          float night = 1.0 - uDay;
+          if (night > 0.01 && y > 0.0) {
+            vec3 sd3 = floor(d * 380.0); float st = fract(sin(dot(sd3, vec3(12.9898,78.233,37.719)))*43758.5453);
+            c += vec3(0.9,0.95,1.0) * step(0.9975, st) * night * (0.6 + 0.4*sin(uTime*3.0 + st*80.0)) * smoothstep(0.0, 0.2, y);
+            float md = max(dot(d, uMoon), 0.0);
+            c += vec3(0.85,0.9,1.0) * (pow(md, 2400.0) * 6.0 + pow(md, 40.0) * 0.15) * night;
           }
           gl_FragColor = vec4(c, 1.0);
           #include <tonemapping_fragment>
@@ -84,6 +94,42 @@ export class FieldWorld {
     const c = sun.shadow.camera; c.left = -28; c.right = 28; c.top = 28; c.bottom = -28; c.near = 1; c.far = 160;
     sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
     this.scene.add(sun, sun.target);
+  }
+  // ---------------- day / night ----------------
+  _lamps() {
+    this.lamps = [];
+    const spots = [[-4, 18.5], [6, 25.5], [-13, 22], [14.5, 18.5]];
+    spots.forEach(([x, z], k) => {
+      const lp = lampPost(this.M); lp.position.set(x, ground(x, z), z); lp.rotation.y = k * 1.7; this.scene.add(lp);
+      lp.traverse(o => { if (o.isMesh) o.castShadow = true; });
+      const glow = lp.children.find(c => c.material === this.M.lampSodium);
+      const light = new THREE.PointLight(0xffb060, 0, 16, 1.6); light.position.set(1.3, 6.1, 0); lp.add(light);
+      this.lamps.push({ light, glow, k }); this.colliders.push({ x, z, r: 0.18 });
+    });
+    this.lampMat = this.M.lampSodium;
+  }
+  // h = hour of day 0..24
+  setTime(h) {
+    this.hour = h;
+    const a = (h - 6) / 12 * Math.PI; // sunrise 6h, sunset 18h
+    const elev = Math.sin(a), az = -0.7 + (h - 6) / 12 * 1.9;
+    const day = THREE.MathUtils.smoothstep(elev, -0.12, 0.18);
+    const dusk = Math.max(0, 1 - Math.abs(elev) / 0.28) * (1 - 0.3 * (1 - day));
+    // sun (or moon at night) drives the shadow-casting light
+    if (elev > -0.05) this.sunDir.set(Math.cos(az) * Math.cos(a) * -0.9, Math.max(0.06, elev), Math.sin(az) * -0.9 - 0.3).normalize();
+    else { const m = (h < 6 ? h + 24 : h) - 18; const ma = m / 12 * Math.PI; this.sunDir.set(-Math.cos(ma) * 0.6, Math.max(0.25, Math.sin(ma) * 0.8), 0.55).normalize(); }
+    const U = this.sky.material.uniforms; U.uDay.value = day; U.uDusk.value = dusk; U.uSun.value.copy(this.sunDir); U.uMoon.value.copy(this.sunDir);
+    const sunCol = new THREE.Color(0xffe2b8).lerp(new THREE.Color(0xff8a40), dusk * 0.8);
+    this.sun.color.copy(day > 0.02 ? sunCol : new THREE.Color(0x9ab4ff));
+    this.sun.intensity = day > 0.02 ? 3.0 * day * (1 - dusk * 0.35) + 0.05 : 0.35;
+    this.hemi.intensity = 0.12 + 0.75 * day; this.hemi.color.setHSL(0.6, 0.5, 0.45 + 0.3 * day);
+    const fog = new THREE.Color(0x0b0d18).lerp(new THREE.Color(0xcfc7b0), day).lerp(new THREE.Color(0xe09060), dusk * 0.45);
+    this.scene.fog.color.copy(fog); this.scene.background.copy(fog);
+    this.scene.environmentIntensity = 0.12 + 0.6 * day;
+    const night = 1 - day;
+    for (const l of this.lamps) l.light.intensity = THREE.MathUtils.smoothstep(night, 0.3, 0.8) * 24;
+    this.lampMat.emissiveIntensity = 0.2 + 3 * THREE.MathUtils.smoothstep(night, 0.3, 0.8);
+    this.night = night; this.dusk = dusk;
   }
   followSun(p) { // shadow frustum follows the player, snapped to texels to avoid shimmering
     const s = 56 / this.q.shadowMap; const x = Math.round(p.x / s) * s, z = Math.round(p.z / s) * s;
