@@ -30,6 +30,17 @@ export const ITEMS = [
     { name: 'Aimant à tubercules', price: 800, radius: 1.85, rate: 20, desc: 'Personne ne sait comment ça marche.' },
     { name: 'Vortex à patates', price: 2900, radius: 2.6, rate: 30, desc: 'Gérard décline toute responsabilité.' },
   ] },
+  { id: 'vacuum', icon: '🌀', name: 'Aspirateur à patates', levels: [
+    { name: 'Aucun', price: 0, cap: 0, range: 0, rate: 0, desc: 'Pas d’aspirateur.' },
+    { name: 'Aspirateur de jardin', price: 480, cap: 45, range: 5, rate: 16, desc: 'Aspire les patates jusqu’à 5 m dans un réservoir de 45. Outil 3.' },
+    { name: 'Aspirateur industriel', price: 1900, cap: 110, range: 8, rate: 32, desc: '8 m de portée, 110 patates, deux fois plus vite.' },
+    { name: 'Trou noir portatif', price: 6800, cap: 260, range: 12, rate: 60, desc: '12 m, 260 patates. Ne pas pointer vers Gérard.' },
+  ] },
+  { id: 'cannon', icon: '💥', name: 'Canon à patates', levels: [
+    { name: 'Aucun', price: 0, power: 0, rate: 0, desc: 'Pas de canon.' },
+    { name: 'Canon à patates', price: 750, power: 13, rate: 5, desc: 'Tire tes patates jusqu’au bac depuis le champ. Outil 4. La trajectoire devient verte quand ça rentre !' },
+    { name: 'Double canon', price: 2700, power: 17, rate: 9, desc: 'Deux patates par tir, plus loin, plus vite.' },
+  ] },
   { id: 'boots', icon: '🥾', name: 'Bottes', levels: [
     { name: 'Chaussures de ville', price: 0, speed: 1, desc: 'Vitesse normale.' },
     { name: 'Bottes de champ', price: 130, speed: 1.2, desc: '+20 % de vitesse.' },

@@ -98,6 +98,26 @@ class Audio {
     this._tone(o, t + 0.07, f * 3, f * 3, 0.25, 'sine', 0.05);
     if (big) [0, 0.08, 0.16, 0.24].forEach((d, k) => this._tone(o, t + 0.3 + d, 1046 * [1, 1.25, 1.5, 2][k], 1046 * [1, 1.25, 1.5, 2][k], 0.25, 'triangle', 0.08));
   }
+  cannon(pos) {
+    if (!this.ok || !this._rate('cannon', 60)) return; const t = this.ctx.currentTime, o = this._out(pos, 'sfx', 0.35, 4);
+    this._tone(o, t, 120, 38, 0.35, 'sine', 0.7); this._nz(o, t, 0.25, 'lowpass', 900, 0.8, 0.6); // boom
+    const f = this._nz(o, t + 0.02, 0.4, 'bandpass', 3200, 1.2, 0.18, 0.01); f.frequency.exponentialRampToValueAtTime(900, t + 0.4); // pneumatic hiss
+    this._tone(o, t + 0.05, 600, 300, 0.12, 'triangle', 0.08); // cork pop
+  }
+  boing(pos, power = 1) {
+    if (!this.ok || !this._rate('boing', 70)) return; const t = this.ctx.currentTime, o = this._out(pos, 'sfx', 0.2, 3);
+    const osc = this._tone(o, t, 140 * power, 420 * power, 0.32, 'sine', 0.35); osc.frequency.setValueAtTime(140 * power, t); osc.frequency.exponentialRampToValueAtTime(420 * power, t + 0.12); osc.frequency.exponentialRampToValueAtTime(260 * power, t + 0.3);
+    this._nz(o, t, 0.08, 'lowpass', 400, 1, 0.3);
+  }
+  rain(level) {
+    if (!this.ok) return;
+    if (!this.rainNode) { const c = this.ctx, s = c.createBufferSource(); s.buffer = this.noise; s.loop = true; const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 900; const f2 = c.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = 7000; const g = c.createGain(); g.gain.value = 0; s.connect(f); f.connect(f2); f2.connect(g); g.connect(this.bus.ambience); s.start(); this.rainNode = g; }
+    this.rainNode.gain.setTargetAtTime(level * 0.5, this.ctx.currentTime, 0.4);
+  }
+  thunder() {
+    if (!this.ok) return; const t = this.ctx.currentTime, o = this._out(null, 'ambience', 0.6);
+    this._nz(o, t, 3.5, 'lowpass', 180, 0.7, 0.9, 0.05); this._nz(o, t + 0.1, 1.2, 'lowpass', 600, 0.7, 0.4, 0.02); this._tone(o, t, 55, 30, 2.5, 'sine', 0.4);
+  }
   whoosh(pos) { if (!this.ok || !this._rate('wh', 60)) return; const t = this.ctx.currentTime, o = this._out(pos, 'sfx', 0.1); const f = this._nz(o, t, 0.25, 'bandpass', 600, 2, 0.18, 0.08); f.frequency.exponentialRampToValueAtTime(2400, t + 0.22); }
   bucketClank(pos) { if (!this.ok || !this._rate('clank', 80)) return; const t = this.ctx.currentTime, o = this._out(pos, 'sfx', 0.2); [1, 2.4, 3.9].forEach((m, k) => this._tone(o, t, 380 * m, 375 * m, 0.4 / (k + 1), 'sine', 0.12 / (k + 1))); }
   ui(kind = 'click') {

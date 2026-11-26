@@ -3,6 +3,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { GradeShader } from './gfx/grade.js';
 import { settings } from './core/settings.js';
 import { input } from './core/input.js';
 import { storage, isTouch, rng, damp } from './core/util.js';
@@ -18,6 +20,8 @@ import { Player } from './player/player.js';
 import { audio } from './audio/audio.js';
 import { UI } from './ui/ui.js';
 import { Achievements } from './game/achievements.js';
+import { Weather, Trampoline, TRAMP } from './world/weather.js';
+import { Coop, net } from './net/coop.js';
 
 // =====================================================================================
 // GAME — boot, render pipeline, state machine (menu ⇄ play ⇄ pause / shop / book),
@@ -43,11 +47,12 @@ class Game {
   async boot() {
     this.ui = new UI(this);
     this.ach = new Achievements(this);
+    this.coop = new Coop(this);
     const q = settings.q;
     // ---- renderer ----
     const canvas = document.getElementById('game');
     const r = this.renderer = new THREE.WebGLRenderer({ canvas, antialias: q.antialias, powerPreference: 'high-performance', stencil: false });
-    r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
+    r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.12;
     r.shadowMap.enabled = q.shadows; r.shadowMap.type = THREE.PCFSoftShadowMap;
     setAniso(r);
     this.scene = new THREE.Scene();
@@ -60,7 +65,8 @@ class Game {
     this.field.envFrom(r);
     this.ui.progress(0.55, 'Montage du convoyeur et du bocal…'); await tick();
     this.fx = new FX(this.scene, ground);
-    const world = { ground: (x, z) => ground(x, z), boxes: [], jar: JAR, inBin: (x, y, z) => this.machine.inBin(x, y, z) };
+    this.tramp = new Trampoline(this.scene, this.M);
+    const world = { ground: (x, z) => ground(x, z), boxes: [], jar: JAR, tramp: TRAMP, onTramp: v => this.tramp.hit(v * 0.3), inBin: (x, y, z) => this.machine.inBin(x, y, z) };
     this.machine = new Machine(this.scene, this.M, world);
     world.boxes = this.machine.boxes;
     this.dyn = new DynPotatoes(this.scene, { liveCap: 900, settledCap: q.jarMax, world, onImpact: (x, y, z, s, kind) => this._impact(x, y, z, s, kind), onSettleInJar: () => {} });
@@ -70,15 +76,18 @@ class Game {
     this.machine.onFeed = () => { if (Math.random() < 0.5) audio.thud('wood', { x: BIN.x + 0.8, y: 0.8, z: BIN.z }, 2); };
     this.ui.progress(0.7, 'Gérard enfile sa casquette…'); await tick();
     this.shop = new Shop(this.scene, this.M);
+    this.field.onTake = j => this.coop.onTake(j);
     this.colliders = [...this.field.colliders, ...this.machine.colliders, ...this.shop.colliders];
     this.bounds = this.field.bounds;
     this.player = new Player(this, this.camera);
+    this.weather = new Weather(this); this.audioRain = l => audio.rain(l); this.audioThunder = () => { audio.thunder(); this.shake(0.15); };
     this.player.vm.visible = false;
     // ---- post-processing ----
     this.composer = new EffectComposer(r);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.32, 0.55, 0.88);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.42, 0.6, 0.82);
     this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass());
+    this.grade = new ShaderPass(GradeShader); this.composer.addPass(this.grade);
     this._applyQuality();
     settings.on('change', k => { if (k === 'quality') this._applyQuality(); });
     // ---- save ----
@@ -97,6 +106,11 @@ class Game {
     document.addEventListener('visibilitychange', () => { if (document.hidden) { this._save(); if (this.state === 'play') this.pause(); } });
     this.ui.hideLoading();
     this.toMenu();
+    const qs = new URLSearchParams(location.search), room = qs.get('room');
+    if (room) {
+      const prof = storage.get('wmp.profile', { name: 'Récolteur ' + (100 + Math.floor(Math.random() * 900)), color: '#2a9de8' });
+      this.coop.join(room, { name: prof.name, color: prof.color, kind: qs.get('net') === 'local' ? 'local' : 'online' }).then(ok => { if (ok) this.startPlay(); else this.ui.toast('Impossible de rejoindre la session ' + room, 'warn'); });
+    }
     this.last = performance.now();
     this.renderer.setAnimationLoop(() => this._frame());
   }
@@ -120,19 +134,19 @@ class Game {
     const s = storage.get(SAVE_KEY);
     this.hasSave = !!s;
     if (s) { this.money = s.money || 0; this.levels = s.levels || {}; Object.assign(this.stats, s.stats || {}); this.overflowed = !!s.overflowed; }
-    this.ui.moneyShown = this.money;
+    this.ui.moneyShown = this.money; this.lastMilestone = MILESTONES.filter(n => n <= this.stats.jar).pop() || 0;
     this._applyUpgrades();
     // rebuild the jar contents (packed) to match the saved count
     if (this.stats.jar > 0) this.dyn.fillJar(Math.min(this.stats.jar, Math.floor(settings.q.jarMax * 0.9)), 777);
   }
   _save() {
-    if (this.state === 'loading') return;
+    if (this.state === 'loading' || this.coop?.guest) return; // guests never overwrite their own save
     storage.set(SAVE_KEY, { v: 1, money: Math.round(this.money * 100) / 100, levels: this.levels, stats: this.stats, overflowed: this.overflowed, at: Date.now() });
     this.hasSave = true;
   }
   _newGame() {
     storage.del(SAVE_KEY);
-    this.money = 0; this.levels = {}; this.stats = { jar: 0, picked: 0, gold: 0, dumped: 0, earned: 0, time: 0, thrown: 0, kicked: 0, prestige: 0, lifetimeJar: 0, hour: 9.5 }; this.overflowed = false; this.ui.moneyShown = 0;
+    this.money = 0; this.levels = {}; this.stats = { jar: 0, picked: 0, gold: 0, dumped: 0, earned: 0, time: 0, thrown: 0, kicked: 0, prestige: 0, lifetimeJar: 0, hour: 9.5 }; this.overflowed = false; this.ui.moneyShown = 0; this.lastMilestone = 0;
     // empty the jar and everything loose
     for (const i of [...this.dyn.settled, ...this.dyn.live]) this.dyn.free(i);
     this.dyn.jarTop = JAR.yb;
@@ -149,7 +163,7 @@ class Game {
     const it = itemById[id], lv = this.level(id), next = it.levels[lv + 1];
     if (!next) { this.say('max'); return false; }
     if (this.money < next.price) { audio.ui('deny'); this.say('poor', 'shrug'); return false; }
-    this.money -= next.price; this.levels[id] = lv + 1; this._applyUpgrades();
+    this.money -= next.price; this.levels[id] = lv + 1; this._applyUpgrades(); this.coop.onBuy(id, lv + 1, next.price);
     audio.ui('buy'); this.say('buy', 'thumbs');
     if (id === 'bucket') { this.player.setTool('bucket'); }
     this.ui.renderShop(id, 'bought'); this.shop.drawChalk(this.levels); this._save();
@@ -160,24 +174,32 @@ class Game {
     if (this.state === 'menu') { this.attract.add(i); return; } // demo potatoes are free
     const v = this.dyn.db.variety[i], gold = v === 5;
     const value = Math.round(VARIETIES[v].price * this.mult() * 10) / 10;
-    this.money += value; this.stats.jar++; this.stats.earned += value; this.dyn.paid[i] = 1;
-    this.ui.gain(value);
+    this.dyn.paid[i] = 1;
     const p = new THREE.Vector3(x, y + 0.3, z);
+    if (this.dyn.remote[i]) { audio.coin(p, gold); if (Math.random() < 0.3) this.fx.coinBurst(x, y, z, 1); return; } // a teammate's potato: they get it counted
+    this.money += value; this.stats.jar++; this.stats.earned += value; this.coop.onPay(value, gold);
+    this.ui.gain(value);
     if (gold || this.stats.jar % 3 === 0 || value >= 2) this.ui.floater(`+${value % 1 ? value.toFixed(1) : value} ₣`, p, gold ? '#fff2a0' : null);
     audio.coin(p, gold);
     if (gold) { this.fx.coinBurst(x, y, z, 8); this.fx.ring(x, y, z); this.shake(0.15); } else if (this.stats.jar % 4 === 0) this.fx.coinBurst(x, y, z, 1);
-    // milestones + overflow
-    const m = MILESTONES.find(n => n === this.stats.jar);
-    if (m) { this.ui.banner('PALIER ATTEINT', `${m.toLocaleString('fr-FR')} PATATES !`); audio.ui('fanfare'); this.say(LINES.milestone(m), 'cheer', true); this.fx.sparkle(JAR.x, JAR.rim + 0.5, JAR.z, 60, [1, 0.85, 0.4], 3); this._save(); }
+    this._milestones();
+  }
+  _milestones() {
+    const m = MILESTONES.filter(n => n <= this.stats.jar).pop();
+    if (m && m > (this.lastMilestone || 0)) {
+      this.lastMilestone = m; if (this.stats.jar - m > 30) return; // reached long ago (loaded save / sync)
+      this.ui.banner('PALIER ATTEINT', `${m.toLocaleString('fr-FR')} PATATES !`); audio.ui('fanfare'); this.say(LINES.milestone(m), 'cheer', true); this.fx.sparkle(JAR.x, JAR.rim + 0.5, JAR.z, 60, [1, 0.85, 0.4], 3); this._save();
+    }
   }
   // ---------------- La Grande Vente (prestige) ----------------
-  grandSale() {
-    if (this.stats.jar < 500) { audio.ui('deny'); this.say('Il faut au moins 500 patates dans le bocal pour intéresser la friterie !', 'shrug', true); return; }
+  grandSale(remote = false, bonus) {
+    if (!remote && this.stats.jar < 500) { audio.ui('deny'); this.say('Il faut au moins 500 patates dans le bocal pour intéresser la friterie !', 'shrug', true); return; }
     this.ui.closeShop(); this.player.enabled = false; input.wantLock = false; input.unlock();
     this.state = 'cine'; this.cineT = 0; this.ui.hideHud();
     const d = this.dyn;
     this.saleQueue = d.settled.filter(i => d.inJar[i] || d.paid[i]).sort((a, b) => d.db.py[b] - d.db.py[a]);
-    this.saleBonusAmt = this.saleBonus(); this.saleCount = this.stats.jar;
+    this.saleBonusAmt = remote ? bonus : this.saleBonus(); this.saleCount = this.stats.jar;
+    if (!remote) this.coop.onSale(this.saleBonusAmt);
     this.ui.banner('LA GRANDE VENTE', 'LA FRITERIE ACHÈTE TOUT !'); audio.ui('fanfare');
     this.say('La friterie rachète TOUT le bocal ! Regarde-moi ça !', 'cheer', true);
   }
@@ -219,7 +241,7 @@ class Game {
   }
   _impact(x, y, z, s, kind) {
     const p = { x, y, z };
-    if (kind === 'glass') audio.thud('glass', p, s); else if (kind === 'wood') audio.thud('wood', p, s); else if (kind === 'potato') audio.thud('potato', p, s); else { audio.thud('ground', p, s); if (s > 2.5) this.fx.dust(x, y - 0.05, z, 2); }
+    if (kind === 'tramp') audio.boing(p, 1.3); else if (kind === 'glass') audio.thud('glass', p, s); else if (kind === 'wood') audio.thud('wood', p, s); else if (kind === 'potato') audio.thud('potato', p, s); else { audio.thud('ground', p, s); if (s > 2.5) this.fx.dust(x, y - 0.05, z, 2); }
   }
   // Gérard speaks (voice babble + bubble + gesture)
   say(key, gesture, raw) {
@@ -242,6 +264,12 @@ class Game {
     else if (a === 'new') this.ui.panel('Nouvelle partie ?', '<div style="text-align:center">Ta progression, ton argent et le bocal seront remis à zéro.</div>', [['Oui, tout recommencer', () => { this.ui.closePanel(); this._newGame(); this.hasSave = false; this.startPlay(); }, true], ['Annuler', () => this.ui.closePanel()]]);
     else if (a === 'book') this.ui.book.open();
     else if (a === 'settings') this.ui.panel('Réglages', this.ui.settingsBody(), [['Retour', () => this.ui.closePanel(), true]]);
+    else if (a === 'mp') this.ui.mpPanel({
+      host: async o => { const code = await this.coop.host(o); if (code) { this.coop.lastName = o.name; this.ui.closePanel(); net.stopList(); this.startPlay(); setTimeout(() => this.ui.toast(`👥 Session ${code} créée — partage le code !`), 1500); } return code; },
+      join: async (code, o) => { const ok = await this.coop.join(code, o); if (ok) { this.ui.closePanel(); net.stopList(); this.startPlay(); } return ok; },
+      list: (kind, cb) => { const go = async () => { if (kind === 'online') { try { await this.coop.loadSupabase(); } catch { cb(null, true); return; } } net.listPublic(kind, cb); }; go(); },
+      stopList: () => net.stopList(),
+    });
     else if (a === 'ach') this.ui.panel('Succès & Patatothèque', this.ach.panelHtml(), [['Retour', () => this.ui.closePanel(), true]]);
     else if (a === 'credits') this.ui.panel('Crédits', this.ui.credits(), [['Retour', () => this.ui.closePanel(), true]]);
   }
@@ -270,6 +298,7 @@ class Game {
     this.state = 'pause'; input.wantLock = false; input.unlock(); this.player.enabled = false; this._save();
     this.ui.panel('Pause', `<div style="text-align:center;opacity:.85">🥔 ${this.stats.jar.toLocaleString('fr-FR')} dans le bocal · ${this.stats.picked.toLocaleString('fr-FR')} ramassées · ✨ ${this.stats.gold} dorées</div>`, [
       ['Reprendre', () => this.resume(), true],
+      ...(net.active ? [['📋 Copier le lien d’invitation', () => { navigator.clipboard?.writeText(this.coop.inviteLink()).then(() => this.ui.toast('Lien copié !'), () => this.ui.toast(this.coop.inviteLink())); }], ['🚪 Quitter la session', () => { this.ui.closePanel(); this.coop.leave().then(() => { this.state = 'play'; this.pause(); }); }]] : []),
       ['Tutoriel', () => { this.ui.closePanel(); this.ui.book.open(); }],
       ['Succès & Patatothèque', () => this.ui.panel('Succès & Patatothèque', this.ach.panelHtml(), [['Retour', () => { this.state = 'play'; this.pause(); }, true]])],
       ['Réglages', () => this.ui.panel('Réglages', this.ui.settingsBody(), [['Retour', () => { this.state = 'play'; this.pause(); }, true]])],
@@ -321,6 +350,7 @@ class Game {
     this.fps = damp(this.fps, 1 / Math.max(dt, 1e-3), 3, dt);
     this._adaptive(dt);
     this._update(dt);
+    this.grade.uniforms.uTime.value = this.t % 100;
     this.composer.render();
   }
   // advance the simulation by `sec` seconds at 60 Hz without rendering (automated tests)
@@ -338,7 +368,7 @@ class Game {
     }
     // clock: 1 in-game hour = 45 s by day, nights pass 3x faster
     const h = this.stats.hour, night = h >= 20.5 || h < 5.5;
-    this.stats.hour = (h + dt / 45 * (night ? 3 : 1)) % 24; this.field.setTime(this.stats.hour);
+    this.stats.hour = (h + dt / 45 * (night ? 3 : 1)) % 24; this.field.setTime(this.stats.hour); this.weather.update(dt); this.tramp.update(dt); this.coop.update(dt);
     if (this.field.night > 0.5 && Math.random() < dt * 25) { const a = Math.random() * 6.28, r = 3 + Math.random() * 14, c = this.camera.position; const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r; this.fx.glow.emit(x, ground(x, z) + 0.4 + Math.random() * 1.4, z, (Math.random() - 0.5) * 0.3, 0.05, (Math.random() - 0.5) * 0.3, 2.5 + Math.random() * 2, 0.06, 0, -0.02, 0.2, 0.75, 1, 0.35, 1); }
     this.field.followSun(this.camera.position);
     this.field.update(dt, this.camera.position, this.fx);

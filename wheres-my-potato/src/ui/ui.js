@@ -3,9 +3,11 @@ import { settings, QUALITY } from '../core/settings.js';
 import { audio } from '../audio/audio.js';
 import { ITEMS, pick, LINES } from '../world/shop.js';
 import { Book } from './book.js';
-import { fmtMoney, clamp } from '../core/util.js';
+import { fmtMoney, clamp, storage } from '../core/util.js';
+import { COLORS } from '../net/coop.js';
 
 const $ = (s, r = document) => r.querySelector(s);
+const escapeHtml = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // =====================================================================================
 // UI: loading, main menu, HUD, shop, pause / settings / credits panels, toasts, floating
@@ -77,17 +79,34 @@ export class UI {
     const fr = g.machine.fillRatio(g.dyn);
     h.jarFill.style.height = `${clamp(fr, 0, 1) * 100}%`; h.jarCount.textContent = g.stats.jar.toLocaleString('fr-FR'); h.jarGlass.classList.toggle('full', fr >= 0.98);
     // carry
-    const bucket = p.tool === 'bucket', cap = bucket ? p.bucketCap() : p.handCap(), n = bucket ? p.bucket.length : p.hands.length;
-    h.carryIco.textContent = bucket ? '🪣' : '✋'; h.carryTxt.textContent = `${n} / ${cap}`; h.carryFill.style.width = `${cap ? n / cap * 100 : 0}%`; h.carry.classList.toggle('full', n >= cap && cap > 0);
-    h.tools.forEach(t => { t.classList.toggle('on', t.dataset.tool === p.tool); t.classList.toggle('locked', t.dataset.tool === 'bucket' && g.level('bucket') === 0); });
+    const T = p.tool, cap = T === 'bucket' ? p.bucketCap() : T === 'vacuum' ? p.gad.tankCap() : T === 'cannon' ? Math.max(1, p.carried()) : p.handCap();
+    const n = T === 'bucket' ? p.bucket.length : T === 'vacuum' ? p.tank.length : T === 'cannon' ? p.carried() : p.hands.length;
+    h.carryIco.textContent = { hands: '✋', bucket: '🪣', vacuum: '🌀', cannon: '💥' }[T]; h.carryTxt.textContent = `${n} / ${cap}`; h.carryFill.style.width = `${cap ? n / cap * 100 : 0}%`; h.carry.classList.toggle('full', n >= cap && cap > 0);
+    h.tools.forEach(t => { t.classList.toggle('on', t.dataset.tool === p.tool); t.classList.toggle('locked', !p.unlocked(t.dataset.tool)); });
     // prompt + crosshair
     if (p.prompt !== this._lastPrompt) { this._lastPrompt = p.prompt; h.prompt.textContent = p.prompt; h.prompt.classList.toggle('on', !!p.prompt); }
     h.cross.classList.toggle('active', p.hoverId >= 0 || !!p.prompt);
+    // next unlock: potatoes still to harvest before the cheapest upgrade is affordable
+    this._goal(dt);
     // floaters (3D-anchored)
     this._floaters(dt);
     if (settings.v.showFps) h.fps.textContent = `${g.fps.toFixed(0)} ips · ${g.renderScale.toFixed(2)}x · ${g.dyn.live.length}/${g.dyn.settled.length}`; else if (h.fps.textContent) h.fps.textContent = '';
   }
   gain(v) { this.gainAcc += v; }
+  _goal(dt) {
+    this.goalT = (this.goalT || 0) - dt; if (this.goalT > 0) return; this.goalT = 0.25;
+    const g = this.g; let best = null;
+    for (const it of ITEMS) { const nx = it.levels[g.level(it.id) + 1]; if (nx && (!best || nx.price < best.price)) best = { price: nx.price, name: nx.name, icon: it.icon }; }
+    const el = $('.goal'); if (!el) return;
+    if (!best) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    const per = 1.45 * g.mult(); // average francs per potato (variety mix) with current multipliers
+    const left = Math.max(0, Math.ceil((best.price - g.money) / per));
+    const prev = this._goalFrom ?? g.money; if (best.name !== this._goalName) { this._goalName = best.name; this._goalFrom = Math.min(g.money, best.price); }
+    const pct = clamp((g.money - this._goalFrom) / Math.max(1, best.price - this._goalFrom), 0, 1); void prev;
+    $('.goal-txt').innerHTML = left > 0 ? `🥔 Encore <b>${left.toLocaleString('fr-FR')}</b> patates pour débloquer ${best.icon} <b>${best.name}</b>` : `✅ ${best.icon} <b>${best.name}</b> disponible chez Gérard !`;
+    $('.goal-fill').style.width = `${left > 0 ? pct * 100 : 100}%`; el.classList.toggle('ready', left === 0);
+  }
   floater(text, pos, color) {
     if (this.floaters.length > 40) this.floaters.shift().el.remove();
     const el = document.createElement('div'); el.className = 'floater'; el.textContent = text; if (color) el.style.color = color;
@@ -192,4 +211,48 @@ export class UI {
     return `<div class="credits"><b>WHERE'S MY POTATO?</b><br>Un jeu de récolte en plein air.<br><br><b>Code, modèles 3D, shaders, physique</b><br>tout est généré par le code — aucune image ni son externe<br><br><b>Audio</b><br>synthèse WebAudio (pas, verre, moteur, oiseaux, musique Karplus-Strong)<br><br><b>Bibliothèque</b><br>three.js (MIT)<br><b>Polices</b><br>Luckiest Guy, Fredoka, Permanent Marker (OFL)<br><br>Et Gérard, évidemment.</div>`;
   }
   idleLine() { return pick(LINES.idle); }
+
+  // ---------------- multiplayer ----------------
+  players(list, net) {
+    const el = $('.players'); if (!el) return;
+    el.classList.toggle('hidden', !net.active);
+    if (!net.active) return;
+    el.innerHTML = `<div class="pl-code">${net.visibility === 'public' ? '🌍' : '🔒'} <b>${net.room}</b> · ${net.kind === 'local' ? 'même appareil' : 'en ligne'}</div>` +
+      list.map((m, k) => `<div class="pl"><i style="background:${m.color}"></i>${k === 0 ? '👑 ' : ''}${escapeHtml(m.name || 'Joueur')}${m.id === net.id ? ' (toi)' : ''}</div>`).join('');
+  }
+  mpPanel(h) {
+    const prof = storage.get('wmp.profile', { name: 'Récolteur ' + (100 + Math.floor(Math.random() * 900)), color: COLORS[Math.floor(Math.random() * COLORS.length)], kind: 'online' });
+    const body = document.createElement('div'); body.className = 'mp';
+    body.innerHTML = `
+      <div class="set-sec">Ton récolteur</div>
+      <div class="set-row"><label>Nom</label><input class="mp-name" maxlength="16" value="${escapeHtml(prof.name)}"></div>
+      <div class="set-row"><label>Couleur</label><div class="mp-colors">${COLORS.map(c => `<button data-c="${c}" style="background:${c}" class="${c === prof.color ? 'on' : ''}"></button>`).join('')}</div></div>
+      <div class="set-row"><label>Réseau</label><select class="mp-kind"><option value="online">Internet</option><option value="local">Même appareil (onglets)</option></select></div>
+      <div class="set-sec">Créer une session</div>
+      <div class="mp-row"><button class="mp-btn mp-host-pub">🌍 Publique</button><button class="mp-btn mp-host-priv">🔒 Privée (code)</button></div>
+      <div class="set-sec">Rejoindre</div>
+      <div class="mp-row"><input class="mp-code" maxlength="5" placeholder="CODE" autocapitalize="characters"><button class="mp-btn mp-join">Rejoindre</button></div>
+      <div class="set-sec">Sessions publiques</div>
+      <div class="mp-list"><div class="mp-empty">Recherche…</div></div>
+      <div class="mp-status"></div>`;
+    const q = s => body.querySelector(s);
+    q('.mp-kind').value = prof.kind;
+    let color = prof.color;
+    body.querySelectorAll('.mp-colors button').forEach(b => b.onclick = () => { color = b.dataset.c; body.querySelectorAll('.mp-colors button').forEach(x => x.classList.toggle('on', x === b)); audio.ui('click'); });
+    const get = () => { const p = { name: q('.mp-name').value.trim().slice(0, 16) || 'Récolteur', color, kind: q('.mp-kind').value }; storage.set('wmp.profile', p); return p; };
+    const status = (t, bad) => { q('.mp-status').textContent = t; q('.mp-status').classList.toggle('bad', !!bad); };
+    const busy = async (fn) => { body.querySelectorAll('button').forEach(b => (b.disabled = true)); try { await fn(); } finally { body.querySelectorAll('button').forEach(b => (b.disabled = false)); } };
+    q('.mp-host-pub').onclick = () => busy(async () => { status('Création de la session…'); const r = await h.host({ ...get(), visibility: 'public' }); if (!r) status('Connexion impossible au serveur de sessions.', true); });
+    q('.mp-host-priv').onclick = () => busy(async () => { status('Création de la session…'); const r = await h.host({ ...get(), visibility: 'private' }); if (!r) status('Connexion impossible au serveur de sessions.', true); });
+    q('.mp-join').onclick = () => busy(async () => { const code = q('.mp-code').value.trim().toUpperCase(); if (code.length < 4) { status('Entre un code de session.', true); return; } status('Connexion…'); const ok = await h.join(code, get()); if (!ok) status('Session introuvable ou serveur injoignable.', true); });
+    const refresh = () => h.list(q('.mp-kind').value, (rooms, err) => {
+      const L = q('.mp-list'); if (!L) return;
+      if (err || !rooms) { L.innerHTML = '<div class="mp-empty">Liste indisponible (serveur injoignable).</div>'; return; }
+      L.innerHTML = rooms.length ? rooms.map(r => `<button class="mp-room" data-code="${escapeHtml(r.code)}"><b>${escapeHtml(r.host || '?')}</b><span>${r.players || 1}/4 joueurs · ${escapeHtml(r.code)}</span></button>`).join('') : '<div class="mp-empty">Aucune session publique pour le moment.</div>';
+      L.querySelectorAll('.mp-room').forEach(b => b.onclick = () => busy(async () => { status('Connexion…'); const ok = await h.join(b.dataset.code, get()); if (!ok) status('Impossible de rejoindre.', true); }));
+    });
+    q('.mp-kind').onchange = () => { get(); refresh(); };
+    refresh();
+    this.panel('Multijoueur', body, [['Retour', () => { h.stopList(); this.closePanel(); }, true]]);
+  }
 }

@@ -30,7 +30,7 @@ export class DynPotatoes {
     Object.assign(this, {
       vx: f(), vy: f(), vz: f(), wx: f(), wy: f(), wz: f(), t: f(), sleep: f(), aux: f(), age: f(),
       st: new Uint8Array(cap), lslot: new Int32Array(cap).fill(-1), sslot: new Int32Array(cap).fill(-1),
-      f0x: f(), f0y: f(), f0z: f(), fdur: f(), farc: f(), fex: f(), fey: f(), fez: f(), inJar: new Uint8Array(cap), paid: new Uint8Array(cap), vscale: new Float32Array(cap).fill(1),
+      f0x: f(), f0y: f(), f0z: f(), fdur: f(), farc: f(), fex: f(), fey: f(), fez: f(), inJar: new Uint8Array(cap), paid: new Uint8Array(cap), remote: new Uint8Array(cap), vscale: new Float32Array(cap).fill(1),
     });
     this.flyTarget = new Map(); // id -> fn(outVec) for moving targets
     this.flyDone = new Map();   // id -> callback
@@ -52,7 +52,7 @@ export class DynPotatoes {
   alloc() {
     let i = this.freeIds.length ? this.freeIds.pop() : this.db.add();
     if (i < 0) return -1;
-    this.db.qw[i] = 1; this.db.marked[i] = 0; this.inJar[i] = 0; this.age[i] = 0; this.paid[i] = 0; this.vscale[i] = 1;
+    this.db.qw[i] = 1; this.db.marked[i] = 0; this.inJar[i] = 0; this.age[i] = 0; this.paid[i] = 0; this.remote[i] = 0; this.vscale[i] = 1;
     return i;
   }
   // copies traits from another DB (the field) so the potato looks identical
@@ -203,6 +203,12 @@ export class DynPotatoes {
       // ground (terrain)
       const g = W.ground(d.px[i], d.pz[i]);
       if (d.py[i] - r < g) { d.py[i] = g + r; resolve(0, 1, 0, 0.25, 0.35, 0, 0, 0, 'ground'); }
+      // trampoline mat: springy bounce
+      const T = W.tramp;
+      if (T && Math.hypot(d.px[i] - T.x, d.pz[i] - T.z) < T.r - 0.15 && d.py[i] - r < T.h && d.py[i] > T.h - 0.3 && this.vy[i] < 0) {
+        d.py[i] = T.h + r; this.vy[i] = Math.max(-this.vy[i] * 0.85, 2.2); W.onTramp?.(-this.vy[i]);
+        if (this.impactBudget > 1) { this.impactBudget--; this.onImpact(d.px[i], d.py[i], d.pz[i], 3, 'tramp'); }
+      }
       // static boxes (bin walls, belt frame, shop...)
       for (const b of W.boxes) {
         const x = d.px[i], y = d.py[i], z = d.pz[i];

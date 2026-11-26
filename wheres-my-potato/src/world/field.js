@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PotatoDB, PotatoField } from './potatoes.js';
 import { Batcher, boxGeo } from './build.js';
 import { bareTree, fence, lampPost } from './props.js';
-import { rng, fbm2, clamp, smooth, TAU, easeOutBack } from '../core/util.js';
+import { rng, fbm2, clamp, smooth, TAU, easeOutBack, hash32 } from '../core/util.js';
 import { canvasTex, textCanvas } from '../gfx/textures.js';
 
 // =====================================================================================
@@ -50,7 +50,7 @@ export class FieldWorld {
         float fbm(vec2 p){ float s=0.0,a=0.5; for(int i=0;i<5;i++){ s+=a*n(p); p*=2.03; a*=0.5; } return s; }
         void main(){
           vec3 d = normalize(vP); float y = d.y;
-          vec3 zen = mix(vec3(0.01,0.02,0.06), vec3(0.16,0.36,0.72), uDay), hor = mix(vec3(0.05,0.06,0.12), vec3(0.86,0.8,0.68), uDay), gnd = mix(vec3(0.02,0.02,0.03), vec3(0.42,0.4,0.33), uDay);
+          vec3 zen = mix(vec3(0.01,0.02,0.07), vec3(0.06,0.3,0.86), uDay), hor = mix(vec3(0.05,0.06,0.14), vec3(0.62,0.8,0.98), uDay), gnd = mix(vec3(0.02,0.02,0.03), vec3(0.42,0.4,0.33), uDay);
           hor = mix(hor, vec3(1.0,0.48,0.2), uDusk*0.85); zen = mix(zen, vec3(0.32,0.24,0.45), uDusk*0.6);
           vec3 c = mix(hor, zen, pow(clamp(y,0.0,1.0), 0.55));
           c = mix(c, gnd, smoothstep(0.0, -0.08, y));
@@ -79,8 +79,8 @@ export class FieldWorld {
     });
     this.sky = new THREE.Mesh(new THREE.SphereGeometry(450, 48, 24), mat); this.sky.frustumCulled = false; this.sky.renderOrder = -10;
     this.scene.add(this.sky);
-    this.scene.fog = new THREE.Fog(0xcfc7b0, 70, 300);
-    this.scene.background = new THREE.Color(0xcfc7b0);
+    this.scene.fog = new THREE.Fog(0xb4d2f0, 80, 320);
+    this.scene.background = new THREE.Color(0xb4d2f0);
   }
   envFrom(renderer) {
     const pm = new THREE.PMREMGenerator(renderer);
@@ -119,11 +119,11 @@ export class FieldWorld {
     if (elev > -0.05) this.sunDir.set(Math.cos(az) * Math.cos(a) * -0.9, Math.max(0.06, elev), Math.sin(az) * -0.9 - 0.3).normalize();
     else { const m = (h < 6 ? h + 24 : h) - 18; const ma = m / 12 * Math.PI; this.sunDir.set(-Math.cos(ma) * 0.6, Math.max(0.25, Math.sin(ma) * 0.8), 0.55).normalize(); }
     const U = this.sky.material.uniforms; U.uDay.value = day; U.uDusk.value = dusk; U.uSun.value.copy(this.sunDir); U.uMoon.value.copy(this.sunDir);
-    const sunCol = new THREE.Color(0xffe2b8).lerp(new THREE.Color(0xff8a40), dusk * 0.8);
+    const sunCol = new THREE.Color(0xfff0d0).lerp(new THREE.Color(0xff8a40), dusk * 0.8);
     this.sun.color.copy(day > 0.02 ? sunCol : new THREE.Color(0x9ab4ff));
     this.sun.intensity = day > 0.02 ? 3.0 * day * (1 - dusk * 0.35) + 0.05 : 0.35;
     this.hemi.intensity = 0.12 + 0.75 * day; this.hemi.color.setHSL(0.6, 0.5, 0.45 + 0.3 * day);
-    const fog = new THREE.Color(0x0b0d18).lerp(new THREE.Color(0xcfc7b0), day).lerp(new THREE.Color(0xe09060), dusk * 0.45);
+    const fog = new THREE.Color(0x0b0d18).lerp(new THREE.Color(0xb4d2f0), day).lerp(new THREE.Color(0xe09060), dusk * 0.45);
     this.scene.fog.color.copy(fog); this.scene.background.copy(fog);
     this.scene.environmentIntensity = 0.12 + 0.6 * day;
     const night = 1 - day;
@@ -161,7 +161,7 @@ export class FieldWorld {
         float fr = cos(vW.z*6.2831853/${FURROW.toFixed(2)})*0.5+0.5;
         diffuseColor.rgb *= mix(1.0, mix(0.78, 1.12, fr), 1.0-gm);`);
     };
-    const fm = new THREE.Mesh(fg, soil); fm.receiveShadow = true; this.scene.add(fm);
+    const fm = new THREE.Mesh(fg, soil); fm.receiveShadow = true; this.scene.add(fm); this.soilMat = soil;
     // surroundings (grass, coarse)
     const og = new THREE.PlaneGeometry(320, 320, 160, 160); og.rotateX(-Math.PI / 2); og.translate(0, 0, 2);
     this._shape(og, M.grass.userData.tile, 1);
@@ -234,7 +234,7 @@ export class FieldWorld {
   _scenery() {
     const M = this.M, B = new Batcher(), r = rng(this.seed + 9);
     // leafy trees around the farm
-    const leafMats = [0x4f6e2a, 0x5f7d33, 0x3f5d27].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85 }));
+    const leafMats = [0x3f8a22, 0x5aa02c, 0x2f7a2a].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85 }));
     const blob = new THREE.IcosahedronGeometry(1, 1);
     for (let k = 0; k < 46; k++) {
       const a = r() * TAU, d = 44 + r() * 30; const x = Math.cos(a) * d, z = Math.sin(a) * d + 2;
@@ -292,7 +292,7 @@ export class FieldWorld {
     for (let k = 0; k < n; k++) { const i = this.db.add(); this.db.randomTraits(i, r); this._randomSpot(i, r); }
     this.field = new PotatoField(this.scene, this.db, {});
     this.field.build();
-    this.regrow = []; this.growing = [];
+    this.regrow = []; this.growing = []; this.gen = new Uint16Array(this.db.cap);
   }
   _randomSpot(i, r, near) {
     let x, z;
@@ -304,10 +304,10 @@ export class FieldWorld {
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler((r() - 0.5) * 0.5, r() * TAU, (r() - 0.5) * 0.4)); d.setQuat(i, q);
   }
   take(i) { // a field potato was picked: hide it, schedule regrowth
-    this.field.remove(i); this.db.state[i] = 1;
+    if (this.db.state[i] !== 0) return; this.field.remove(i); this.db.state[i] = 1; this.onTake?.(i);
     this.regrow.push({ i, at: this.time + this.regrowDelay() });
   }
-  regrowDelay() { return (14 + this.rand() * 22) * (this.growthMul || 1); }
+  regrowDelay() { return (14 + this.rand() * 22) * (this.growthMul || 1) * (this.rainMul || 1); }
   update(dt, camPos, fx) {
     this.time += dt; if (this.windU) this.windU.value += dt; this.sky.material.uniforms.uTime.value += dt;
     this.sky.position.copy(camPos);
@@ -315,9 +315,11 @@ export class FieldWorld {
     for (let k = this.regrow.length - 1; k >= 0; k--) {
       const g = this.regrow[k]; if (g.at > this.time) continue;
       this.regrow.splice(k, 1);
-      const i = g.i; this.db.randomTraits(i, this.rand);
-      if (this.goldBoost && this.rand() < this.goldBoost) this.db.variety[i] = 5;
-      this._randomSpot(i, this.rand, this.rand() < 0.5 ? { x: this.db.px[i], z: this.db.pz[i] } : null);
+      // deterministic per (potato id, generation): every co-op client regrows the same potato at the same spot
+      const i = g.i; this.gen[i]++; const r = rng(hash32(i * 7919 ^ this.gen[i] * 104729 ^ this.seed));
+      this.db.randomTraits(i, r);
+      if (this.goldBoost && r() < this.goldBoost) this.db.variety[i] = 5;
+      this._randomSpot(i, r, r() < 0.5 ? { x: this.db.px[i], z: this.db.pz[i] } : null);
       this.field.place(i); this.growing.push({ i, t: 0 });
       if (fx && Math.hypot(this.db.px[i] - camPos.x, this.db.pz[i] - camPos.z) < 18) fx.dirt(this.db.px[i], this.db.py[i], this.db.pz[i], 6);
     }

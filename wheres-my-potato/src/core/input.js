@@ -26,6 +26,7 @@ class Input {
   attach(canvas, touchRoot) {
     this.canvas = canvas;
     addEventListener('keydown', e => {
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName)) return; // typing in a form field
       if (this.uiCapture && e.code !== 'Escape') return;
       const a = KEYMAP[e.code];
       if (a) { if (!this.held.has(a)) this._pending.add(a); this.held.add(a); this.mode = 'kbm'; if (a !== 'pause' || this.locked) e.preventDefault(); }

@@ -7,6 +7,8 @@ import { ST } from '../world/dynpotatoes.js';
 import { BIN } from '../world/machine.js';
 import { SHOP, makeBucket, makeGlove } from '../world/shop.js';
 import { audio } from '../audio/audio.js';
+import { Gadgets } from './gadgets.js';
+import { TRAMP } from '../world/weather.js';
 
 // =====================================================================================
 // FIRST-PERSON PLAYER
@@ -16,6 +18,7 @@ import { audio } from '../audio/audio.js';
 // Viewmodel: two arms solved with 2-bone IK toward animated hand targets, gloves,
 // and the bucket hanging from the right hand; carried potatoes sit in the hands/bucket.
 // =====================================================================================
+const TOOLS = ['hands', 'bucket', 'vacuum', 'cannon'];
 const EYE = 1.66, EYE_C = 1.12, R = 0.3, VM_BUCKET = 0.6;
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _ray = new THREE.Ray();
 
@@ -31,11 +34,13 @@ export class Player {
     this.prompt = ''; this.aim = new THREE.Vector3(); this.aimOK = false; this.hoverId = -1;
     this.enabled = false;
     this._viewmodel();
+    this.tank = []; this.gad = new Gadgets(this);
   }
   get up() { return this.g.up; }
   handCap() { return this.g.val('gloves', 'cap'); }
   bucketCap() { return this.g.val('bucket', 'cap'); }
-  carried() { return this.hands.length + this.bucket.length; }
+  carried() { return this.hands.length + this.bucket.length + this.tank.length; }
+  unlocked(t) { return t === 'hands' || this.g.level(t) > 0; }
 
   // ---------------- viewmodel ----------------
   _viewmodel() {
@@ -98,7 +103,10 @@ export class Player {
     if (this.enabled) {
       if (input.pressed('tool1')) this.setTool('hands');
       if (input.pressed('tool2')) this.setTool('bucket');
-      if (input.pressed('toolNext') || input.pressed('toolPrev') || input.consumeWheel()) this.setTool(this.tool === 'hands' ? 'bucket' : 'hands');
+      if (input.pressed('tool3')) this.setTool('vacuum');
+      if (input.pressed('tool4')) this.setTool('cannon');
+      const wh = input.consumeWheel(), dir = input.pressed('toolPrev') ? -1 : (input.pressed('toolNext') || wh) ? (wh < 0 ? -1 : 1) : 0;
+      if (dir) { const T = TOOLS.filter(x => this.unlocked(x)); const k = T.indexOf(this.tool); this.setTool(T[(k + dir + T.length) % T.length]); }
     }
     this._move(dt);
     this._camera(dt, t);
@@ -108,7 +116,7 @@ export class Player {
     this.g.dyn.player = { x: this.pos.x, y: this.pos.y, z: this.pos.z, vx: this.vel.x, vz: this.vel.z };
   }
   setTool(tl) {
-    if (tl === 'bucket' && this.g.level('bucket') === 0) { this.g.ui.toast('Il te faut un seau — va voir Gérard à la boutique !', 'warn'); audio.ui('deny'); return; }
+    if (!this.unlocked(tl)) { this.g.ui.toast({ bucket: 'Il te faut un seau', vacuum: 'Il te faut l’aspirateur', cannon: 'Il te faut le canon à patates' }[tl] + ' — va voir Gérard à la boutique !', 'warn'); audio.ui('deny'); return; }
     if (tl === this.tool) return;
     // swapping keeps the carried potatoes: hands → bucket transfers what fits
     this.tool = tl; this.anim.swap = 1; audio.ui('click');
@@ -156,13 +164,27 @@ export class Player {
     // ground
     let gy = ground(this.pos.x, this.pos.z);
     if (Math.abs(this.pos.x - SHOP.x) < 2.6 && this.pos.z > SHOP.z - 1.1 && this.pos.z < SHOP.z + 2.3) gy = Math.max(gy, 0.14);
+    // trampoline: walk-up blocked from the side, springy on top
+    const td = Math.hypot(this.pos.x - TRAMP.x, this.pos.z - TRAMP.z);
+    if (td < TRAMP.r + R) {
+      if (this.pos.y < TRAMP.h - 0.35) { const k = (TRAMP.r + R) / (td || 1); if (prevY < TRAMP.h - 0.35) { this.pos.x = TRAMP.x + (this.pos.x - TRAMP.x) * k; this.pos.z = TRAMP.z + (this.pos.z - TRAMP.z) * k; } }
+      else if (td < TRAMP.r) {
+        const top = TRAMP.h + g.tramp.dip * 0.6;
+        if (this.pos.y <= top && this.vel.y <= 0) {
+          const v = -this.vel.y, jump = this.enabled && input.down('jump');
+          this.vel.y = Math.max(v * 0.9 + (jump ? 2.6 : 0), jump ? 7.5 : 4.2); this.pos.y = top; this.onGround = false; this.airTime = 0.01;
+          g.tramp.hit(Math.min(8, v + 3)); audio.boing(null, 0.8 + Math.min(0.6, v / 20)); g.fx.dust(this.pos.x, top, this.pos.z, 3, [0.7, 0.8, 1]);
+          if (v > 9) g.shake(0.1);
+        }
+        gy = -99; // handled above
+      }
+    }
     const wasAir = !this.onGround;
     if (this.pos.y <= gy) {
       if (wasAir && this.airTime > 0.25) { const h = clamp(-this.vel.y / 7, 0, 1.5); this.landDip = Math.max(this.landDip, 0.12 * h); audio.land(this.surface(), h); g.fx.dust(this.pos.x, gy, this.pos.z, 8, this.dustCol()); if (h > 0.6) g.shake(0.25 * h); }
       this.pos.y = gy; this.vel.y = 0; this.onGround = true; this.airTime = 0;
     } else if (this.pos.y > gy + 0.06 || this.vel.y > 0) { this.onGround = false; this.airTime += dt; }
     else { this.pos.y = gy; }
-    void prevY;
     // footsteps
     const hs = Math.hypot(this.vel.x, this.vel.z);
     if (this.onGround && hs > 0.4) {
@@ -250,6 +272,11 @@ export class Player {
     if (nearBin) this.prompt = 'Le bac — apporte des patates !';
     // drop / throw everything
     if (input.pressed('drop') && this.carried()) this._throwAll();
+    if (this.tool === 'vacuum' || this.tool === 'cannon') {
+      g.field.field.showHover(-1);
+      if (this.tool === 'vacuum') this.gad.vacuum(dt, use); else this.gad.cannon(dt, use);
+      return;
+    }
     // picking
     const full = this.tool === 'bucket' ? this.bucket.length >= this.bucketCap() : this.hands.length >= this.handCap();
     if (this.tool === 'bucket') {
@@ -307,16 +334,16 @@ export class Player {
     audio.pickup(null, 1.2);
   }
   _dumpOne() {
-    const g = this.g; const from = this.bucket.length ? this.bucket : this.hands; const i = from.pop(); if (i === undefined) return;
+    const g = this.g; const from = this.tank.length ? this.tank : this.bucket.length ? this.bucket : this.hands; const i = from.pop(); if (i === undefined) return;
     const target = new THREE.Vector3(); this.g.machine.binTarget(Math.random, target);
-    g.dyn.vscale[i] = 1;
+    g.dyn.vscale[i] = 1; g.coop?.onDump(i);
     g.dyn.fly(i, target, 0.42 + Math.random() * 0.12, 0.6 + Math.random() * 0.3, id => g.dyn.setFree(id, (Math.random() - 0.5) * 0.6, -2.5, (Math.random() - 0.5) * 0.6));
     if (Math.random() < 0.3) audio.whoosh(null);
     g.stats.dumped++;
   }
   _throwAll() {
     const g = this.g, dir = new THREE.Vector3(); this.cam.getWorldDirection(dir);
-    const all = [...this.hands, ...this.bucket]; this.hands.length = 0; this.bucket.length = 0;
+    const all = [...this.hands, ...this.bucket, ...this.tank]; this.hands.length = 0; this.bucket.length = 0; this.tank.length = 0;
     all.forEach((i, k) => { const s = 3.5 + Math.random() * 2.5; g.dyn.setFree(i, dir.x * s + (Math.random() - 0.5) * 1.5 + this.vel.x, dir.y * s + 2.2 + Math.random(), dir.z * s + (Math.random() - 0.5) * 1.5 + this.vel.z); g.dyn.wx[i] = (Math.random() - 0.5) * 20; g.dyn.wz[i] = (Math.random() - 0.5) * 20; void k; });
     this.anim.throw = 1; audio.whoosh(null); g.stats.thrown = (g.stats.thrown || 0) + all.length;
   }
@@ -340,12 +367,17 @@ export class Player {
     const dyn = this.g.dyn;
     const pose = (list, to) => list.forEach((i, k) => { if (dyn.st[i] === (to === 'bucket' ? ST.BUCKET : ST.HAND)) { this._slotPos(to, k, _v); dyn.setPose(i, _v.x, _v.y, _v.z); } });
     pose(this.hands, 'hands'); pose(this.bucket, 'bucket');
+    this.tank.forEach((i, k) => { if (dyn.st[i] === ST.BUCKET) { this.gad.tankSlot(k, _v); dyn.setPose(i, _v.x, _v.y, _v.z); } });
+    // containers that are put away hide their potatoes
+    const vis = (list, on, s) => list.forEach(i => { if (dyn.st[i] === ST.BUCKET || dyn.st[i] === ST.HAND) dyn.vscale[i] = on ? s : 0.0001; });
+    vis(this.bucket, this.tool === 'bucket', 0.75 * VM_BUCKET); vis(this.tank, this.tool === 'vacuum', 0.32); vis(this.hands, this.tool === 'hands', 0.85);
   }
 
   _animateViewmodel(dt, t) {
     const A = this.anim; for (const k in A) A[k] = Math.max(0, A[k] - dt * (k === 'dump' ? 5 : 3.2));
     const tier = this.tool === 'bucket' ? this.g.level('bucket') : 0;
     this._setBucketModel(tier);
+    if (this.tool !== 'vacuum' && this.tool !== 'cannon') this.gad.animate(dt, this.tool, this.arms);
     const gloves = this.g.level('gloves') > 0; this.arms.forEach(a => { a.glove.visible = gloves; a.bare.visible = !gloves; });
     const hs = Math.hypot(this.vel.x, this.vel.z), walk = clamp(hs / 4, 0, 1.4) * settings.v.headBob;
     const sw = Math.sin(this.stepPhase) * 0.02 * walk, swY = Math.abs(Math.cos(this.stepPhase)) * 0.015 * walk;
@@ -353,7 +385,9 @@ export class Player {
     const swap = Math.sin(A.swap * Math.PI) * 0.25;
     const breathe = Math.sin(t * 1.8) * 0.004;
     const [L, Rt] = this.arms;
-    if (this.tool === 'bucket' && this.bucketObj) {
+    if (this.tool === 'vacuum' || this.tool === 'cannon') {
+      this.gad.animate(dt, this.tool, this.arms, sw, swY, lagX, lagY, swap);
+    } else if (this.tool === 'bucket' && this.bucketObj) {
       const scoop = Math.sin(A.scoop * Math.PI), dump = Math.sin(A.dump * Math.PI);
       const big = this.bucketTier >= 3;
       // right hand holds the handle; scoop = thrust forward & down, dump = raise & tip
@@ -376,6 +410,7 @@ export class Player {
       const cup = this.tool === 'hands' && this.hands.length > 0;
       a.hand.rotation.set(cup ? 0.15 : -0.6, a.side * (cup ? -0.25 : 0.2), a.side * (cup ? 0.35 : 0.1));
       if (this.tool === 'bucket' && a === Rt) a.hand.rotation.set(0.1, 0, Math.PI / 2 * a.side);
+      if (this.tool === 'vacuum' || this.tool === 'cannon') a.hand.rotation.set(a === Rt ? 0.5 : -0.2, 0, a.side * (a === Rt ? 1.4 : 0.4));
     }
   }
 }

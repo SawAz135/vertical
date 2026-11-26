@@ -224,7 +224,7 @@ const BUILDERS = {
       const big = n.fbm(u, v, 4, 4), blade = b.v(u * 128, v * 40), blade2 = b.v(u * 90 + 7, v * 140), dry = clamp((m.fbm(u, v, 3, 4) - 0.5) * 2.5, 0, 1);
       const bl = Math.max(blade, blade2);
       const g = 0.6 + bl * 0.4;
-      o[0] = (0.17 + dry * 0.22 + big * 0.06) * g; o[1] = (0.34 + dry * 0.12 + big * 0.1) * g; o[2] = (0.09 + dry * 0.05) * g;
+      o[0] = (0.14 + dry * 0.16 + big * 0.05) * g; o[1] = (0.42 + dry * 0.1 + big * 0.12) * g; o[2] = (0.07 + dry * 0.04) * g;
       o[3] = bl * 0.8 + big * 0.3; o[4] = 0.9;
     }, 1.6);
   },

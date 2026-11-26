@@ -32,6 +32,7 @@
     <nav class="menu-buttons">
       <button class="mbtn primary" data-act="play"><span class="mb-ico">▶</span><span class="mb-txt">Jouer</span><span class="mb-shine"></span></button>
       <button class="mbtn" data-act="new"><span class="mb-ico">✦</span><span class="mb-txt">Nouvelle partie</span><span class="mb-shine"></span></button>
+      <button class="mbtn" data-act="mp"><span class="mb-ico">👥</span><span class="mb-txt">Multijoueur</span><span class="mb-shine"></span></button>
       <button class="mbtn" data-act="book"><span class="mb-ico">📖</span><span class="mb-txt">Tutoriel</span><span class="mb-shine"></span></button>
       <button class="mbtn" data-act="ach"><span class="mb-ico">🏆</span><span class="mb-txt">Succès</span><span class="mb-shine"></span></button>
       <button class="mbtn" data-act="settings"><span class="mb-ico">⚙</span><span class="mb-txt">Réglages</span><span class="mb-shine"></span></button>
@@ -60,13 +61,15 @@
 <div id="hud" class="hidden">
   <div class="money"><div class="coin3d"><div class="coin-face">₣</div></div><div class="money-val">0</div><div class="money-gain"></div></div>
   <div class="jar-meter"><div class="jm-label">BOCAL</div><div class="jm-glass"><div class="jm-fill"></div><div class="jm-marks"></div></div><div class="jm-count">0</div></div>
+  <div class="goal"><div class="goal-txt"></div><div class="goal-bar"><div class="goal-fill"></div></div></div>
   <div class="cross"><i></i><i></i><i></i><i></i></div>
   <div class="prompt"></div>
   <div class="carry"><div class="carry-ico">✋</div><div class="carry-bar"><div class="carry-fill"></div></div><div class="carry-txt">0 / 3</div></div>
-  <div class="tools"><div class="tool" data-tool="hands"><b>1</b>✋<span>Mains</span></div><div class="tool" data-tool="bucket"><b>2</b>🪣<span>Seau</span></div></div>
+  <div class="tools"><div class="tool" data-tool="hands"><b>1</b>✋<span>Mains</span></div><div class="tool" data-tool="bucket"><b>2</b>🪣<span>Seau</span></div><div class="tool" data-tool="vacuum"><b>3</b>🌀<span>Aspirateur</span></div><div class="tool" data-tool="cannon"><b>4</b>💥<span>Canon</span></div></div>
   <div class="toasts"></div>
   <div class="bubble"><div class="bubble-name">Gérard</div><div class="bubble-txt"></div></div>
   <div class="banner"><div class="banner-in"><div class="banner-k"></div><div class="banner-t"></div></div></div>
+  <div class="players hidden"></div>
   <div class="fps"></div>
   <div class="floaters"></div>
   <button class="hud-pause" aria-label="Pause">❚❚</button>
