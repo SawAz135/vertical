@@ -568,6 +568,208 @@ local function fishOfRarity(r: string): string?
 	return nil
 end
 
+local function invBox(parent, x, y, w, h, col, tr, r, stroke)
+	local f = new("Frame", { BackgroundColor3 = col, BackgroundTransparency = tr or 0, BorderSizePixel = 0,
+		Size = UDim2.fromOffset(w, h), Position = UDim2.fromOffset(x, y), ZIndex = parent.ZIndex }, parent)
+	if r then new("UICorner", { CornerRadius = if r < 0 then UDim.new(1, 0) else UDim.new(0, r) }, f) end
+	if stroke then new("UIStroke", { Thickness = stroke, Color = RGB(17, 17, 20), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, f) end
+	return f
+end
+local function invIcon(parent, img, x, y, s, tr, rot)
+	return new("ImageLabel", { BackgroundTransparency = 1, Image = img, ImageTransparency = tr, Size = UDim2.fromOffset(s, s),
+		Position = UDim2.fromOffset(x, y), Rotation = rot or 0, ZIndex = parent.ZIndex }, parent)
+end
+local function invPine(parent, x, base, s, dark)
+	local g1, g2, g3 = RGB(30, 130, 48), RGB(44, 160, 58), RGB(70, 190, 70)
+	if dark then g1, g2, g3 = RGB(14, 90, 34), RGB(22, 118, 42), RGB(34, 140, 52) end
+	invBox(parent, x - 4 * s, base - 10 * s, 8 * s, 10 * s, RGB(110, 70, 34), 0, 1, 1.5)
+	invBox(parent, x - 23 * s, base - 22 * s, 46 * s, 12 * s, g1, 0, 2, 1.5)
+	invBox(parent, x - 17 * s, base - 34 * s, 34 * s, 12 * s, g2, 0, 2, 1.5)
+	invBox(parent, x - 11 * s, base - 46 * s, 22 * s, 12 * s, g3, 0, 2, 1.5)
+end
+local function invWeed(parent, x, base, n, col)
+	for k = 0, n - 1 do invBox(parent, x + (k % 2) * 4, base - (k + 1) * 11, 9, 13, col or RGB(47, 180, 58), 0, 4, 1.5) end
+end
+local invWhite = Color3.new(1, 1, 1)
+local PINE = {
+	near = { RGB(110, 70, 34), RGB(30, 130, 48), RGB(44, 160, 58), RGB(70, 190, 70), RGB(150, 235, 110) },
+	mid = { RGB(80, 52, 30), RGB(18, 92, 40), RGB(26, 116, 48), RGB(38, 138, 58), RGB(60, 160, 70) },
+	far = { RGB(60, 60, 90), RGB(40, 74, 100), RGB(46, 86, 112), RGB(54, 98, 124), RGB(70, 114, 138) },
+}
+local function invPine2(parent, x, base, s, pal, outline)
+	local st = if outline then 1.5 else nil
+	invBox(parent, x - 3.5 * s, base - 9 * s, 7 * s, 9 * s, pal[1], 0, 1, st)
+	invBox(parent, x - 21 * s, base - 21 * s, 42 * s, 12 * s, pal[2], 0, 2, st)
+	invBox(parent, x - 16 * s, base - 32 * s, 32 * s, 12 * s, pal[3], 0, 2, st)
+	invBox(parent, x - 10 * s, base - 43 * s, 20 * s, 12 * s, pal[4], 0, 2, st)
+	invBox(parent, x - 4 * s, base - 50 * s, 8 * s, 8 * s, pal[5], 0, 2, st)
+end
+local function invMountain(parent, cx, base, w, h, col, snow)
+	local n = 6
+	for k = 0, n - 1 do
+		local ww = w * (1 - k / n)
+		local c = col:Lerp(invWhite, k * 0.04)
+		if snow and k >= n - 2 then c = RGB(240, 246, 255) end
+		invBox(parent, cx - ww / 2, base - (k + 1) * h / n, ww, h / n + 1, c, 0, 1)
+	end
+end
+local function invCloud(parent, x, y, s)
+	invBox(parent, x, y + 10 * s, 60 * s, 14 * s, invWhite, 0.55, 7 * s)
+	invBox(parent, x + 10 * s, y, 28 * s, 16 * s, invWhite, 0.55, 8 * s)
+	invBox(parent, x + 30 * s, y + 4 * s, 22 * s, 14 * s, invWhite, 0.55, 7 * s)
+end
+local function invBird(parent, x, y, s)
+	local a = invBox(parent, x, y, 9 * s, 2 * s, RGB(20, 24, 40), 0, 1)
+	a.Rotation = 25
+	local b = invBox(parent, x + 8 * s, y, 9 * s, 2 * s, RGB(20, 24, 40), 0, 1)
+	b.Rotation = -25
+end
+local function invFire(parent, x, base)
+	invBox(parent, x - 34, base - 52, 68, 68, RGB(255, 160, 60), 0.86, -1)
+	local l1 = invBox(parent, x - 16, base - 6, 32, 7, RGB(110, 70, 34), 0, 2, 1.5)
+	l1.Rotation = 8
+	local l2 = invBox(parent, x - 16, base - 6, 32, 7, RGB(90, 56, 28), 0, 2, 1.5)
+	l2.Rotation = -8
+	for _, f in { { 16, 12, RGB(235, 70, 30) }, { 11, 9, RGB(255, 150, 30) }, { 6, 7, RGB(255, 230, 90) } } do
+		local d = invBox(parent, x - f[1] / 2, base - 8 - f[2] - f[1] / 2, f[1], f[1], f[3], 0, 3, if f[1] == 16 then 1.5 else nil)
+		d.Rotation = 45
+	end
+end
+local function invShroom(parent, x, base, s)
+	invBox(parent, x - 3 * s, base - 8 * s, 6 * s, 8 * s, RGB(240, 226, 200), 0, 1, 1.5)
+	invBox(parent, x - 8 * s, base - 16 * s, 16 * s, 9 * s, RGB(220, 50, 50), 0, 6 * s, 1.5)
+	invBox(parent, x - 4 * s, base - 14 * s, 3 * s, 3 * s, invWhite, 0, -1)
+	invBox(parent, x + 2 * s, base - 13 * s, 3 * s, 3 * s, invWhite, 0, -1)
+end
+local function invFlower(parent, x, base, col)
+	invBox(parent, x - 1, base - 10, 2, 10, RGB(30, 130, 48), 0)
+	for _, o in { { -4, -14 }, { 2, -14 }, { -1, -17 }, { -1, -11 } } do invBox(parent, x + o[1] - 1.5, base + o[2], 5, 5, col, 0, -1) end
+	invBox(parent, x - 2, base - 15, 4, 4, RGB(255, 220, 60), 0, -1)
+end
+local function invHoney(parent, x, base)
+	invBox(parent, x - 12, base - 22, 24, 22, RGB(150, 92, 40), 0, 8, 1.5)
+	invBox(parent, x - 14, base - 28, 28, 9, RGB(255, 200, 50), 0, 4, 1.5)
+	invBox(parent, x - 5, base - 20, 6, 12, RGB(255, 200, 50), 0, 3)
+	invBox(parent, x - 8, base - 12, 16, 8, RGB(255, 235, 150), 0, 3)
+end
+local function invRock(parent, x, base, s)
+	invBox(parent, x, base - 10 * s, 22 * s, 10 * s, RGB(150, 150, 160), 0, 4, 1.5)
+	invBox(parent, x + 4 * s, base - 8 * s, 8 * s, 3 * s, RGB(200, 200, 210), 0, 1)
+end
+
+-- ZONE ART: a little studded landscape of a zone, drawn with blocks (sky, far mountains,
+-- ground, the zone's own trees / water / rocks / snow...). Used on the Index section card.
+local ZONE_SKY = {
+	forest = { RGB(110, 200, 255), RGB(200, 240, 255) }, pine = { RGB(96, 176, 236), RGB(196, 232, 250) },
+	lake = { RGB(100, 190, 255), RGB(214, 240, 255) }, snow = { RGB(150, 190, 230), RGB(226, 238, 250) },
+	ice = { RGB(140, 200, 240), RGB(230, 246, 255) }, bamboo = { RGB(150, 220, 200), RGB(230, 250, 220) },
+	river = { RGB(110, 196, 255), RGB(210, 240, 255) }, rocky = { RGB(150, 170, 200), RGB(236, 220, 200) },
+	deep = { RGB(40, 70, 70), RGB(90, 130, 100) }, beach = { RGB(70, 190, 255), RGB(255, 236, 190) },
+	special = { RGB(50, 30, 90), RGB(140, 80, 200) },
+}
+local function zoneArt(parent, theme: string, W: number, H: number)
+	local sky = new("Frame", { Name = "Art", BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromOffset(W, H), ZIndex = parent.ZIndex + 1, ClipsDescendants = true }, parent)
+	Sim.gradient(sky, ZONE_SKY[theme] or ZONE_SKY.forest, 90)
+	local gY = H - 46 -- the ground line
+	local function ground(col, col2)
+		invBox(sky, 0, gY, W, H - gY, col, 0)
+		invBox(sky, 0, gY, W, 6, col2 or col:Lerp(Color3.new(1, 1, 1), 0.2), 0)
+	end
+	local function water(y, h, col)
+		invBox(sky, 0, y, W, h, col, 0)
+		for k = 0, 3 do invBox(sky, 8 + k * 38, y + 4 + (k % 2) * 6, 18, 3, Color3.new(1, 1, 1), 0.4, 1) end
+	end
+	if theme == "special" then
+		for k = 1, 14 do invBox(sky, (k * 37) % W, (k * 53) % (gY - 20), 3, 3, Color3.new(1, 1, 1), 0.2, -1) end
+		invMountain(sky, W * 0.5, gY, W * 1.2, 70, RGB(90, 50, 140))
+		ground(RGB(70, 40, 110))
+		return sky
+	end
+	invCloud(sky, 10, 14, 0.7)
+	invCloud(sky, W - 60, 34, 0.55)
+	if theme == "beach" then
+		invBox(sky, W - 46, 10, 30, 30, RGB(255, 220, 80), 0, -1, 2) -- the sun (flat, outlined)
+		water(gY - 22, 24, RGB(40, 170, 230))
+		ground(RGB(240, 210, 140), RGB(255, 236, 180))
+		-- a palm: tilted trunk + leaves
+		local trunk = invBox(sky, 34, gY - 70, 9, 74, RGB(140, 96, 50), 0, 2, 1.5)
+		trunk.Rotation = 8
+		for k, a in { -40, -10, 25, 55 } do
+			local leaf = invBox(sky, 18 + k * 4, gY - 78, 40, 10, RGB(60, 180, 70), 0, 5, 1.5)
+			leaf.Rotation = a
+		end
+		invBox(sky, 96, gY + 10, 16, 10, RGB(240, 120, 90), 0, 4, 1.5) -- a shell / crab
+		return sky
+	end
+	if theme == "lake" or theme == "rocky" or theme == "snow" or theme == "ice" then
+		invMountain(sky, W * 0.3, gY, W * 0.9, 90, if theme == "rocky" then RGB(150, 110, 80) else RGB(110, 130, 160), theme ~= "rocky")
+		invMountain(sky, W * 0.85, gY, W * 0.8, 70, if theme == "rocky" then RGB(170, 130, 90) else RGB(130, 150, 180), theme ~= "rocky")
+	else
+		invMountain(sky, W * 0.7, gY, W * 1.1, 55, RGB(120, 170, 140))
+	end
+	if theme == "forest" then
+		ground(RGB(70, 170, 60))
+		invPine(sky, 30, gY + 4, 0.9)
+		invPine(sky, W - 28, gY + 4, 1.1)
+		invFlower(sky, 70, gY + 18, RGB(255, 120, 160))
+		invFlower(sky, 92, gY + 26, RGB(255, 230, 90))
+		invShroom(sky, 56, gY + 34, 1)
+	elseif theme == "pine" then
+		ground(RGB(50, 140, 60))
+		invPine2(sky, 22, gY + 6, 0.9, PINE.mid, true)
+		invPine2(sky, 66, gY + 2, 1.15, PINE.near, true)
+		invPine2(sky, W - 24, gY + 8, 1.0, PINE.near, true)
+	elseif theme == "lake" then
+		water(gY - 8, 30, RGB(60, 150, 230))
+		ground(RGB(70, 160, 70))
+		invPine(sky, 24, gY + 10, 0.8)
+		invRock(sky, W - 46, gY + 30, 1.2)
+	elseif theme == "snow" then
+		ground(RGB(236, 244, 255), Color3.new(1, 1, 1))
+		local white = { RGB(110, 70, 34), RGB(220, 236, 246), RGB(30, 110, 60), RGB(240, 248, 255), RGB(255, 255, 255) }
+		invPine2(sky, 30, gY + 6, 1.0, white, true)
+		invPine2(sky, W - 34, gY + 4, 1.15, white, true)
+		for k = 1, 10 do invBox(sky, (k * 31) % W, (k * 41) % gY, 4, 4, Color3.new(1, 1, 1), 0.1, -1) end
+	elseif theme == "ice" then
+		ground(RGB(190, 230, 250), RGB(230, 248, 255))
+		for k, x in { 20, 70, 112 } do
+			invBox(sky, x, gY - 14 - k * 4, 26, 26 + k * 4, RGB(150, 220, 250), 0.1, 3, 1.5)
+		end
+	elseif theme == "bamboo" then
+		ground(RGB(120, 200, 90))
+		for k, x in { 16, 40, 98, 124 } do
+			local h = 120 + (k % 2) * 30
+			for seg = 0, 5 do
+				invBox(sky, x, gY - h + seg * (h / 6), 9, h / 6 - 2, RGB(110, 190, 70):Lerp(RGB(60, 140, 50), seg / 6), 0, 2, 1.2)
+			end
+			local leaf = invBox(sky, x + 6, gY - h + 10, 22, 6, RGB(90, 200, 80), 0, 3, 1.2)
+			leaf.Rotation = -25
+		end
+	elseif theme == "river" then
+		ground(RGB(80, 170, 70))
+		local river = invBox(sky, 40, gY, 60, H - gY, RGB(60, 160, 235), 0)
+		local _ = river
+		invRock(sky, 14, gY + 24, 1)
+		invRock(sky, 108, gY + 30, 1.1)
+		invPine(sky, W - 26, gY + 6, 0.8)
+	elseif theme == "rocky" then
+		ground(RGB(170, 140, 100))
+		invRock(sky, 16, gY + 18, 1.6)
+		invRock(sky, 84, gY + 28, 1.3)
+		invRock(sky, 50, gY + 40, 1)
+	elseif theme == "deep" then
+		ground(RGB(40, 90, 50))
+		invPine2(sky, 24, gY + 6, 1.1, PINE.mid, true)
+		invPine2(sky, W - 26, gY + 4, 1.2, PINE.mid, true)
+		invShroom(sky, 62, gY + 30, 1.4)
+		invShroom(sky, 90, gY + 36, 1)
+	else
+		ground(RGB(70, 170, 60))
+		invPine(sky, 40, gY + 4, 1)
+	end
+	return sky
+end
+
 local indexPage = {} -- [cat .. variant] = section page shown
 local function buildIndex()
 	--[[ INDEX (one section per page, like a collector's book):
@@ -666,14 +868,27 @@ local function buildIndex()
 		local card = Sim.panel(w.content, { Size = UDim2.fromOffset(150, 330), Position = UDim2.fromOffset(16, 18), Gradient = { col:Lerp(Color3.new(1, 1, 1), 0.25), col:Lerp(Color3.new(0, 0, 0), 0.4) },
 			Stroke = 3, ZIndex = 4, Clip = true })
 		Sim.bands(card, 0.55, 4)
-		Sim.text(card, s.title, { Size = UDim2.fromOffset(136, 62), Position = UDim2.fromOffset(75, 40), Max = 28, Wrap = true, Stroke = 3.5, ZIndex = 7 })
-		-- a creature of the section stands on the card (the first one found, else its shadow)
+		-- "ZONE 1" small on top, the zone's name big under it (fish pages: the rarity name)
+		local top, name = string.match(s.title, "^(.-) · (.+)$")
+		if top then
+			Sim.text(card, top, { Size = UDim2.fromOffset(130, 20), Position = UDim2.fromOffset(75, 16), Max = 18, Stroke = 2.5, ZIndex = 9, Color = RGB(255, 236, 150) })
+		end
+		Sim.text(card, name or s.title, { Size = UDim2.fromOffset(140, 46), Position = UDim2.fromOffset(75, if top then 48 else 38), Max = 24, Wrap = true, Stroke = 3.5, ZIndex = 9 })
+		-- a ZONE section shows the zone's own landscape; the fish (by rarity) show a creature
+		local zoneN = tonumber(string.match(s.key, ":[AB](%d+)$") or "")
+		local isSpecial = string.match(s.key, "Special$") ~= nil
+		if zoneN or isSpecial then
+			local zc = zoneN and ZoneConfig.get(zoneN)
+			local art = zoneArt(card, if isSpecial then "special" else (zc and zc.theme or "forest"), 150, 220)
+			art.Position = UDim2.fromOffset(0, 74)
+			Sim.stroke(art, 2)
+		end
 		local heroId, heroFound = s.ids[1], false
 		for _, id in s.ids do
 			if IndexConfig.found(index, indexCat, id, indexVar) then heroId, heroFound = id, true break end
 		end
 		local stage = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(150, 170), Position = UDim2.fromOffset(0, 84), ZIndex = 5 }, card)
-		if heroId then
+		if heroId and not (zoneN or isSpecial) then
 			Sim.model(stage, { kind = if isFish then "Fish" else "Bear", id = heroId, variant = if indexVar and heroFound then indexVar else nil, silhouette = not heroFound,
 				size = UDim2.fromScale(1.1, 1.1), zindex = 6 })
 		end
@@ -1026,94 +1241,6 @@ end
 -- Bears tab = collection cards (Pick Up / Place / Sell), Fish tab = fish bag cards (Hold)
 ------------------------------------------------------------------------------------------
 -- Inventory skin: lake decor (Fish tab) / pine-forest decor (Bears tab), built from studded blocks
-local function invBox(parent, x, y, w, h, col, tr, r, stroke)
-	local f = new("Frame", { BackgroundColor3 = col, BackgroundTransparency = tr or 0, BorderSizePixel = 0,
-		Size = UDim2.fromOffset(w, h), Position = UDim2.fromOffset(x, y), ZIndex = parent.ZIndex }, parent)
-	if r then new("UICorner", { CornerRadius = if r < 0 then UDim.new(1, 0) else UDim.new(0, r) }, f) end
-	if stroke then new("UIStroke", { Thickness = stroke, Color = RGB(17, 17, 20), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, f) end
-	return f
-end
-local function invIcon(parent, img, x, y, s, tr, rot)
-	return new("ImageLabel", { BackgroundTransparency = 1, Image = img, ImageTransparency = tr, Size = UDim2.fromOffset(s, s),
-		Position = UDim2.fromOffset(x, y), Rotation = rot or 0, ZIndex = parent.ZIndex }, parent)
-end
-local function invPine(parent, x, base, s, dark)
-	local g1, g2, g3 = RGB(30, 130, 48), RGB(44, 160, 58), RGB(70, 190, 70)
-	if dark then g1, g2, g3 = RGB(14, 90, 34), RGB(22, 118, 42), RGB(34, 140, 52) end
-	invBox(parent, x - 4 * s, base - 10 * s, 8 * s, 10 * s, RGB(110, 70, 34), 0, 1, 1.5)
-	invBox(parent, x - 23 * s, base - 22 * s, 46 * s, 12 * s, g1, 0, 2, 1.5)
-	invBox(parent, x - 17 * s, base - 34 * s, 34 * s, 12 * s, g2, 0, 2, 1.5)
-	invBox(parent, x - 11 * s, base - 46 * s, 22 * s, 12 * s, g3, 0, 2, 1.5)
-end
-local function invWeed(parent, x, base, n, col)
-	for k = 0, n - 1 do invBox(parent, x + (k % 2) * 4, base - (k + 1) * 11, 9, 13, col or RGB(47, 180, 58), 0, 4, 1.5) end
-end
-local invWhite = Color3.new(1, 1, 1)
-local PINE = {
-	near = { RGB(110, 70, 34), RGB(30, 130, 48), RGB(44, 160, 58), RGB(70, 190, 70), RGB(150, 235, 110) },
-	mid = { RGB(80, 52, 30), RGB(18, 92, 40), RGB(26, 116, 48), RGB(38, 138, 58), RGB(60, 160, 70) },
-	far = { RGB(60, 60, 90), RGB(40, 74, 100), RGB(46, 86, 112), RGB(54, 98, 124), RGB(70, 114, 138) },
-}
-local function invPine2(parent, x, base, s, pal, outline)
-	local st = if outline then 1.5 else nil
-	invBox(parent, x - 3.5 * s, base - 9 * s, 7 * s, 9 * s, pal[1], 0, 1, st)
-	invBox(parent, x - 21 * s, base - 21 * s, 42 * s, 12 * s, pal[2], 0, 2, st)
-	invBox(parent, x - 16 * s, base - 32 * s, 32 * s, 12 * s, pal[3], 0, 2, st)
-	invBox(parent, x - 10 * s, base - 43 * s, 20 * s, 12 * s, pal[4], 0, 2, st)
-	invBox(parent, x - 4 * s, base - 50 * s, 8 * s, 8 * s, pal[5], 0, 2, st)
-end
-local function invMountain(parent, cx, base, w, h, col, snow)
-	local n = 6
-	for k = 0, n - 1 do
-		local ww = w * (1 - k / n)
-		local c = col:Lerp(invWhite, k * 0.04)
-		if snow and k >= n - 2 then c = RGB(240, 246, 255) end
-		invBox(parent, cx - ww / 2, base - (k + 1) * h / n, ww, h / n + 1, c, 0, 1)
-	end
-end
-local function invCloud(parent, x, y, s)
-	invBox(parent, x, y + 10 * s, 60 * s, 14 * s, invWhite, 0.55, 7 * s)
-	invBox(parent, x + 10 * s, y, 28 * s, 16 * s, invWhite, 0.55, 8 * s)
-	invBox(parent, x + 30 * s, y + 4 * s, 22 * s, 14 * s, invWhite, 0.55, 7 * s)
-end
-local function invBird(parent, x, y, s)
-	local a = invBox(parent, x, y, 9 * s, 2 * s, RGB(20, 24, 40), 0, 1)
-	a.Rotation = 25
-	local b = invBox(parent, x + 8 * s, y, 9 * s, 2 * s, RGB(20, 24, 40), 0, 1)
-	b.Rotation = -25
-end
-local function invFire(parent, x, base)
-	invBox(parent, x - 34, base - 52, 68, 68, RGB(255, 160, 60), 0.86, -1)
-	local l1 = invBox(parent, x - 16, base - 6, 32, 7, RGB(110, 70, 34), 0, 2, 1.5)
-	l1.Rotation = 8
-	local l2 = invBox(parent, x - 16, base - 6, 32, 7, RGB(90, 56, 28), 0, 2, 1.5)
-	l2.Rotation = -8
-	for _, f in { { 16, 12, RGB(235, 70, 30) }, { 11, 9, RGB(255, 150, 30) }, { 6, 7, RGB(255, 230, 90) } } do
-		local d = invBox(parent, x - f[1] / 2, base - 8 - f[2] - f[1] / 2, f[1], f[1], f[3], 0, 3, if f[1] == 16 then 1.5 else nil)
-		d.Rotation = 45
-	end
-end
-local function invShroom(parent, x, base, s)
-	invBox(parent, x - 3 * s, base - 8 * s, 6 * s, 8 * s, RGB(240, 226, 200), 0, 1, 1.5)
-	invBox(parent, x - 8 * s, base - 16 * s, 16 * s, 9 * s, RGB(220, 50, 50), 0, 6 * s, 1.5)
-	invBox(parent, x - 4 * s, base - 14 * s, 3 * s, 3 * s, invWhite, 0, -1)
-	invBox(parent, x + 2 * s, base - 13 * s, 3 * s, 3 * s, invWhite, 0, -1)
-end
-local function invFlower(parent, x, base, col)
-	invBox(parent, x - 1, base - 10, 2, 10, RGB(30, 130, 48), 0)
-	for _, o in { { -4, -14 }, { 2, -14 }, { -1, -17 }, { -1, -11 } } do invBox(parent, x + o[1] - 1.5, base + o[2], 5, 5, col, 0, -1) end
-	invBox(parent, x - 2, base - 15, 4, 4, RGB(255, 220, 60), 0, -1)
-end
-local function invHoney(parent, x, base)
-	invBox(parent, x - 12, base - 22, 24, 22, RGB(150, 92, 40), 0, 8, 1.5)
-	invBox(parent, x - 14, base - 28, 28, 9, RGB(255, 200, 50), 0, 4, 1.5)
-	invBox(parent, x - 5, base - 20, 6, 12, RGB(255, 200, 50), 0, 3)
-	invBox(parent, x - 8, base - 12, 16, 8, RGB(255, 235, 150), 0, 3)
-end
-local function invRock(parent, x, base, s)
-	invBox(parent, x, base - 10 * s, 22 * s, 10 * s, RGB(150, 150, 160), 0, 4, 1.5)
-	invBox(parent, x + 4 * s, base - 8 * s, 8 * s, 3 * s, RGB(200, 200, 210), 0, 1)
-end
 local function skinBears(bodyB, hdrB, bw, bh, HH)
 	-- twilight sky
 	local sky = invBox(bodyB, 0, 0, bw, bh, invWhite)
