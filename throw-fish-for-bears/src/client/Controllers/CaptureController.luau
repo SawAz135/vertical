@@ -551,6 +551,25 @@ local function pickSide(at: Vector3, dist: number, height: number): Vector3
 	return Vector3.new(0, 0, 1)
 end
 
+-- the real FLOOR height under a point: the first big flat solid surface going down
+-- (flowers, grass tufts, small rocks are skipped). nil = nothing found.
+local function floorAt(x: number, z: number, fromY: number): number?
+	local map = workspace:FindFirstChild("Map")
+	if not map then return nil end
+	camParams.FilterDescendantsInstances = { map }
+	local y = fromY
+	for _ = 1, 8 do
+		local hit = workspace:Raycast(Vector3.new(x, y, z), Vector3.new(0, -60, 0), camParams)
+		if not hit then return nil end
+		local part = hit.Instance
+		if hit.Normal.Y > 0.7 and part:IsA("BasePart") and part.Transparency < 0.5 and part.Size.X >= 4 and part.Size.Z >= 4 then
+			return hit.Position.Y
+		end
+		y = hit.Position.Y - 0.05
+	end
+	return nil
+end
+
 -- THE REVEAL ----------------------------------------------------------------------------
 local function cleanup(rs, instant: boolean?)
 	if rs.done then return end
@@ -691,6 +710,12 @@ local function startReveal(d)
 		Cine.skipButton(function() Net.event("SkipCapture"):FireServer() end)
 	end
 	local ground = d.landing
+	-- stand on the REAL floor (zone plates / tiles sit a little above the corridor level):
+	-- the shapes' feet touch it and the camera knows where the ground really is
+	do
+		local fy = floorAt(ground.X, ground.Z, ground.Y + 6)
+		if fy and math.abs(fy - ground.Y) < 5 then ground = Vector3.new(ground.X, fy, ground.Z) end
+	end
 
 	-- 1) the FISH (the very fish that was thrown; rebuilt if it is not there any more)
 	local fish = Fx.folder:FindFirstChild("TFBLandedFish") :: Model?
@@ -1008,18 +1033,31 @@ local function startReveal(d)
 		local look = ground + Vector3.new(0, lookY, 0)
 		-- a wall (or anything solid left) between the creature and the lens: the camera comes
 		-- in front of it
+		-- (the ray starts from the creature's middle, ABOVE the floor: the look point itself can
+		-- sit below the ground for long flat animals, and a ray from there hit the underside
+		-- of the floor and dragged the camera under the ground)
 		local map = workspace:FindFirstChild("Map")
+		local mid = ground + Vector3.new(0, math.max(hh * 0.5, 1.2), 0)
 		if map then
 			camParams.FilterDescendantsInstances = { map }
-			local hit = workspace:Raycast(look, pos - look, camParams)
-			if hit and hit.Instance.LocalTransparencyModifier < 0.5 and hit.Instance.Transparency < 0.5 then
-				pos = hit.Position - (pos - look).Unit * 1.2
+			local hit = workspace:Raycast(mid, pos - mid, camParams)
+			if hit and hit.Normal.Y < 0.7 and hit.Instance.LocalTransparencyModifier < 0.5 and hit.Instance.Transparency < 0.5 then
+				pos = hit.Position - (pos - mid).Unit * 1.2
 			end
 		end
 		camShake = math.max(0, camShake - (dt or 0.016) * 4)
 		if camShake > 0 then
 			pos += Vector3.new(math.noise(t * 30, 1) * camShake * 0.25, math.noise(t * 30, 2) * camShake * 0.25, 0)
 		end
+		-- NEVER under the ground: the lens stays at least 1 stud above the floor right under
+		-- it (checked every few frames: the floor is flat, but slopes / plates can differ)
+		rs.camFloorAt = rs.camFloorAt or 0
+		if os.clock() - rs.camFloorAt > 0.25 or not rs.camFloor then
+			rs.camFloorAt = os.clock()
+			rs.camFloor = floorAt(pos.X, pos.Z, math.max(pos.Y, ground.Y) + 8) or ground.Y
+		end
+		local minY = math.max(rs.camFloor, ground.Y) + 1
+		if pos.Y < minY then pos = Vector3.new(pos.X, minY, pos.Z) end
 		-- the scenery behind melts into a soft blur, the creature stays sharp (cinema look)
 		local subjectSize = math.max(hh, if t >= T_RESULT then finalW * 0.6 else 1)
 		Cine.dof((pos - look).Magnitude, if t < T_SPIN then 0.25 else 0.42, math.max(4, subjectSize * 0.9))
