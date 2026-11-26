@@ -40,7 +40,7 @@ export const ITEMS = [
   ] },
   { id: 'cannon', icon: '💥', name: 'Canon à patates', levels: [
     { name: 'Aucun', price: 0, power: 0, rate: 0, desc: 'Pas de canon.' },
-    { name: 'Canon à patates', price: 750, power: 13, rate: 5, desc: 'Tire tes patates jusqu’au bac depuis le champ. Outil 4. La trajectoire devient verte quand ça rentre !' },
+    { name: 'Canon à patates', price: 750, power: 13, rate: 5, desc: 'Tire tes patates jusqu’au bac depuis les dunes. Outil 4. La trajectoire devient verte quand ça rentre !' },
     { name: 'Double canon', price: 2700, power: 17, rate: 9, desc: 'Deux patates par tir, plus loin, plus vite.' },
   ] },
   { id: 'boots', icon: '🥾', name: 'Bottes', levels: [

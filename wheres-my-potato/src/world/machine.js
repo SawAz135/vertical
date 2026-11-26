@@ -23,7 +23,7 @@ const P0 = new THREE.Vector3(BIN.x + BIN.w / 2 + 0.3, 1.02, BIN.z);
 const H0 = new THREE.Vector3(Math.cos(TH0) * RH, Y0, Math.sin(TH0) * RH);
 const H1 = new THREE.Vector3(Math.cos(TH0) * RH, Y1, Math.sin(TH0) * RH);
 const C1 = new THREE.Vector3(JAR.x, Y1 - 0.5, JAR.z - 1.5);
-const SPIRAL_BOOST = 4; // the spiral runs faster than the ramp
+const SPIRAL_BOOST = 7; // the spiral runs faster than the ramp
 
 export class Machine {
   constructor(scene, M, world) {

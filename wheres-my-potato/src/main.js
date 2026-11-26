@@ -298,7 +298,7 @@ class Game {
       const first = !this.hasSave && this.stats.picked === 0;
       this._save();
       setTimeout(() => {
-        if (first) { this.say('Bienvenue ! Ramasse les patates du champ et verse-les dans le bac, là-bas. Le livre du menu explique tout !', 'wave', true); this.ui.toast('🥔 Ramasse des patates dans le champ !'); }
+        if (first) { this.say('Bienvenue ! Ramasse les patates du désert et verse-les dans le bac, au pied du bocal. Le livre du menu explique tout !', 'wave', true); this.ui.toast('🥔 Ramasse des patates dans le désert !'); }
         else this.say('greet', 'wave');
         this.lastGreet = this.t;
       }, 700);
