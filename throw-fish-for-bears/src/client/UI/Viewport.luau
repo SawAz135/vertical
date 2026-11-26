@@ -9,6 +9,7 @@ local BearBuilder = require(Shared.Models.BearBuilder)
 local RodBuilder = require(Shared.Models.RodBuilder)
 local DumbbellBuilder = require(Shared.Models.DumbbellBuilder)
 local PotionBuilder = require(Shared.Models.PotionBuilder)
+local Backdrop = require(Shared.Models.Backdrop)
 local Animator = require(script.Parent.Parent.Controllers.AnimalAnimator)
 
 local Viewport = {}
@@ -58,6 +59,8 @@ function Viewport.create(parent: GuiObject, opts)
 			m = PotionBuilder.build(opts.id)
 		elseif opts.kind == "Pass" then
 			m = PotionBuilder.pass(opts.id)
+		elseif opts.kind == "Zone" then
+			m = Backdrop.diorama(opts.id, opts.seed or 7)
 		else
 			m = RodBuilder.build(opts.id)
 		end

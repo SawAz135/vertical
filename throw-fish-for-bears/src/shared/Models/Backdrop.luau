@@ -218,6 +218,79 @@ end
 -- builds the backdrop of one zone on one side
 --   side = -1 (left wall) / 1 (right wall); wallX = |x| of the wall's outer face
 -- clampStart: nothing may stick out in front of zA (the corridor entrance: shop / sell area)
+--[[ DIORAMA: a small postcard of a zone for the Index (shown in a ViewportFrame):
+     a studded ground plate in the zone's colours (earth sides, grass / snow / sand top),
+     a stepped rock wall behind, the zone's own trees in a little grove (front ones
+     smaller), and its signature details: water for lakes / rivers / the beach, ice blocks,
+     boulders, flowers, mushrooms. ~20 x 14 studs, built around the origin, faces -Z. ]]
+function Backdrop.diorama(theme: string, seed: number?): Model
+	local T = THEMES[theme] or THEMES.forest
+	local r = Random.new(seed or 7)
+	local m = Instance.new("Model")
+	m.Name = "Diorama_" .. theme
+	local W, D = 22, 14
+	local top = T.cap
+	local earth = if T.snow then C(150, 160, 176) elseif theme == "beach" then C(214, 180, 120) else EARTH
+	local base = Studs.static(m, "Base", V3(W, 3, D), CF(0, -1.5, 0), earth, { raw = true })
+	Studs.static(m, "Top", V3(W, 0.8, D), CF(0, 0.4, 0), if theme == "beach" then C(236, 212, 150) else top, { raw = true })
+	m.PrimaryPart = base
+	local floor = 0.8
+	-- the rock wall at the back (2-3 steps, theme rock colours, capped)
+	local x = -W / 2
+	while x < W / 2 do
+		local w = 3 + r:NextNumber() * 3
+		local h = 4 + r:NextNumber() * 5
+		local rc = T.rock[r:NextInteger(1, #T.rock)]
+		Studs.static(m, "Rock", V3(w, h, 3.5), CF(x + w / 2, floor + h / 2, D / 2 - 1.75) * ANG(0, (r:NextNumber() - 0.5) * 0.15, 0), vary(r, rc, 0.15), { raw = true })
+		Studs.static(m, "RockCap", V3(w * 0.9, 0.6, 3.2), CF(x + w / 2, floor + h + 0.3, D / 2 - 1.75), if T.snow then C(244, 248, 255) else top, { raw = true })
+		x += w - 0.3
+	end
+	-- water / ice details
+	if theme == "lake" or theme == "river" or theme == "beach" or theme == "ice" then
+		local wc = if theme == "ice" then C(176, 222, 246) else C(60, 156, 224)
+		local wz = if theme == "river" then 0 else -D / 2 + 2.2
+		local ww = if theme == "river" then 4 else W
+		local water = Studs.static(m, "Water", if theme == "river" then V3(ww, 0.3, D) else V3(ww, 0.3, 4.4), CF(0, floor + 0.05, if theme == "river" then 0 else wz), wc,
+			{ raw = true, smooth = theme ~= "ice", transparency = if theme == "ice" then 0 else 0.15 })
+		water.Rotation = Vector3.new(0, if theme == "river" then 25 else 0, 0)
+	end
+	-- the grove: 3 trees at the back, 2 smaller in front, kinds picked like on the cliffs
+	local spots = { { -7, 3, 1 }, { 0, 4, 1.15 }, { 7, 2.5, 1 }, { -4, -1, 0.7 }, { 5, -2, 0.75 } }
+	for _, sp in spots do
+		local kind = pick(r, T.trees)
+		local fn = TREE[kind] or TREE.broad
+		fn(m, V3(sp[1] + (r:NextNumber() - 0.5) * 1.5, floor, sp[2]), sp[3] * 0.85, r)
+	end
+	-- signature details
+	for _ = 1, 3 do -- boulders
+		local s = 0.8 + r:NextNumber() * 1.2
+		Studs.static(m, "Boulder", V3(1.6 * s, 1.1 * s, 1.4 * s), CF((r:NextNumber() - 0.5) * (W - 3), floor + 0.5 * s, -D / 2 + 1.5 + r:NextNumber() * 3) * ANG(0, r:NextNumber() * 3, 0),
+			vary(r, T.rock[1], 0.15), { raw = true })
+	end
+	if theme == "ice" then
+		for k = 1, 4 do
+			local h = 1.5 + r:NextNumber() * 3
+			Studs.static(m, "Ice", V3(1.4, h, 1.4), CF(-8 + k * 3.6, floor + h / 2, -3 + (k % 2) * 2) * ANG(0, r:NextNumber(), 0.1), C(190, 232, 252), { raw = true, transparency = 0.15 })
+		end
+	elseif not T.snow and theme ~= "beach" and theme ~= "rocky" then
+		for _ = 1, 6 do -- flowers
+			local fc = ({ C(255, 110, 150), C(255, 220, 70), C(160, 120, 255), C(255, 255, 255) })[r:NextInteger(1, 4)]
+			local at = V3((r:NextNumber() - 0.5) * (W - 3), floor, -D / 2 + 1 + r:NextNumber() * 5)
+			Studs.static(m, "Stem", V3(0.2, 0.9, 0.2), CF(at + V3(0, 0.45, 0)), C(50, 130, 50), { raw = true, smooth = true })
+			Studs.static(m, "Flower", V3(0.7, 0.3, 0.7), CF(at + V3(0, 1, 0)), fc, { raw = true })
+		end
+	end
+	if T.snow then
+		for _ = 1, 8 do
+			Studs.static(m, "SnowPile", V3(1.2 + r:NextNumber(), 0.35, 1.2 + r:NextNumber()), CF((r:NextNumber() - 0.5) * (W - 2), floor + 0.17, (r:NextNumber() - 0.5) * (D - 2)), C(250, 252, 255), { raw = true })
+		end
+	end
+	for _, d in m:GetDescendants() do
+		if d:IsA("BasePart") then d.Anchored = true d.CanCollide = false d.CastShadow = false end
+	end
+	return m
+end
+
 function Backdrop.build(parent: Instance, theme: string, zA: number, zB: number, side: number, wallX: number, seed: number, wallH: number, clampStart: boolean?)
 	local T = table.clone(THEMES[theme] or THEMES.forest)
 	T.moss = MOSSY[theme] == true

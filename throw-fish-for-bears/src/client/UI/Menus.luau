@@ -900,7 +900,22 @@ local function buildIndex()
 			local isSpecial = string.match(sec.key, "Special$") ~= nil
 			if zoneN or isSpecial then
 				local zc = zoneN and ZoneConfig.get(zoneN)
-				zoneArt(card, if isSpecial then "special" else (zc and zc.theme or "forest"), CARD_W, blockH)
+				-- the landscape fills the visible part of the card (2 rows high); a long zone
+				-- continues below in the zone's colour
+				local artH = math.min(blockH, 2 * TILE_H + GAP + 40)
+				local theme = if isSpecial then "special" else (zc and zc.theme or "forest")
+				card.BackgroundColor3 = col:Lerp(Color3.new(0, 0, 0), 0.35)
+				Sim.studs(card, { dark = true, tile = 22, transparency = 0.6, z = 5 })
+				-- the zone's sky, then a real 3D studded DIORAMA of the zone turning slowly on it
+				-- (its own trees, rocks, water, snow, ice... built like the corridor decor)
+				local sky = new("Frame", { Name = "Sky", BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromOffset(CARD_W, artH), ZIndex = 5 }, card)
+				Sim.gradient(sky, ZONE_SKY[theme] or ZONE_SKY.forest, 90)
+				if theme == "special" then
+					zoneArt(card, "special", CARD_W, artH)
+				else
+					Sim.model(sky, { kind = "Zone", id = theme, spin = true, spinSpeed = 0.22, yaw = math.rad(-25), pitch = math.rad(26), zoom = 0.62,
+						size = UDim2.fromOffset(CARD_W + 40, artH - 40), position = UDim2.new(0.5, 0, 0, 52 + (artH - 40) / 2), zindex = 6 })
+				end
 			else
 				-- fish pages: the rarity colours + the first fish of the page in 3D
 				Sim.gradient(card, Sim.RARITY_CARD[sec.rarity or "Common"] or { col, col }, 90)
