@@ -62,7 +62,7 @@ class Game {
     try { await Promise.race([Promise.all(['230px Marker', '52px Fred', '40px Luck'].map(f => document.fonts.load(f))), new Promise(r => setTimeout(r, 2500))]); } catch { /* fonts optional */ }
     this.ui.progress(0.08, 'Peinture des textures…'); await tick();
     this.M = createMaterials(isTouch() ? 256 : 512);
-    this.ui.progress(0.2, 'Labourage du champ…'); await tick();
+    this.ui.progress(0.2, 'Formation des dunes de patates…'); await tick();
     this.field = new FieldWorld(this.scene, this.M, q);
     this.ui.progress(0.55, 'Montage du convoyeur et du bocal…'); await tick();
     this.fx = new FX(this.scene, ground);
