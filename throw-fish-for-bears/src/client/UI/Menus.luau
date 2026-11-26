@@ -770,7 +770,6 @@ local function zoneArt(parent, theme: string, W: number, H: number)
 	return sky
 end
 
-local indexPage = {} -- [cat .. variant] = section page shown
 local function buildIndex()
 	--[[ INDEX (one section per page, like a collector's book):
 	     inside  : LEFT the section card (name, its colours, a 3D creature, ◀ page ▶) ·
@@ -826,7 +825,7 @@ local function buildIndex()
 		varTabs[v] = b
 	end
 
-	local TILE_W, TILE_H, GAP = 118, 130, 8
+	local TILE_W, TILE_H, GAP = 118, 120, 8
 	renderers.Index = function(animate)
 		clear(w.content)
 		-- selected tabs slide out a little and get a white outline
@@ -849,107 +848,9 @@ local function buildIndex()
 		local sections = IndexConfig.sections(indexCat, indexVar)
 		local pendKey = if indexCat == "Animals" then "Bears" else indexCat
 		if #sections == 0 then return end
-		local pageKey = indexCat .. (indexVar or "")
-		local page = math.clamp(indexPage[pageKey] or 1, 1, #sections)
-		indexPage[pageKey] = page
-		local s = sections[page]
-		local n, total = IndexConfig.progress(index, s)
-		local done = n >= total
-		local claimed = claims[s.key] == true
-		local col = s.color or RGB(120, 120, 130)
-
-		-- the dark "book" plate behind the page
-		local plate = new("Frame", { BackgroundColor3 = RGB(34, 36, 44), BorderSizePixel = 0, Size = UDim2.fromOffset(662, 346), Position = UDim2.fromOffset(8, 10), ZIndex = 3 }, w.content)
-		Sim.corner(plate, 6)
-		Sim.stroke(plate, 3)
-		Sim.studs(plate, { dark = true, tile = 26, transparency = 0.6, z = 3 })
-
-		-- 1 · LEFT: the section card
-		local card = Sim.panel(w.content, { Size = UDim2.fromOffset(150, 330), Position = UDim2.fromOffset(16, 18), Gradient = { col:Lerp(Color3.new(1, 1, 1), 0.25), col:Lerp(Color3.new(0, 0, 0), 0.4) },
-			Stroke = 3, ZIndex = 4, Clip = true })
-		Sim.bands(card, 0.55, 4)
-		-- "ZONE 1" small on top, the zone's name big under it (fish pages: the rarity name)
-		local top, name = string.match(s.title, "^(.-) · (.+)$")
-		if top then
-			Sim.text(card, top, { Size = UDim2.fromOffset(130, 20), Position = UDim2.fromOffset(75, 16), Max = 18, Stroke = 2.5, ZIndex = 9, Color = RGB(255, 236, 150) })
-		end
-		Sim.text(card, name or s.title, { Size = UDim2.fromOffset(140, 46), Position = UDim2.fromOffset(75, if top then 48 else 38), Max = 24, Wrap = true, Stroke = 3.5, ZIndex = 9 })
-		-- a ZONE section shows the zone's own landscape; the fish (by rarity) show a creature
-		local zoneN = tonumber(string.match(s.key, ":[AB](%d+)$") or "")
-		local isSpecial = string.match(s.key, "Special$") ~= nil
-		if zoneN or isSpecial then
-			local zc = zoneN and ZoneConfig.get(zoneN)
-			local art = zoneArt(card, if isSpecial then "special" else (zc and zc.theme or "forest"), 150, 220)
-			art.Position = UDim2.fromOffset(0, 74)
-			Sim.stroke(art, 2)
-		end
-		local heroId, heroFound = s.ids[1], false
-		for _, id in s.ids do
-			if IndexConfig.found(index, indexCat, id, indexVar) then heroId, heroFound = id, true break end
-		end
-		local stage = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(150, 170), Position = UDim2.fromOffset(0, 84), ZIndex = 5 }, card)
-		if heroId and not (zoneN or isSpecial) then
-			Sim.model(stage, { kind = if isFish then "Fish" else "Bear", id = heroId, variant = if indexVar and heroFound then indexVar else nil, silhouette = not heroFound,
-				size = UDim2.fromScale(1.1, 1.1), zindex = 6 })
-		end
-		-- page arrows + "3 / 10"
-		local function turn(dir)
-			indexPage[pageKey] = (page - 1 + dir) % #sections + 1
-			indexSel = nil
-			renderers.Index(true)
-		end
-		Sim.button(card, { Name = "Prev", Grad = "yellow", Size = Vector2.new(44, 40), Position = UDim2.fromOffset(28, 300), Text = "<", Max = 26, ZIndex = 8 }, function() turn(-1) end)
-		Sim.button(card, { Name = "Next", Grad = "yellow", Size = Vector2.new(44, 40), Position = UDim2.fromOffset(122, 300), Text = ">", Max = 26, ZIndex = 8 }, function() turn(1) end)
-		Sim.text(card, ("%d/%d"):format(page, #sections), { Size = UDim2.fromOffset(50, 24), Position = UDim2.fromOffset(75, 300), Max = 20, Stroke = 2.5, ZIndex = 8 })
-
-		-- 2 · the tiles (4 per row, scrolls when the section has more than 8)
-		local grid = new("ScrollingFrame", { Name = "Grid", BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromOffset(4 * TILE_W + 3 * GAP + 14, 2 * TILE_H + GAP),
-			Position = UDim2.fromOffset(176, 18), ZIndex = 4, ScrollBarThickness = 8, ScrollBarImageColor3 = RGB(230, 230, 230), ScrollingDirection = Enum.ScrollingDirection.Y,
-			CanvasSize = UDim2.fromOffset(0, math.ceil(#s.ids / 4) * (TILE_H + GAP) - GAP) }, w.content)
-		local firstId = nil
-		for ti, id in s.ids do
-			firstId = firstId or id
-			local entry = book[id]
-			local found = IndexConfig.found(index, indexCat, id, indexVar)
-			local spec = if isFish then FishConfig.get(id) else BearConfig.get(id)
-			local rar = if isFish then spec.rarity else (spec.fixedRarity or bestRarity(entry) or nil)
-			local pair
-			if rar then
-				pair = Sim.RARITY_CARD[rar] or Sim.RARITY_CARD.Common
-			else
-				pair = { col:Lerp(Color3.new(1, 1, 1), 0.15), col:Lerp(Color3.new(0, 0, 0), 0.35) }
-			end
-			if not found then pair = { pair[1]:Lerp(RGB(20, 20, 26), 0.25), pair[2]:Lerp(RGB(20, 20, 26), 0.35) } end
-			local sel = indexSel == id or (indexSel == nil and ti == 1)
-			local tile = new("ImageButton", { Name = id, AutoButtonColor = false, Image = "", BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 5,
-				Size = UDim2.fromOffset(TILE_W, TILE_H), Position = UDim2.fromOffset(((ti - 1) % 4) * (TILE_W + GAP) + TILE_W / 2, ((ti - 1) // 4) * (TILE_H + GAP) + TILE_H / 2),
-				AnchorPoint = Vector2.new(0.5, 0.5), ClipsDescendants = true }, grid)
-			local tg = Sim.gradient(tile, pair, 90)
-			if found and rar and RarityConfig.get(rar).rainbow then rainbowGrads[tg] = true end
-			Sim.corner(tile, 4)
-			Sim.stroke(tile, if sel then 4 else 3, if sel then Color3.new(1, 1, 1) elseif indexVar and found then VAR_LOOK[indexVar][2] else nil)
-			Sim.studs(tile, { tile = 20, transparency = 0.75, z = 5 })
-			Sim.text(tile, if found or entry then spec.name else "???", { Size = UDim2.new(1, -8, 0, 22), Position = UDim2.new(0.5, 0, 0, 15), Max = 18, Stroke = 2.5, ZIndex = 10 })
-			Sim.model(tile, { kind = if isFish then "Fish" else "Bear", id = id, variant = if indexVar and found then indexVar else nil, silhouette = not found,
-				size = UDim2.fromScale(1.05, 0.92), position = UDim2.new(0.5, 0, 0.58, 0) })
-			if found and rar and RarityConfig.index(rar) >= 5 then K.shine(tile, 3.5) end
-			new("UIScale", { Name = "ButtonScale" }, tile)
-			Motion.BindButton(tile, 1.06, Sim.sounds, function()
-				indexSel = id
-				renderers.Index(false)
-			end)
-			if sel and indexSel == id then
-				local sc = tile:FindFirstChild("ButtonScale")
-				if sc then
-					sc.Scale = 1.12
-					game:GetService("TweenService"):Create(sc, TweenInfo.new(0.35, Enum.EasingStyle.Back), { Scale = 1 }):Play()
-				end
-			end
-		end
-
-		-- 3 · the section bar "4/8"
-		local function bigBar(x, y, wd, ht, frac, text, pair, icon)
-			local b = new("Frame", { BackgroundColor3 = RGB(24, 24, 28), BorderSizePixel = 0, Size = UDim2.fromOffset(wd, ht), Position = UDim2.fromOffset(x, y), ZIndex = 5, ClipsDescendants = true }, w.content)
+		-- big bars ("4/8", "Unlocked: 104/134"): dark track, studded green fill, big outlined text
+		local function bigBar(parent, x, y, wd, ht, frac, text, pair, icon)
+			local b = new("Frame", { BackgroundColor3 = RGB(24, 24, 28), BorderSizePixel = 0, Size = UDim2.fromOffset(wd, ht), Position = UDim2.fromOffset(x, y), ZIndex = 5, ClipsDescendants = true }, parent)
 			Sim.corner(b, 4)
 			Sim.stroke(b, 3)
 			local f = new("Frame", { BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.fromScale(if animate then 0 else frac, 1), ZIndex = 6 }, b)
@@ -958,14 +859,117 @@ local function buildIndex()
 			if animate then
 				game:GetService("TweenService"):Create(f, TweenInfo.new(0.8, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Size = UDim2.fromScale(frac, 1) }):Play()
 			end
-			Sim.text(b, text, { Size = UDim2.new(1, -20, 0.8, 0), Max = math.floor(ht * 0.7), Stroke = 3.5, ZIndex = 8 })
+			Sim.text(b, text, { Size = UDim2.new(1, -20, 0.8, 0), Max = math.floor(ht * 0.72), Stroke = 3.5, ZIndex = 8 })
 			if icon then
 				new("ImageLabel", { BackgroundTransparency = 1, Image = icon, ScaleType = Enum.ScaleType.Fit, Size = UDim2.fromOffset(ht + 14, ht + 14),
-					Position = UDim2.fromOffset(x - 6, y + ht / 2), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = -12, ZIndex = 9 }, w.content)
+					Position = UDim2.fromOffset(x - 6, y + ht / 2), AnchorPoint = Vector2.new(0.5, 0.5), Rotation = -12, ZIndex = 9 }, parent)
 			end
 			return b
 		end
-		bigBar(176, 300, 4 * TILE_W + 3 * GAP, 48, n / math.max(1, total), ("%d/%d"):format(n, total), if done then Sim.G.green else Sim.G.green)
+		-- bright tile colours (like a collector's book): a found creature shows its real rarity,
+		-- the others take the colour of their place in the zone (first = common ... last = mythic)
+		local LADDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
+
+		-- the dark book plate + the scrolling list of ZONE BLOCKS
+		-- (each block: the zone card with its landscape | 4 tiles per row | the zone bar "4/8")
+		local LW = 676
+		local plate = new("Frame", { BackgroundColor3 = RGB(34, 36, 44), BorderSizePixel = 0, Size = UDim2.fromOffset(LW, 350), Position = UDim2.fromOffset(4, 8), ZIndex = 3 }, w.content)
+		Sim.corner(plate, 6)
+		Sim.stroke(plate, 3)
+		Sim.studs(plate, { dark = true, tile = 26, transparency = 0.6, z = 3 })
+		local list = new("ScrollingFrame", { Name = "Zones", BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromOffset(LW - 8, 338), Position = UDim2.fromOffset(8, 14),
+			ZIndex = 4, ScrollBarThickness = 8, ScrollBarImageColor3 = RGB(230, 230, 230), ScrollingDirection = Enum.ScrollingDirection.Y }, w.content)
+		local scrollKey = indexCat .. (indexVar or "")
+		local CARD_W, GX = 150, 158
+		local y = 0
+		local firstId, selSection, firstSection = nil, nil, nil
+		local selIsRod = type(indexSel) == "string" and string.sub(indexSel, 1, 4) == "rod:"
+		for si, sec in sections do
+			local rows = math.max(1, math.ceil(#sec.ids / 4))
+			local gridH = rows * (TILE_H + GAP) - GAP
+			local blockH = gridH + GAP + 46
+			firstSection = firstSection or sec
+			local col = sec.color or RGB(120, 120, 130)
+			local sn, stotal = IndexConfig.progress(index, sec)
+			-- the zone card: its landscape fills the whole card, the name big on top of it
+			local card = new("Frame", { Name = "Card" .. si, BackgroundColor3 = col, BorderSizePixel = 0, Size = UDim2.fromOffset(CARD_W, blockH), Position = UDim2.fromOffset(0, y),
+				ZIndex = 5, ClipsDescendants = true }, list)
+			Sim.corner(card, 4)
+			Sim.stroke(card, 3)
+			local zoneN = tonumber(string.match(sec.key, ":[AB](%d+)$") or "")
+			local isSpecial = string.match(sec.key, "Special$") ~= nil
+			if zoneN or isSpecial then
+				local zc = zoneN and ZoneConfig.get(zoneN)
+				zoneArt(card, if isSpecial then "special" else (zc and zc.theme or "forest"), CARD_W, blockH)
+			else
+				-- fish pages: the rarity colours + the first fish of the page in 3D
+				Sim.gradient(card, Sim.RARITY_CARD[sec.rarity or "Common"] or { col, col }, 90)
+				Sim.studs(card, { tile = 22, transparency = 0.7, z = 5 })
+				local heroId, heroFound = sec.ids[1], false
+				for _, id in sec.ids do
+					if IndexConfig.found(index, indexCat, id, indexVar) then heroId, heroFound = id, true break end
+				end
+				local stage = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(CARD_W, blockH - 60), Position = UDim2.fromOffset(0, 56), ZIndex = 6 }, card)
+				if heroId then
+					Sim.model(stage, { kind = "Fish", id = heroId, variant = if indexVar and heroFound then indexVar else nil, silhouette = not heroFound, size = UDim2.fromScale(1.1, 1.1), zindex = 7 })
+				end
+			end
+			local top, name = string.match(sec.title, "^(.-) · (.+)$")
+			local nameText = string.gsub(name or sec.title, " FISH$", "")
+			Sim.text(card, nameText, { Size = UDim2.fromOffset(CARD_W - 10, 54), Position = UDim2.fromOffset(CARD_W / 2, 34), Max = 30, Wrap = true, Stroke = 4, ZIndex = 9 })
+			if top then
+				Sim.text(card, top, { Size = UDim2.fromOffset(CARD_W - 20, 18), Position = UDim2.fromOffset(CARD_W / 2, 70), Max = 16, Stroke = 2.5, ZIndex = 9, Color = RGB(255, 236, 150) })
+			end
+			-- the tiles
+			for ti, id in sec.ids do
+				firstId = firstId or id
+				if indexSel == id then selSection = sec end
+				local entry = book[id]
+				local found = IndexConfig.found(index, indexCat, id, indexVar)
+				local spec = if isFish then FishConfig.get(id) else BearConfig.get(id)
+				local rar = if isFish then spec.rarity else (spec.fixedRarity or bestRarity(entry) or LADDER[math.clamp(math.floor((ti - 1) / math.max(1, #sec.ids) * #LADDER) + 1, 1, #LADDER)])
+				local pair = Sim.RARITY_CARD[rar] or Sim.RARITY_CARD.Common
+				local sel = indexSel == id or (indexSel == nil and si == 1 and ti == 1)
+				local tile = new("ImageButton", { Name = id, AutoButtonColor = false, Image = "", BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 5,
+					Size = UDim2.fromOffset(TILE_W, TILE_H), Position = UDim2.fromOffset(GX + ((ti - 1) % 4) * (TILE_W + GAP) + TILE_W / 2, y + ((ti - 1) // 4) * (TILE_H + GAP) + TILE_H / 2),
+					AnchorPoint = Vector2.new(0.5, 0.5), ClipsDescendants = true }, list)
+				local tg = Sim.gradient(tile, pair, 90)
+				if RarityConfig.get(rar).rainbow then rainbowGrads[tg] = true end
+				Sim.corner(tile, 4)
+				Sim.stroke(tile, if sel then 4 else 3, if sel then Color3.new(1, 1, 1) elseif indexVar and found then VAR_LOOK[indexVar][2] else nil)
+				Sim.studs(tile, { tile = 20, transparency = 0.72, z = 5 })
+				Sim.text(tile, if found or entry then spec.name else "???", { Size = UDim2.new(1, -8, 0, 22), Position = UDim2.new(0.5, 0, 0, 15), Max = 18, Stroke = 2.5, ZIndex = 10 })
+				Sim.model(tile, { kind = if isFish then "Fish" else "Bear", id = id, variant = if indexVar and found then indexVar else nil, silhouette = not found,
+					size = UDim2.fromScale(1.05, 0.92), position = UDim2.new(0.5, 0, 0.58, 0) })
+				if found and RarityConfig.index(rar) >= 5 then K.shine(tile, 3.5) end
+				new("UIScale", { Name = "ButtonScale" }, tile)
+				Motion.BindButton(tile, 1.06, Sim.sounds, function()
+					indexSel = id
+					renderers.Index(false)
+				end)
+				if indexSel == id then
+					local sc = tile:FindFirstChild("ButtonScale")
+					if sc then
+						sc.Scale = 1.12
+						game:GetService("TweenService"):Create(sc, TweenInfo.new(0.35, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+					end
+				end
+			end
+			-- the zone bar "4/8" under its tiles
+			bigBar(list, GX, y + gridH + GAP, 4 * TILE_W + 3 * GAP, 46, sn / math.max(1, stotal), ("%d/%d"):format(sn, stotal), if sn >= stotal then Sim.G.green else Sim.G.green)
+			if selIsRod and sec.reward and sec.reward.rod and indexSel == "rod:" .. sec.reward.rod then selSection = sec end
+			y += blockH + 16
+		end
+		list.CanvasSize = UDim2.fromOffset(0, y)
+		if indexScroll[scrollKey] then
+			task.defer(function() if list.Parent then list.CanvasPosition = indexScroll[scrollKey] end end)
+		end
+		list:GetPropertyChangedSignal("CanvasPosition"):Connect(function() indexScroll[scrollKey] = list.CanvasPosition end)
+		-- the zone shown on the right (rewards) = the zone of the selected creature
+		local s = selSection or firstSection
+		local n, total = IndexConfig.progress(index, s)
+		local done = n >= total
+		local claimed = claims[s.key] == true
 		-- 4 · the total bar "Unlocked: 104/134" (+ collect the discovery money)
 		local all, got = 0, 0
 		for _, sec in sections do
@@ -974,7 +978,7 @@ local function buildIndex()
 			all += b
 		end
 		local accent = if indexVar then VAR_LOOK[indexVar] else Sim.G.blue
-		bigBar(38, 372, 470, 56, got / math.max(1, all), ("Unlocked: %d/%d"):format(got, all), accent, K.Icons.Index)
+		bigBar(w.content, 38, 372, 470, 56, got / math.max(1, all), ("Unlocked: %d/%d"):format(got, all), accent, K.Icons.Index)
 		local pending = d.indexPending and d.indexPending[pendKey] or 0
 		local claim = Sim.button(w.content, { Grad = if pending > 0 then "green" else "grey", Size = Vector2.new(152, 56), Position = UDim2.fromOffset(594, 400),
 			Text = if pending > 0 then Format.money(pending) else "COLLECTED", Max = 22, Icon = K.Icons.Cash, IconSize = 0.8, ZIndex = 6 }, function()
@@ -983,7 +987,7 @@ local function buildIndex()
 		if pending > 0 then K.shine(claim, 1.6) end
 
 		-- 5 · RIGHT: the selected creature (or the section's exclusive rod)
-		local CX = 680
+		local CX = 686
 		local sel = indexSel or firstId
 		local info = Sim.panel(w.content, { Size = UDim2.fromOffset(264, 232), Position = UDim2.fromOffset(CX, 10), Color = RGB(44, 46, 54), DarkStuds = true, Stroke = 3, ZIndex = 4, Clip = true })
 		local rodSel = if type(sel) == "string" and string.sub(sel, 1, 4) == "rod:" then string.sub(sel, 5) else nil
@@ -1068,8 +1072,7 @@ local function buildIndex()
 		if done and not claimed then K.shine(cb, 1.3) end
 
 		if animate then
-			K.cascade(grid, 0.04)
-			Motion.PopIn(card, 0.35)
+			Motion.PopIn(plate, 0.3)
 		end
 	end
 
