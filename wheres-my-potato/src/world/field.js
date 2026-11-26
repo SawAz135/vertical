@@ -208,7 +208,7 @@ export class FieldWorld {
       this.field.place(i); this.growing.push({ i, t: 0 });
       if (fx && Math.hypot(this.db.px[i] - camPos.x, this.db.pz[i] - camPos.z) < 18) fx.dirt(this.db.px[i], this.db.py[i], this.db.pz[i], 6);
     }
-    const m = new THREE.Matrix4(), sv = new THREE.Vector3();
+    const m = _gm, sv = _gv;
     for (let k = this.growing.length - 1; k >= 0; k--) {
       const g = this.growing[k]; g.t += dt;
       if (this.db.state[g.i] !== 0) { this.growing.splice(k, 1); continue; }
@@ -219,3 +219,5 @@ export class FieldWorld {
     this.field.update(camPos, this.q, dt);
   }
 }
+
+const _gm = new THREE.Matrix4(), _gv = new THREE.Vector3();

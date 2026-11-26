@@ -9,7 +9,7 @@ import { clamp } from '../core/util.js';
 // GADGETS: the potato VACUUM (cone suction, visible glass tank, vortex) and the potato
 // CANNON (real ballistic shots, live trajectory preview that turns green on the bin).
 // =====================================================================================
-const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _d = new THREE.Vector3();
+const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _d = new THREE.Vector3(), _F = new THREE.Vector3(), _MZ = new THREE.Vector3(), _VEL = new THREE.Vector3(), _PP = new THREE.Vector3(), _VV = new THREE.Vector3(), _MT = new THREE.Matrix4();
 
 export function makeVacuum(M) {
   const g = new THREE.Group();
@@ -124,9 +124,9 @@ export class Gadgets {
     const ammo = P.tank.length + P.bucket.length + P.hands.length;
     const power = g.val('cannon', 'power'), rate = g.val('cannon', 'rate');
     // live trajectory preview
-    const fwd = P.cam.getWorldDirection(_d).clone(), m = this.muzzleWorld(new THREE.Vector3());
-    const vel = fwd.multiplyScalar(power).add(new THREE.Vector3(0, power * 0.18, 0));
-    let hitBin = false, n = 0; const p = m.clone(), v = vel.clone(), mt = new THREE.Matrix4();
+    const fwd = _F.copy(P.cam.getWorldDirection(_d)), m = this.muzzleWorld(_MZ);
+    const vel = _VEL.copy(fwd).multiplyScalar(power); vel.y += power * 0.18;
+    let hitBin = false, n = 0; const p = _PP.copy(m), v = _VV.copy(vel), mt = _MT;
     for (let s = 0; s < 140 && n < 48; s++) {
       const h = 0.025; v.y -= 9.81 * h; p.addScaledVector(v, h);
       if (v.y < 0 && Math.abs(p.x - BIN.x) < BIN.w / 2 - 0.1 && Math.abs(p.z - BIN.z) < BIN.d / 2 - 0.1 && p.y < BIN.h + 0.05 && p.y > 0.15) { hitBin = true; break; }

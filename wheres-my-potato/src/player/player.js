@@ -19,7 +19,7 @@ import { Gadgets } from './gadgets.js';
 // =====================================================================================
 const TOOLS = ['hands', 'bucket', 'vacuum', 'cannon'];
 const EYE = 1.66, EYE_C = 1.12, R = 0.3, VM_BUCKET = 0.6;
-const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _ray = new THREE.Ray();
+const _BINC = new THREE.Vector3(), _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _ray = new THREE.Ray();
 
 export class Player {
   constructor(game, camera) {
@@ -256,7 +256,7 @@ export class Player {
     if (!this.enabled) { g.field.field.showHover(-1); return; }
     this.aimOK = this._aimPoint();
     const binTop = _v.set(BIN.x, BIN.h, BIN.z);
-    const nearBin = this.pos.distanceTo(binTop.setY(this.pos.y)) < 3.0 && this.lookingAt(new THREE.Vector3(BIN.x, BIN.h * 0.6, BIN.z), 3.6, 0.55);
+    const nearBin = this.pos.distanceTo(binTop.setY(this.pos.y)) < 3.0 && this.lookingAt(_BINC.set(BIN.x, BIN.h * 0.6, BIN.z), 3.6, 0.55);
     const nearShop = this.lookingAt(g.shop.talkPoint, 3.6, 0.6) && Math.abs(this.pos.x - SHOP.x) < 3.2 && this.pos.z < SHOP.z;
     const use = input.down('use') || input.down('interact');
     const usePressed = input.pressed('use') || input.pressed('interact');

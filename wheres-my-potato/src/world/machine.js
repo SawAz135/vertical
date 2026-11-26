@@ -162,7 +162,7 @@ export class Machine {
     for (let k = 8; k >= 0; k--) { const a = k / 8 * Math.PI / 2; pts.push([J.R - 0.5 + Math.sin(a) * 0.5, J.yb + 0.5 - Math.cos(a) * 0.5]); }
     pts.push([0, J.yb]);
     const geo = new THREE.LatheGeometry(pts.map(p => new THREE.Vector2(p[0], p[1])), 96);
-    const glass = new THREE.MeshPhysicalMaterial({ color: 0xe0f4ff, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 1.1, clearcoat: 0.25, clearcoatRoughness: 0.08, specularIntensity: 0.45 });
+    const glass = new THREE.MeshStandardMaterial({ color: 0xe0f4ff, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 1.3 });
     glass.onBeforeCompile = sh => {
       sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>
       float fres = pow(1.0 - abs(dot(normalize(vNormal), vec3(0.0,0.0,1.0))), 3.0);
@@ -267,8 +267,8 @@ export class Machine {
     const v = this.speed;
     this.cleatOff = (this.cleatOff + dt * v) % this.cleatGap;
     this.beltTex.offset.x = -this.cleatOff / 0.5;
-    const m = new THREE.Matrix4(), p = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), len0 = this.segLen[0];
-    const up = new THREE.Vector3(-this.dir.y, this.dir.x, 0).multiplyScalar(0.05);
+    const m = _M, p = _P, one = _ONE, len0 = this.segLen[0];
+    const up = _UP.set(-this.dir.y, this.dir.x, 0).multiplyScalar(0.05);
     for (let k = 0; k < this.cleats.count; k++) {
       const s = k * this.cleatGap + this.cleatOff; if (s > len0) { m.makeScale(0, 0, 0); this.cleats.setMatrixAt(k, m); continue; }
       p.copy(P0).lerp(H0, s / len0).add(up); m.compose(p, this.cleatQ, one); this.cleats.setMatrixAt(k, m);
@@ -277,7 +277,7 @@ export class Machine {
     // spiral belt scroll + cleats racing up the helix
     const vs = v * SPIRAL_BOOST, L1 = this.segLen[1], gap = L1 / this.spiralCleats.count;
     this.spiralOff = (this.spiralOff + dt * vs) % gap; this.spiralTex.offset.y = -(this.spiralOff / 0.5);
-    const q = new THREE.Quaternion();
+    const q = _Q;
     for (let k = 0; k < this.spiralCleats.count; k++) {
       const tt = (k * gap + this.spiralOff) / L1, a = TH0 + tt * TAU * TURNS;
       p.set(Math.cos(a) * RH, Y0 + tt * (Y1 - Y0) + 0.04, Math.sin(a) * RH); q.setFromAxisAngle(_yAx, -a); m.compose(p, q, one); this.spiralCleats.setMatrixAt(k, m);
@@ -295,4 +295,4 @@ export class Machine {
   }
   fillRatio() { return clamp(this.fullness + (this.dyn ? this.dyn.totalJar / JAR_CAP : 0), 0, 1.2); }
 }
-const _up = new THREE.Vector3(), _yAx = new THREE.Vector3(0, 1, 0);
+const _up = new THREE.Vector3(), _yAx = new THREE.Vector3(0, 1, 0), _M = new THREE.Matrix4(), _P = new THREE.Vector3(), _ONE = new THREE.Vector3(1, 1, 1), _UP = new THREE.Vector3(), _Q = new THREE.Quaternion();

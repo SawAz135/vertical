@@ -86,6 +86,7 @@ export function makePotatoMaterial(opts = {}) {
   const m = new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0.0, color: 0xffffff });
   m.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, potatoUniforms);
+    if (opts.cheap) { sh.vertexShader = '#define WMP_CHEAP\n' + sh.vertexShader; sh.fragmentShader = '#define WMP_CHEAP\n' + sh.fragmentShader; }
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
 attribute vec4 aShape;  // elong(unused here), flat(unused), bend, lump
@@ -117,10 +118,14 @@ vec3 wn = normalize(position);
 vec3 wt = normalize(abs(wn.y) < 0.95 ? cross(wn, vec3(0.0,1.0,0.0)) : cross(wn, vec3(1.0,0.0,0.0)));
 vec3 wb = cross(wn, wt);
 vec3 wP = wmpDeform(wn);
+#ifdef WMP_CHEAP
+vec3 objectNormal = normalize(wP); // distant potatoes: radial normal is indistinguishable
+#else
 vec3 wP1 = wmpDeform(normalize(wn + wt*0.03));
 vec3 wP2 = wmpDeform(normalize(wn + wb*0.03));
 vec3 objectNormal = normalize(cross(wP1 - wP, wP2 - wP));
 if (dot(objectNormal, wP) < 0.0) objectNormal = -objectNormal;
+#endif
 #ifdef USE_TANGENT
 vec3 objectTangent = vec3(1.0,0.0,0.0);
 #endif
@@ -146,9 +151,11 @@ ${GLSL_NOISE}`)
   // eyes: small dark pits with a pinkish rim
   float e = wmpNoise(n*9.0 + vMisc.x*3.1);
   col = mix(col, col*vec3(0.72,0.6,0.5), smoothstep(0.7, 0.9, e) * 0.8);
+  #ifndef WMP_CHEAP
   // lenticels: tiny dark-brown specks all over the skin (as on real washed potatoes)
   float sp1 = wmpNoise(n*46.0 + vMisc.x*4.0), sp2 = wmpNoise(n*71.0 - vMisc.x*2.0);
   col = mix(col, vec3(0.38,0.27,0.16), smoothstep(0.84, 0.93, sp1) * 0.7 + smoothstep(0.87, 0.95, sp2) * 0.45);
+  #endif
   // soil dirt patches
   float d = wmpNoise(n*4.2 + vMisc.x*5.0 + 10.0);
   col = mix(col, vec3(0.5,0.38,0.24), smoothstep(0.35, 0.85, d) * 0.28);
@@ -231,7 +238,7 @@ function geomWith(base, attrs) {
 export class PotatoField {
   constructor(scene, db, opts) {
     this.scene = scene; this.db = db; this.opts = opts;
-    this.mat = makePotatoMaterial();
+    this.mat = makePotatoMaterial(); this.matCheap = makePotatoMaterial({ key: 'cheap', cheap: true });
     this.geoNear = mergedIndexed(2); this.geoFar = mergedIndexed(1); this.geoXFar = mergedIndexed(0);
     this.chunks = new Map();
     this.cells = new Map(); // 2 m pick cells -> ids
@@ -254,8 +261,8 @@ export class PotatoField {
     const cx = Math.floor(k / 4096) - 2048, cz = (k % 4096) - 2048;
     const attrs = makeInstAttrs(cap);
     const near = new THREE.InstancedMesh(geomWith(this.geoNear, attrs), this.mat, cap);
-    const far = new THREE.InstancedMesh(geomWith(this.geoFar, attrs), this.mat, cap);
-    const xfar = new THREE.InstancedMesh(geomWith(this.geoXFar, attrs), this.mat, cap);
+    const far = new THREE.InstancedMesh(geomWith(this.geoFar, attrs), this.matCheap, cap);
+    const xfar = new THREE.InstancedMesh(geomWith(this.geoXFar, attrs), this.matCheap, cap);
     far.instanceMatrix = near.instanceMatrix; xfar.instanceMatrix = near.instanceMatrix; near.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     const center = new THREE.Vector3((cx + 0.5) * CHUNK, 1.5, (cz + 0.5) * CHUNK);
     for (const m of [near, far, xfar]) {

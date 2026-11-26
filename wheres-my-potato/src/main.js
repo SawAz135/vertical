@@ -98,8 +98,10 @@ class Game {
     this.ui.progress(0.85, 'Remplissage du bocal…'); await tick();
     this._load();
     this.shop.drawChalk(this.levels);
-    // warm up shaders so the first frames don't hitch
-    r.compile(this.scene, this.camera);
+    // warm up EVERY shader (hidden objects included: tools, fill, bubbles, beams…) so nothing compiles mid-game
+    const hidden = []; this.scene.traverse(o => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+    try { if (r.compileAsync) await r.compileAsync(this.scene, this.camera); else r.compile(this.scene, this.camera); } catch { r.compile(this.scene, this.camera); }
+    hidden.forEach(o => (o.visible = false));
     this.ui.progress(1, 'Prêt !'); await tick();
     input.attach(canvas, document.getElementById('touch'));
     input.onLock(locked => { if (!locked && this.state === 'play' && !this.ui.shopOpen && !this.ui.panelOpen) this.pause(); });

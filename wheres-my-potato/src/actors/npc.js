@@ -134,9 +134,9 @@ export class Gerard {
   update(dt, playerPos, talkAmp = 0) {
     this.t += dt; const t = this.t;
     // ---- look at player (head first, then neck/chest share the rest) ----
-    const wp = new THREE.Vector3(); this.head.getWorldPosition(wp);
-    const inv = new THREE.Matrix4().copy(this.root.matrixWorld).invert();
-    const lp = playerPos.clone().applyMatrix4(inv), hp = wp.clone().applyMatrix4(inv);
+    const wp = this._wp || (this._wp = new THREE.Vector3()); this.head.getWorldPosition(wp);
+    const inv = (this._inv || (this._inv = new THREE.Matrix4())).copy(this.root.matrixWorld).invert();
+    const lp = (this._lp || (this._lp = new THREE.Vector3())).copy(playerPos).applyMatrix4(inv), hp = wp.applyMatrix4(inv);
     const dx = lp.x - hp.x, dz = lp.z - hp.z, dy = lp.y - hp.y, dist = Math.hypot(dx, dz);
     let yaw = Math.atan2(dx, dz), pitch = -Math.atan2(dy, dist);
     const engaged = dist < 9;
