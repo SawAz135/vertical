@@ -772,7 +772,7 @@ local function startReveal(d)
 		others[i], others[j] = others[j], others[i]
 	end
 	local wanted = {}
-	for i = 1, math.min(6, #others) do table.insert(wanted, others[i]) end
+	for i = 1, math.min(10, #others) do table.insert(wanted, others[i]) end
 	local function makeSil(id: string)
 		local ok, m = pcall(BearBuilder.build, id, { scale = 1, brickBudget = 60 })
 		if not ok or not m or not m.PrimaryPart then return nil end
@@ -812,7 +812,7 @@ local function startReveal(d)
 	rs.ui = ui
 	local star = nil
 	local cur = nil -- { model, base }
-	local nextSwap, swaps = T_SPIN, 0
+	local swaps = 0
 	local finalShown, resultDone = false, false
 	local nextBeat = 0.25
 	local hop = 0
@@ -821,10 +821,6 @@ local function startReveal(d)
 	local lastScaleAt = 0
 	local camShake = 0
 
-	local function heightAt(t: number): number
-		local u = math.clamp((t - T_SPIN) / (T_HOLD - T_SPIN), 0, 1)
-		return fishH + (finalH - fishH) * Easing.sineInOut(u)
-	end
 
 	-- the base odds of a species in this zone (same rules as the server: every species the
 	-- same weight, x ZoneAffinity in its home zones): shown on the slot machine while it spins
@@ -848,6 +844,13 @@ local function startReveal(d)
 		hop = 1
 		swaps += 1
 		Sound.instant("Swap", { pitch = 0.9 + math.min(0.5, swaps * 0.015) })
+	end
+
+	-- the next black shape (never the same twice in a row)
+	local function swapShape()
+		local choices = {}
+		for _, c in rs.pool do if c ~= cur then table.insert(choices, c) end end
+		if #choices > 0 then show(choices[math.random(1, #choices)]) end
 	end
 
 	-- RESULT ---------------------------------------------------------------------------
@@ -980,7 +983,7 @@ local function startReveal(d)
 				CameraController.shake(0.6 + 0.2 * (ti - 6), 0.4)
 				Sound.play("Reveal4")
 			end
-			slam(ui.odds, rs)
+			slam(ui.odds, rs, 1.7)
 			Sound.play("Land", { pitch = 0.8 })
 		end)
 		task.delay(RV.result + 0.05, function() showGoBack(rs) end)
@@ -1008,12 +1011,13 @@ local function startReveal(d)
 			local k = Easing.quadIn(math.clamp((t - T_HOLD) / RV.hold, 0, 1))
 			local sc = if cur then h / cur.base else 1
 			local wide = if cur then cur.wide * sc else hh
-			rs.fitS = rs.fitS or math.max(hh / 0.3, wide / 1.5, 5)
-			local want = math.max(hh / 0.3, wide / 1.5, 5)
+			-- (closer than before: the shape fills ~36 % of the screen height, easy to read)
+			rs.fitS = rs.fitS or math.max(hh / 0.36, wide / 1.35, 5)
+			local want = math.max(hh / 0.36, wide / 1.35, 5)
 			rs.fitS += (want - rs.fitS) * Easing.damp(5, dt or 0.016)
 			local fit = rs.fitS * (1.08 - 0.06 * u - 0.08 * k)
 			d0 = fit
-			lookY = hh * 0.5 - 0.115 * fit -- look below the middle: the shape sits higher on screen
+			lookY = hh * 0.5 - 0.145 * fit -- look below the middle: the shape sits higher on screen, its feet above the "1 IN"
 			camY = hh * 0.45 + 0.04 * fit
 			fov = 60 - 2 * u - 5 * k
 		else
@@ -1087,32 +1091,33 @@ local function startReveal(d)
 			Sound.play("Land", { pitch = 0.65, volume = 0.9 })
 			camShake = 1
 		end
-		-- SPIN: switch silhouettes on an accelerating -> slowing schedule
+		-- SPIN: the black shapes FOLLOW THE "1 IN X": a new shape on the counter's clicks,
+		-- frozen during each colour stop (where it slams with the number), it GROWS with the
+		-- number (log scale: 1 IN 10 = small, the real odds = the real size), and the real
+		-- animal's shadow lands exactly when the number reaches its true odds.
 		if t >= T_SPIN and not resultDone then
-			h = heightAt(t)
+			local prog = if target > 1 then math.clamp(math.log(rs.shownX or 1) / math.log(target), 0, 1)
+				else math.clamp((t - T_SPIN) / SPIN_LEN, 0, 1)
+			rs.hProg = (rs.hProg or 0) + (prog - (rs.hProg or 0)) * Easing.damp(9, dt)
+			h = fishH + (finalH - fishH) * Easing.sineInOut(rs.hProg)
 			if fish and fish.Parent then
 				fish:Destroy()
 				fish = nil
 				rs.fish = nil
 			end
-			if not finalShown and t >= nextSwap then
-				local u = math.clamp((t - T_SPIN) / SPIN_LEN, 0, 1)
-				local interval = 0.075 + ((math.max(0, u - 0.4) / 0.6) ^ 2.2) * 0.65
-				if (u >= 0.92 or t + interval > T_HOLD - 0.1) and rs.finalSil then
-					finalShown = true
-					show(rs.finalSil)
-				else
-					local choices = {}
-					for _, c in rs.pool do if c ~= cur then table.insert(choices, c) end end
-					if #choices == 0 and rs.finalSil and cur ~= rs.finalSil then table.insert(choices, rs.finalSil) end
-					if #choices > 0 then show(choices[math.random(1, #choices)]) end
-				end
-				nextSwap = t + interval
+			if not finalShown and rs.finalSil and ((rs.shownX or 0) >= target or t >= T_HOLD - 0.05) then
+				finalShown = true
+				show(rs.finalSil)
+				rs.silPunch = 1
+				Sound.play("Land", { pitch = 0.55, volume = 1 })
+				camShake = math.max(camShake, 0.8)
 			end
-			-- keep the current silhouette at the growing size (throttled: re-scaling is heavy)
-			if cur and os.clock() - lastScaleAt > 0.09 and not rs.squeezed then
+			-- the size follows every frame while a punch plays, else a few times a second
+			rs.silPunch = math.max(0, (rs.silPunch or 0) - dt * 3)
+			if cur and not rs.squeezed and (rs.silPunch > 0.01 or os.clock() - lastScaleAt > 0.09) then
 				lastScaleAt = os.clock()
-				scaleTo(cur.model, h / cur.base)
+				local pk = rs.silPunch
+				scaleTo(cur.model, h / cur.base * (1 + 0.2 * math.sin(pk * math.pi) * pk))
 			end
 		end
 		-- CLIMB: "1 IN X" counts UP the whole suspense towards the real odds of what is coming:
@@ -1134,6 +1139,10 @@ local function startReveal(d)
 				rs.lastClick = os.clock()
 				ui.spin.label.Text = "1 IN 1"
 				Sound.instant("Count", { pitch = 0.88, volume = 0.55 })
+				-- the first shadow appears with the first number
+				rs.lastSwap = os.clock()
+				swapShape()
+				if not cur and rs.finalSil then show(rs.finalSil) end
 			end
 			if paused then
 				if shown ~= x then
@@ -1147,6 +1156,11 @@ local function startReveal(d)
 				rs.shownX = shown
 				ui.spin.label.Text = "1 IN " .. commas(shown)
 				Sound.instant("Count", { pitch = 0.88 + 0.11 * math.log10(shown) + 0.25 * u, volume = 0.55 + 0.05 * math.log10(shown) })
+				-- a new black shape on the click (at most ~12 a second, the eye can follow)
+				if not finalShown and shown < target and os.clock() - (rs.lastSwap or 0) >= 0.08 then
+					rs.lastSwap = os.clock()
+					swapShape()
+				end
 			end
 			x = shown
 			rs.spinX = x
@@ -1156,13 +1170,16 @@ local function startReveal(d)
 				rs.lastStop = segIdx
 				do
 					-- the number STOPS on the new colour for a second: slam, kick, sound
-					slam(ui.spin, rs, 1.6 + 0.08 * ti)
+					slam(ui.spin, rs, math.min(1.3 + 0.02 * ti, 1.38)) -- (capped: the long rare numbers must stay on screen)
 					Sound.play("Reveal" .. math.clamp(ti - 2, 1, 4))
 					Sound.play("Land", { pitch = 0.6 + 0.05 * ti, volume = 0.9 })
 					CameraController.shake(0.25 + 0.14 * ti, 0.35)
 					CameraController.punch(-4 - ti)
 					-- phone / controller vibration, stronger at each colour step
 					Haptics.pulse(0.25 + 0.1 * ti)
+					-- the shadow freezes with the number and slams too
+					rs.silPunch = 1
+					hop = 1
 				end
 			end
 		end
@@ -1204,7 +1221,7 @@ local function startReveal(d)
 		-- "1 IN ?" breathes with the heart, shakes with the stress
 		if not resultDone then
 			-- the heartbeat swells the letters (on the label: the holder keeps its slam / pop scale)
-			local b = 0.84 * (1 + 0.14 * rs.beatKick) * (1 + 0.035 * tierNow) -- bigger letters as it climbs
+			local b = math.min(0.84 * (1 + 0.14 * rs.beatKick) * (1 + 0.035 * tierNow), 0.98) -- bigger letters as it climbs (never off screen)
 			ui.spin.label.Size = UDim2.fromScale(b, b)
 			local amp = (2 + 9 * stress) * hype
 			ui.spin.holder.Position = UDim2.fromOffset(500 + math.noise(t * 13, 2) * amp, ui.spin.y + math.noise(t * 13, 5) * amp)
