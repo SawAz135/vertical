@@ -13,9 +13,9 @@
    - PathfindingService: a real path (A* over a ground grid that respects
      walls, steps and gaps) with Walk / Jump waypoints, NoPath when blocked.
    ===================================================================== */
-import { Instance, Vector3, CFrame, enumItem, isA } from './roblox.js?v=11';
-import { LuaTable } from './luau.js?v=11';
-import { preloadClip } from './anim.js?v=11';
+import { Instance, Vector3, CFrame, enumItem, isA } from './roblox.js?v=12';
+import { LuaTable } from './luau.js?v=12';
+import { preloadClip } from './anim.js?v=12';
 
 const fn = (f) => f;
 const R15_ANIMS = { idle: 507766388, walk: 507777826, run: 507767714, jump: 507765000, fall: 507767968, sit: 2506281703 };

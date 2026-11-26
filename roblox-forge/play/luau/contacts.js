@@ -15,8 +15,8 @@
    - WorldRoot:Blockcast / Spherecast / Shapecast (swept along the
      direction, first part hit returned as a RaycastResult).
    ===================================================================== */
-import { Instance, Vector3, CFrame, isA } from './roblox.js?v=11';
-import { LuaTable } from './luau.js?v=11';
+import { Instance, Vector3, CFrame, isA } from './roblox.js?v=12';
+import { LuaTable } from './luau.js?v=12';
 
 const fn = (f) => f;
 const CELL = 12;

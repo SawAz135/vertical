@@ -8,7 +8,7 @@
    coloured and faded along its age, MinLength, WidthScale.
    ===================================================================== */
 import * as THREE from 'three';
-import { assetId, imageURL } from '../assets.js?v=11';
+import { assetId, imageURL } from '../assets.js?v=12';
 
 const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3();
 /* sample a Roblox ColorSequence / NumberSequence (or a plain value) at t ∈ [0, 1] */

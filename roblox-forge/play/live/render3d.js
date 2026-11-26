@@ -13,17 +13,17 @@
    - collisions for the player and Workspace:Raycast for scripts.
    ===================================================================== */
 import * as THREE from 'three';
-import { World, material, studMat, partGeo, colliderGeo, sizeOf, studTop, voxMat, matTex } from '../world.js?v=11';
-import { headGeo, faceTex } from '../avatar.js?v=11';
-import { isA, EnumItem, Color3, Vector3 } from '../luau/engine.js?v=11';
+import { World, material, studMat, partGeo, colliderGeo, sizeOf, studTop, voxMat, matTex } from '../world.js?v=12';
+import { headGeo, faceTex } from '../avatar.js?v=12';
+import { isA, EnumItem, Color3, Vector3 } from '../luau/engine.js?v=12';
 import * as MC from '../../map/map-core.js';
-import { meshSpec, meshGeometry, meshTexture, unionShape } from './mesh.js?v=11';
-import { readBinary } from '../rbxl.js?v=11';
-import { BeamSystem } from './beams.js?v=11';
-import { Decor } from './decor.js?v=11';
-import { TerrainView } from './terrain3d.js?v=11';
-import { Effects } from './effects.js?v=11';
-import { MATS as TMATS, VOX as TVOX } from '../luau/terrain.js?v=11';
+import { meshSpec, meshGeometry, meshTexture, unionShape } from './mesh.js?v=12';
+import { readBinary } from '../rbxl.js?v=12';
+import { BeamSystem } from './beams.js?v=12';
+import { Decor } from './decor.js?v=12';
+import { TerrainView } from './terrain3d.js?v=12';
+import { Effects } from './effects.js?v=12';
+import { MATS as TMATS, VOX as TVOX } from '../luau/terrain.js?v=12';
 
 const MAT_OK = new Set(['Plastic', 'SmoothPlastic', 'Neon', 'Wood', 'WoodPlanks', 'Brick', 'Cobblestone', 'Concrete', 'Slate', 'Granite', 'Marble', 'Basalt', 'Rock', 'Pebble', 'Grass', 'LeafyGrass', 'Sand', 'Snow', 'Ice', 'Glacier', 'Glass', 'ForceField', 'Metal', 'DiamondPlate', 'CorrodedMetal', 'Foil', 'Fabric', 'Asphalt', 'Pavement', 'CrackedLava', 'Sandstone']);
 const MAT_ALIAS = { Limestone: 'Sandstone', Mud: 'Grass', Ground: 'Grass', Salt: 'Sand', Cardboard: 'WoodPlanks', Carpet: 'Fabric', Leather: 'Fabric', Plaster: 'Concrete', Rubber: 'SmoothPlastic', Water: 'Glass', Air: 'Glass' };

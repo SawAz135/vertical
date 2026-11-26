@@ -121,14 +121,15 @@ export async function importFile(file) {
   const name = file.name.replace(/\.[^.]+$/, '').replace(/^[0-9a-f]{8}-/, '').replace(/_/g, ' '), buf = await file.arrayBuffer(), u8 = new Uint8Array(buf), dec = new TextDecoder();
   const head = dec.decode(u8.subarray(0, 64));
   if (head.startsWith('<roblox!') || /<roblox[\s>]/.test(head) || /\.rbx[lm]x?$/i.test(file.name)) { // Roblox Studio place / model
-    const RB = await import('./rbxl.js?v=11'); const r = RB.readRoblox(buf, name); let spec = null, map = r.map, notes = [];
+    const RB = await import('./rbxl.js?v=12'); const r = RB.readRoblox(buf, name); let spec = null, map = r.map, notes = [];
     // the world is built by the place's own server scripts: run them like a Roblox server would
     const nScripts = RB.hasServerScripts(r.roots);
-    if (nScripts) { try { const { runPlace } = await import('./luau/runner.js?v=11'); const run = runPlace(r.roots, RB.readAttributes, { title: r.map?.name || name });
+    if (nScripts) { try { const { runPlace } = await import('./luau/runner.js?v=12'); const run = runPlace(r.roots, RB.readAttributes, { title: r.map?.name || name });
         if (run.stats.parts) { map = run.map; notes.push(`monde construit par les scripts du jeu : ${run.stats.parts.toLocaleString('fr')} pièces en ${(run.ms / 1000).toFixed(1)} s`); if (run.errors.length) notes.push(`${run.errors.length} erreur(s) de script : ${run.errors[0].slice(0, 120)}`); }
         else if (run.errors.length) notes.push('scripts : ' + run.errors[0].slice(0, 140)); }
       catch (e) { console.warn(e); notes.push('les scripts n’ont pas pu tourner : ' + (e.message || e)); } }
-    if (!map) throw new Error(r.error || 'aucune pièce trouvée dans ce fichier');
+    // no part at load time (world built by scripts at runtime, terrain only, a model of scripts…): it still runs live
+    if (!map) { map = { v: 1, name, theme: null, lighting: { preset: 'jour', over: {} }, gen: { id: 'import' }, root: { id: 'imp-root', cls: 'Folder', name, children: [] } }; notes.push(nScripts ? 'le monde est créé par les scripts au lancement' : 'aucune pièce au départ : le jeu se lance quand même'); }
     if (r.configSrc) { try { spec = specFromConfig(parseLuaTable(r.configSrc)); } catch (e) { console.warn(e); } }
     const st = r.stats; if (!nScripts) notes.push(`${st.parts.toLocaleString('fr')} pièces`); if (st.meshes) notes.push(`${st.meshes} MeshPart/Union`); if (st.terrain) notes.push('Terrain non affiché');
     // every Roblox file keeps its bytes: it runs live (scripts, GUIs, real meshes, animations, sounds) when played

@@ -19,8 +19,8 @@
    Assemblies driven by the engine itself (characters, NPC roots, parts held
    by AlignPosition in an anchored-free way) keep their scripted motion.
    ===================================================================== */
-import { Vector3, CFrame, isA } from './roblox.js?v=11';
-import { rotToQuat, quatToRot } from './anim.js?v=11';
+import { Vector3, CFrame, isA } from './roblox.js?v=12';
+import { rotToQuat, quatToRot } from './anim.js?v=12';
 
 let R = null, loading = null;
 export const loadRapier = () => (loading ||= import('../vendor/rapier/rapier.es.js').then(async (m) => { const r = m.default || m; await r.init(); R = r; return r; }).catch((e) => { console.warn('physics', e); return null; }));

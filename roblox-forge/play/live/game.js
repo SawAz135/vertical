@@ -12,12 +12,12 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { LiveEngine, Vector3, CFrame, enumItem, isA, LuaTable } from '../luau/engine.js?v=11';
-import { LiveWorld } from './render3d.js?v=11';
-import { GuiRenderer, GUI_CSS } from './gui.js?v=11';
-import { Avatar } from '../avatar.js?v=11';
-import { preloadClip } from '../luau/anim.js?v=11';
-import { imageURL as imageURLOf } from '../assets.js?v=11';
+import { LiveEngine, Vector3, CFrame, enumItem, isA, LuaTable } from '../luau/engine.js?v=12';
+import { LiveWorld } from './render3d.js?v=12';
+import { GuiRenderer, GUI_CSS } from './gui.js?v=12';
+import { Avatar } from '../avatar.js?v=12';
+import { preloadClip } from '../luau/anim.js?v=12';
+import { imageURL as imageURLOf } from '../assets.js?v=12';
 // Roblox's default R15 animations (the clips its Animate script plays)
 const DEFAULT_ANIMS = { idle: [507766388, 507766666, 507766951], walk: [507777826], run: [507767714], jump: [507765000], fall: [507767968], toolnone: [507768375], sit: [2506281703] };
 

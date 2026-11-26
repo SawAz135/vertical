@@ -9,10 +9,10 @@
    Everything follows its part every frame.
    ===================================================================== */
 import * as THREE from 'three';
-import { partGeo } from '../world.js?v=11';
-import { meshSpec, meshGeometry } from './mesh.js?v=11';
-import { assetId, imageURL } from '../assets.js?v=11';
-import { isA, Color3 } from '../luau/engine.js?v=11';
+import { partGeo } from '../world.js?v=12';
+import { meshSpec, meshGeometry } from './mesh.js?v=12';
+import { assetId, imageURL } from '../assets.js?v=12';
+import { isA, Color3 } from '../luau/engine.js?v=12';
 
 const FACES = { Front: { n: [0, 0, -1], r: [-1, 0, 0], u: [0, 1, 0] }, Back: { n: [0, 0, 1], r: [1, 0, 0], u: [0, 1, 0] }, Right: { n: [1, 0, 0], r: [0, 0, -1], u: [0, 1, 0] }, Left: { n: [-1, 0, 0], r: [0, 0, 1], u: [0, 1, 0] },
   Top: { n: [0, 1, 0], r: [1, 0, 0], u: [0, 0, -1] }, Bottom: { n: [0, -1, 0], r: [1, 0, 0], u: [0, 0, 1] } };

@@ -8,7 +8,7 @@
    reads as nil and an unknown service is an empty Instance, so scripts
    get as far as they can without a full engine.
    ===================================================================== */
-import { LuaTable, LuaError, call, callGen, tostr, typeOf, isTruthy } from './luau.js?v=11';
+import { LuaTable, LuaError, call, callGen, tostr, typeOf, isTruthy } from './luau.js?v=12';
 
 const err = (m) => { throw new LuaError(m); };
 const num = (v, d = 0) => (typeof v === 'number' ? v : v === undefined || v === null ? d : +v || d);

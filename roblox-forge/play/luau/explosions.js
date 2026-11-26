@@ -6,7 +6,7 @@
    loose parts are pushed away (BlastPressure); the 3D view shows the
    blast when Visible.
    ===================================================================== */
-import { Vector3, isA } from './roblox.js?v=11';
+import { Vector3, isA } from './roblox.js?v=12';
 
 export class Explosions {
   constructor(engine) { this.E = engine; this.queue = []; this.done = new WeakSet(); }

@@ -7,8 +7,8 @@
    GetMaterialColor / SetMaterialColor work; the 3D view draws the chunks
    that changed (live/terrain3d.js) and the player collides with them.
    ===================================================================== */
-import { Instance, Vector3, CFrame, enumItem, EnumItem, Color3, Simple } from './roblox.js?v=11';
-import { LuaTable } from './luau.js?v=11';
+import { Instance, Vector3, CFrame, enumItem, EnumItem, Color3, Simple } from './roblox.js?v=12';
+import { LuaTable } from './luau.js?v=12';
 
 const fn = (f) => f;
 export const VOX = 4, CH = 16;
