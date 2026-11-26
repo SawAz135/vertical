@@ -12,9 +12,9 @@
    - assets: PlayerOwnsAsset, PromptPurchaseFinished.
    GetProductInfo answers with the real name / price when Roblox shares it.
    ===================================================================== */
-import { Instance, enumItem } from './roblox.js?v=11';
-import { LuaTable, call } from './luau.js?v=11';
-import { RELAY } from '../assets.js?v=11';
+import { Instance, enumItem } from './roblox.js?v=12';
+import { LuaTable, call } from './luau.js?v=12';
+import { RELAY } from '../assets.js?v=12';
 
 const fn = (f) => f;
 const LS = (() => { try { return typeof localStorage !== 'undefined' ? localStorage : null; } catch { return null; } })();

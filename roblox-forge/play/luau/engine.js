@@ -13,17 +13,17 @@
      Motor6D, Weld, WeldConstraint) → PostSimulation / Heartbeat → waiting
      threads → tweens (TweenService with all Roblox easing styles).
    ===================================================================== */
-import { parse, Interpreter, createGlobals, LuaTable, LuaError, call, callGen, tostr } from './luau.js?v=11';
-import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, UDim2 } from './roblox.js?v=11';
-import { installServices, loadPlace } from './runner.js?v=11';
-import { AnimSystem } from './anim.js?v=11';
-import { SoundSystem } from './sound.js?v=11';
-import { Contacts } from './contacts.js?v=11';
-import { TerrainData } from './terrain.js?v=11';
-import { Humanoids } from './humanoids.js?v=11';
-import { Market } from './market.js?v=11';
-import { Explosions } from './explosions.js?v=11';
-import { Physics } from './physics.js?v=11';
+import { parse, Interpreter, createGlobals, LuaTable, LuaError, call, callGen, tostr } from './luau.js?v=12';
+import { Runtime, Instance, Vector3, Vector2, CFrame, Color3, Signal, enumItem, isA, EnumItem, Simple, UDim2 } from './roblox.js?v=12';
+import { installServices, loadPlace } from './runner.js?v=12';
+import { AnimSystem } from './anim.js?v=12';
+import { SoundSystem } from './sound.js?v=12';
+import { Contacts } from './contacts.js?v=12';
+import { TerrainData } from './terrain.js?v=12';
+import { Humanoids } from './humanoids.js?v=12';
+import { Market } from './market.js?v=12';
+import { Explosions } from './explosions.js?v=12';
+import { Physics } from './physics.js?v=12';
 const PHYS_CONSTRAINTS = new Set(['HingeConstraint', 'BallSocketConstraint', 'RopeConstraint', 'RodConstraint', 'SpringConstraint', 'PrismaticConstraint', 'CylindricalConstraint']);
 const PHYS_FORCES = new Set(['VectorForce', 'BodyForce', 'LinearVelocity', 'AngularVelocity', 'BodyVelocity', 'BodyAngularVelocity', 'BodyPosition', 'BodyGyro', 'Torque', 'AlignPosition', 'AlignOrientation', 'BodyThrust']);
 

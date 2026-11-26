@@ -7,7 +7,7 @@
    grid, so the player walks on terrain and raycasts hit it.
    ===================================================================== */
 import * as THREE from 'three';
-import { VOX, CH, MATS } from '../luau/terrain.js?v=11';
+import { VOX, CH, MATS } from '../luau/terrain.js?v=12';
 
 const DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
 const WATER = MATS.indexOf('Water');
