@@ -23,8 +23,8 @@ export function ground(x, z) {
   const f = fieldMask(x, z);
   const furrow = (Math.cos(z * TAU / FURROW) * 0.5 + 0.5) * 0.16 * f;
   // rise towards the horizon outside the playable area
-  const out = Math.max(0, Math.hypot(x, z - 2) - 48);
-  return flatYard * (0.6 + 0.4 * f) + furrow + out * out * 0.02 - 0.08 * f;
+  const out = Math.min(70, Math.max(0, Math.hypot(x, z - 2) - 50));
+  return flatYard * (0.6 + 0.4 * f) + furrow + out * out * 0.0022 - 0.08 * f;
 }
 export function inField(x, z) { return x > FIELD.x0 + 0.3 && x < FIELD.x1 - 0.3 && z > FIELD.z0 + 0.3 && z < FIELD.z1 - 0.3; }
 
@@ -128,7 +128,7 @@ export class FieldWorld {
     const yg = new THREE.PlaneGeometry(34, 18, 34, 18); yg.rotateX(-Math.PI / 2); yg.translate(0, 0, 24);
     const p = yg.attributes.position; for (let i = 0; i < p.count; i++) p.setY(i, ground(p.getX(i), p.getZ(i)) + 0.012);
     yg.computeVertexNormals();
-    gravel.map = gravel.map.clone(); gravel.map.repeat.set(34 / 2.2, 18 / 2.2); gravel.map.needsUpdate = true;
+    gravel.map = gravel.map.clone(); gravel.map.repeat.set(34 / 1.3, 18 / 1.3); gravel.map.needsUpdate = true;
     gravel.normalMap = gravel.normalMap.clone(); gravel.normalMap.repeat.copy(gravel.map.repeat); gravel.normalMap.needsUpdate = true;
     gravel.roughnessMap = gravel.roughnessMap.clone(); gravel.roughnessMap.repeat.copy(gravel.map.repeat); gravel.roughnessMap.needsUpdate = true;
     const ym = new THREE.Mesh(yg, gravel); ym.receiveShadow = true; ym.renderOrder = 1; this.scene.add(ym);
@@ -177,7 +177,7 @@ export class FieldWorld {
     while (k < n && tries++ < n * 8) {
       const x = (r() - 0.5) * 110, z = (r() - 0.5) * 110 + 2;
       if (fieldMask(x, z) > 0.05) continue;
-      if (z > 14 && z < 34 && x > -17 && x < 17 && r() < 0.85) continue; // keep the yard mostly clear
+      if (z > 13 && z < 35 && x > -18 && x < 18) continue; // keep the farmyard clear
       const s = 0.6 + r() * 0.9; e.set(0, r() * TAU, 0); q.setFromEuler(e);
       m.compose(new THREE.Vector3(x, ground(x, z) - 0.02, z), q, new THREE.Vector3(s, s * (0.7 + r() * 0.6), s)); im.setMatrixAt(k++, m);
     }

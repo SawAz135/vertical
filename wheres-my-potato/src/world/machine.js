@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { boxGeo, Batcher } from './build.js';
-import { ST } from './dynpotatoes.js';
+import { ST, jarPerMeter } from './dynpotatoes.js';
 import { canvasTex, textCanvas } from '../gfx/textures.js';
 import { TAU, clamp } from '../core/util.js';
 
@@ -10,7 +10,7 @@ import { TAU, clamp } from '../core/util.js';
 // pile up inside, the mound rises, and once it passes the rim they spill and roll out.
 // =====================================================================================
 export const BIN = { x: 2, z: 21.5, w: 1.7, d: 1.7, h: 0.85, t: 0.08, floor: 0.12 };
-export const JAR = { x: 9.6, z: 21.5, R: 1.15, th: 0.07, y0: 0, yb: 0.16, rim: 2.7 };
+export const JAR = { x: 9.6, z: 21.5, R: 0.95, th: 0.07, y0: 0, yb: 0.16, rim: 2.55 };
 const S = new THREE.Vector3(3.15, 1.02, 21.5), E = new THREE.Vector3(JAR.x, 3.5, 21.5);
 
 export class Machine {
@@ -126,7 +126,7 @@ export class Machine {
     const plinth = new THREE.Mesh(new THREE.CylinderGeometry(o + 0.3, o + 0.42, 0.12, 40), M.woodDark); plinth.position.set(J.x, -0.03, J.z); plinth.receiveShadow = true; this.scene.add(plinth);
     // signboard with the total
     this.labelCanvas = textCanvas(512, 256, () => {}); this.labelTex = canvasTex(this.labelCanvas, true);
-    const board = new THREE.Group(); board.position.set(J.x - 1.9, 0, J.z - 1.6); board.rotation.y = 0.65;
+    const board = new THREE.Group(); board.position.set(J.x + 2.1, 0, J.z - 0.9); board.rotation.y = -0.55;
     const pl = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.65), new THREE.MeshStandardMaterial({ map: this.labelTex, roughness: 0.7 })); pl.position.y = 1.7; pl.rotation.y = Math.PI; board.add(pl);
     const back = new THREE.Mesh(boxGeo(1.4, 0.75, 0.05, 1), M.woodDark); back.position.set(0, 1.7, 0.03); back.castShadow = true; board.add(back);
     for (const sx of [-0.55, 0.55]) { const p = new THREE.Mesh(boxGeo(0.07, 1.4, 0.07, 1), M.woodDark); p.position.set(sx, 0.7, 0.05); p.castShadow = true; board.add(p); }
@@ -138,7 +138,7 @@ export class Machine {
     const c = this.gradTex.image, x = c.getContext('2d'), J = JAR, w = c.width, h = c.height;
     x.clearRect(0, 0, w, h);
     // capacity estimate per metre of height: area * packing / mean potato volume
-    const perM = Math.PI * J.R * J.R * 0.6 / ((4 / 3) * Math.PI * Math.pow(0.058, 3));
+    const perM = jarPerMeter(J.R);
     const H = J.rim - 0.35, y0px = h;
     x.strokeStyle = 'rgba(255,255,255,0.75)'; x.fillStyle = 'rgba(255,255,255,0.85)'; x.font = '700 30px Georgia'; x.textAlign = 'left';
     for (let m = 0.1; m <= H + 0.001; m += 0.1) {
@@ -202,7 +202,7 @@ export class Machine {
     this.onPay(i, dyn.db.px[i], dyn.db.py[i], dyn.db.pz[i]);
   }
   // the jar is "overflowing" when the mound reaches the rim
-  fillRatio(dyn) { const perM = Math.PI * JAR.R * JAR.R * 0.6 / ((4 / 3) * Math.PI * Math.pow(0.058, 3)); return clamp(dyn.totalJar / (perM * (JAR.rim - JAR.yb)), 0, 1.2); }
+  fillRatio(dyn) { return dyn.totalJar ? clamp((dyn.jarTop - JAR.yb) / (JAR.rim - JAR.yb), 0, 1.2) : 0; }
 }
 const _side = new THREE.Vector3(), _up = new THREE.Vector3();
 

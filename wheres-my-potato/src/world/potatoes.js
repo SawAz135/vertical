@@ -182,7 +182,7 @@ ${GLSL_NOISE}`)
     float mk = (1.0 - smoothstep(0.03, 0.07, min(x1, x2))) * step(abs(uv.y), 0.55) * step(0.0, n.z);
     col = mix(col, vec3(1.0,0.42,0.05), mk * (0.75 + 0.25*fine));
   }
-  diffuseColor.rgb = col;
+  diffuseColor.rgb = pow(clamp(col, 0.0, 1.5), vec3(2.2)); // palette is authored in sRGB
 }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 roughnessFactor = mix(0.82, 0.55, smoothstep(0.4, 0.8, wmpNoise(normalize(vDir)*6.0+vMisc.x))) - uWet*0.35;

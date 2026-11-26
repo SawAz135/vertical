@@ -6,8 +6,9 @@ import { getSet } from './textures.js';
 export function createMaterials(texSize = 512) {
   const S = n => getSet(n, texSize);
   const std = (set, o = {}) => {
-    const m = new THREE.MeshStandardMaterial(Object.assign({ map: set.map, normalMap: set.normalMap, roughnessMap: set.roughnessMap, roughness: 1, metalness: 0 }, o));
-    m.userData.tile = o.tile || 2; delete m.tile;
+    const { tile, ...rest } = o;
+    const m = new THREE.MeshStandardMaterial(Object.assign({ map: set.map, normalMap: set.normalMap, roughnessMap: set.roughnessMap, roughness: 1, metalness: 0 }, rest));
+    m.userData.tile = tile || 2;
     return m;
   };
   // Lazy: a texture set is only painted the first time a material that uses it is requested.
@@ -32,7 +33,7 @@ export function createMaterials(texSize = 512) {
   D.paintGrey = () => std(S('paintedMetal'), { tile: 1.2, color: new THREE.Color(0.55, 0.56, 0.55), metalness: 0.4 });
   D.paintCream = () => std(S('paintedMetal'), { tile: 1.2, color: new THREE.Color(0.86, 0.82, 0.7), metalness: 0.2 });
   D.grate = () => std(S('grate'), { tile: 1, metalness: 0.8, alphaTest: 0.5, side: THREE.DoubleSide });
-  D.gravel = () => std(S('gravel'), { tile: 2.2 });
+  D.gravel = () => std(S('gravel'), { tile: 1.3, color: new THREE.Color(0.62, 0.57, 0.5) });
   D.soil = () => std(S('soil'), { tile: 3 });
   D.grass = () => std(S('grass'), { tile: 2.5 });
   D.mud = () => std(S('mud'), { tile: 3, envMapIntensity: 1.2 });

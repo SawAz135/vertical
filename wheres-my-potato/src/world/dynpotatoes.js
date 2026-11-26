@@ -16,6 +16,9 @@ import { clamp, rng, TAU } from '../core/util.js';
 
 export const ST = { NONE: 0, FREE: 1, FLY: 2, HAND: 3, BUCKET: 4, BELT: 5, SETTLED: 6, SHRINK: 7, GROW: 8 };
 const CS = 0.16; // hash cell size
+export const JAR_RAD = 0.052, JAR_LAYER = 0.088;
+// potatoes per metre of jar height for the packed fill (also used for the glass graduations)
+export function jarPerMeter(R) { const step = JAR_RAD * 2; let n = 0; for (let gz = -R; gz <= R; gz += step * 0.866) for (let gx = -R; gx <= R; gx += step) if (Math.hypot(gx, gz) <= R - JAR_RAD) n++; return n / JAR_LAYER; }
 const key = (x, y, z) => ((Math.floor(x / CS) + 2048) * 4096 + (Math.floor(z / CS) + 2048)) * 512 + (Math.floor(y / CS) + 64);
 
 export class DynPotatoes {
@@ -27,7 +30,7 @@ export class DynPotatoes {
     Object.assign(this, {
       vx: f(), vy: f(), vz: f(), wx: f(), wy: f(), wz: f(), t: f(), sleep: f(), aux: f(), age: f(),
       st: new Uint8Array(cap), lslot: new Int32Array(cap).fill(-1), sslot: new Int32Array(cap).fill(-1),
-      f0x: f(), f0y: f(), f0z: f(), fdur: f(), farc: f(), fex: f(), fey: f(), fez: f(), inJar: new Uint8Array(cap),
+      f0x: f(), f0y: f(), f0z: f(), fdur: f(), farc: f(), fex: f(), fey: f(), fez: f(), inJar: new Uint8Array(cap), paid: new Uint8Array(cap), vscale: new Float32Array(cap).fill(1),
     });
     this.flyTarget = new Map(); // id -> fn(outVec) for moving targets
     this.flyDone = new Map();   // id -> callback
@@ -42,14 +45,14 @@ export class DynPotatoes {
     this.player = null; // {x,y,z,vx,vz} feet info for pushing
     this._m = new THREE.Matrix4(); this._v = new THREE.Vector3(); this._q = new THREE.Quaternion();
     this.impactBudget = 0;
-    this.totalJar = 0;
+    this.totalJar = 0; this.jarTop = world.jar.yb;
   }
 
   // ------------- lifecycle -------------
   alloc() {
     let i = this.freeIds.length ? this.freeIds.pop() : this.db.add();
     if (i < 0) return -1;
-    this.db.qw[i] = 1; this.db.marked[i] = 0; this.inJar[i] = 0; this.age[i] = 0;
+    this.db.qw[i] = 1; this.db.marked[i] = 0; this.inJar[i] = 0; this.age[i] = 0; this.paid[i] = 0; this.vscale[i] = 1;
     return i;
   }
   // copies traits from another DB (the field) so the potato looks identical
@@ -97,7 +100,7 @@ export class DynPotatoes {
   setFree(i, vx = 0, vy = 0, vz = 0) {
     if (this.sslot[i] >= 0) this._leave(i);
     if (!this._toLive(i)) { this.free(i); return; }
-    this.st[i] = ST.FREE; this.vx[i] = vx; this.vy[i] = vy; this.vz[i] = vz; this.sleep[i] = 0; this.t[i] = 0;
+    this.vscale[i] = 1; this.age[i] = 0; this.st[i] = ST.FREE; this.vx[i] = vx; this.vy[i] = vy; this.vz[i] = vz; this.sleep[i] = 0; this.t[i] = 0;
   }
   // fly along an arc to a fixed point or a moving target fn(out)
   fly(i, target, dur, arc, done) {
@@ -114,7 +117,7 @@ export class DynPotatoes {
 
   settle(i) {
     if (this.settled.length >= this.settledCap) this._evictOldest();
-    if (this.settled.length >= this.settledCap) return; // jar completely full of settled jar potatoes
+    if (this.settled.length >= this.settledCap) { this.free(i); return; } // budget exhausted: the potato quietly vanishes
     if (this.lslot[i] >= 0) this._leave(i);
     this.st[i] = ST.SETTLED; this.sslot[i] = this.settled.length; this.settled.push(i);
     this._writeSettled(i); writeAttrs(this.db, i, this.setMesh.userData.arrs, this.sslot[i]);
@@ -123,7 +126,8 @@ export class DynPotatoes {
     const J = this.world.jar;
     const inJar = Math.hypot(this.db.px[i] - J.x, this.db.pz[i] - J.z) < J.R + 0.02 && this.db.py[i] < J.rim + 0.6;
     this.inJar[i] = inJar ? 1 : 0;
-    if (inJar) { this.totalJar++; this.onSettleInJar(i); }
+    if (inJar) { this.totalJar++; this.jarTop = Math.max(this.jarTop, this.db.py[i]); this.onSettleInJar(i); }
+    else if (this.paid[i] && Math.hypot(this.db.px[i] - J.x, this.db.pz[i] - J.z) < J.R + 3) this.onSpill?.(i);
   }
   _evictOldest() {
     // remove the oldest potato lying OUTSIDE the jar (overflow pile on the ground), with a shrink animation
@@ -138,21 +142,25 @@ export class DynPotatoes {
   _hash(i) { const k = key(this.db.px[i], this.db.py[i], this.db.pz[i]); let c = this.hash.get(k); if (!c) this.hash.set(k, c = []); c.push(i); this.aux[i] = k; }
   _unhash(i) { const c = this.hash.get(this.aux[i]); if (c) { const p = c.indexOf(i); if (p >= 0) { c[p] = c[c.length - 1]; c.pop(); } } }
 
-  // Instantly fill the jar with n settled potatoes (used when loading a save): hexagonal layers with jitter
+  // Instantly fill the jar with n settled potatoes (used when loading a save): hexagonal layers
+  // with jitter, never above the rim. Returns how many were placed.
   fillJar(n, seed) {
-    const J = this.world.jar, r = rng(seed); const rad = 0.06;
+    const J = this.world.jar, r = rng(seed), rad = JAR_RAD, step = rad * 2, lh = JAR_LAYER;
     let y = J.yb + rad, placed = 0, layer = 0;
-    while (placed < n) {
-      const step = rad * 1.9;
-      for (let gz = -J.R; gz <= J.R && placed < n; gz += step * 0.87) for (let gx = -J.R + ((layer + Math.round(gz / (step * 0.87))) % 2) * step * 0.5; gx <= J.R && placed < n; gx += step) {
-        const x = gx + (r() - 0.5) * 0.03, z = gz + (r() - 0.5) * 0.03;
-        if (Math.hypot(x, z) > J.R - rad) continue;
-        const i = this.spawnRandom(r, J.x + x, y + (r() - 0.5) * 0.02, J.z + z); if (i < 0) return;
-        this.settle(i); placed++;
+    while (placed < n && y < J.rim - rad * 0.5) {
+      const row = step * 0.866;
+      for (let gz = -J.R; gz <= J.R && placed < n; gz += row) {
+        const odd = (Math.round((gz + J.R) / row) + layer) % 2;
+        for (let gx = -J.R + odd * step * 0.5; gx <= J.R && placed < n; gx += step) {
+          const x = gx + (r() - 0.5) * 0.025, z = gz + (r() - 0.5) * 0.025;
+          if (Math.hypot(x, z) > J.R - rad) continue;
+          const i = this.spawnRandom(r, J.x + x, y + (r() - 0.5) * 0.02, J.z + z); if (i < 0) return placed;
+          this.settle(i); placed++;
+        }
       }
-      y += rad * 1.55; layer++;
-      if (y > J.rim + 1.0) break;
+      y += lh; layer++;
     }
+    return placed;
   }
 
   // ------------- simulation -------------
@@ -269,9 +277,21 @@ export class DynPotatoes {
       const sp = Math.hypot(this.vx[i], this.vy[i], this.vz[i]);
       if (contact && sp < 0.14) this.sleep[i] += h; else this.sleep[i] = Math.max(0, this.sleep[i] - h * 2);
       const inBin = W.inBin(d.px[i], d.py[i], d.pz[i]);
-      if (!inBin && (this.sleep[i] > 0.3 || this.age[i] > 9) && this.st[i] === ST.FREE) { this.vx[i] = this.vy[i] = this.vz[i] = 0; this.settle(i); }
+      if (!inBin && (this.sleep[i] > 0.3 || (this.age[i] > 9 && contact) || this.age[i] > 30) && this.st[i] === ST.FREE) { this.vx[i] = this.vy[i] = this.vz[i] = 0; this.settle(i); }
       if (d.py[i] < -5) this.free(i); // safety
     }
+  }
+  // nearest unpaid loose potato (thrown on the ground) around a point — can be picked up again
+  pickNear(x, y, z, r) {
+    let best = -1, bd = r * r; const d = this.db;
+    const test = i => { if (this.paid[i] || this.inJar[i]) return; if (this.world.inBin(d.px[i], d.py[i], d.pz[i])) return; const dx = d.px[i] - x, dy = d.py[i] - y, dz = d.pz[i] - z, q = dx * dx + dy * dy * 0.25 + dz * dz; if (q < bd) { bd = q; best = i; } };
+    for (const i of this.live) if (this.st[i] === ST.FREE) test(i);
+    const n = Math.ceil(r / CS);
+    for (let a = -n; a <= n; a++) for (let c = -n; c <= n; c++) for (let b = -n; b <= n; b++) {
+      const cell = this.hash.get(((Math.floor(x / CS) + a + 2048) * 4096 + (Math.floor(z / CS) + c + 2048)) * 512 + (Math.floor(y / CS) + b + 64));
+      if (cell) for (const i of cell) test(i);
+    }
+    return best;
   }
   // kick settled ground potatoes near the player (overflow pile reacts to walking through it)
   kick(x, y, z, vx, vz) {
@@ -323,7 +343,8 @@ export class DynPotatoes {
     const d = this.db, lm = this.liveMesh, m = this._m;
     for (let s = 0; s < this.live.length; s++) {
       const i = this.live[s]; d.matrix(i, m);
-      if (this.st[i] === ST.SHRINK) { const k = Math.max(0, 1 - this.t[i] / 0.5); m.scale(this._v.set(k, k, k)); }
+      let k = this.vscale[i]; if (this.st[i] === ST.SHRINK) k *= Math.max(0, 1 - this.t[i] / 0.5);
+      if (k !== 1) m.scale(this._v.set(k, k, k));
       lm.setMatrixAt(s, m);
     }
     lm.count = this.live.length; lm.instanceMatrix.needsUpdate = true;

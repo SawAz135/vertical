@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1b130c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Where's My Potato?</title>
+<link rel="stylesheet" href="styles.css">
+<script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/jsm/" } }</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="ld-logo">WHERE'S MY <span>POTATO?</span></div>
+  <div class="ld-bar"><div class="ld-fill"></div><div class="ld-spud">🥔</div></div>
+  <div class="ld-text">Préparation du champ…</div>
+</div>
+
+<!-- MAIN MENU -->
+<div id="menu" class="hidden">
+  <div class="menu-vignette"></div>
+  <div class="menu-rays"></div>
+  <div class="menu-left">
+    <div class="logo">
+      <div class="logo-top" data-letters="WHERE'S MY"></div>
+      <div class="logo-main" data-letters="POTATO?"></div>
+      <div class="logo-sub">La grande récolte de Gérard</div>
+    </div>
+    <nav class="menu-buttons">
+      <button class="mbtn primary" data-act="play"><span class="mb-ico">▶</span><span class="mb-txt">Jouer</span><span class="mb-shine"></span></button>
+      <button class="mbtn" data-act="new"><span class="mb-ico">✦</span><span class="mb-txt">Nouvelle partie</span><span class="mb-shine"></span></button>
+      <button class="mbtn" data-act="book"><span class="mb-ico">📖</span><span class="mb-txt">Tutoriel</span><span class="mb-shine"></span></button>
+      <button class="mbtn" data-act="settings"><span class="mb-ico">⚙</span><span class="mb-txt">Réglages</span><span class="mb-shine"></span></button>
+      <button class="mbtn" data-act="credits"><span class="mb-ico">★</span><span class="mb-txt">Crédits</span><span class="mb-shine"></span></button>
+    </nav>
+    <div class="menu-stats"></div>
+  </div>
+  <div class="menu-foot">v1.0 · fait avec des patates · <span class="menu-hint">Clique pour jouer</span></div>
+</div>
+
+<!-- TUTORIAL BOOK -->
+<div id="book" class="hidden">
+  <div class="book-desk"></div>
+  <div class="book-wrap">
+    <div class="book"><div class="book-spine"></div></div>
+  </div>
+  <div class="book-nav">
+    <button class="bnav prev" aria-label="Page précédente">‹</button>
+    <div class="book-dots"></div>
+    <button class="bnav next" aria-label="Page suivante">›</button>
+  </div>
+  <button class="book-close">Fermer le livre ✕</button>
+</div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="money"><div class="coin3d"><div class="coin-face">₣</div></div><div class="money-val">0</div><div class="money-gain"></div></div>
+  <div class="jar-meter"><div class="jm-label">BOCAL</div><div class="jm-glass"><div class="jm-fill"></div><div class="jm-marks"></div></div><div class="jm-count">0</div></div>
+  <div class="cross"><i></i><i></i><i></i><i></i></div>
+  <div class="prompt"></div>
+  <div class="carry"><div class="carry-ico">✋</div><div class="carry-bar"><div class="carry-fill"></div></div><div class="carry-txt">0 / 3</div></div>
+  <div class="tools"><div class="tool" data-tool="hands"><b>1</b>✋<span>Mains</span></div><div class="tool" data-tool="bucket"><b>2</b>🪣<span>Seau</span></div></div>
+  <div class="toasts"></div>
+  <div class="bubble"><div class="bubble-name">Gérard</div><div class="bubble-txt"></div></div>
+  <div class="banner"><div class="banner-in"><div class="banner-k"></div><div class="banner-t"></div></div></div>
+  <div class="fps"></div>
+  <div class="floaters"></div>
+  <button class="hud-pause" aria-label="Pause">❚❚</button>
+</div>
+
+<!-- TOUCH CONTROLS -->
+<div id="touch" class="hidden">
+  <div class="t-stick"><div class="t-knob"></div></div>
+  <button class="tb t-use" data-act="use">✋</button>
+  <button class="tb t-jump" data-act="jump">⤒</button>
+  <button class="tb t-tool" data-act="toolNext">⇄</button>
+  <button class="tb t-drop" data-act="drop">↯</button>
+  <button class="tb t-sprint" data-act="sprint">»</button>
+</div>
+
+<!-- SHOP -->
+<div id="shop" class="hidden">
+  <div class="shop-card">
+    <div class="shop-head">
+      <div class="shop-title">CHEZ GÉRARD</div>
+      <div class="shop-money"></div>
+      <button class="shop-close">✕</button>
+    </div>
+    <div class="shop-quote"></div>
+    <div class="shop-grid"></div>
+  </div>
+</div>
+
+<!-- PAUSE / SETTINGS / CREDITS -->
+<div id="panel" class="hidden">
+  <div class="panel-card">
+    <div class="panel-title"></div>
+    <div class="panel-body"></div>
+    <div class="panel-actions"></div>
+  </div>
+</div>
+
+<div id="fade"></div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

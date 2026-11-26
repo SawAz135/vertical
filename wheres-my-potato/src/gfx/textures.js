@@ -169,7 +169,7 @@ const BUILDERS = {
   paintedMetal(size) {
     const n = new TNoise(52);
     return set('paintedMetal', size, (u, v, o) => {
-      const chip = n.fbm(u, v, 6, 5), worn = chip > 0.66 ? 1 : 0, edge = chip > 0.62 && !worn ? 1 : 0;
+      const chip = n.fbm(u, v, 16, 4), worn = chip > 0.74 ? 1 : 0, edge = chip > 0.7 && !worn ? 1 : 0;
       const c = 0.9 + n.v(u * 100, v * 100) * 0.05;
       if (worn) { o[0] = 0.32; o[1] = 0.3; o[2] = 0.3; } else { o[0] = c; o[1] = c; o[2] = c; }
       if (edge) { o[0] *= 0.8; o[1] *= 0.8; o[2] *= 0.8; }
