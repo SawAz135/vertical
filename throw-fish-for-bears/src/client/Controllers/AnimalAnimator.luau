@@ -676,6 +676,8 @@ end
 local PLANTED = { Sniff = true, Eat = true, Reveal = true, Happy = true, Transform = true, Alert = true, Arrive = true, Look = true,
 	Yawn = true, Fish = true, Forage = true, Roar = true }
 -- states driven by a bouncy spring: { speed, damping }
+-- states during which an animal may turn its head toward players / greet them
+local ATTN_OK = { Idle = true, Look = true, Sit = true, Sniff = true, Scratch = true, Stretch = true, Forage = true }
 local SPRINGY = { Alert = { 16, 0.78 }, Eat = { 17, 0.8 }, Happy = { 15, 0.74 }, Reveal = { 13, 0.8 }, Transform = { 14, 0.8 }, Sniff = { 15, 0.82 }, Arrive = { 12, 0.9 } }
 local AXES = { "x", "y", "z", "px", "py", "pz" }
 
@@ -762,6 +764,75 @@ local function updateBear(e, dt, now)
 	end
 	idleLayer(p, e, t, s, moving < 0.2 and (anim == "Idle" or anim == "Walk" or anim == "Run"))
 	planLayer(p, e, t, s, moving, anim, math.max(0, animT))
+	-- ATTENTION: a resting animal NOTICES people. The nearest player within ~22 studs is
+	-- followed with the head (smooth turn, a little lag, ears perked toward them); when
+	-- someone walks up close after being away, a quick happy hop with a tail wag. World
+	-- animals only (menu thumbnails never look around for players).
+	if not e.vp and not carried then
+		if now - (e.attnAt or 0) > 0.25 then
+			e.attnAt = now
+			local best, bd = nil, 22 * math.max(1, s)
+			for _, pl in Players:GetPlayers() do
+				local ch = pl.Character
+				local hd = ch and ch:FindFirstChild("Head")
+				if hd and ch ~= model then
+					local dd = (hd.Position - p0).Magnitude
+					if dd < bd then best, bd = hd, dd end
+				end
+			end
+			-- greet: back within 9 studs after having been more than 16 away
+			if best and bd < 9 * math.max(1, s) and (e.attnFar ~= false) and ATTN_OK[anim] then
+				e.greetT = now
+				e.attnFar = false
+			elseif not best or bd > 16 * math.max(1, s) then
+				e.attnFar = true
+			end
+			e.attnTarget = best
+		end
+		local tgt = e.attnTarget
+		local want = if tgt and tgt.Parent and moving < 0.3 and ATTN_OK[anim] then 1 else 0
+		e.attn = (e.attn or 0) + (want - (e.attn or 0)) * Easing.damp(2.6, dt)
+		if e.attn > 0.01 and tgt and tgt.Parent then
+			local lp = root.CFrame:PointToObjectSpace(tgt.Position)
+			local yawT = clamp(math.atan2(-lp.X, -lp.Z), -1.15, 1.15)
+			local flatD = math.max(0.5, math.sqrt(lp.X * lp.X + lp.Z * lp.Z))
+			local pitchT = clamp(math.atan2(lp.Y - 1.2 * s, flatD), -0.35, 0.5)
+			-- the head lags a little behind the target (natural, not robotic)
+			e.attnYaw = (e.attnYaw or yawT) + (yawT - (e.attnYaw or yawT)) * Easing.damp(5, dt)
+			e.attnPitch = (e.attnPitch or pitchT) + (pitchT - (e.attnPitch or pitchT)) * Easing.damp(5, dt)
+			local a = e.attn
+			local n = p.Neck
+			n.y += (e.attnYaw - n.y) * a * 0.85
+			n.x += (e.attnPitch * 0.7 - n.x) * a * 0.55
+			n.z += (-e.attnYaw * 0.08 - n.z) * a * 0.4 -- a curious little head tilt
+			rot(p, "EarL", -0.28 * a) rot(p, "EarR", -0.28 * a)
+			-- the body follows the head a bit
+			rot(p, "BodyJoint", 0, e.attnYaw * 0.18 * a, 0)
+		end
+		if e.greetT then
+			local g = now - e.greetT
+			if g > 1.1 then
+				e.greetT = nil
+			else
+				local hop = Easing.bump(clamp(g / 0.42, 0, 1))
+				local hop2 = Easing.bump(clamp((g - 0.45) / 0.32, 0, 1)) * 0.55
+				local land = Easing.bump(clamp((g - 0.38) / 0.12, 0, 1))
+				pos(p, "BodyJoint", 0, ((hop + hop2) * 0.42 - land * 0.12) * s, 0)
+				rot(p, "BodyJoint", (hop + hop2) * 0.18 - land * 0.08)
+				rot(p, "LegFL", -0.6 * (hop + hop2)) rot(p, "LegFR", -0.6 * (hop + hop2))
+				rot(p, "LegBL", 0.45 * (hop + hop2)) rot(p, "LegBR", 0.45 * (hop + hop2))
+				local wag = (1 - clamp(g / 1.1, 0, 1))
+				rot(p, "Tail", 0.5 * wag, sin(g * 26) * 0.8 * wag)
+				rot(p, "EarL", sin(g * 20) * 0.35 * wag) rot(p, "EarR", -sin(g * 20) * 0.35 * wag)
+				rot(p, "Jaw", -0.35 * wag)
+				-- birds flap, penguins wave their flippers when greeting
+				if e.plan == "bird" or e.plan == "penguin" then
+					local f = abs(sin(g * 18)) * wag
+					rot(p, "WingL", 0, 0, -0.9 * f) rot(p, "WingR", 0, 0, 0.9 * f)
+				end
+			end
+		end
+	end
 	if air and not carried then airLayer(p, e, s, vy) end
 	if e.squash > 0 then
 		local q = Easing.bump(1 - e.squash)
