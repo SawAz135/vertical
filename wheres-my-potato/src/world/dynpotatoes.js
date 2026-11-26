@@ -281,6 +281,7 @@ export class DynPotatoes {
       if (d.py[i] < -5) this.free(i); // safety
     }
   }
+  recomputeTop() { let t = this.world.jar.yb; for (const i of this.settled) if (this.inJar[i] && this.db.py[i] > t) t = this.db.py[i]; this.jarTop = t; }
   // nearest unpaid loose potato (thrown on the ground) around a point — can be picked up again
   pickNear(x, y, z, r) {
     let best = -1, bd = r * r; const d = this.db;

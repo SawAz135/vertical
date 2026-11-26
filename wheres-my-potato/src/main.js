@@ -251,7 +251,7 @@ class Game {
     setTimeout(() => {
       // remove demo potatoes thrown in during the menu
       for (const i of this.attract) if (this.dyn.st[i] !== ST.NONE && !this.dyn.paid[i]) this.dyn.free(i);
-      this.attract.clear();
+      this.attract.clear(); this.dyn.recomputeTop();
       this.ui.hideMenu(); this.ui.showHud(); this.state = 'play';
       this.player.enabled = true; this.player.vm.visible = true; input.wantLock = !isTouch(); input.clear();
       this.ui.fade(false);

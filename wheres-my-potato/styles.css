@@ -266,3 +266,4 @@ body.touch .tools { transform: scale(.85); transform-origin: bottom left; }
 .item.sale .it-buy { background: linear-gradient(180deg, #c0392b, #7a1c12); font-size: 19px; }
 .item.sale.locked { filter: saturate(.4); }
 .item.sale.locked .it-buy { background: linear-gradient(180deg, #a08870, #6a5440); }
+body.touch .ach-toast { transform-origin: top left; } body.touch .at-i { font-size: 22px; } body.touch .at-n { font-size: 14px; }

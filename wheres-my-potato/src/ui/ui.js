@@ -107,7 +107,8 @@ export class UI {
   }
   toast(msg, kind = '') {
     const t = document.createElement('div'); t.className = 'toast ' + kind; t.textContent = msg; this.h.toasts.appendChild(t);
-    while (this.h.toasts.children.length > 4) this.h.toasts.firstChild.remove();
+    const max = document.body.classList.contains('touch') ? 2 : 4;
+    while (this.h.toasts.children.length > max) this.h.toasts.firstChild.remove();
     setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, 3200);
   }
   say(text, dur) {
@@ -117,7 +118,9 @@ export class UI {
   }
   achievement(a) {
     const t = document.createElement('div'); t.className = 'toast ach-toast'; t.innerHTML = `<div class="at-i">${a.icon}</div><div><div class="at-k">Succès débloqué</div><div class="at-n">${a.name}</div></div>`;
-    this.h.toasts.appendChild(t); setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, 4500);
+    this.h.toasts.appendChild(t); const max = document.body.classList.contains('touch') ? 2 : 4;
+    while (this.h.toasts.children.length > max) this.h.toasts.firstChild.remove();
+    setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, 4500);
   }
   banner(kicker, title) { const b = this.h.banner; $('.banner-k').textContent = kicker; $('.banner-t').textContent = title; b.classList.remove('on'); void b.offsetWidth; b.classList.add('on'); }
 
