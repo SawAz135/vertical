@@ -30,7 +30,7 @@ export class DynPotatoes {
     Object.assign(this, {
       vx: f(), vy: f(), vz: f(), wx: f(), wy: f(), wz: f(), t: f(), sleep: f(), aux: f(), age: f(),
       st: new Uint8Array(cap), lslot: new Int32Array(cap).fill(-1), sslot: new Int32Array(cap).fill(-1),
-      f0x: f(), f0y: f(), f0z: f(), fdur: f(), farc: f(), fex: f(), fey: f(), fez: f(), inJar: new Uint8Array(cap), paid: new Uint8Array(cap), remote: new Uint8Array(cap), vscale: new Float32Array(cap).fill(1),
+      f0x: f(), f0y: f(), f0z: f(), fdur: f(), farc: f(), fex: f(), fey: f(), fez: f(), inJar: new Uint8Array(cap), paid: new Uint8Array(cap), remote: new Uint8Array(cap), fieldId: new Int32Array(cap).fill(-1), vscale: new Float32Array(cap).fill(1),
     });
     this.flyTarget = new Map(); // id -> fn(outVec) for moving targets
     this.flyDone = new Map();   // id -> callback
@@ -52,7 +52,7 @@ export class DynPotatoes {
   alloc() {
     let i = this.freeIds.length ? this.freeIds.pop() : this.db.add();
     if (i < 0) return -1;
-    this.db.qw[i] = 1; this.db.marked[i] = 0; this.inJar[i] = 0; this.age[i] = 0; this.paid[i] = 0; this.remote[i] = 0; this.vscale[i] = 1;
+    this.db.qw[i] = 1; this.db.marked[i] = 0; this.inJar[i] = 0; this.age[i] = 0; this.paid[i] = 0; this.remote[i] = 0; this.fieldId[i] = -1; this.vscale[i] = 1;
     return i;
   }
   // copies traits from another DB (the field) so the potato looks identical
@@ -104,6 +104,7 @@ export class DynPotatoes {
   }
   // fly along an arc to a fixed point or a moving target fn(out)
   fly(i, target, dur, arc, done) {
+    if (this.fieldId[i] >= 0) { this.onDetach?.(this.fieldId[i]); this.fieldId[i] = -1; } // picked / fed: the sea will regrow it
     this._toLive(i);
     const d = this.db; this.st[i] = ST.FLY; this.t[i] = 0; this.fdur[i] = dur; this.farc[i] = arc;
     this.f0x[i] = d.px[i]; this.f0y[i] = d.py[i]; this.f0z[i] = d.pz[i];
@@ -116,6 +117,8 @@ export class DynPotatoes {
   radius(i) { return this.db.radius(i); }
 
   settle(i) {
+    // a sea potato that was only kicked around goes back into the sea once it rests
+    if (this.fieldId[i] >= 0 && !this.paid[i] && this.onRestore && !this.world.inBin(this.db.px[i], this.db.py[i], this.db.pz[i]) && Math.hypot(this.db.px[i] - this.world.jar.x, this.db.pz[i] - this.world.jar.z) > this.world.jar.R + 0.5) { this.onRestore(i); return; }
     if (this.settled.length >= this.settledCap) this._evictOldest();
     if (this.settled.length >= this.settledCap) { this.free(i); return; } // budget exhausted: the potato quietly vanishes
     if (this.lslot[i] >= 0) this._leave(i);
@@ -236,7 +239,12 @@ export class DynPotatoes {
         if (y < J.rim) {
           if (dist < J.R + J.th * 0.5) { // inside
             if (dist > J.R - r) { const pen = dist - (J.R - r); d.px[i] -= nx * pen; d.pz[i] -= nz * pen; resolve(-nx, 0, -nz, 0.35, 0.15, 0, 0, 0, 'glass'); }
-            if (y - r < J.yb && dist < J.R) { d.py[i] = J.yb + r; resolve(0, 1, 0, 0.3, 0.2, 0, 0, 0, 'glass'); }
+            const fy = W.jarFloor ? W.jarFloor(d.px[i], d.pz[i]) : J.yb;
+            if (y - r < fy && dist < J.R) {
+              d.py[i] = fy + r;
+              if (W.jarSlope) { const [sx, sz] = W.jarSlope(d.px[i], d.pz[i]); const l = Math.hypot(sx, 1, sz); resolve(-sx / l, 1 / l, -sz / l, 0.25, 0.08, 0, 0, 0, fy > J.yb + 0.05 ? 'potato' : 'glass'); }
+              else resolve(0, 1, 0, 0.3, 0.2, 0, 0, 0, 'glass');
+            }
           } else if (dist < J.R + J.th + r && y > J.y0) { // outside wall
             const pen = J.R + J.th + r - dist; d.px[i] += nx * pen; d.pz[i] += nz * pen; resolve(nx, 0, nz, 0.35, 0.15, 0, 0, 0, 'glass');
           }

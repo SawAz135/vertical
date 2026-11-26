@@ -13,11 +13,11 @@ import { GLSL_NOISE, hash32, clamp, TAU } from '../core/util.js';
 // =====================================================================================
 
 export const VARIETIES = [
-  { id: 'bintje', name: { fr: 'Bintje', en: 'Bintje' }, col: [0.78, 0.6, 0.36], price: 1, weight: 40 },
-  { id: 'charlotte', name: { fr: 'Charlotte', en: 'Charlotte' }, col: [0.86, 0.73, 0.48], price: 1.4, weight: 24 },
-  { id: 'rosabelle', name: { fr: 'Rosabelle', en: 'Rosabelle' }, col: [0.6, 0.24, 0.2], price: 2, weight: 14 },
-  { id: 'russet', name: { fr: 'Russet', en: 'Russet' }, col: [0.5, 0.36, 0.22], price: 1.6, weight: 16 },
-  { id: 'vitelotte', name: { fr: 'Vitelotte', en: 'Vitelotte' }, col: [0.22, 0.12, 0.24], price: 6, weight: 4 },
+  { id: 'bintje', name: { fr: 'Bintje', en: 'Bintje' }, col: [0.8, 0.64, 0.41], price: 1, weight: 66 },
+  { id: 'charlotte', name: { fr: 'Charlotte', en: 'Charlotte' }, col: [0.86, 0.72, 0.48], price: 1.4, weight: 20 },
+  { id: 'rosabelle', name: { fr: 'Rosabelle', en: 'Rosabelle' }, col: [0.66, 0.32, 0.26], price: 2, weight: 4 },
+  { id: 'russet', name: { fr: 'Russet', en: 'Russet' }, col: [0.68, 0.52, 0.34], price: 1.6, weight: 8 },
+  { id: 'vitelotte', name: { fr: 'Vitelotte', en: 'Vitelotte' }, col: [0.24, 0.14, 0.26], price: 6, weight: 1.5 },
   { id: 'doree', name: { fr: 'Dorée de Bouchard', en: 'Bouchard Gold' }, col: [1.0, 0.74, 0.16], price: 60, weight: 0.12 },
 ];
 export const SPECIAL = { NONE: 0, FACE: 1, HEART: 2, TWIN: 3 };
@@ -53,7 +53,7 @@ export class PotatoDB {
     this.bend[i] = r() < 0.75 ? r() * 0.12 : 0.12 + r() * 0.42;
     this.lump[i] = 0.04 + r() * 0.12;
     this.seed[i] = (hash32(i * 7919 + 13) % 997) / 9.7;
-    const sp = r(); this.spots[i] = sp < 0.62 ? 0 : sp < 0.9 ? 1 : 2;
+    const sp = r(); this.spots[i] = sp < 0.86 ? 0 : sp < 0.97 ? 1 : 2;
     this.spotT[i] = r() * TAU; this.spotP[i] = 0.4 + r() * 2.3; this.spotR[i] = 0.18 + r() * 0.16;
     this.spot2T[i] = r() * TAU; this.spot2P[i] = 0.4 + r() * 2.3;
     this.dent[i] = r() < 0.3 ? 0.08 + r() * 0.12 : 0;
@@ -142,13 +142,16 @@ ${GLSL_NOISE}`)
   float fine = wmpNoise(n*24.0 + vMisc.x*2.0);
   vec3 col = base * (0.86 + tone*0.22) + fine*0.025;
   // netted/russet texture
-  col *= 1.0 - 0.07*smoothstep(0.2, 0.7, abs(wmpNoise(n*14.0+vMisc.x)));
+  col *= 1.0 - 0.04*smoothstep(0.2, 0.7, abs(wmpNoise(n*14.0+vMisc.x)));
   // eyes: small dark pits with a pinkish rim
   float e = wmpNoise(n*9.0 + vMisc.x*3.1);
-  col = mix(col, col*vec3(0.62,0.48,0.4), smoothstep(0.62, 0.86, e));
+  col = mix(col, col*vec3(0.72,0.6,0.5), smoothstep(0.7, 0.9, e) * 0.8);
+  // lenticels: tiny dark-brown specks all over the skin (as on real washed potatoes)
+  float sp1 = wmpNoise(n*46.0 + vMisc.x*4.0), sp2 = wmpNoise(n*71.0 - vMisc.x*2.0);
+  col = mix(col, vec3(0.38,0.27,0.16), smoothstep(0.84, 0.93, sp1) * 0.7 + smoothstep(0.87, 0.95, sp2) * 0.45);
   // soil dirt patches
   float d = wmpNoise(n*4.2 + vMisc.x*5.0 + 10.0);
-  col = mix(col, vec3(0.24,0.17,0.11), smoothstep(0.25, 0.75, d) * 0.55);
+  col = mix(col, vec3(0.5,0.38,0.24), smoothstep(0.35, 0.85, d) * 0.28);
   // dark spot(s)
   float sr = cos(vSpotR);
   if (vSpotN > 0.5) {
@@ -185,7 +188,7 @@ ${GLSL_NOISE}`)
   diffuseColor.rgb = pow(clamp(col, 0.0, 1.5), vec3(2.2)); // palette is authored in sRGB
 }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-roughnessFactor = mix(0.82, 0.55, smoothstep(0.4, 0.8, wmpNoise(normalize(vDir)*6.0+vMisc.x))) - uWet*0.35;
+roughnessFactor = mix(0.72, 0.5, smoothstep(0.3, 0.8, wmpNoise(normalize(vDir)*6.0+vMisc.x))) - uWet*0.35;
 if (mod(vMisc.y, 8.0) > 4.5) roughnessFactor = 0.32;`);
   };
   m.customProgramCacheKey = () => 'wmp-potato' + (opts.key || '');
@@ -229,7 +232,7 @@ export class PotatoField {
   constructor(scene, db, opts) {
     this.scene = scene; this.db = db; this.opts = opts;
     this.mat = makePotatoMaterial();
-    this.geoNear = mergedIndexed(2); this.geoFar = mergedIndexed(1);
+    this.geoNear = mergedIndexed(2); this.geoFar = mergedIndexed(1); this.geoXFar = mergedIndexed(0);
     this.chunks = new Map();
     this.cells = new Map(); // 2 m pick cells -> ids
     this.dirtyChunks = new Set();
@@ -237,7 +240,7 @@ export class PotatoField {
     this.hover = new THREE.InstancedMesh(geomWith(mergedIndexed(3), makeInstAttrs(1)), makeHoverMaterial(), 1);
     this.hover.frustumCulled = false; this.hover.visible = false; this.hover.renderOrder = 5; scene.add(this.hover);
   }
-  chunkKey(x, z) { return Math.floor(x / CHUNK) * 4096 + Math.floor(z / CHUNK); }
+  chunkKey(x, z) { return (Math.floor(x / CHUNK) + 2048) * 4096 + (Math.floor(z / CHUNK) + 2048); }
   cellKey(x, z) { return Math.floor(x / 2) * 8192 + Math.floor(z / 2); }
   // Build all chunks from db (after generation)
   build() {
@@ -248,17 +251,18 @@ export class PotatoField {
     for (const ch of this.chunks.values()) this._flush(ch, true);
   }
   _makeChunk(k, cap) {
-    const cx = Math.floor(k / 4096), cz = k - cx * 4096;
+    const cx = Math.floor(k / 4096) - 2048, cz = (k % 4096) - 2048;
     const attrs = makeInstAttrs(cap);
     const near = new THREE.InstancedMesh(geomWith(this.geoNear, attrs), this.mat, cap);
     const far = new THREE.InstancedMesh(geomWith(this.geoFar, attrs), this.mat, cap);
-    far.instanceMatrix = near.instanceMatrix; near.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    const xfar = new THREE.InstancedMesh(geomWith(this.geoXFar, attrs), this.mat, cap);
+    far.instanceMatrix = near.instanceMatrix; xfar.instanceMatrix = near.instanceMatrix; near.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     const center = new THREE.Vector3((cx + 0.5) * CHUNK, 1.5, (cz + 0.5) * CHUNK);
-    for (const m of [near, far]) {
+    for (const m of [near, far, xfar]) {
       m.count = 0; m.boundingSphere = new THREE.Sphere(center, CHUNK * 0.75 + 2.5); m.receiveShadow = true; m.castShadow = false;
       m.matrixAutoUpdate = false; this.group.add(m);
     }
-    const ch = { k, cx, cz, center, cap, near, far, attrs, idAt: new Int32Array(cap).fill(-1), free: [], hi: 0, dirty: false, minSlot: 1e9, maxSlot: -1 };
+    const ch = { k, cx, cz, center, cap, near, far, xfar, attrs, idAt: new Int32Array(cap).fill(-1), free: [], hi: 0, dirty: false, minSlot: 1e9, maxSlot: -1 };
     this.chunks.set(k, ch);
     return ch;
   }
@@ -306,14 +310,14 @@ export class PotatoField {
   }
   _grow(ch) {
     const old = ch; const ids = []; for (let s = 0; s < old.hi; s++) if (old.idAt[s] >= 0) ids.push(old.idAt[s]);
-    this.group.remove(old.near); this.group.remove(old.far); old.near.geometry.dispose(); old.far.geometry.dispose(); old.near.dispose?.();
+    this.group.remove(old.near, old.far, old.xfar); old.near.geometry.dispose(); old.far.geometry.dispose(); old.xfar.geometry.dispose();
     this.chunks.delete(old.k); this.dirtyChunks.delete(old);
     const ch2 = this._makeChunk(old.k, old.cap * 2);
     for (const i of ids) { const cell = this.cells.get(this.cellKey(this.db.px[i], this.db.pz[i])); if (cell) { const p = cell.indexOf(i); if (p >= 0) cell.splice(p, 1); } this.place(i); }
     this._flush(ch2, true);
   }
   _flush(ch, all = false) {
-    const n = ch.hi; ch.near.count = ch.far.count = n;
+    const n = ch.hi; ch.near.count = ch.far.count = ch.xfar.count = n;
     if (!ch.dirty && !all) return;
     const lo = all ? 0 : ch.minSlot, hi = all ? n - 1 : ch.maxSlot;
     if (hi >= lo) {
@@ -331,7 +335,8 @@ export class PotatoField {
       const d = Math.hypot(ch.center.x - camPos.x, ch.center.z - camPos.z) - CHUNK * 0.7;
       const vis = d < R && ch.hi > 0;
       const near = vis && d < NL;
-      ch.near.visible = near; ch.far.visible = vis && !near;
+      const mid = vis && !near && d < NL * 2.2;
+      ch.near.visible = near; ch.far.visible = mid; ch.xfar.visible = vis && !near && !mid;
       ch.near.castShadow = near && quality.shadows && d < 4;
     }
   }

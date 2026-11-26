@@ -101,7 +101,7 @@ export class Coop {
       if (this.waitingSnap) { // first snapshot: rebuild the jar to the shared count
         this.waitingSnap = false; g.stats.jar = s.jar;
         for (const i of [...g.dyn.settled]) if (g.dyn.inJar[i]) g.dyn.free(i);
-        g.dyn.jarTop = 0.16; g.dyn.fillJar(Math.min(s.jar, Math.floor(g.dyn.settledCap * 0.9)), 777); g.dyn.recomputeTop();
+        g.machine.setFill(s.jar);
         g.ui.toast('🤝 Synchronisé avec l’hôte'); g.say('Bienvenue dans l’équipe ! Plus on est de fous, plus on ramasse.', 'wave', true);
       }
     }

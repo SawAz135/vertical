@@ -8,7 +8,6 @@ import { BIN } from '../world/machine.js';
 import { SHOP, makeBucket, makeGlove } from '../world/shop.js';
 import { audio } from '../audio/audio.js';
 import { Gadgets } from './gadgets.js';
-import { TRAMP } from '../world/weather.js';
 
 // =====================================================================================
 // FIRST-PERSON PLAYER
@@ -25,8 +24,8 @@ const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quater
 export class Player {
   constructor(game, camera) {
     this.g = game; this.cam = camera;
-    this.pos = new THREE.Vector3(-1, 0, 17.5); this.vel = new THREE.Vector3();
-    this.yaw = Math.PI * 0.92; this.pitch = -0.12; this.onGround = true; this.coyote = 0; this.crouch = 0; this.sprinting = false;
+    this.pos = new THREE.Vector3(2.5, 0, -25); this.vel = new THREE.Vector3();
+    this.yaw = Math.PI * 1.04; this.pitch = 0.12; this.onGround = true; this.coyote = 0; this.crouch = 0; this.sprinting = false;
     this.stepPhase = 0; this.stepDist = 0; this.leftFoot = false; this.bob = 0; this.landDip = 0; this.roll = 0; this.fovKick = 0;
     this.lookLagX = 0; this.lookLagY = 0; this.airTime = 0;
     this.hands = []; this.bucket = []; this.tool = 'hands';
@@ -132,7 +131,7 @@ export class Player {
     let mx = this.enabled ? input.moveX : 0, mz = this.enabled ? input.moveY : 0;
     const moving = Math.hypot(mx, mz) > 0.05;
     this.sprinting = this.sprintLatch && moving && mz > 0.2 && this.crouch < 0.5;
-    const load = Math.min(0.25, this.carried() * 0.0015); // a full benne slows you a bit
+    const load = Math.min(0.25, this.carried() * 0.0015) + (this.surface() === 'potatoes' ? 0.08 : 0); // loose potatoes + a full benne slow you a bit
     const speed = (this.sprinting ? 6.4 : 3.6) * boots * (1 - this.crouch * 0.5) * (1 - load);
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const wx = (mx * cy - mz * sy) * speed, wz = (-mx * sy - mz * cy) * speed;
@@ -164,24 +163,10 @@ export class Player {
     // ground
     let gy = ground(this.pos.x, this.pos.z);
     if (Math.abs(this.pos.x - SHOP.x) < 2.6 && this.pos.z > SHOP.z - 1.1 && this.pos.z < SHOP.z + 2.3) gy = Math.max(gy, 0.14);
-    // trampoline: walk-up blocked from the side, springy on top
-    const td = Math.hypot(this.pos.x - TRAMP.x, this.pos.z - TRAMP.z);
-    if (td < TRAMP.r + R) {
-      if (this.pos.y < TRAMP.h - 0.35) { const k = (TRAMP.r + R) / (td || 1); if (prevY < TRAMP.h - 0.35) { this.pos.x = TRAMP.x + (this.pos.x - TRAMP.x) * k; this.pos.z = TRAMP.z + (this.pos.z - TRAMP.z) * k; } }
-      else if (td < TRAMP.r) {
-        const top = TRAMP.h + g.tramp.dip * 0.6;
-        if (this.pos.y <= top && this.vel.y <= 0) {
-          const v = -this.vel.y, jump = this.enabled && input.down('jump');
-          this.vel.y = Math.max(v * 0.9 + (jump ? 2.6 : 0), jump ? 7.5 : 4.2); this.pos.y = top; this.onGround = false; this.airTime = 0.01;
-          g.tramp.hit(Math.min(8, v + 3)); audio.boing(null, 0.8 + Math.min(0.6, v / 20)); g.fx.dust(this.pos.x, top, this.pos.z, 3, [0.7, 0.8, 1]);
-          if (v > 9) g.shake(0.1);
-        }
-        gy = -99; // handled above
-      }
-    }
+    else gy += 0.07; // standing on top of the potato layer
     const wasAir = !this.onGround;
     if (this.pos.y <= gy) {
-      if (wasAir && this.airTime > 0.25) { const h = clamp(-this.vel.y / 7, 0, 1.5); this.landDip = Math.max(this.landDip, 0.12 * h); audio.land(this.surface(), h); g.fx.dust(this.pos.x, gy, this.pos.z, 8, this.dustCol()); if (h > 0.6) g.shake(0.25 * h); }
+      if (wasAir && this.airTime > 0.25) { const h = clamp(-this.vel.y / 7, 0, 1.5); this.landDip = Math.max(this.landDip, 0.12 * h); audio.land(this.surface(), h); g.fx.dust(this.pos.x, gy, this.pos.z, 8, this.dustCol()); if (h > 0.6) g.shake(0.25 * h); this._splash(0.55 + h * 0.6, 2 + h * 3, 26); }
       this.pos.y = gy; this.vel.y = 0; this.onGround = true; this.airTime = 0;
     } else if (this.pos.y > gy + 0.06 || this.vel.y > 0) { this.onGround = false; this.airTime += dt; }
     else { this.pos.y = gy; }
@@ -194,8 +179,8 @@ export class Player {
         this.stepDist = 0; this.leftFoot = !this.leftFoot;
         const surf = this.surface();
         audio.footstep(surf, hs * (this.crouch > 0.5 ? 0.4 : 1), null);
-        if (surf === 'soil') g.fx.footprint(this.pos.x, this.pos.z, this.yaw, this.leftFoot, ground(this.pos.x, this.pos.z));
-        if (surf !== 'wood') g.fx.dust(this.pos.x, this.pos.y, this.pos.z, this.sprinting ? 3 : 1, this.dustCol());
+        if (surf === 'potatoes') this._splash(0.42, this.sprinting ? 2.4 : 1.3, this.sprinting ? 10 : 6);
+        g.dyn.kick(this.pos.x, this.pos.y + 0.1, this.pos.z, this.vel.x, this.vel.z);
         const kicked = g.dyn.kick(this.pos.x, this.pos.y + 0.1, this.pos.z, this.vel.x, this.vel.z); if (kicked > 0) { audio.footstep('potatoes', hs, null); g.stats.kicked = (g.stats.kicked || 0) + kicked; }
       }
     } else this.stepDist = Math.min(this.stepDist, 0.3);
@@ -203,9 +188,26 @@ export class Player {
   surface() {
     const x = this.pos.x, z = this.pos.z;
     if (Math.abs(x - SHOP.x) < 2.6 && z > SHOP.z - 1.1 && z < SHOP.z + 2.3) return 'wood';
-    if (inField(x, z)) return 'soil';
-    if (z > 15 && z < 33 && Math.abs(x) < 16) return 'gravel';
-    return 'grass';
+    if (Math.abs(x - BIN.x) < 2.4 && Math.abs(z - BIN.z) < 2.4) return 'wood';
+    return 'potatoes';
+  }
+  // the sea potatoes under / around the feet become real rigid bodies that roll away
+  _splash(radius, power, max) {
+    const g = this.g, F = g.field, fdb = F.db, sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+    const fx = this.pos.x - sy * 0.25 + (this.leftFoot ? -cy : cy) * 0.12, fz = this.pos.z - cy * 0.25 - (this.leftFoot ? -sy : sy) * 0.12;
+    const ids = F.field.query(fx, fz, radius, this._qs || (this._qs = []));
+    let n = 0;
+    for (const j of ids) {
+      if (n >= max || g.dyn.live.length > g.dyn.liveCap - 120) break;
+      if (!F.kick(j)) continue;
+      const i = g.dyn.spawnFrom(fdb, j); if (i < 0) { F.restore(j, fdb.px[j], fdb.py[j], fdb.pz[j], fdb.quat(j, _q)); break; }
+      g.dyn.fieldId[i] = j;
+      const dx = fdb.px[j] - fx, dz = fdb.pz[j] - fz, d = Math.hypot(dx, dz) + 0.05, k = power * (1 - Math.min(1, d / radius) * 0.6);
+      g.dyn.setFree(i, dx / d * k + this.vel.x * 0.35, 0.8 + Math.random() * power * 0.5, dz / d * k + this.vel.z * 0.35);
+      g.dyn.wx[i] = (Math.random() - 0.5) * 18; g.dyn.wz[i] = (Math.random() - 0.5) * 18;
+      n++;
+    }
+    if (n) { audio.footstep('potatoes', 4 + power, null); g.stats.kicked = (g.stats.kicked || 0) + n; }
   }
   dustCol() { const s = this.surface(); return s === 'soil' ? [0.55, 0.44, 0.32] : s === 'gravel' ? [0.62, 0.6, 0.56] : [0.5, 0.55, 0.4]; }
 

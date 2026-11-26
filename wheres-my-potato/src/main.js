@@ -20,7 +20,7 @@ import { Player } from './player/player.js';
 import { audio } from './audio/audio.js';
 import { UI } from './ui/ui.js';
 import { Achievements } from './game/achievements.js';
-import { Weather, Trampoline, TRAMP } from './world/weather.js';
+import { NightEvents } from './world/night.js';
 import { Coop, net } from './net/coop.js';
 
 // =====================================================================================
@@ -34,7 +34,7 @@ const tick = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)
 class Game {
   constructor() {
     if (isTouch()) document.body.classList.add('touch');
-    this.state = 'loading'; this.money = 0; this.levels = {}; this.stats = { jar: 0, picked: 0, gold: 0, dumped: 0, earned: 0, time: 0, thrown: 0, kicked: 0, prestige: 0, lifetimeJar: 0, hour: 9.5 };
+    this.state = 'loading'; this.money = 0; this.levels = {}; this.stats = { jar: 0, picked: 0, gold: 0, dumped: 0, earned: 0, time: 0, thrown: 0, kicked: 0, prestige: 0, lifetimeJar: 0, hour: 17.4 };
     this.shakeAmt = 0; this.fps = 60; this.renderScale = 1; this.slow = 0; this.fast = 0; this.t = 0;
     this.attract = new Set(); this.attractT = 0; this.lastGreet = -999; this.nextIdle = 40; this.overflowed = false;
   }
@@ -58,16 +58,19 @@ class Game {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(settings.v.fov, innerWidth / innerHeight, 0.05, 900); this.scene.add(this.camera);
     this._resize(); addEventListener('resize', () => this._resize());
+    this.ui.progress(0.05, 'Chargement des polices…');
+    try { await Promise.race([Promise.all(['230px Marker', '52px Fred', '40px Luck'].map(f => document.fonts.load(f))), new Promise(r => setTimeout(r, 2500))]); } catch { /* fonts optional */ }
     this.ui.progress(0.08, 'Peinture des textures…'); await tick();
     this.M = createMaterials(isTouch() ? 256 : 512);
     this.ui.progress(0.2, 'Labourage du champ…'); await tick();
     this.field = new FieldWorld(this.scene, this.M, q);
-    this.field.envFrom(r);
     this.ui.progress(0.55, 'Montage du convoyeur et du bocal…'); await tick();
     this.fx = new FX(this.scene, ground);
-    this.tramp = new Trampoline(this.scene, this.M);
-    const world = { ground: (x, z) => ground(x, z), boxes: [], jar: JAR, tramp: TRAMP, onTramp: v => this.tramp.hit(v * 0.3), inBin: (x, y, z) => this.machine.inBin(x, y, z) };
-    this.machine = new Machine(this.scene, this.M, world);
+    const world = { ground: (x, z) => ground(x, z), boxes: [], jar: JAR, inBin: (x, y, z) => this.machine.inBin(x, y, z) };
+    this.machine = new Machine(this.scene, this.M, world);   // registers its cleared zones
+    this.shop = new Shop(this.scene, this.M);                 // idem
+    this.field.build(); this.field.envFrom(r);                // now the potato sea can be generated around them
+    this.machine.build();
     world.boxes = this.machine.boxes;
     this.dyn = new DynPotatoes(this.scene, { liveCap: 900, settledCap: q.jarMax, world, onImpact: (x, y, z, s, kind) => this._impact(x, y, z, s, kind), onSettleInJar: () => {} });
     this.machine.dyn = this.dyn;
@@ -75,12 +78,13 @@ class Game {
     this.machine.onPay = (i, x, y, z) => this._pay(i, x, y, z);
     this.machine.onFeed = () => { if (Math.random() < 0.5) audio.thud('wood', { x: BIN.x + 0.8, y: 0.8, z: BIN.z }, 2); };
     this.ui.progress(0.7, 'Gérard enfile sa casquette…'); await tick();
-    this.shop = new Shop(this.scene, this.M);
     this.field.onTake = j => this.coop.onTake(j);
     this.colliders = [...this.field.colliders, ...this.machine.colliders, ...this.shop.colliders];
     this.bounds = this.field.bounds;
     this.player = new Player(this, this.camera);
-    this.weather = new Weather(this); this.audioRain = l => audio.rain(l); this.audioThunder = () => { audio.thunder(); this.shake(0.15); };
+    this.night = new NightEvents(this);
+    this.dyn.onDetach = j => { const F = this.field; F.db.state[j] = 1; F.regrow.push({ i: j, at: F.time + F.regrowDelay() }); };
+    this.dyn.onRestore = i => { const j = this.dyn.fieldId[i], d = this.dyn.db; this.field.restore(j, d.px[i], d.py[i] - d.radius(i) * 0.35, d.pz[i], d.quat(i, new THREE.Quaternion())); this.dyn.free(i); };
     this.player.vm.visible = false;
     // ---- post-processing ----
     this.composer = new EffectComposer(r);
@@ -137,7 +141,7 @@ class Game {
     this.ui.moneyShown = this.money; this.lastMilestone = MILESTONES.filter(n => n <= this.stats.jar).pop() || 0;
     this._applyUpgrades();
     // rebuild the jar contents (packed) to match the saved count
-    if (this.stats.jar > 0) this.dyn.fillJar(Math.min(this.stats.jar, Math.floor(settings.q.jarMax * 0.9)), 777);
+    this.machine.setFill(this.stats.jar);
   }
   _save() {
     if (this.state === 'loading' || this.coop?.guest) return; // guests never overwrite their own save
@@ -146,10 +150,10 @@ class Game {
   }
   _newGame() {
     storage.del(SAVE_KEY);
-    this.money = 0; this.levels = {}; this.stats = { jar: 0, picked: 0, gold: 0, dumped: 0, earned: 0, time: 0, thrown: 0, kicked: 0, prestige: 0, lifetimeJar: 0, hour: 9.5 }; this.overflowed = false; this.ui.moneyShown = 0; this.lastMilestone = 0;
+    this.money = 0; this.levels = {}; this.stats = { jar: 0, picked: 0, gold: 0, dumped: 0, earned: 0, time: 0, thrown: 0, kicked: 0, prestige: 0, lifetimeJar: 0, hour: 17.4 }; this.overflowed = false; this.ui.moneyShown = 0; this.lastMilestone = 0;
     // empty the jar and everything loose
     for (const i of [...this.dyn.settled, ...this.dyn.live]) this.dyn.free(i);
-    this.dyn.jarTop = JAR.yb;
+    this.machine.setFill(0);
     this.player.hands.length = 0; this.player.bucket.length = 0; this.player.tool = 'hands';
     this._applyUpgrades(); this.shop.drawChalk(this.levels);
   }
@@ -198,7 +202,7 @@ class Game {
     this.state = 'cine'; this.cineT = 0; this.ui.hideHud();
     const d = this.dyn;
     this.saleQueue = d.settled.filter(i => d.inJar[i] || d.paid[i]).sort((a, b) => d.db.py[b] - d.db.py[a]);
-    this.saleBonusAmt = remote ? bonus : this.saleBonus(); this.saleCount = this.stats.jar;
+    this.saleBonusAmt = remote ? bonus : this.saleBonus(); this.saleCount = this.stats.jar; this.saleFill0 = this.machine.fillUnits;
     if (!remote) this.coop.onSale(this.saleBonusAmt);
     this.ui.banner('LA GRANDE VENTE', 'LA FRITERIE ACHÈTE TOUT !'); audio.ui('fanfare');
     this.say('La friterie rachète TOUT le bocal ! Regarde-moi ça !', 'cheer', true);
@@ -206,9 +210,15 @@ class Game {
   _saleCine(dt) {
     this.cineT += dt; const t = this.cineT, d = this.dyn;
     // orbiting crane shot: low & close, rising and pulling back
-    const a = -1.2 + t * 0.45, rad = 4.2 + t * 0.35, h = 1.2 + t * 0.45;
+    const a = -1.9 + t * 0.25, rad = 30 + t * 2.2, h = 3 + t * 4.5;
     this.camera.position.set(JAR.x + Math.cos(a) * rad, h, JAR.z + Math.sin(a) * rad);
-    this.camera.lookAt(JAR.x, 1.4 + t * 0.08, JAR.z); this.camera.fov = 55; this.camera.updateProjectionMatrix();
+    this.camera.lookAt(JAR.x, 12 + t * 1.2, JAR.z); this.camera.fov = 55; this.camera.updateProjectionMatrix();
+    if (t > 1.2 && this.machine.fillUnits > 0) {
+      const drain = Math.max(30, this.saleFill0 / (60 * 3.5));
+      this.machine.setFill(Math.max(0, this.machine.fillUnits - drain));
+      for (let k = 0; k < 6; k++) { const a = Math.random() * 6.28, rr = Math.random() * JAR.R; this.fx.sparkle(JAR.x + Math.cos(a) * rr, this.machine.fillTop + 0.1, JAR.z + Math.sin(a) * rr, 1, [1, 0.85, 0.35], 2.5); }
+      if (Math.random() < 0.3) { this.fx.coinBurst(JAR.x + (Math.random() - 0.5) * 4, this.machine.fillTop + 0.3, JAR.z + (Math.random() - 0.5) * 4, 2); audio.coin(null); }
+    }
     if (t > 1.2) {
       const per = Math.max(8, Math.ceil(this.saleQueue.length / (60 * 3.2)));
       for (let k = 0; k < per && this.saleQueue.length; k++) {
@@ -219,8 +229,8 @@ class Game {
       }
       this.shake(0.05);
     }
-    if (t > 1.2 && !this.saleQueue.length && !this.saleDone) {
-      this.saleDone = true; this.dyn.jarTop = JAR.yb;
+    if (t > 1.2 && !this.saleQueue.length && this.machine.fillUnits <= 0 && !this.saleDone) {
+      this.saleDone = true; this.machine.setFill(0);
       this.money += this.saleBonusAmt; this.stats.earned += this.saleBonusAmt; this.ui.gain(this.saleBonusAmt);
       this.stats.prestige = (this.stats.prestige || 0) + 1; this.stats.lifetimeJar = (this.stats.lifetimeJar || 0) + this.saleCount; this.stats.jar = 0; this.overflowed = false;
       this.fx.ring(JAR.x, 1, JAR.z, [1, 0.85, 0.35], 64, 5); this.fx.sparkle(JAR.x, 2, JAR.z, 120, [1, 0.85, 0.4], 4); this.fx.coinBurst(JAR.x, 2.6, JAR.z, 30);
@@ -248,7 +258,8 @@ class Game {
     const text = raw ? key : pick(Array.isArray(LINES[key]) ? LINES[key] : [String(key)]);
     const head = new THREE.Vector3(); this.shop.npc.head.getWorldPosition(head);
     const dur = audio.speak(text, head);
-    this.ui.say(text, dur);
+    this.shop.bubble.show(text, dur);
+    if (this.camera.position.distanceTo(head) > 14 || this.ui.shopOpen) this.ui.say(text, dur); // far away: subtitle too
     const gs = gesture || { greet: 'wave', buy: 'thumbs', poor: 'shrug', gold: 'cheer', overflow: 'cheer', idle: 'point' }[key];
     if (gs) this.shop.npc.play(gs, gs === 'wave' ? 2.2 : 1.8);
   }
@@ -321,13 +332,12 @@ class Game {
   _menuCamera(dt) {
     this.menuT += dt;
     // slow orbit-and-dolly around the jar + farm, looping smoothly
-    const t = this.menuT * 0.05, a = t * Math.PI * 2;
-    const rad = 9 + Math.sin(t * 2.1) * 2.5, h = 2.6 + Math.sin(t * 1.3) * 1.2;
-    const cx = JAR.x - 3 + Math.sin(t * 0.7) * 4, cz = JAR.z - 3;
-    this.camera.position.set(cx + Math.cos(a) * rad, h, cz + Math.sin(a) * rad);
-    const look = new THREE.Vector3(JAR.x - 2.5 + Math.sin(t * 1.7) * 2, 1.6 + Math.sin(t) * 0.4, JAR.z - 0.5);
-    this.camera.lookAt(look);
-    this.camera.rotation.z += Math.sin(t * 3) * 0.02;
+    // low, slow orbit looking UP at the building-sized jar and its elevator tower (jar framed on the right)
+    const t = this.menuT * 0.03, a = -1.75 + Math.sin(t * Math.PI * 2) * 0.8;
+    const rad = 36 + Math.sin(t * 4.1) * 5, h = 1.8 + Math.sin(t * 2.3) * 1.2 + 1.2;
+    this.camera.position.set(JAR.x + Math.cos(a) * rad, ground(JAR.x + Math.cos(a) * rad, JAR.z + Math.sin(a) * rad) + h, JAR.z + Math.sin(a) * rad);
+    this.camera.lookAt(JAR.x, 13 + Math.sin(t * 3) * 2, JAR.z);
+    this.camera.rotateY(0.34); this.camera.rotateZ(Math.sin(t * 5) * 0.015);
     if (this.camera.fov !== 50) { this.camera.fov = 50; this.camera.updateProjectionMatrix(); }
     // demo: the farm runs on its own — potatoes fly from the field into the bin
     this.attractT -= dt;
@@ -367,15 +377,15 @@ class Game {
       if (this.state === 'cine') this._saleCine(dt);
     }
     // clock: 1 in-game hour = 45 s by day, nights pass 3x faster
-    const h = this.stats.hour, night = h >= 20.5 || h < 5.5;
-    this.stats.hour = (h + dt / 45 * (night ? 3 : 1)) % 24; this.field.setTime(this.stats.hour); this.weather.update(dt); this.tramp.update(dt); this.coop.update(dt);
+    const h = this.stats.hour, night = h >= 20.5 || h < 5.5, golden = h >= 15.5 && h < 19.5;
+    this.stats.hour = (h + dt / (golden ? 110 : 55) * (night ? 3 : 1)) % 24; this.field.setTime(this.stats.hour); this.night.update(dt); this.coop.update(dt);
     if (this.field.night > 0.5 && Math.random() < dt * 25) { const a = Math.random() * 6.28, r = 3 + Math.random() * 14, c = this.camera.position; const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r; this.fx.glow.emit(x, ground(x, z) + 0.4 + Math.random() * 1.4, z, (Math.random() - 0.5) * 0.3, 0.05, (Math.random() - 0.5) * 0.3, 2.5 + Math.random() * 2, 0.06, 0, -0.02, 0.2, 0.75, 1, 0.35, 1); }
     this.field.followSun(this.camera.position);
     this.field.update(dt, this.camera.position, this.fx);
     this.machine.update(dt, this.dyn, this.t);
     this.dyn.update(dt, { belt: this.machine.belt });
     this.machine.setCount(this.stats.jar);
-    this.shop.update(dt, this.camera.position, audio.voiceAmp(), this.t);
+    this.shop.update(dt, this.camera.position, audio.voiceAmp(), this.t, this.camera);
     this.fx.update(dt);
     audio.setListener(this.camera); audio.setMotor(this.machine.speed, Math.min(1, this.machine.queue / 20));
     if (this.state !== 'menu' && this.state !== 'loading') this.ui.updateHud(dt);

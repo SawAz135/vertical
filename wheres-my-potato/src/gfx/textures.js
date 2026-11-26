@@ -314,23 +314,32 @@ const BUILDERS = {
     }, 2);
   },
   potatoPile(size) {
-    // Seamless "sea of potatoes" used on heap bodies under the instanced top layers.
-    const r = rng(161), n = new TNoise(162);
-    const blobs = []; for (let i = 0; i < 420; i++) blobs.push([r(), r(), 0.025 + r() * 0.02, r() * 0.6 + 0.4, r()]);
-    const G = 16, grid = Array.from({ length: G * G }, () => []);
+    // Seamless "sea of potatoes": packed, overlapping potatoes of real size (tile = 2.4 m),
+    // each shaded as a rounded body with skin noise, eyes and variety tint; warm brown shadows between.
+    const r = rng(161), n = new TNoise(162), m = new TNoise(163);
+    const tints = [[0.8, 0.64, 0.42], [0.86, 0.72, 0.5], [0.74, 0.58, 0.38], [0.66, 0.32, 0.26], [0.7, 0.55, 0.36]];
+    const blobs = []; for (let i = 0; i < 900; i++) { const t = r(); blobs.push([r(), r(), 0.02 + r() * 0.018, 0.55 + r() * 0.45, r() * Math.PI, t < 0.6 ? 0 : t < 0.85 ? 1 : t < 0.96 ? 2 : t < 0.985 ? 3 : 4, r() * 100]); }
+    const G = 24, grid = Array.from({ length: G * G }, () => []);
     blobs.forEach(b => grid[Math.floor(b[1] * G) * G + Math.floor(b[0] * G)].push(b));
     return set('potatoPile', size, (u, v, o) => {
-      let best = 0, tone = 0.5; const gx = Math.floor(u * G), gy = Math.floor(v * G);
+      let best = -1, bb = null, bx = 0, by = 0; const gx = Math.floor(u * G), gy = Math.floor(v * G);
       for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) for (const b of grid[((gy + j + G) % G) * G + (gx + i + G) % G]) {
-        let dx = Math.abs(u - b[0]); dx = Math.min(dx, 1 - dx); let dy = Math.abs(v - b[1]); dy = Math.min(dy, 1 - dy);
-        const e = 1 - (dx * dx / (b[2] * b[2] * 1.4) + dy * dy / (b[2] * b[2] * b[3] * b[3] + 0.0001)) * 0.8;
-        if (e > best) { best = e; tone = b[4]; }
+        let dx = u - b[0]; dx -= Math.round(dx); let dy = v - b[1]; dy -= Math.round(dy);
+        const c = Math.cos(b[4]), s2 = Math.sin(b[4]), ex = (dx * c + dy * s2) / b[2], ey = (-dx * s2 + dy * c) / (b[2] * b[3]);
+        const e = 1 - (ex * ex + ey * ey) + n.v(u * 90 + b[6], v * 90) * 0.12;
+        if (e > best) { best = e; bb = b; bx = ex; by = ey; }
       }
       const h = clamp(best, 0, 1), sh = Math.sqrt(h);
-      const skin = n.v(u * 220, v * 220);
-      o[0] = (0.6 + tone * 0.15 + skin * 0.05) * (0.15 + sh * 0.85); o[1] = (0.44 + tone * 0.1 + skin * 0.04) * (0.15 + sh * 0.85); o[2] = (0.24 + tone * 0.06) * (0.15 + sh * 0.85);
-      o[3] = sh * 1.6; o[4] = 0.8;
-    }, 3);
+      const tint = tints[bb ? bb[5] : 0], skin = m.v(u * 260, v * 260) * 0.08 + n.v(u * 60 + 7, v * 60) * 0.06;
+      const light = 0.55 + 0.45 * clamp(0.6 - bx * 0.35 - by * 0.45, 0, 1); // soft top-left key light per potato
+      const eye = bb && n.v(u * 140 + bb[6], v * 140) > 0.9 ? 0.7 : 1, speck = bb && m.v(u * 520 + bb[6], v * 520) > 0.9 ? 0.6 : 1;
+      const k = (0.3 + sh * 0.7) * light * eye * speck;
+      const gap = [0.26, 0.18, 0.1];
+      o[0] = best > 0 ? (tint[0] + skin) * k : gap[0] * (0.7 + n.v(u * 40, v * 40) * 0.5);
+      o[1] = best > 0 ? (tint[1] + skin * 0.8) * k : gap[1] * (0.7 + n.v(u * 40, v * 40) * 0.5);
+      o[2] = best > 0 ? (tint[2] + skin * 0.5) * k : gap[2];
+      o[3] = sh * 1.8; o[4] = best > 0 ? 0.72 - sh * 0.1 : 0.95;
+    }, 4);
   },
   fabricPlaid(size) {
     const n = new TNoise(171);

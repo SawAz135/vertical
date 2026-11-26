@@ -2,13 +2,15 @@ import * as THREE from 'three';
 import { boxGeo, Batcher } from './build.js';
 import { canvasTex, textCanvas } from '../gfx/textures.js';
 import { Gerard } from '../actors/npc.js';
+import { Bubble } from '../actors/bubble.js';
 import { rng } from '../core/util.js';
+import { CLEAR } from './field.js';
 
 // =====================================================================================
 // GÉRARD'S SHOP: wooden market stall, striped awning, shelves displaying every upgrade
 // (the displayed models swap as you buy them), chalkboard, bell, and Gérard himself.
 // =====================================================================================
-export const SHOP = { x: -8, z: 27.5 };
+export const SHOP = { x: -11, z: -17 };
 
 // Upgrade catalogue: each item has levels; value(level) gives the gameplay value.
 export const ITEMS = [
@@ -82,6 +84,7 @@ export { pick };
 export class Shop {
   constructor(scene, M) {
     this.scene = scene; this.M = M; this.colliders = [];
+    CLEAR.push({ x0: SHOP.x - 3.6, x1: SHOP.x + 4.2, z0: SHOP.z - 2.6, z1: SHOP.z + 2.8 });
     this.group = new THREE.Group(); this.group.position.set(SHOP.x, 0, SHOP.z); scene.add(this.group);
     this.displays = {};
     this._stall();
@@ -89,6 +92,7 @@ export class Shop {
     this.npc.root.position.set(0, 0.0, 0.85); this.npc.root.rotation.y = Math.PI; // faces the field (-z)
     this.group.add(this.npc.root);
     this.talkPoint = new THREE.Vector3(SHOP.x, 1.5, SHOP.z - 1.2);
+    this.bubble = new Bubble(scene); this._head = new THREE.Vector3();
   }
   _stall() {
     const M = this.M, B = new Batcher(), g = new THREE.Group();
@@ -171,8 +175,9 @@ export class Shop {
     x.fillStyle = '#f1f1e8'; x.font = 'italic 26px "Comic Sans MS", cursive'; x.fillText('Pas de crédit. — G.', 40, y + 10);
     this.chalkTex.needsUpdate = true;
   }
-  update(dt, playerPos, talkAmp, t) {
+  update(dt, playerPos, talkAmp, t, camera) {
     this.npc.update(dt, playerPos, talkAmp);
+    if (camera) { this.npc.head.getWorldPosition(this._head); this._head.y += 0.25; this.bubble.update(dt, this._head, camera); }
     this.sign.rotation.x = Math.sin(t * 1.3) * 0.025; this.sign.rotation.z = Math.sin(t * 0.9) * 0.015;
     this.valance.rotation.x = Math.sin(t * 1.7) * 0.04;
     for (const id in this.displays) this.displays[id].position.y += Math.sin(t * 2 + id.length) * 0.0;
