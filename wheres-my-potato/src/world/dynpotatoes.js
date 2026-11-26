@@ -209,17 +209,25 @@ export class DynPotatoes {
         d.py[i] = T.h + r; this.vy[i] = Math.max(-this.vy[i] * 0.85, 2.2); W.onTramp?.(-this.vy[i]);
         if (this.impactBudget > 1) { this.impactBudget--; this.onImpact(d.px[i], d.py[i], d.pz[i], 3, 'tramp'); }
       }
-      // static boxes (bin walls, belt frame, shop...)
-      for (const b of W.boxes) {
-        const x = d.px[i], y = d.py[i], z = d.pz[i];
-        if (x < b.min.x - r || x > b.max.x + r || y < b.min.y - r || y > b.max.y + r || z < b.min.z - r || z > b.max.z + r) continue;
-        const cx = clamp(x, b.min.x, b.max.x), cy = clamp(y, b.min.y, b.max.y), cz = clamp(z, b.min.z, b.max.z);
-        let dx = x - cx, dy = y - cy, dz = z - cz, dd = Math.hypot(dx, dy, dz);
-        if (dd >= r) continue;
-        if (dd < 1e-5) { dy = 1; dd = 1; dx = dz = 0; } // center inside: push up
-        const pen = r - dd; dx /= dd; dy /= dd; dz /= dd;
-        d.px[i] += dx * pen; d.py[i] += dy * pen; d.pz[i] += dz * pen;
-        resolve(dx, dy, dz, 0.3, 0.3, 0, 0, 0, b.kind || 'wood');
+      // static boxes (bin walls, belt frame, shop...) — swept in sub-steps for fast potatoes (no tunnelling)
+      const sp0 = Math.abs(this.vx[i]) + Math.abs(this.vy[i]) + Math.abs(this.vz[i]);
+      const nSub = Math.min(8, Math.ceil(sp0 * h / 0.03));
+      if (nSub > 1) { d.px[i] -= this.vx[i] * h; d.py[i] -= this.vy[i] * h; d.pz[i] -= this.vz[i] * h; }
+      for (let sub = 0; sub < Math.max(1, nSub); sub++) {
+        if (nSub > 1) { const k = h / nSub; d.px[i] += this.vx[i] * k; d.py[i] += this.vy[i] * k; d.pz[i] += this.vz[i] * k; }
+        for (const b of W.boxes) {
+          const x = d.px[i], y = d.py[i], z = d.pz[i];
+          if (x < b.min.x - r || x > b.max.x + r || y < b.min.y - r || y > b.max.y + r || z < b.min.z - r || z > b.max.z + r) continue;
+          const cx = clamp(x, b.min.x, b.max.x), cy = clamp(y, b.min.y, b.max.y), cz = clamp(z, b.min.z, b.max.z);
+          let dx = x - cx, dy = y - cy, dz = z - cz, dd = Math.hypot(dx, dy, dz), pen;
+          if (dd >= r) continue;
+          if (dd < 1e-5) { // centre inside the box: leave through the face of least penetration
+            const f = [x - b.min.x, b.max.x - x, y - b.min.y, b.max.y - y, z - b.min.z, b.max.z - z], m = Math.min(...f), a = f.indexOf(m);
+            dx = a === 0 ? -1 : a === 1 ? 1 : 0; dy = a === 2 ? -1 : a === 3 ? 1 : 0; dz = a === 4 ? -1 : a === 5 ? 1 : 0; pen = m + r;
+          } else { pen = r - dd; dx /= dd; dy /= dd; dz /= dd; }
+          d.px[i] += dx * pen; d.py[i] += dy * pen; d.pz[i] += dz * pen;
+          resolve(dx, dy, dz, 0.3, 0.3, 0, 0, 0, b.kind || 'wood');
+        }
       }
       // jar: inner wall / outer wall / bottom / rim torus
       {
@@ -264,7 +272,7 @@ export class DynPotatoes {
         }
       }
       // player legs push potatoes away
-      if (P) {
+      if (P && this.age[i] > 0.4 && Math.abs(this.vx[i]) + Math.abs(this.vz[i]) < 4) {
         const dx = d.px[i] - P.x, dz = d.pz[i] - P.z, dd = Math.hypot(dx, dz), R = 0.32 + r;
         if (dd < R && d.py[i] < P.y + 1.2 && d.py[i] > P.y - 0.3 && dd > 1e-4) {
           const pen = R - dd; d.px[i] += dx / dd * pen; d.pz[i] += dz / dd * pen;

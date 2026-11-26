@@ -129,7 +129,8 @@ export class Gadgets {
     let hitBin = false, n = 0; const p = m.clone(), v = vel.clone(), mt = new THREE.Matrix4();
     for (let s = 0; s < 140 && n < 48; s++) {
       const h = 0.025; v.y -= 9.81 * h; p.addScaledVector(v, h);
-      if (Math.abs(p.x - BIN.x) < BIN.w / 2 && Math.abs(p.z - BIN.z) < BIN.d / 2 && p.y < BIN.h + 0.1 && p.y > 0.1) { hitBin = true; break; }
+      if (v.y < 0 && Math.abs(p.x - BIN.x) < BIN.w / 2 - 0.1 && Math.abs(p.z - BIN.z) < BIN.d / 2 - 0.1 && p.y < BIN.h + 0.05 && p.y > 0.15) { hitBin = true; break; }
+      if (Math.abs(p.x - BIN.x) < BIN.w / 2 + 0.1 && Math.abs(p.z - BIN.z) < BIN.d / 2 + 0.1 && p.y < BIN.h + 0.06) break; // clips the rim
       if (p.y < ground(p.x, p.z)) break;
       if (s % 3 === 0) { const sc = 1 - n / 60; mt.makeScale(sc, sc, sc).setPosition(p); this.dots.setMatrixAt(n++, mt); }
     }
