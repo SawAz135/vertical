@@ -618,6 +618,8 @@ local function showGoBack(rs)
 	end
 end
 
+Sound.warm({ "Count", "Swap" })
+
 local function startReveal(d)
 	if reveal then cleanup(reveal, true) end
 	local o = d.outcome
@@ -820,7 +822,7 @@ local function startReveal(d)
 		lastScaleAt = os.clock()
 		hop = 1
 		swaps += 1
-		Sound.play("Tick", { pitch = 0.9 + math.min(0.7, swaps * 0.02), volume = 0.7 })
+		Sound.instant("Swap", { pitch = 0.9 + math.min(0.5, swaps * 0.015) })
 	end
 
 	-- RESULT ---------------------------------------------------------------------------
@@ -935,11 +937,12 @@ local function startReveal(d)
 			local lastTick = 0
 			while not rs.done and os.clock() - t0 < 0.6 do
 				local k = Easing.cubicOut(math.min(1, (os.clock() - t0) / 0.6))
-				rs.oddsX = from + (target - from) * k -- the colour climbs with the number
-				ui.odds.label.Text = "1 IN " .. commas(rs.oddsX)
-				if os.clock() - lastTick > 0.06 then
+				-- same rule as the climb: the number changes only on a click, with its sound
+				if os.clock() - lastTick >= 0.05 then
 					lastTick = os.clock()
-					Sound.play("Tick", { pitch = 1.2 + k * 0.6, volume = 0.5 })
+					rs.oddsX = from + (target - from) * k -- the colour climbs with the number
+					ui.odds.label.Text = "1 IN " .. commas(rs.oddsX)
+					Sound.instant("Count", { pitch = 1.1 + k * 0.5, volume = 0.6 })
 				end
 				task.wait()
 			end
@@ -1081,12 +1084,34 @@ local function startReveal(d)
 		if t >= T_SPIN and not resultDone then
 			local u = math.clamp((t - T_SPIN) / SPIN_LEN, 0, 1)
 			local x, paused, segIdx = climbAt(t)
-			if not paused then
-				x *= 1 + math.noise(t * 25, 9.1) * 0.05 -- reel wobble between the steps
-			end
 			x = math.max(1, math.min(target, x))
+			-- the number moves in CLICKS: the label only changes on a click, and every click
+			-- is one tick sound at that very frame (sound and number can never drift apart).
+			-- Slow climb = one click per number (1, 2, 3...), fast climb = up to ~22 clicks/s
+			-- with bigger jumps; the pitch rises with the number itself.
+			local shown = rs.shownX or 1
+			if not rs.shownX then
+				-- first frame of the climb: "1 IN 1" + its first click
+				rs.shownX = 1
+				rs.lastClick = os.clock()
+				ui.spin.label.Text = "1 IN 1"
+				Sound.instant("Count", { pitch = 0.88, volume = 0.55 })
+			end
+			if paused then
+				if shown ~= x then
+					shown = x -- lands exactly on the stop number (the slam plays the sound)
+					rs.shownX = x
+					ui.spin.label.Text = "1 IN " .. commas(x)
+				end
+			elseif x - shown >= math.max(1, shown * 0.018) and os.clock() - (rs.lastClick or 0) >= 0.045 then
+				rs.lastClick = os.clock()
+				shown = math.floor(x)
+				rs.shownX = shown
+				ui.spin.label.Text = "1 IN " .. commas(shown)
+				Sound.instant("Count", { pitch = 0.88 + 0.11 * math.log10(shown) + 0.25 * u, volume = 0.55 + 0.05 * math.log10(shown) })
+			end
+			x = shown
 			rs.spinX = x
-			ui.spin.label.Text = "1 IN " .. commas(x)
 			local ti = oddsTier(x)
 			if paused and segIdx ~= rs.lastStop and segIdx <= #climb then
 				-- the number STOPS on its new colour: it SLAMS, the screen kicks, the sound climbs
@@ -1101,11 +1126,6 @@ local function startReveal(d)
 					-- phone / controller vibration, stronger at each colour step
 					Haptics.pulse(0.25 + 0.1 * ti)
 				end
-			end
-			rs.tickAcc = (rs.tickAcc or 0) + dt
-			if not paused and rs.tickAcc > 0.07 then
-				rs.tickAcc = 0
-				Sound.play("Tick", { pitch = 0.9 + 0.8 * u, volume = 0.45 })
 			end
 		end
 		-- HEARTBEAT: faster and faster (and faster still when the odds are high); silence just

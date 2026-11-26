@@ -48,6 +48,10 @@ local LIB = {
 	Notify = { { A .. "electronicpingshort.wav", 0.13, 0.9, 0 } },
 	Heartbeat = { { A .. "bass.wav", 0.55, 0.5, 0 } },
 	Tick = { { A .. "clickfast.wav", 0.5, 1.4, 0 } },
+	-- the "1 IN X" counter: one crisp click per number change (played on pre-loaded voices)
+	Count = { { A .. "button.wav", 0.42, 1.55, 0 }, { A .. "clickfast.wav", 0.16, 1.9, 0 } },
+	-- a new black shape during the suspense: a soft air swish (the clicks belong to the number)
+	Swap = { { A .. "swoosh.wav", 0.22, 1.45, 0.05 } },
 	Flop = { { A .. "splat.wav", 0.35, 1.6, 0.2 } },
 }
 
@@ -75,6 +79,61 @@ local group = Instance.new("SoundGroup")
 group.Name = "TFB_Sfx"
 group.Volume = 0.8
 group.Parent = SoundService
+
+--[[ INSTANT sounds: a few pre-created, pre-loaded voices per sound, restarted from 0 on
+     each call. A brand new Sound has to load before it plays (a few frames, different
+     every time), which made fast clicks drift away from what is on screen. ]]
+local pools = {}
+local function pool(name: string)
+	local p = pools[name]
+	if p then return p end
+	local layers = LIB[name]
+	if not layers then return nil end
+	p = { i = 0, voices = {} }
+	for v = 1, 5 do
+		local set = {}
+		for _, l in layers do
+			local s = Instance.new("Sound")
+			s.Name = "TFB_" .. name .. v
+			s.SoundId = l[1]
+			s.SoundGroup = group
+			s.Parent = SoundService
+			table.insert(set, { s = s, l = l })
+		end
+		p.voices[v] = set
+	end
+	pools[name] = p
+	return p
+end
+
+-- create + preload the voices early (call once at startup)
+function Sound.warm(names: { string })
+	local list = {}
+	for _, n in names do
+		local p = pool(n)
+		if p then
+			for _, set in p.voices do
+				for _, e in set do table.insert(list, e.s) end
+			end
+		end
+	end
+	task.spawn(function()
+		pcall(function() game:GetService("ContentProvider"):PreloadAsync(list) end)
+	end)
+end
+
+function Sound.instant(name: string, opts: any?)
+	opts = opts or {}
+	local p = pool(name)
+	if not p then return end
+	p.i = p.i % #p.voices + 1
+	for _, e in p.voices[p.i] do
+		e.s.Volume = e.l[2] * (opts.volume or 1)
+		e.s.PlaybackSpeed = e.l[3] * (opts.pitch or 1)
+		e.s.TimePosition = 0
+		e.s:Play()
+	end
+end
 
 function Sound.play(name: string, opts: any?)
 	opts = opts or {}
