@@ -4,6 +4,7 @@ import { ST } from './dynpotatoes.js';
 import { canvasTex, textCanvas } from '../gfx/textures.js';
 import { TAU, clamp, rng } from '../core/util.js';
 import { CLEAR } from './field.js';
+import { JarFill } from './proc.js';
 
 // =====================================================================================
 // THE MACHINE: wooden bin → paddle wheel → short ramp → a SPIRAL conveyor that winds four
@@ -23,7 +24,7 @@ const P0 = new THREE.Vector3(BIN.x + BIN.w / 2 + 0.3, 1.02, BIN.z);
 const H0 = new THREE.Vector3(Math.cos(TH0) * RH, Y0, Math.sin(TH0) * RH);
 const H1 = new THREE.Vector3(Math.cos(TH0) * RH, Y1, Math.sin(TH0) * RH);
 const C1 = new THREE.Vector3(JAR.x, Y1 - 0.5, JAR.z - 1.5);
-const SPIRAL_BOOST = 7; // the spiral runs faster than the ramp
+const SPIRAL_BOOST = 40; // the spiral runs faster than the ramp
 
 export class Machine {
   constructor(scene, M, world) {
@@ -31,7 +32,7 @@ export class Machine {
     CLEAR.push({ x: JAR.x, z: JAR.z, r: RH + 0.9 }, { x0: BIN.x - 2.2, x1: BIN.x + 3.6, z0: BIN.z - 2.2, z1: BIN.z + 1.8 }, { x0: -1.6, x1: 1.6, z0: -RH - 1, z1: -RH + 1 });
     this.segLen = [P0.distanceTo(H0), Math.hypot(TAU * RH * TURNS, Y1 - Y0), H1.distanceTo(C1)];
     this.len = this.segLen.reduce((a, b) => a + b, 0); this.dir = H0.clone().sub(P0).normalize();
-    this.speed = 1.2; this.feedEvery = 0.55; this.feedT = 0; this.wheelA = 0; this.cleatOff = 0; this.spiralOff = 0;
+    this.speed = 12; this.feedEvery = 0.3; this.feedT = 0; this.wheelA = 0; this.cleatOff = 0; this.spiralOff = 0;
     this.boxes = []; this.colliders = []; this.queue = 0; this.fillUnits = 0; this.fillTop = JAR.yb; this.fullness = 0; this.dome = 0;
   }
   build() {
@@ -171,11 +172,13 @@ export class Machine {
     };
     const jar = new THREE.Mesh(geo, glass); jar.position.set(J.x, 0, J.z); jar.renderOrder = 10; this.scene.add(jar); this.jarMesh = jar;
     // fill: textured potato volume (side) + domed top surface
-    const pileMat = M.pile.clone(); pileMat.map = M.pile.map.clone(); pileMat.map.repeat.set(9, 2); pileMat.map.needsUpdate = true; pileMat.normalMap = M.pile.normalMap.clone(); pileMat.normalMap.repeat.set(9, 2); pileMat.normalMap.needsUpdate = true; this.pileSideMat = pileMat;
-    this.fillSide = new THREE.Mesh(new THREE.CylinderGeometry(J.R - 0.04, J.R - 0.04, 1, 72, 1, true).translate(0, 0.5, 0), pileMat);
+    // dark core (the deep inside of the pile) + real 3D potatoes against the glass and on top
+    const coreMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.16, 0.105, 0.06), roughness: 1 });
+    this.fillSide = new THREE.Mesh(new THREE.CylinderGeometry(J.R - 0.2, J.R - 0.2, 1, 72, 1, true).translate(0, 0.5, 0), coreMat);
     this.fillSide.position.set(J.x, J.yb, J.z); this.fillSide.receiveShadow = true; this.scene.add(this.fillSide);
-    const topMat = M.pile.clone(); topMat.map = M.pile.map.clone(); topMat.map.repeat.set(5, 5); topMat.map.needsUpdate = true; topMat.normalMap = M.pile.normalMap.clone(); topMat.normalMap.repeat.set(5, 5); topMat.normalMap.needsUpdate = true;
-    const tg = new THREE.CircleGeometry(J.R - 0.04, 64, 0, TAU); tg.rotateX(-Math.PI / 2); this.topBase = tg.attributes.position.array.slice();
+    const tg = new THREE.CircleGeometry(J.R - 0.1, 64, 0, TAU); tg.rotateX(-Math.PI / 2); this.topBase = tg.attributes.position.array.slice();
+    const topMat = coreMat;
+    this.jarFill = new JarFill(this.scene, J);
     this.fillTopMesh = new THREE.Mesh(tg, topMat); this.fillTopMesh.position.set(J.x, J.yb, J.z); this.fillTopMesh.receiveShadow = true; this.scene.add(this.fillTopMesh);
     this.fillSide.visible = this.fillTopMesh.visible = false;
     // brass bands, thick base plinth, giant graduations
@@ -230,12 +233,12 @@ export class Machine {
     this.dome = DOME * clamp((this.fullness - 0.85) / 0.15, 0, 1);
     const h = top - J.yb, vis = h > 0.02;
     this.fillSide.visible = this.fillTopMesh.visible = vis;
-    this.fillSide.scale.y = Math.max(0.001, h); this.pileSideMat.map.repeat.y = Math.max(0.2, h / 1.4); this.pileSideMat.normalMap.repeat.y = this.pileSideMat.map.repeat.y;
+    this.fillSide.scale.y = Math.max(0.001, h); this.jarFill.set(top, this.dome);
     // domed, lumpy top surface
     const p = this.fillTopMesh.geometry.attributes.position.array, b = this.topBase, R = J.R;
     for (let i = 0; i < p.length; i += 3) { const d2 = (b[i] * b[i] + b[i + 2] * b[i + 2]) / (R * R); p[i + 1] = this.dome * Math.max(0, 1 - d2) + Math.sin(b[i] * 3.1) * Math.cos(b[i + 2] * 2.7) * 0.05 * (1 - d2); }
     this.fillTopMesh.geometry.attributes.position.needsUpdate = true; this.fillTopMesh.geometry.computeVertexNormals();
-    this.fillTopMesh.position.y = top;
+    this.fillTopMesh.position.y = top - 0.06;
   }
   // absorb the lowest settled jar potatoes into the fill (keeps the live layer light)
   _absorb(dyn) {

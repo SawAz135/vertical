@@ -383,7 +383,7 @@ class Game {
     this.stats.hour = (h + dt / (golden ? 110 : 55) * (night ? 3 : 1)) % 24; this.field.setTime(this.stats.hour); this.night.update(dt); this.coop.update(dt);
     if (this.field.night > 0.5 && Math.random() < dt * 25) { const a = Math.random() * 6.28, r = 3 + Math.random() * 14, c = this.camera.position; const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r; this.fx.glow.emit(x, ground(x, z) + 0.4 + Math.random() * 1.4, z, (Math.random() - 0.5) * 0.3, 0.05, (Math.random() - 0.5) * 0.3, 2.5 + Math.random() * 2, 0.06, 0, -0.02, 0.2, 0.75, 1, 0.35, 1); }
     this.field.followSun(this.camera.position);
-    this.field.update(dt, this.camera.position, this.fx);
+    this.field.update(dt, this.camera.position, this.fx); this.machine.jarFill.update(this.camera.position);
     this.machine.update(dt, this.dyn, this.t);
     this.dyn.update(dt, { belt: this.machine.belt });
     this.machine.setCount(this.stats.jar);

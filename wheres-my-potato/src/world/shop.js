@@ -49,11 +49,11 @@ export const ITEMS = [
     { name: 'Bottes de course', price: 650, speed: 1.42, desc: '+42 % de vitesse, saut plus haut.' },
   ] },
   { id: 'motor', icon: '⚙️', name: 'Moteur du convoyeur', levels: [
-    { name: 'Moteur d’origine', price: 0, feed: 0.55, speed: 1.2, desc: '≈ 2 patates / seconde.' },
-    { name: 'Moteur révisé', price: 110, feed: 0.34, speed: 1.55, desc: '≈ 3 patates / seconde.' },
-    { name: 'Moteur diesel', price: 380, feed: 0.22, speed: 1.95, desc: '≈ 4,5 patates / seconde.' },
-    { name: 'Turbo agricole', price: 1150, feed: 0.14, speed: 2.5, desc: '≈ 7 patates / seconde.' },
-    { name: 'Moteur de fusée', price: 3600, feed: 0.075, speed: 3.3, desc: '≈ 13 patates / seconde. Bruyant.' },
+    { name: 'Moteur d’origine', price: 0, feed: 0.3, speed: 12, desc: '≈ 3 patates / seconde, 1 s jusqu’au sommet.' },
+    { name: 'Moteur révisé', price: 110, feed: 0.2, speed: 14, desc: '≈ 5 patates / seconde, 0,8 s jusqu’au sommet.' },
+    { name: 'Moteur diesel', price: 380, feed: 0.13, speed: 17, desc: '≈ 8 patates / seconde, 0,7 s jusqu’au sommet.' },
+    { name: 'Turbo agricole', price: 1150, feed: 0.08, speed: 20, desc: '≈ 12 patates / seconde, 0,6 s jusqu’au sommet.' },
+    { name: 'Moteur de fusée', price: 3600, feed: 0.045, speed: 24, desc: '≈ 22 patates / seconde, 0,5 s jusqu’au sommet. Bruyant.' },
   ] },
   { id: 'fertilizer', icon: '🌱', name: 'Engrais', levels: [
     { name: 'Aucun', price: 0, grow: 1, gold: 0.0, desc: 'Les patates repoussent en 15-35 s.' },

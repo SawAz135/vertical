@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PotatoDB, PotatoField } from './potatoes.js';
+import { PotatoCarpet } from './proc.js';
 import { rng, fbm2, clamp, smooth, TAU, easeOutBack, hash32 } from '../core/util.js';
 
 // =====================================================================================
@@ -145,20 +146,15 @@ export class FieldWorld {
     // denser vertices near the centre: remap radially so the dunes stay smooth up close
     for (let i = 0; i < p.count; i++) {
       let x = p.getX(i), z = p.getZ(i); const r = Math.hypot(x, z) / (size / 2), k = r < 1e-6 ? 1 : Math.pow(r, 1.8) / r;
-      x *= k; z *= k; p.setX(i, x); p.setZ(i, z); p.setY(i, ground(x, z) + 0.02); uv.setXY(i, x / 2.4, z / 2.4);
+      x *= k; z *= k; p.setX(i, x); p.setZ(i, z); p.setY(i, ground(x, z) - 0.03); uv.setXY(i, x / 2.4, z / 2.4);
     }
     g.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ map: M.pile.map, normalMap: M.pile.normalMap, roughnessMap: M.pile.roughnessMap, normalScale: new THREE.Vector2(1.4, 1.4), color: new THREE.Color(1.0, 0.98, 0.95), roughness: 1 });
-    // break the tiling with a large-scale tint variation + subtle sparkle of wet skins
-    mat.onBeforeCompile = sh => {
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vW;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvW = (modelMatrix*vec4(transformed,1.0)).xyz;');
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vW;')
-        .replace('#include <map_fragment>', `#include <map_fragment>
-        vec4 big = texture2D(map, vW.xz * 0.023 + 0.31);
-        diffuseColor.rgb *= mix(0.86, 1.1, big.r);`);
-    };
+    // support surface under the pile: no texture at all, only the deep shadow between the
+    // potatoes — everything visible above it is the real 3D potato carpet
+    const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.2, 0.135, 0.075), roughness: 1 });
     this.seaMat = mat;
     const sea = new THREE.Mesh(g, mat); sea.receiveShadow = true; this.scene.add(sea); this.sea = sea;
+    this.carpet = new PotatoCarpet(this.scene, (x, z) => ground(x, z), this.q, this.jarClear || { x: 0, z: 0, r: 7.5 });
   }
 
   // ---------------- potatoes ----------------
@@ -217,6 +213,7 @@ export class FieldWorld {
       if (g.t >= 0.7) { this.growing.splice(k, 1); }
     }
     this.field.update(camPos, this.q, dt);
+    this.carpet.update(camPos);
   }
 }
 
