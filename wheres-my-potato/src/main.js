@@ -17,6 +17,7 @@ import { Machine, JAR, BIN } from './world/machine.js';
 import { Shop, itemById, LINES, pick, SHOP } from './world/shop.js';
 import { VARIETIES } from './world/potatoes.js';
 import { Book3D } from './ui/book3d.js';
+import { Slides } from './world/slides.js';
 import { Player } from './player/player.js';
 import { audio } from './audio/audio.js';
 import { UI } from './ui/ui.js';
@@ -92,6 +93,7 @@ class Game {
     this.bounds = this.field.bounds;
     this.player = new Player(this, this.camera);
     this.book3d = new Book3D(this);
+    this.slides = new Slides(this); this.field.onDig = (x, z) => this.slides.onDig(x, z);
     this.night = new NightEvents(this);
     this.dyn.onDetach = j => { const F = this.field; F.db.state[j] = 1; F.regrow.push({ i: j, at: F.time + F.regrowDelay() }); };
     this.dyn.onRestore = i => { const j = this.dyn.fieldId[i], d = this.dyn.db; this.field.restore(j, d.px[i], d.py[i] - d.radius(i) * 0.35, d.pz[i], d.quat(i, new THREE.Quaternion())); this.dyn.free(i); };
@@ -449,6 +451,7 @@ class Game {
     if (this.field.night > 0.5 && Math.random() < dt * 25) { const a = Math.random() * 6.28, r = 3 + Math.random() * 14, c = this.camera.position; const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r; this.fx.glow.emit(x, ground(x, z) + 0.4 + Math.random() * 1.4, z, (Math.random() - 0.5) * 0.3, 0.05, (Math.random() - 0.5) * 0.3, 2.5 + Math.random() * 2, 0.06, 0, -0.02, 0.2, 0.75, 1, 0.35, 1); }
     this.field.followSun(this.camera.position);
     this.field.update(dt, this.camera.position, this.fx); this.machine.jarFill.update(this.camera.position);
+    this.slides.update(dt);
     this.machine.update(dt, this.dyn, this.t);
     this.dyn.update(dt, { belt: this.machine.belt });
     this.machine.setCount(this.stats.jar);
@@ -473,5 +476,5 @@ class Game {
 }
 
 const game = new Game();
-window.__game = game; game.rng = rng; // handy for debugging / automated tests
+window.__game = game; game.rng = rng; game.input = input; // handy for debugging / automated tests
 game.boot().catch(e => { console.error(e); const t = document.querySelector('.ld-text'); if (t) t.textContent = 'Erreur : ' + e.message; });

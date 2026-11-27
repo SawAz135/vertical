@@ -205,7 +205,11 @@ export class DynPotatoes {
       };
       // ground (terrain)
       const g = W.ground(d.px[i], d.pz[i]);
-      if (d.py[i] - r < g) { d.py[i] = g + r; resolve(0, 1, 0, 0.25, 0.35, 0, 0, 0, 'ground'); }
+      if (d.py[i] - r < g) {
+        // real terrain normal (dunes, crater walls): potatoes roll and slide down slopes
+        const e = 0.12, gx = (W.ground(d.px[i] + e, d.pz[i]) - W.ground(d.px[i] - e, d.pz[i])) / (2 * e), gz = (W.ground(d.px[i], d.pz[i] + e) - W.ground(d.px[i], d.pz[i] - e)) / (2 * e);
+        const nl = Math.hypot(gx, 1, gz); d.py[i] = g + r; resolve(-gx / nl, 1 / nl, -gz / nl, 0.25, 0.3, 0, 0, 0, 'ground');
+      }
       // trampoline mat: springy bounce
       const T = W.tramp;
       if (T && Math.hypot(d.px[i] - T.x, d.pz[i] - T.z) < T.r - 0.15 && d.py[i] - r < T.h && d.py[i] > T.h - 0.3 && this.vy[i] < 0) {

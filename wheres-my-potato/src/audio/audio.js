@@ -42,7 +42,11 @@ class Audio {
   _out(pos, bus = 'sfx', send = 0.3, ref = 2) {
     const c = this.ctx, g = c.createGain();
     if (pos) {
-      const p = c.createPanner(); p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = ref; p.maxDistance = 80; p.rolloffFactor = 1.2;
+      // HRTF is expensive (a convolution per voice, heavy on phones): only a few voices at once
+      // get it, the flood of small sounds (mass pickups, impacts) uses cheap equal-power panning
+      const now = c.currentTime; this.hrtf = (this.hrtf || []).filter(e => e > now);
+      const rich = this.hrtf.length < 3 && !this.lowCost; if (rich) this.hrtf.push(now + 0.5);
+      const p = c.createPanner(); p.panningModel = rich ? 'HRTF' : 'equalpower'; p.distanceModel = 'inverse'; p.refDistance = ref; p.maxDistance = 80; p.rolloffFactor = 1.2;
       if (p.positionX) { p.positionX.value = pos.x; p.positionY.value = pos.y; p.positionZ.value = pos.z; } else p.setPosition(pos.x, pos.y, pos.z);
       g.connect(p); p.connect(this.bus[bus]); if (send) { const s = c.createGain(); s.gain.value = send; p.connect(s); s.connect(this.verb); }
     } else { g.connect(this.bus[bus]); if (send) { const s = c.createGain(); s.gain.value = send; g.connect(s); s.connect(this.verb); } }
@@ -75,7 +79,7 @@ class Audio {
   }
   land(surface, h) { if (!this.ok) return; this.footstep(surface, 6 + h * 4); const t = this.ctx.currentTime, o = this._out(null, 'sfx', 0.1); this._tone(o, t, 70, 40, 0.2, 'sine', clamp(h * 0.3, 0.1, 0.6)); }
   pickup(pos, pitch = 1) {
-    if (!this.ok || !this._rate('pick', 25)) return; const t = this.ctx.currentTime, o = this._out(pos, 'sfx', 0.15);
+    if (!this.ok || !this._rate('pick', 55)) return; const t = this.ctx.currentTime, o = this._out(pos, 'sfx', 0.15);
     this._nz(o, t, 0.09, 'bandpass', 1600, 1.2, 0.25); // soil rustle
     this._tone(o, t + 0.02, 420 * pitch, 900 * pitch, 0.09, 'sine', 0.22); // cheerful pop
   }

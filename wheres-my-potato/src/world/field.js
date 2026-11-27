@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PotatoDB, PotatoField } from './potatoes.js';
 import { PotatoCarpet } from './proc.js';
+import { digMap, DIG } from './dig.js';
 import { rng, fbm2, clamp, smooth, TAU, easeOutBack, hash32 } from '../core/util.js';
 
 // =====================================================================================
@@ -38,8 +39,10 @@ export function ground(x, z) {
   const dist = Math.hypot(x, z), grow = 1 + Math.max(0, dist - 30) / 25;        // dunes swell with distance
   let h = dune(x, z) * grow;
   if (dist > 110) { const m = Math.min(1, (dist - 110) / 80); h += m * (14 + fbm2(x * 0.008, z * 0.008, 4) * 22) * (0.6 + 0.4 * Math.abs(Math.sin(Math.atan2(z, x) * 3.0 + 1.3))); }
-  return h * flat;
+  return h * flat + digMap.at(x, z);
 }
+// terrain without the dug holes (baking the static height fields)
+export function groundBase(x, z) { return ground(x, z) - digMap.at(x, z); }
 export function inField(x, z) { return x > FIELD.x0 && x < FIELD.x1 && z > FIELD.z0 && z < FIELD.z1 && !cleared(x, z, 0.2); }
 
 export class FieldWorld {
@@ -152,9 +155,13 @@ export class FieldWorld {
     // support surface under the pile: no texture at all, only the deep shadow between the
     // potatoes — everything visible above it is the real 3D potato carpet
     const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.42, 0.29, 0.13), roughness: 1 }); // shadowed potato tone, never reads as a hole
+    mat.onBeforeCompile = sh => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vWxz;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWxz = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vWxz;').replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nif (abs(vWxz.x) < 31.6 && abs(vWxz.y) < 31.6) discard;');
+    };
     this.seaMat = mat;
     const sea = new THREE.Mesh(g, mat); sea.receiveShadow = true; this.scene.add(sea); this.sea = sea;
-    this.carpet = new PotatoCarpet(this.scene, (x, z) => ground(x, z), this.q, this.jarClear || { x: 0, z: 0, r: 7.5 });
+    this.carpet = new PotatoCarpet(this.scene, (x, z) => groundBase(x, z), this.q, this.jarClear || { x: 0, z: 0, r: 7.5 });
   }
 
   // ---------------- potatoes ----------------
@@ -187,6 +194,10 @@ export class FieldWorld {
   take(i) { // a field potato was picked: hide it, schedule regrowth
     if (this.db.state[i] !== 0) return; this.field.remove(i); this.db.state[i] = 1; this.onTake?.(i);
     if (this.db.variety[i] === 4) this.onPurple?.(i, this.depth[i]);
+    // the pile caves in where the potato was: a real hole, neighbours left hanging fall in
+    const px = this.db.px[i], pz = this.db.pz[i];
+    digMap.dig(px, pz, 0.05, 0.32);
+    this.onDig?.(px, pz);
     // digging: the potato that lay underneath shows up in the hole a moment later; the deeper
     // you dig at the same spot, the better the odds of a rare purple one. After DIG_MAX layers
     // the hole is exhausted and that potato regrows somewhere else on the surface.
@@ -208,7 +219,7 @@ export class FieldWorld {
       if (g.dig) {
         const d = this.depth[i], db = this.db;
         if (r() < PURPLE[d]) db.variety[i] = 4;
-        db.py[i] = ground(db.px[i], db.pz[i]) + 0.03 + db.size[i] * 0.052 * db.flat[i] * 0.8 - Math.min(0.07, d * 0.012);
+        db.py[i] = ground(db.px[i], db.pz[i]) + 0.03 + db.size[i] * 0.052 * db.flat[i] * 0.8;
         db.px[i] += (r() - 0.5) * 0.08; db.pz[i] += (r() - 0.5) * 0.08;
         _gq.setFromEuler(_ge.set((r() - 0.5) * 0.9, r() * TAU, (r() - 0.5) * 0.8)); db.setQuat(i, _gq);
       } else {
@@ -226,6 +237,7 @@ export class FieldWorld {
       this.db.matrix(g.i, m); m.scale(sv.set(s, s, s)); this.field.setMatrix(g.i, m);
       if (g.t >= 0.7) { this.growing.splice(k, 1); }
     }
+    digMap.update(dt);
     this.field.update(camPos, this.q, dt);
     this.carpet.update(camPos);
   }

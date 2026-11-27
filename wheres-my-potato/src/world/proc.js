@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLSL_NOISE, TAU } from '../core/util.js';
 import { VARIETIES, R0 } from './potatoes.js';
+import { digMap, DIG_GLSL, DIG } from './dig.js';
 
 // =====================================================================================
 // PROCEDURAL 3D POTATOES (GPU) — real, lit, shadowed, deformed 3D potatoes generated
@@ -124,6 +125,7 @@ function heightTex(fn, half, n) {
 }
 
 const CARPET_GLSL = /* glsl */`
+${DIG_GLSL}
 uniform vec3 uCam; uniform float uS, uSP, uN, uLvl, uLayers, uRmax, uD1, uL0;
 uniform sampler2D uHN, uHF; uniform vec3 uHNI, uHFI; // half extent, texel count
 uniform vec4 uJarC; // x, z, radius (no potatoes inside the jar plinth)
@@ -146,7 +148,8 @@ bool wmpPlace(out vec3 P, out float S, out vec4 R, out float AO){
   if (length(wp - uJarC.xy) < uJarC.z) return false;
   float grow = max(1.0, dist / uD1);
   S = (0.95 + R.y * 0.35) * grow * (1.0 - layer * 0.04);
-  float h = wmpHgt(wp);
+  float dug = wmpDig(wp);
+  float h = wmpHgt(wp) + dug;
   P = vec3(wp.x, h + ${R0.toFixed(4)} * S * (0.34 - layer * 0.62) + (R.z - 0.5) * 0.02 * grow, wp.y);
   // cheap frustum rejection before any deformation work
   vec4 cp = projectionMatrix * viewMatrix * vec4(P, 1.0);
@@ -154,7 +157,8 @@ bool wmpPlace(out vec3 P, out float S, out vec4 R, out float AO){
   if (cp.w < -rad) return false;
   float m = cp.w * 1.04 + rad * 3.0;
   if (abs(cp.x) > m || abs(cp.y) > m) return false;
-  AO = layer > 0.5 ? 0.72 : 1.0; gPurple = layer > 0.5 && uLvl < 2.5 ? 0.05 : 0.0;
+  AO = layer > 0.5 ? 0.72 : 1.0; gPurple = (layer > 0.5 && uLvl < 2.5 ? 0.05 : 0.0) + clamp(-dug * 0.35, 0.0, 0.3); // deeper = more purple
+  AO *= 1.0 - clamp(-dug * 0.45, 0.0, 0.4); // the bottom of a hole is in shade
   return true;
 }`;
 
@@ -170,6 +174,7 @@ export class PotatoCarpet {
         uRmax: { value: 430 }, uD1: { value: Math.max(7, N * 0.07) },
         uHN: { value: this.near }, uHF: { value: this.far }, uHNI: { value: new THREE.Vector3(64, 513, 0) }, uHFI: { value: new THREE.Vector3(440, 881, 0) },
         uJarC: { value: new THREE.Vector4(jar.x, jar.z, jar.r, 0) },
+        uDig: digMap.uniforms.uDig, uDigI: digMap.uniforms.uDigI,
       };
       U.uL0 = { value: 0 };
       const mat = procMaterial('carpet', CARPET_GLSL, U, l === 0);
@@ -185,6 +190,22 @@ export class PotatoCarpet {
       }
     }
     this.count = this.levels.reduce((s, l) => s + l.mesh.geometry.instanceCount, 0);
+    // fine support floor over the diggable area: follows the holes (the coarse far floor is cut out there)
+    const fg = new THREE.PlaneGeometry(2 * DIG.HALF, 2 * DIG.HALF, 256, 256); fg.rotateX(-Math.PI / 2);
+    const fm = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.42, 0.29, 0.13), roughness: 1 });
+    const FU = { uHN: { value: this.near }, uHNI: { value: new THREE.Vector3(64, 513, 0) }, uDig: digMap.uniforms.uDig, uDigI: digMap.uniforms.uDigI };
+    fm.onBeforeCompile = sh => {
+      Object.assign(sh.uniforms, FU);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>
+${DIG_GLSL}
+uniform sampler2D uHN; uniform vec3 uHNI;
+float fH(vec2 p){ vec2 uv = (p + uHNI.x) / (2.0 * uHNI.x); uv = (uv * (uHNI.y - 1.0) + 0.5) / uHNI.y; return texture(uHN, uv).r + wmpDig(p) - 0.03; }`)
+        .replace('#include <beginnormal_vertex>', `vec2 fp = position.xz; float e = 0.25;
+vec3 objectNormal = normalize(vec3(fH(fp - vec2(e, 0.0)) - fH(fp + vec2(e, 0.0)), 2.0 * e, fH(fp - vec2(0.0, e)) - fH(fp + vec2(0.0, e))));`)
+        .replace('#include <begin_vertex>', 'vec3 transformed = vec3(position.x, fH(position.xz), position.z);');
+    };
+    fm.customProgramCacheKey = () => 'wmp-digfloor';
+    this.floor = new THREE.Mesh(fg, fm); this.floor.receiveShadow = true; this.floor.frustumCulled = false; this.floor.renderOrder = -2; scene.add(this.floor);
   }
   update(camPos) { for (const l of this.levels) l.U.uCam.value.copy(camPos); }
 }

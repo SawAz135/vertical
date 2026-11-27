@@ -189,7 +189,9 @@ export class Player {
       const i = g.dyn.spawnFrom(fdb, j); if (i < 0) { F.restore(j, fdb.px[j], fdb.py[j], fdb.pz[j], fdb.quat(j, _q)); break; }
       g.dyn.fieldId[i] = j;
       const dx = fdb.px[j] - fx, dz = fdb.pz[j] - fz, d = Math.hypot(dx, dz) + 0.05, k = power * (1 - Math.min(1, d / radius) * 0.6);
-      g.dyn.setFree(i, dx / d * k + this.vel.x * 0.35, 0.8 + Math.random() * power * 0.5, dz / d * k + this.vel.z * 0.35);
+      // on a slope the kicked potatoes run away downhill
+      const e = 0.4, sx = (ground(fdb.px[j] + e, fdb.pz[j]) - ground(fdb.px[j] - e, fdb.pz[j])) / (2 * e), sz = (ground(fdb.px[j], fdb.pz[j] + e) - ground(fdb.px[j], fdb.pz[j] - e)) / (2 * e);
+      g.dyn.setFree(i, dx / d * k + this.vel.x * 0.35 - sx * 2.5, 0.8 + Math.random() * power * 0.5, dz / d * k + this.vel.z * 0.35 - sz * 2.5);
       g.dyn.wx[i] = (Math.random() - 0.5) * 18; g.dyn.wz[i] = (Math.random() - 0.5) * 18;
       n++;
     }
