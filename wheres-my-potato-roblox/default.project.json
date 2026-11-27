@@ -1,0 +1,66 @@
+{
+  "name": "WheresMyPotato",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Shared": { "$path": "src/shared" }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "Server": { "$path": "src/server" }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$properties": {
+        "CameraMode": "LockFirstPerson",
+        "CameraMaxZoomDistance": 0.5,
+        "CameraMinZoomDistance": 0.5,
+        "CharacterWalkSpeed": 18,
+        "CharacterJumpPower": 46,
+        "LoadCharacterAppearance": true,
+        "DevComputerMovementMode": "KeyboardMouse",
+        "DevTouchMovementMode": "Thumbstick"
+      },
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "Client": { "$path": "src/client" }
+      }
+    },
+    "StarterGui": {
+      "$className": "StarterGui",
+      "$properties": { "ResetPlayerGuiOnSpawn": false }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "FallenPartsDestroyHeight": -400,
+        "Gravity": 196.2,
+        "StreamingEnabled": false
+      }
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "Technology": "Future",
+        "ClockTime": 16.6,
+        "Brightness": 3,
+        "EnvironmentDiffuseScale": 1,
+        "EnvironmentSpecularScale": 1,
+        "GlobalShadows": true,
+        "ShadowSoftness": 0.2,
+        "OutdoorAmbient": [0.55, 0.47, 0.38],
+        "Ambient": [0.2, 0.17, 0.13],
+        "ExposureCompensation": 0.15
+      }
+    },
+    "SoundService": {
+      "$className": "SoundService",
+      "$properties": { "RespectFilteringEnabled": true }
+    },
+    "Players": {
+      "$className": "Players",
+      "$properties": { "CharacterAutoLoads": true }
+    }
+  }
+}
