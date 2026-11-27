@@ -165,7 +165,7 @@ export class FieldWorld {
     for (let k = 0; k < n; k++) { const i = this.db.add(); this.db.randomTraits(i, r); this._randomSpot(i, r); }
     this.field = new PotatoField(this.scene, this.db, {});
     this.field.build();
-    this.regrow = []; this.growing = []; this.gen = new Uint16Array(this.db.cap);
+    this.regrow = []; this.growing = []; this.gen = new Uint16Array(this.db.cap); this.depth = new Uint8Array(this.db.cap);
   }
   // uniform over the sea (denser toward the centre), never inside a structure
   _randomSpot(i, r, near) {
@@ -186,7 +186,13 @@ export class FieldWorld {
   }
   take(i) { // a field potato was picked: hide it, schedule regrowth
     if (this.db.state[i] !== 0) return; this.field.remove(i); this.db.state[i] = 1; this.onTake?.(i);
-    this.regrow.push({ i, at: this.time + this.regrowDelay() });
+    if (this.db.variety[i] === 4) this.onPurple?.(i, this.depth[i]);
+    // digging: the potato that lay underneath shows up in the hole a moment later; the deeper
+    // you dig at the same spot, the better the odds of a rare purple one. After DIG_MAX layers
+    // the hole is exhausted and that potato regrows somewhere else on the surface.
+    const dp = this.depth[i] + 1;
+    if (dp < DIG_MAX) { this.depth[i] = dp; this.regrow.push({ i, at: this.time + 0.45, dig: true }); }
+    else { this.depth[i] = 0; this.regrow.push({ i, at: this.time + this.regrowDelay() }); }
   }
   regrowDelay() { return (14 + this.rand() * 22) * (this.growthMul || 1) * (this.rainMul || 1); }
   update(dt, camPos, fx) {
@@ -199,8 +205,16 @@ export class FieldWorld {
       // deterministic per (potato id, generation): every co-op client regrows the same potato at the same spot
       const i = g.i; this.gen[i]++; const r = rng(hash32(i * 7919 ^ this.gen[i] * 104729 ^ this.seed));
       this.db.randomTraits(i, r);
-      if (this.goldBoost && r() < this.goldBoost) this.db.variety[i] = 5;
-      this._randomSpot(i, r, r() < 0.5 ? { x: this.db.px[i], z: this.db.pz[i] } : null);
+      if (g.dig) {
+        const d = this.depth[i], db = this.db;
+        if (r() < PURPLE[d]) db.variety[i] = 4;
+        db.py[i] = ground(db.px[i], db.pz[i]) + 0.03 + db.size[i] * 0.052 * db.flat[i] * 0.8 - Math.min(0.07, d * 0.012);
+        db.px[i] += (r() - 0.5) * 0.08; db.pz[i] += (r() - 0.5) * 0.08;
+        _gq.setFromEuler(_ge.set((r() - 0.5) * 0.9, r() * TAU, (r() - 0.5) * 0.8)); db.setQuat(i, _gq);
+      } else {
+        if (this.goldBoost && r() < this.goldBoost) this.db.variety[i] = 5;
+        this._randomSpot(i, r, r() < 0.5 ? { x: this.db.px[i], z: this.db.pz[i] } : null);
+      }
       this.field.place(i); this.growing.push({ i, t: 0 });
       if (fx && Math.hypot(this.db.px[i] - camPos.x, this.db.pz[i] - camPos.z) < 18) fx.dirt(this.db.px[i], this.db.py[i], this.db.pz[i], 6);
     }
@@ -217,4 +231,7 @@ export class FieldWorld {
   }
 }
 
-const _gm = new THREE.Matrix4(), _gv = new THREE.Vector3();
+const _gm = new THREE.Matrix4(), _gv = new THREE.Vector3(), _gq = new THREE.Quaternion(), _ge = new THREE.Euler();
+// digging: chance of a purple potato per layer (0 = surface: never)
+export const DIG_MAX = 9;
+const PURPLE = [0, 0.01, 0.02, 0.035, 0.05, 0.07, 0.09, 0.12, 0.16];

@@ -88,7 +88,7 @@ export class Coop {
     const g = this.g, db = g.field.db, taken = [];
     for (let i = 0; i < db.n; i++) if (db.state[i] !== 0) taken.push(i);
     const snap = { money: Math.round(g.money * 10) / 10, levels: g.levels, jar: g.stats.jar, prestige: g.stats.prestige || 0, hour: +g.stats.hour.toFixed(2), over: g.overflowed, taken };
-    if (full) { const gens = []; for (let i = 0; i < db.n; i++) if (g.field.gen[i]) gens.push(i, g.field.gen[i]); snap.gens = gens; snap.full = 1; }
+    if (full) { const gens = []; for (let i = 0; i < db.n; i++) if (g.field.gen[i]) gens.push(i, g.field.gen[i]); snap.gens = gens; const deps = []; for (let i = 0; i < db.n; i++) if (g.field.depth[i]) deps.push(i, g.field.depth[i]); snap.deps = deps; snap.full = 1; }
     net.send('snap', snap);
   }
   _applySnap(s) {
@@ -98,6 +98,7 @@ export class Coop {
     g._applyUpgrades(); g.shop.drawChalk(g.levels);
     if (s.full) {
       for (let k = 0; k < (s.gens || []).length; k += 2) if (s.gens[k] < db.n) F.gen[s.gens[k]] = s.gens[k + 1];
+      for (let k = 0; k < (s.deps || []).length; k += 2) if (s.deps[k] < db.n) F.depth[s.deps[k]] = s.deps[k + 1];
       if (this.waitingSnap) { // first snapshot: rebuild the jar to the shared count
         this.waitingSnap = false; g.stats.jar = s.jar;
         for (const i of [...g.dyn.settled]) if (g.dyn.inJar[i]) g.dyn.free(i);

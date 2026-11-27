@@ -15,15 +15,13 @@ import { VARIETIES, R0 } from './potatoes.js';
 
 // beige-realistic palette (golden potatoes are never part of the pile)
 const PILE = VARIETIES.filter(v => v.id !== 'doree');
-const WSUM = PILE.reduce((s, v) => s + v.weight, 0);
-let acc = 0; const CUM = PILE.map(v => (acc += v.weight / WSUM));
 const COLS = PILE.map(v => new THREE.Vector3(...v.col));
 
 const COMMON = /* glsl */`
 ${GLSL_NOISE}
-uniform vec3 uPCol[5]; uniform vec4 uPCum;
+uniform vec3 uPCol[5];
 varying vec3 vPD; varying vec4 vPM;
-bool gAlive;
+bool gAlive; float gPurple = 0.0; // chance of a rare purple potato in this placement
 mat3 wmpRotY(float a){ float c=cos(a), s=sin(a); return mat3(c,0.0,-s, 0.0,1.0,0.0, s,0.0,c); }
 mat3 wmpRotX(float a){ float c=cos(a), s=sin(a); return mat3(1.0,0.0,0.0, 0.0,c,s, 0.0,-s,c); }
 mat3 wmpRotZ(float a){ float c=cos(a), s=sin(a); return mat3(c,s,0.0, -s,c,0.0, 0.0,0.0,1.0); }
@@ -52,7 +50,8 @@ vec3 gPos = gAlive ? pP + rot * (q * sc) * (pS * ${R0.toFixed(4)}) : vec3(0.0, -
 // contact shading: undersides and deeper layers are darker (potatoes shadow each other)
 float vy = (rot * wn).y;
 float vari = fract(pR.x * 31.7 + pR.y * 5.1);
-float vf = vari < uPCum.x ? 0.0 : vari < uPCum.y ? 1.0 : vari < uPCum.z ? 2.0 : vari < uPCum.w ? 3.0 : 4.0;
+// golden potatoes on top; the rare purple ones only show up deeper in the pile
+float vf = vari < 0.72 ? 0.0 : 1.0; if (fract(pR.y * 47.3 + pR.z * 3.7) < gPurple) vf = 4.0;
 vPD = wn; vPM = vec4(seed, vf, pAO * mix(0.42, 1.0, smoothstep(-0.75, 0.55, vy)), pR.w);
 `;
 
@@ -80,7 +79,7 @@ const FRAG = /* glsl */`
 
 function procMaterial(key, placementGLSL, uniforms, hq) {
   const m = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0, color: 0xffffff });
-  const U = Object.assign({ uPCol: { value: COLS }, uPCum: { value: new THREE.Vector4(CUM[0], CUM[1], CUM[2], CUM[3]) } }, uniforms);
+  const U = Object.assign({ uPCol: { value: COLS } }, uniforms);
   m.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, U);
     const def = hq ? '#define WMP_HQ\n' : '';
@@ -155,7 +154,7 @@ bool wmpPlace(out vec3 P, out float S, out vec4 R, out float AO){
   if (cp.w < -rad) return false;
   float m = cp.w * 1.04 + rad * 3.0;
   if (abs(cp.x) > m || abs(cp.y) > m) return false;
-  AO = layer > 0.5 ? 0.72 : 1.0;
+  AO = layer > 0.5 ? 0.72 : 1.0; gPurple = layer > 0.5 && uLvl < 2.5 ? 0.05 : 0.0;
   return true;
 }`;
 
@@ -209,6 +208,7 @@ bool wmpPlace(out vec3 P, out float S, out vec4 R, out float AO){
     float rr = uJR - 0.07 - R.x * 0.03;
     P = vec3(uJC.x + dir.x * rr, y, uJC.z + dir.y * rr);
   }
+  gPurple = 0.025;
   float dl = distance(P, uCamP); if (dl < uLod.x || dl >= uLod.y) return false; // near: detailed mesh, far: light mesh
   vec4 cp = projectionMatrix * viewMatrix * vec4(P, 1.0);
   float rad = 0.15, m = cp.w * 1.04 + rad * 3.0;

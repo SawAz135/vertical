@@ -13,11 +13,11 @@ import { GLSL_NOISE, hash32, clamp, TAU } from '../core/util.js';
 // =====================================================================================
 
 export const VARIETIES = [
-  { id: 'bintje', name: { fr: 'Bintje', en: 'Bintje' }, col: [0.8, 0.64, 0.41], price: 1, weight: 66 },
-  { id: 'charlotte', name: { fr: 'Charlotte', en: 'Charlotte' }, col: [0.86, 0.72, 0.48], price: 1.4, weight: 20 },
-  { id: 'rosabelle', name: { fr: 'Rosabelle', en: 'Rosabelle' }, col: [0.66, 0.32, 0.26], price: 2, weight: 4 },
-  { id: 'russet', name: { fr: 'Russet', en: 'Russet' }, col: [0.68, 0.52, 0.34], price: 1.6, weight: 8 },
-  { id: 'vitelotte', name: { fr: 'Vitelotte', en: 'Vitelotte' }, col: [0.24, 0.14, 0.26], price: 6, weight: 1.5 },
+  { id: 'bintje', name: { fr: 'Bintje', en: 'Bintje' }, col: [0.93, 0.72, 0.33], price: 1, weight: 72 },
+  { id: 'charlotte', name: { fr: 'Charlotte', en: 'Charlotte' }, col: [0.98, 0.81, 0.45], price: 1.4, weight: 28 },
+  { id: 'rosabelle', name: { fr: 'Rosabelle', en: 'Rosabelle' }, col: [0.66, 0.32, 0.26], price: 2, weight: 0 },
+  { id: 'russet', name: { fr: 'Russet', en: 'Russet' }, col: [0.68, 0.52, 0.34], price: 1.6, weight: 0 },
+  { id: 'vitelotte', name: { fr: 'Vitelotte violette', en: 'Purple Vitelotte' }, col: [0.36, 0.17, 0.42], price: 25, weight: 0 },
   { id: 'doree', name: { fr: 'Dorée de Bouchard', en: 'Bouchard Gold' }, col: [1.0, 0.74, 0.16], price: 60, weight: 0.12 },
 ];
 export const SPECIAL = { NONE: 0, FACE: 1, HEART: 2, TWIN: 3 };
