@@ -48,6 +48,16 @@ export class Engine {
     S.fx = new FX(S, this.quality === 'low' ? 900 : this.quality === 'mid' ? 1800 : 3200);
     cfg.tpl.init(S);
     S.hookText = hookFor(cfg, S);
+    // every physical contact is an impact (drives "music on impact" and contact sounds)
+    const w = S.world;
+    if (w) {
+      const tick = (imp) => { if (imp > 140) S.sfx('contact', { v: Math.min(0.5, imp / 2500) }, 0.06); };
+      const wrapCb = (name, f) => { const prev = w[name]; w[name] = prev ? (...a) => { prev(...a); f(...a); } : f; };
+      wrapCb('onHit', (a, b, imp) => tick(imp));
+      wrapCb('onSeg', (b, s, imp) => tick(imp));
+      wrapCb('onPeg', (b, p, imp) => tick(imp));
+      wrapCb('onBound', (b, imp) => tick(imp));
+    }
   }
 
   /** Canvas size change without restarting the simulation. */
@@ -403,9 +413,12 @@ export class Scene {
     const t = this.vt;
     if (this.lastSfx[n] != null && t - this.lastSfx[n] < minGap) return;
     // global polyphony guard: max 9 events per 100 ms
-    while (this.sfxWin.length && t - this.sfxWin[0] > 0.1) this.sfxWin.shift();
-    if (this.sfxWin.length >= 9 && n !== 'win' && n !== 'impact') return;
-    this.sfxWin.push(t);
+    if (n !== 'contact') {
+      // global polyphony guard (plain contacts never steal room from real sounds)
+      while (this.sfxWin.length && t - this.sfxWin[0] > 0.1) this.sfxWin.shift();
+      if (this.sfxWin.length >= 9 && n !== 'win' && n !== 'impact') return;
+      this.sfxWin.push(t);
+    }
     this.lastSfx[n] = t;
     const ev = { t, n, p };
     this.events.push(ev);

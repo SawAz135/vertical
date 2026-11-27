@@ -4,7 +4,7 @@ import { THEMES, MATERIALS, GLOWS, EFFECTS } from './core/themes.js';
 import { drawBall } from './core/materials.js';
 import { composeSong, silentSong, SongPlayer } from './core/music.js';
 import { analyzeTrack, decodeFile } from './core/analysis.js';
-import { Synth } from './core/synth.js';
+import { Synth, hitCursorAt } from './core/synth.js';
 import { exportVideo, probeExport } from './core/export.js';
 import { TEMPLATES, TOP, CATEGORIES } from './templates/index.js';
 import * as DB from './core/db.js';
@@ -31,7 +31,7 @@ function defaults(tpl) {
   return {
     theme: 'neon', mat: 'glossy', glow: 'strong', opts,
     entries: DEFAULT_ENTRIES.map((e) => ({ ...e })),
-    music: { mode: 'gen', seed: 1 + Math.floor(Math.random() * 9999) },
+    music: { mode: 'gen', seed: 1 + Math.floor(Math.random() * 9999), play: 'continuous', hold: 0.3, start: 0 },
     text: { mode: 'auto', custom: '', counter: true },
     effects: Object.fromEntries(EFFECTS.map((e) => [e.id, e.def])),
     mix: { music: 1, sfx: 1, hitMode: 'synth' },
@@ -66,7 +66,9 @@ function buildSong(tpl, st) {
 function audioOf(st) {
   const mix = st.mix || { music: 1, sfx: 1, hitMode: 'synth' };
   const custom = mix.hitMode !== 'synth' && assets.hit ? assets.hit.buffer : null;
-  return { music: mix.music, sfx: mix.sfx, custom, customMode: mix.hitMode === 'replace' ? 'replace' : 'mix' };
+  const hitTrack = st.music.mode === 'track' && st.music.play === 'hits' && assets.track && !st._noHits
+    ? { buffer: assets.track.buffer, start: st.music.start || 0, hold: st.music.hold || 0.3 } : null;
+  return { music: mix.music, sfx: mix.sfx, custom, customMode: mix.hitMode === 'replace' ? 'replace' : 'mix', hitTrack };
 }
 const AUDIO_ACCEPT = 'audio/*,video/*,.mp3,.m4a,.mp4,.m4v,.mov,.wav,.aac,.ogg,.oga,.opus,.flac,.webm,.caf,.aif,.aiff,.amr,.3gp';
 function engineCfg(tpl, st, size) {
@@ -74,7 +76,7 @@ function engineCfg(tpl, st, size) {
     tpl, opts: st.opts, seed: st.seed, dur: st.dur, theme: st.theme, mat: st.mat, glow: st.glow,
     effects: st.effects, trails: st.trails, text: st.text, song: buildSong(tpl, st), size,
     entries: st.entries.map((e) => ({ ...e, img: assets.entryImgs[e._id] || null })),
-    images: assets.images, watermark: st.watermark, fps: st.fps, audio: audioOf(st),
+    images: assets.images, watermark: st.watermark, fps: st.fps, audio: audioOf({ ...st, _noHits: !!tpl.noHits }),
     customEntries: true,
   };
 }
@@ -107,7 +109,7 @@ class Preview {
     this.restartAudio();
     this.emit();
   }
-  setAudio(a) { this.cfg.audio = a; this.engine.cfg.audio = a; if (this.synth) this.synth.setAudio(a); }
+  setAudio(a) { const hitChange = !!a.hitTrack !== !!this.cfg.audio?.hitTrack; this.cfg.audio = a; this.engine.cfg.audio = a; if (hitChange || a.hitTrack) this.restartAudio(); else if (this.synth) this.synth.setAudio(a); }
   hot(patch) { this.engine.hot(patch); this.cfg = this.engine.cfg; if (!this.playing) this.engine.render(); }
   emit() { this.onTime?.(this.engine.S.vt, this.cfg.dur, this.cfg.song.dropT); }
   seek(t, silent = false) {
@@ -124,7 +126,9 @@ class Preview {
     if (this.synth) { this.synth.stopAll(); this.synth = null; }
     if (!this.playing) return;
     const ctx = getCtx();
-    this.synth = new Synth(ctx, ctx.destination, this.cfg.audio || {});
+    const audio = { ...(this.cfg.audio || {}) };
+    if (audio.hitTrack) audio.hitTrack = { ...audio.hitTrack, cursor0: hitCursorAt(this.engine.S.events, this.engine.S.vt, audio.hitTrack) };
+    this.synth = new Synth(ctx, ctx.destination, audio);
     this.synth.master.gain.value = this.muted ? 0 : 0.72;
     const song = this.cfg.song;
     this.player = new SongPlayer(this.synth, song, song.buffer || null, song.bufOffset || 0);
@@ -483,8 +487,29 @@ function editorPage(tpl) {
   };
   segInto($('#mmode', pMus), [['gen', 'Générée'], ['track', 'Ma musique'], ['none', 'Aucune']], st.music.mode, (v, setOn) => {
     if (v === 'track') { $('#mfile', pMus).click(); if (!assets.track) return false; }
-    st.music.mode = v; commit(true); return true;
+    st.music.mode = v; commit(true); setTimeout(showHit); return true;
   });
+  // ---- how the user's track is played ----
+  const hitEl = h(`<div id="hitopts" style="margin-top:12px">
+    <div class="olabel">Lecture de ma musique</div><div class="seg" id="mplay"></div>
+    <div id="hitmore"><div class="olabel">Durée jouée par impact</div><div class="seg" id="mhold"></div>
+    <div class="row"><label>La musique démarre à</label><span class="slider-v" id="mstv">${fmtT(st.music.start || 0)}</span></div>
+    <input type="range" id="mst" min="0" max="300" step="1" value="${st.music.start || 0}"></div>
+    <div class="sub" id="hitsub"></div></div>`);
+  const showHit = () => {
+    hitEl.style.display = st.music.mode === 'track' && assets.track ? '' : 'none';
+    $('#hitmore', hitEl).style.display = st.music.play === 'hits' ? '' : 'none';
+    if (assets.track) $('#mst', hitEl).max = Math.floor(assets.track.buffer.duration);
+    $('#hitsub', hitEl).innerHTML = tpl.noHits && st.music.play === 'hits'
+      ? 'Ce modèle n’a pas de collisions : la musique y est jouée en continu.'
+      : st.music.play === 'hits' ? 'À chaque rebond, cassure ou contact, ta musique reprend là où elle s’était arrêtée. Sans contact : silence.' : 'Ta musique joue en continu, le drop est calé sur la vidéo.';
+  };
+  segInto($('#mplay', hitEl), [['continuous', 'En continu'], ['hits', 'À chaque impact']], st.music.play || 'continuous', (v) => { st.music = { ...st.music, play: v }; showHit(); pushAudio(); });
+  segInto($('#mhold', hitEl), [[0.15, 'Court'], [0.3, 'Moyen'], [0.6, 'Long']], st.music.hold || 0.3, (v) => { st.music = { ...st.music, hold: v }; pushAudio(); });
+  const mst = $('#mst', hitEl);
+  mst.oninput = () => { $('#mstv', hitEl).textContent = fmtT(+mst.value); };
+  mst.onchange = () => { st.music = { ...st.music, start: +mst.value }; pushAudio(); };
+  pMus.append(hitEl);
   $('#mfile', pMus).onchange = async (ev) => {
     const f = ev.target.files[0]; if (!f) return;
     minfo.innerHTML = 'Extraction et analyse du son… (tempo, drop, notes)';
@@ -494,6 +519,7 @@ function editorPage(tpl) {
       st.music.mode = 'track';
       $('#mmode', pMus).querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === 'track'));
       commit(true);
+      showHit();
     } catch (e) { minfo.innerHTML = '<span class="err">Ce navigateur ne sait pas lire le son de ce fichier. Essaie MP3, M4A, MP4 ou WAV.</span>'; }
   };
   // ---- mix & custom impact sounds ----
@@ -505,7 +531,7 @@ function editorPage(tpl) {
     <div class="olabel">Sons d’impact (rebonds, cassures, fusions…)</div><div class="seg" id="hmode"></div>
     <input class="filein" id="hfile" type="file" accept="${AUDIO_ACCEPT}">
     <div class="sub" id="hinfo"></div></div>`);
-  const pushAudio = () => { saveSettings(tpl, st); preview.setAudio(audioOf(st)); };
+  const pushAudio = () => { saveSettings(tpl, st); preview.setAudio(audioOf({ ...st, _noHits: !!tpl.noHits })); };
   const vm = $('#vm', mixEl), vs = $('#vs', mixEl);
   vm.oninput = () => { st.mix = { ...st.mix, music: +vm.value }; $('#vmv', mixEl).textContent = `${Math.round(vm.value * 100)} %`; pushAudio(); };
   vs.oninput = () => { st.mix = { ...st.mix, sfx: +vs.value }; $('#vsv', mixEl).textContent = `${Math.round(vs.value * 100)} %`; pushAudio(); };
@@ -531,6 +557,7 @@ function editorPage(tpl) {
   };
   if (assets.hit && st.mix.hitMode !== 'synth') $('#hmode', mixEl).querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === st.mix.hitMode));
   descHit();
+  showHit();
   pMus.append(mixEl);
   panels.append(pMus);
   // ---- text ----

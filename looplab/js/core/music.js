@@ -227,6 +227,7 @@ export class SongPlayer {
   }
   /** t0: context time that corresponds to song time `from`. */
   start(t0, from = 0) {
+    if (this.s.o && this.s.o.hitTrack) return; // music is driven by impacts, not by time
     this.t0 = t0 - from;
     this.from = from;
     const song = this.song;
@@ -247,6 +248,7 @@ export class SongPlayer {
     }
   }
   pump(ctxNow, horizon = 0.35) {
+    if (this.t0 == null) return;
     const song = this.song;
     if (this.buffer || song.kind === 'none') return;
     const tEnd = ctxNow - this.t0 + horizon;
@@ -287,6 +289,7 @@ export class SongPlayer {
     p.setTargetAtTime(fv, ctxNow, 0.04);
   }
   scheduleAll() {
+    if (this.t0 == null) return;
     this.pump(this.t0 + this.from, 1e6);
     if (!this.buffer && this.song.kind !== 'none') {
       const p = this.s.musicLP.frequency;

@@ -13,7 +13,21 @@ function noiseBuf(ctx) {
   noiseBuffers.set(ctx, b);
   return b;
 }
-const HITS = new Set(['note', 'pop', 'shatter', 'crush', 'clank', 'snap', 'tick', 'thud', 'zap']);
+const HITS = new Set(['note', 'pop', 'shatter', 'crush', 'clank', 'snap', 'tick', 'thud', 'zap', 'contact']);
+/** Track position reached after a list of hit times (used to resume after a seek). */
+export function hitCursorAt(events, t, ht) {
+  const hold = ht.hold || 0.3, fade = 0.035;
+  let cursor = ht.start || 0, segStart = -1, segCursor = 0, end = -1;
+  for (const ev of events) {
+    if (ev.t >= t) break;
+    if (!HITS.has(ev.n)) continue;
+    if (segStart >= 0 && ev.t <= end) { end = ev.t + hold; continue; }
+    if (segStart >= 0) cursor = segCursor + (end + fade - segStart);
+    segStart = ev.t; segCursor = cursor; end = ev.t + hold;
+  }
+  if (segStart >= 0) cursor = segCursor + (Math.min(end + fade, t) - segStart);
+  return cursor;
+}
 export const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
 export class Synth {
@@ -346,8 +360,56 @@ export class Synth {
     src.stop(when + Math.min(2, this.o.custom.duration / src.playbackRate.value) + 0.05);
     this.track(src);
   }
+  /**
+   * "Music on impact": every hit resumes the user's track where it stopped and keeps it
+   * playing for `hold` seconds; a new hit during that window extends it. No hit = silence.
+   * Same algorithm live and offline, so the export sounds exactly like the preview.
+   */
+  trackHit(when) {
+    const ht = this.o.hitTrack;
+    const st = (this.ht = this.ht || { cursor: ht.cursor0 ?? ht.start ?? 0, src: null, end: -1 });
+    const hold = ht.hold || 0.3, fade = 0.035;
+    const newEnd = when + hold;
+    if (st.src && when <= st.end) {
+      // still playing: push the end further, re-shape the fade-out
+      st.gain.gain.cancelScheduledValues(when);
+      st.gain.gain.setValueAtTime(1, when);
+      st.gain.gain.setValueAtTime(1, newEnd);
+      st.gain.gain.linearRampToValueAtTime(0, newEnd + fade);
+      try {
+        st.src.stop(newEnd + fade + 0.01);
+        st.end = newEnd;
+        return;
+      } catch (e) {
+        // engines that refuse a second stop(): continue with a fresh piece right away
+        st.gain.gain.cancelScheduledValues(when);
+        st.gain.gain.setValueAtTime(1, when);
+        st.gain.gain.linearRampToValueAtTime(0, when + 0.01);
+        st.end = when - fade;
+      }
+    }
+    if (st.src) st.cursor = st.segCursor + (st.end + fade - st.segStart); // where the last piece stopped
+    const buf = ht.buffer;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf; src.loop = true; src.loopStart = 0; src.loopEnd = buf.duration;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(1, when + 0.008);
+    g.gain.setValueAtTime(1, newEnd);
+    g.gain.linearRampToValueAtTime(0, newEnd + fade);
+    src.connect(g); g.connect(this.music);
+    src.start(when, ((st.cursor % buf.duration) + buf.duration) % buf.duration);
+    src.stop(newEnd + fade + 0.01);
+    this.track(src);
+    Object.assign(st, { src, gain: g, end: newEnd, segStart: when, segCursor: st.cursor });
+  }
   play(ev, when) {
     const p = ev.p || {};
+    if (this.o.hitTrack && HITS.has(ev.n)) {
+      this.trackHit(when);
+      if (this.o.custom) this.playCustom(when, ev);
+      return; // the song itself is the impact sound
+    }
     if (this.o.custom && HITS.has(ev.n)) {
       this.playCustom(when, ev);
       if (this.o.customMode === 'replace') return;
@@ -362,6 +424,7 @@ export class Synth {
       case 'whoosh': return this.whoosh(when, p.d || 0.5, p.v ?? 0.6);
       case 'zap': return this.zap(when, p.v ?? 0.6);
       case 'tick': return this.tick(when, p.v ?? 0.5);
+      case 'contact': return this.thud(when, (p.v ?? 0.3) * 0.35);
       case 'win': return this.win(when, p.m || 72);
       case 'impact': return this.impact(when, p.v ?? 1);
       case 'thud': return this.thud(when, p.v ?? 0.6);

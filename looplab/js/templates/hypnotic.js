@@ -358,7 +358,7 @@ export const polyrhythm = {
 // MANDALA — a kaleidoscope: a new crown of petals blooms on every beat.
 // =====================================================================================
 export const mandala = {
-  id: 'mandala', name: 'Mandala', cat: 'hypno', badge: '♪ Synchro musique', music: true,
+  id: 'mandala', noHits: true, name: 'Mandala', cat: 'hypno', badge: '♪ Synchro musique', music: true,
   desc: 'Un kaléidoscope : une nouvelle couronne de pétales éclot à chaque temps.',
   options: [
     { id: 'sym', label: 'Symétrie', type: 'choice', def: 8, choices: [[6, '6'], [8, '8'], [12, '12'], [16, '16']] },

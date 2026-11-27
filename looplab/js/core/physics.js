@@ -179,10 +179,11 @@ export class World {
     const k = this.bounds;
     for (const b of this.bodies) {
       if (b.static || !b.alive) continue;
-      if (b.x - b.r < k.x0) { b.x = k.x0 + b.r; if (b.vx < 0) b.vx *= -(k.e ?? 0.5); }
-      if (b.x + b.r > k.x1) { b.x = k.x1 - b.r; if (b.vx > 0) b.vx *= -(k.e ?? 0.5); }
-      if (k.y0 != null && b.y - b.r < k.y0) { b.y = k.y0 + b.r; if (b.vy < 0) b.vy *= -(k.e ?? 0.5); }
-      if (k.y1 != null && b.y + b.r > k.y1) { b.y = k.y1 - b.r; if (b.vy > 0) b.vy *= -(k.e ?? 0.5); }
+      const cb = this.onBound;
+      if (b.x - b.r < k.x0) { b.x = k.x0 + b.r; if (b.vx < 0) { cb && cb(b, -b.vx); b.vx *= -(k.e ?? 0.5); } }
+      if (b.x + b.r > k.x1) { b.x = k.x1 - b.r; if (b.vx > 0) { cb && cb(b, b.vx); b.vx *= -(k.e ?? 0.5); } }
+      if (k.y0 != null && b.y - b.r < k.y0) { b.y = k.y0 + b.r; if (b.vy < 0) { cb && cb(b, -b.vy); b.vy *= -(k.e ?? 0.5); } }
+      if (k.y1 != null && b.y + b.r > k.y1) { b.y = k.y1 - b.r; if (b.vy > 0) { cb && cb(b, b.vy); b.vy *= -(k.e ?? 0.5); } }
     }
   }
 
@@ -198,6 +199,7 @@ export class World {
         if (vn > 0) {
           b.vx -= (1 + e) * vn * nx; b.vy -= (1 + e) * vn * ny;
           if (cb) cb(b, vn, nx, ny);
+          else if (this.onBound) this.onBound(b, vn);
         }
         b.press += (d + b.r - R) * 2;
       }

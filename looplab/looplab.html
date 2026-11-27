@@ -3041,6 +3041,23 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       S.fx = new FX(S, this.quality === "low" ? 900 : this.quality === "mid" ? 1800 : 3200);
       cfg.tpl.init(S);
       S.hookText = hookFor(cfg, S);
+      const w = S.world;
+      if (w) {
+        const tick = (imp) => {
+          if (imp > 140) S.sfx("contact", { v: Math.min(0.5, imp / 2500) }, 0.06);
+        };
+        const wrapCb = (name, f) => {
+          const prev = w[name];
+          w[name] = prev ? (...a) => {
+            prev(...a);
+            f(...a);
+          } : f;
+        };
+        wrapCb("onHit", (a, b, imp) => tick(imp));
+        wrapCb("onSeg", (b, s, imp) => tick(imp));
+        wrapCb("onPeg", (b, p, imp) => tick(imp));
+        wrapCb("onBound", (b, imp) => tick(imp));
+      }
     }
     /** Canvas size change without restarting the simulation. */
     resize(w, h2) {
@@ -3439,9 +3456,11 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     sfx(n, p = {}, minGap = 0.035) {
       const t = this.vt;
       if (this.lastSfx[n] != null && t - this.lastSfx[n] < minGap) return;
-      while (this.sfxWin.length && t - this.sfxWin[0] > 0.1) this.sfxWin.shift();
-      if (this.sfxWin.length >= 9 && n !== "win" && n !== "impact") return;
-      this.sfxWin.push(t);
+      if (n !== "contact") {
+        while (this.sfxWin.length && t - this.sfxWin[0] > 0.1) this.sfxWin.shift();
+        if (this.sfxWin.length >= 9 && n !== "win" && n !== "impact") return;
+        this.sfxWin.push(t);
+      }
       this.lastSfx[n] = t;
       const ev = { t, n, p };
       this.events.push(ev);
@@ -3603,7 +3622,25 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     noiseBuffers.set(ctx, b);
     return b;
   }
-  var HITS = /* @__PURE__ */ new Set(["note", "pop", "shatter", "crush", "clank", "snap", "tick", "thud", "zap"]);
+  var HITS = /* @__PURE__ */ new Set(["note", "pop", "shatter", "crush", "clank", "snap", "tick", "thud", "zap", "contact"]);
+  function hitCursorAt(events, t, ht) {
+    const hold = ht.hold || 0.3, fade = 0.035;
+    let cursor = ht.start || 0, segStart = -1, segCursor = 0, end = -1;
+    for (const ev of events) {
+      if (ev.t >= t) break;
+      if (!HITS.has(ev.n)) continue;
+      if (segStart >= 0 && ev.t <= end) {
+        end = ev.t + hold;
+        continue;
+      }
+      if (segStart >= 0) cursor = segCursor + (end + fade - segStart);
+      segStart = ev.t;
+      segCursor = cursor;
+      end = ev.t + hold;
+    }
+    if (segStart >= 0) cursor = segCursor + (Math.min(end + fade, t) - segStart);
+    return cursor;
+  }
   var mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
   var Synth = class {
     /** o: { music, sfx (volume multipliers), custom (AudioBuffer for hits), customMode: 'mix' | 'replace' } */
@@ -4038,8 +4075,58 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       src.stop(when + Math.min(2, this.o.custom.duration / src.playbackRate.value) + 0.05);
       this.track(src);
     }
+    /**
+     * "Music on impact": every hit resumes the user's track where it stopped and keeps it
+     * playing for `hold` seconds; a new hit during that window extends it. No hit = silence.
+     * Same algorithm live and offline, so the export sounds exactly like the preview.
+     */
+    trackHit(when) {
+      const ht = this.o.hitTrack;
+      const st = this.ht = this.ht || { cursor: ht.cursor0 ?? ht.start ?? 0, src: null, end: -1 };
+      const hold = ht.hold || 0.3, fade = 0.035;
+      const newEnd = when + hold;
+      if (st.src && when <= st.end) {
+        st.gain.gain.cancelScheduledValues(when);
+        st.gain.gain.setValueAtTime(1, when);
+        st.gain.gain.setValueAtTime(1, newEnd);
+        st.gain.gain.linearRampToValueAtTime(0, newEnd + fade);
+        try {
+          st.src.stop(newEnd + fade + 0.01);
+          st.end = newEnd;
+          return;
+        } catch (e) {
+          st.gain.gain.cancelScheduledValues(when);
+          st.gain.gain.setValueAtTime(1, when);
+          st.gain.gain.linearRampToValueAtTime(0, when + 0.01);
+          st.end = when - fade;
+        }
+      }
+      if (st.src) st.cursor = st.segCursor + (st.end + fade - st.segStart);
+      const buf = ht.buffer;
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      src.loopStart = 0;
+      src.loopEnd = buf.duration;
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0, when);
+      g.gain.linearRampToValueAtTime(1, when + 8e-3);
+      g.gain.setValueAtTime(1, newEnd);
+      g.gain.linearRampToValueAtTime(0, newEnd + fade);
+      src.connect(g);
+      g.connect(this.music);
+      src.start(when, (st.cursor % buf.duration + buf.duration) % buf.duration);
+      src.stop(newEnd + fade + 0.01);
+      this.track(src);
+      Object.assign(st, { src, gain: g, end: newEnd, segStart: when, segCursor: st.cursor });
+    }
     play(ev, when) {
       const p = ev.p || {};
+      if (this.o.hitTrack && HITS.has(ev.n)) {
+        this.trackHit(when);
+        if (this.o.custom) this.playCustom(when, ev);
+        return;
+      }
       if (this.o.custom && HITS.has(ev.n)) {
         this.playCustom(when, ev);
         if (this.o.customMode === "replace") return;
@@ -4063,6 +4150,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           return this.zap(when, p.v ?? 0.6);
         case "tick":
           return this.tick(when, p.v ?? 0.5);
+        case "contact":
+          return this.thud(when, (p.v ?? 0.3) * 0.35);
         case "win":
           return this.win(when, p.m || 72);
         case "impact":
@@ -4312,6 +4401,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     }
     /** t0: context time that corresponds to song time `from`. */
     start(t0, from = 0) {
+      if (this.s.o && this.s.o.hitTrack) return;
       this.t0 = t0 - from;
       this.from = from;
       const song = this.song;
@@ -4331,6 +4421,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       }
     }
     pump(ctxNow, horizon = 0.35) {
+      if (this.t0 == null) return;
       const song = this.song;
       if (this.buffer || song.kind === "none") return;
       const tEnd = ctxNow - this.t0 + horizon;
@@ -4370,6 +4461,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       p.setTargetAtTime(fv, ctxNow, 0.04);
     }
     scheduleAll() {
+      if (this.t0 == null) return;
       this.pump(this.t0 + this.from, 1e6);
       if (!this.buffer && this.song.kind !== "none") {
         const p = this.s.musicLP.frequency;
@@ -5089,21 +5181,34 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const k = this.bounds;
       for (const b of this.bodies) {
         if (b.static || !b.alive) continue;
+        const cb = this.onBound;
         if (b.x - b.r < k.x0) {
           b.x = k.x0 + b.r;
-          if (b.vx < 0) b.vx *= -(k.e ?? 0.5);
+          if (b.vx < 0) {
+            cb && cb(b, -b.vx);
+            b.vx *= -(k.e ?? 0.5);
+          }
         }
         if (b.x + b.r > k.x1) {
           b.x = k.x1 - b.r;
-          if (b.vx > 0) b.vx *= -(k.e ?? 0.5);
+          if (b.vx > 0) {
+            cb && cb(b, b.vx);
+            b.vx *= -(k.e ?? 0.5);
+          }
         }
         if (k.y0 != null && b.y - b.r < k.y0) {
           b.y = k.y0 + b.r;
-          if (b.vy < 0) b.vy *= -(k.e ?? 0.5);
+          if (b.vy < 0) {
+            cb && cb(b, -b.vy);
+            b.vy *= -(k.e ?? 0.5);
+          }
         }
         if (k.y1 != null && b.y + b.r > k.y1) {
           b.y = k.y1 - b.r;
-          if (b.vy > 0) b.vy *= -(k.e ?? 0.5);
+          if (b.vy > 0) {
+            cb && cb(b, b.vy);
+            b.vy *= -(k.e ?? 0.5);
+          }
         }
       }
     }
@@ -5121,6 +5226,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
             b.vx -= (1 + e) * vn * nx;
             b.vy -= (1 + e) * vn * ny;
             if (cb) cb(b, vn, nx, ny);
+            else if (this.onBound) this.onBound(b, vn);
           }
           b.press += (d + b.r - R) * 2;
         }
@@ -6319,6 +6425,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   };
   var mandala = {
     id: "mandala",
+    noHits: true,
     name: "Mandala",
     cat: "hypno",
     badge: "\u266A Synchro musique",
@@ -6627,6 +6734,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
                 if (vn < 0) {
                   e.vx -= 2 * vn * nx;
                   e.vy -= 2 * vn * ny;
+                  S.sfx("contact", { v: 0.3 }, 0.06);
                 }
               }
             }
@@ -6640,6 +6748,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
               if (vn > 0) {
                 e.vx -= 2 * vn * nx;
                 e.vy -= 2 * vn * ny;
+                S.sfx("contact", { v: 0.3 }, 0.06);
               }
             }
           }
@@ -7665,6 +7774,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   var H5 = 1280;
   var spectrum = {
     id: "spectrum",
+    noHits: true,
     name: "Spectre",
     cat: "music",
     badge: "\u266A Synchro musique",
@@ -7757,6 +7867,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   };
   var pulse = {
     id: "pulse",
+    noHits: true,
     name: "Pulsation",
     cat: "music",
     badge: "\u266A Synchro musique",
@@ -7872,6 +7983,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   }
   var pianoRoll = {
     id: "pianoroll",
+    noHits: true,
     name: "Piano roll",
     cat: "music",
     badge: "\u266A Synchro musique",
@@ -10020,7 +10132,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       glow: "strong",
       opts,
       entries: DEFAULT_ENTRIES.map((e) => ({ ...e })),
-      music: { mode: "gen", seed: 1 + Math.floor(Math.random() * 9999) },
+      music: { mode: "gen", seed: 1 + Math.floor(Math.random() * 9999), play: "continuous", hold: 0.3, start: 0 },
       text: { mode: "auto", custom: "", counter: true },
       effects: Object.fromEntries(EFFECTS.map((e) => [e.id, e.def])),
       mix: { music: 1, sfx: 1, hitMode: "synth" },
@@ -10059,7 +10171,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   function audioOf(st) {
     const mix2 = st.mix || { music: 1, sfx: 1, hitMode: "synth" };
     const custom = mix2.hitMode !== "synth" && assets.hit ? assets.hit.buffer : null;
-    return { music: mix2.music, sfx: mix2.sfx, custom, customMode: mix2.hitMode === "replace" ? "replace" : "mix" };
+    const hitTrack = st.music.mode === "track" && st.music.play === "hits" && assets.track && !st._noHits ? { buffer: assets.track.buffer, start: st.music.start || 0, hold: st.music.hold || 0.3 } : null;
+    return { music: mix2.music, sfx: mix2.sfx, custom, customMode: mix2.hitMode === "replace" ? "replace" : "mix", hitTrack };
   }
   var AUDIO_ACCEPT = "audio/*,video/*,.mp3,.m4a,.mp4,.m4v,.mov,.wav,.aac,.ogg,.oga,.opus,.flac,.webm,.caf,.aif,.aiff,.amr,.3gp";
   function engineCfg(tpl, st, size) {
@@ -10080,7 +10193,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       images: assets.images,
       watermark: st.watermark,
       fps: st.fps,
-      audio: audioOf(st),
+      audio: audioOf({ ...st, _noHits: !!tpl.noHits }),
       customEntries: true
     };
   }
@@ -10118,9 +10231,11 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       this.emit();
     }
     setAudio(a) {
+      const hitChange = !!a.hitTrack !== !!this.cfg.audio?.hitTrack;
       this.cfg.audio = a;
       this.engine.cfg.audio = a;
-      if (this.synth) this.synth.setAudio(a);
+      if (hitChange || a.hitTrack) this.restartAudio();
+      else if (this.synth) this.synth.setAudio(a);
     }
     hot(patch) {
       this.engine.hot(patch);
@@ -10150,7 +10265,9 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       }
       if (!this.playing) return;
       const ctx = getCtx();
-      this.synth = new Synth(ctx, ctx.destination, this.cfg.audio || {});
+      const audio = { ...this.cfg.audio || {} };
+      if (audio.hitTrack) audio.hitTrack = { ...audio.hitTrack, cursor0: hitCursorAt(this.engine.S.events, this.engine.S.vt, audio.hitTrack) };
+      this.synth = new Synth(ctx, ctx.destination, audio);
       this.synth.master.gain.value = this.muted ? 0 : 0.72;
       const song = this.cfg.song;
       this.player = new SongPlayer(this.synth, song, song.buffer || null, song.bufOffset || 0);
@@ -10645,8 +10762,39 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       }
       st.music.mode = v;
       commit(true);
+      setTimeout(showHit);
       return true;
     });
+    const hitEl = h(`<div id="hitopts" style="margin-top:12px">
+    <div class="olabel">Lecture de ma musique</div><div class="seg" id="mplay"></div>
+    <div id="hitmore"><div class="olabel">Dur\xE9e jou\xE9e par impact</div><div class="seg" id="mhold"></div>
+    <div class="row"><label>La musique d\xE9marre \xE0</label><span class="slider-v" id="mstv">${fmtT(st.music.start || 0)}</span></div>
+    <input type="range" id="mst" min="0" max="300" step="1" value="${st.music.start || 0}"></div>
+    <div class="sub" id="hitsub"></div></div>`);
+    const showHit = () => {
+      hitEl.style.display = st.music.mode === "track" && assets.track ? "" : "none";
+      $("#hitmore", hitEl).style.display = st.music.play === "hits" ? "" : "none";
+      if (assets.track) $("#mst", hitEl).max = Math.floor(assets.track.buffer.duration);
+      $("#hitsub", hitEl).innerHTML = tpl.noHits && st.music.play === "hits" ? "Ce mod\xE8le n\u2019a pas de collisions : la musique y est jou\xE9e en continu." : st.music.play === "hits" ? "\xC0 chaque rebond, cassure ou contact, ta musique reprend l\xE0 o\xF9 elle s\u2019\xE9tait arr\xEAt\xE9e. Sans contact : silence." : "Ta musique joue en continu, le drop est cal\xE9 sur la vid\xE9o.";
+    };
+    segInto($("#mplay", hitEl), [["continuous", "En continu"], ["hits", "\xC0 chaque impact"]], st.music.play || "continuous", (v) => {
+      st.music = { ...st.music, play: v };
+      showHit();
+      pushAudio();
+    });
+    segInto($("#mhold", hitEl), [[0.15, "Court"], [0.3, "Moyen"], [0.6, "Long"]], st.music.hold || 0.3, (v) => {
+      st.music = { ...st.music, hold: v };
+      pushAudio();
+    });
+    const mst = $("#mst", hitEl);
+    mst.oninput = () => {
+      $("#mstv", hitEl).textContent = fmtT(+mst.value);
+    };
+    mst.onchange = () => {
+      st.music = { ...st.music, start: +mst.value };
+      pushAudio();
+    };
+    pMus.append(hitEl);
     $("#mfile", pMus).onchange = async (ev) => {
       const f = ev.target.files[0];
       if (!f) return;
@@ -10657,6 +10805,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         st.music.mode = "track";
         $("#mmode", pMus).querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === "track"));
         commit(true);
+        showHit();
       } catch (e) {
         minfo.innerHTML = '<span class="err">Ce navigateur ne sait pas lire le son de ce fichier. Essaie MP3, M4A, MP4 ou WAV.</span>';
       }
@@ -10671,7 +10820,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     <div class="sub" id="hinfo"></div></div>`);
     const pushAudio = () => {
       saveSettings(tpl, st);
-      preview.setAudio(audioOf(st));
+      preview.setAudio(audioOf({ ...st, _noHits: !!tpl.noHits }));
     };
     const vm = $("#vm", mixEl), vs = $("#vs", mixEl);
     vm.oninput = () => {
@@ -10716,6 +10865,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     };
     if (assets.hit && st.mix.hitMode !== "synth") $("#hmode", mixEl).querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === st.mix.hitMode));
     descHit();
+    showHit();
     pMus.append(mixEl);
     panels.append(pMus);
     const pTxt = h(`<section class="panel"><h3 class="display">Texte</h3><div class="seg" id="tmode"></div>

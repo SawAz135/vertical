@@ -9,7 +9,7 @@ const W = 720, H = 1280;
 // SPECTRE — a giant equalizer with dancing bars, reflections and falling caps.
 // =====================================================================================
 export const spectrum = {
-  id: 'spectrum', name: 'Spectre', cat: 'music', badge: '♪ Synchro musique', music: true,
+  id: 'spectrum', noHits: true, name: 'Spectre', cat: 'music', badge: '♪ Synchro musique', music: true,
   desc: 'Un égaliseur géant : barres dansantes, reflets et capuchons qui retombent.',
   options: [
     { id: 'bars', label: 'Barres', type: 'choice', def: 32, choices: [[24, '24'], [32, '32'], [48, '48']] },
@@ -84,7 +84,7 @@ export const spectrum = {
 // PULSATION — a hypnotic visualizer that breathes with the music.
 // =====================================================================================
 export const pulse = {
-  id: 'pulse', name: 'Pulsation', cat: 'music', badge: '♪ Synchro musique', music: true,
+  id: 'pulse', noHits: true, name: 'Pulsation', cat: 'music', badge: '♪ Synchro musique', music: true,
   desc: 'Un visualiseur hypnotique qui respire avec la musique.',
   options: [{ id: 'sym', label: 'Symétrie', type: 'choice', def: 2, choices: [[1, 'Aucune'], [2, 'Miroir'], [4, 'Quadruple']] }],
   hook: 'Laisse-toi hypnotiser',
@@ -179,7 +179,7 @@ function melody(song, minGap = 0.11) {
 // PIANO ROLL — glowing notes fall onto a keyboard right when the music plays them.
 // =====================================================================================
 export const pianoRoll = {
-  id: 'pianoroll', name: 'Piano roll', cat: 'music', badge: '♪ Synchro musique', music: true,
+  id: 'pianoroll', noHits: true, name: 'Piano roll', cat: 'music', badge: '♪ Synchro musique', music: true,
   desc: 'Des notes lumineuses tombent sur un clavier pile quand la musique les joue.',
   options: [{ id: 'speed', label: 'Vitesse de chute', type: 'choice', def: 420, choices: [[300, 'Lente'], [420, 'Normale'], [600, 'Rapide']] }],
   hook: 'Chaque note tombe pile au bon moment',

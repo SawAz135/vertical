@@ -132,7 +132,7 @@ function makeThreads(cfg) {
             const [qx, qy] = closestOnSeg(e.x, e.y, ax, ay, bx, by);
             let nx = S.cx - qx, ny = S.cy + 20 - qy; const L = Math.hypot(nx, ny); nx /= L; ny /= L;
             const d = (e.x - qx) * nx + (e.y - qy) * ny;
-            if (d < e.r) { e.x += nx * (e.r - d); e.y += ny * (e.r - d); const vn = e.vx * nx + e.vy * ny; if (vn < 0) { e.vx -= 2 * vn * nx; e.vy -= 2 * vn * ny; } }
+            if (d < e.r) { e.x += nx * (e.r - d); e.y += ny * (e.r - d); const vn = e.vx * nx + e.vy * ny; if (vn < 0) { e.vx -= 2 * vn * nx; e.vy -= 2 * vn * ny; S.sfx('contact', { v: 0.3 }, 0.06); } }
           }
         } else {
           const dx = e.x - S.cx, dy = e.y - S.cy, d = Math.hypot(dx, dy);
@@ -140,7 +140,7 @@ function makeThreads(cfg) {
             const nx = dx / d, ny = dy / d;
             e.x = S.cx + nx * (S.R - e.r); e.y = S.cy + ny * (S.R - e.r);
             const vn = e.vx * nx + e.vy * ny;
-            if (vn > 0) { e.vx -= 2 * vn * nx; e.vy -= 2 * vn * ny; }
+            if (vn > 0) { e.vx -= 2 * vn * nx; e.vy -= 2 * vn * ny; S.sfx('contact', { v: 0.3 }, 0.06); }
           }
         }
       }
