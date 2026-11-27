@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { surfaceNets } from '../gfx/sculpt.js';
 
 // =====================================================================================
 // SCULPTED, RIGGED HAND — a smooth organic hand built once at boot:
@@ -90,49 +91,6 @@ function makeSdf(bones) {
   };
 }
 
-// ---------- surface nets ----------
-function surfaceNets(sdf, min, max, step) {
-  const nx = Math.ceil((max.x - min.x) / step) + 1, ny = Math.ceil((max.y - min.y) / step) + 1, nz = Math.ceil((max.z - min.z) / step) + 1;
-  const F = new Float32Array(nx * ny * nz);
-  for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) F[i + nx * (j + ny * k)] = sdf(min.x + i * step, min.y + j * step, min.z + k * step);
-  const vid = new Int32Array(nx * ny * nz).fill(-1), pos = [];
-  const E = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
-  const C = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]];
-  const val = new Float32Array(8);
-  for (let k = 0; k < nz - 1; k++) for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
-    let inside = 0;
-    for (let c = 0; c < 8; c++) { const v = F[(i + C[c][0]) + nx * ((j + C[c][1]) + ny * (k + C[c][2]))]; val[c] = v; if (v < 0) inside++; }
-    if (inside === 0 || inside === 8) continue;
-    let sx = 0, sy = 0, sz = 0, n = 0;
-    for (const [a, b] of E) {
-      if ((val[a] < 0) === (val[b] < 0)) continue;
-      const t = val[a] / (val[a] - val[b]);
-      sx += C[a][0] + (C[b][0] - C[a][0]) * t; sy += C[a][1] + (C[b][1] - C[a][1]) * t; sz += C[a][2] + (C[b][2] - C[a][2]) * t; n++;
-    }
-    vid[i + nx * (j + ny * k)] = pos.length / 3;
-    pos.push(min.x + (i + sx / n) * step, min.y + (j + sy / n) * step, min.z + (k + sz / n) * step);
-  }
-  const idx = [];
-  const at = (i, j, k) => vid[i + nx * (j + ny * k)];
-  for (let k = 1; k < nz - 1; k++) for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
-    const v0 = F[i + nx * (j + ny * k)];
-    // edges along +x, +y, +z from this grid point
-    const dirs = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
-    for (let a = 0; a < 3; a++) {
-      const [dx, dy, dz] = dirs[a]; const v1 = F[(i + dx) + nx * ((j + dy) + ny * (k + dz))];
-      if ((v0 < 0) === (v1 < 0)) continue;
-      // the 4 cells sharing this edge
-      let q;
-      if (a === 0) q = [at(i, j - 1, k - 1), at(i, j, k - 1), at(i, j, k), at(i, j - 1, k)];
-      else if (a === 1) q = [at(i - 1, j, k - 1), at(i - 1, j, k), at(i, j, k), at(i, j, k - 1)];
-      else q = [at(i - 1, j - 1, k), at(i, j - 1, k), at(i, j, k), at(i - 1, j, k)];
-      if (q.some(v => v < 0)) continue;
-      if (v0 < 0) idx.push(q[0], q[1], q[2], q[0], q[2], q[3]); else idx.push(q[0], q[2], q[1], q[0], q[3], q[2]);
-    }
-  }
-  return { pos, idx };
-}
-
 // ---------- build (cached) ----------
 let CACHE = null;
 function buildBase() {
@@ -143,16 +101,21 @@ function buildBase() {
   for (let v = 0; v < n; v++) {
     let x = pos[v * 3], y = pos[v * 3 + 1], z = pos[v * 3 + 2];
     // project onto the surface (2 Newton steps) and take the gradient as normal
-    for (let it = 0; it < 2; it++) {
+    for (let it = 0; it < 1; it++) {
       const d = sdf(x, y, z), gx = sdf(x + e, y, z) - sdf(x - e, y, z), gy = sdf(x, y + e, z) - sdf(x, y - e, z), gz = sdf(x, y, z + e) - sdf(x, y, z - e);
       const l = Math.hypot(gx, gy, gz) || 1; x -= gx / l * d; y -= gy / l * d; z -= gz / l * d;
-      if (it === 1) { nor[v * 3] = gx / l; nor[v * 3 + 1] = gy / l; nor[v * 3 + 2] = gz / l; }
+      if (it === 0) { nor[v * 3] = gx / l; nor[v * 3 + 1] = gy / l; nor[v * 3 + 2] = gz / l; }
     }
     pos[v * 3] = x; pos[v * 3 + 1] = y; pos[v * 3 + 2] = z;
   }
   // skin weights: smooth inverse-distance to the bone segments, 4 strongest
   const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4), P = new THREE.Vector3();
-  const segD = (b, p) => { const ab = b.tail.clone().sub(b.head), t = Math.min(1, Math.max(0, p.clone().sub(b.head).dot(ab) / ab.lengthSq())); return { d: p.distanceTo(b.head.clone().addScaledVector(ab, t)) - (b.r0 + (b.r1 - b.r0) * t), t }; };
+  const SD = { d: 0, t: 0 };
+  const segD = (b, p) => { // allocation-free distance to a bone segment
+    const ax = b.tail.x - b.head.x, ay = b.tail.y - b.head.y, az = b.tail.z - b.head.z, px = p.x - b.head.x, py = p.y - b.head.y, pz = p.z - b.head.z;
+    const t = Math.min(1, Math.max(0, (px * ax + py * ay + pz * az) / (ax * ax + ay * ay + az * az)));
+    SD.t = t; SD.d = Math.hypot(px - ax * t, py - ay * t, pz - az * t) - (b.r0 + (b.r1 - b.r0) * t); return SD;
+  };
   for (let v = 0; v < n; v++) {
     P.set(pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]);
     const ws = bones.map((b, k) => {
@@ -246,5 +209,7 @@ export const POSES = {
   cup: { curl: [0.32, 0.3, 0.32, 0.36], thumb: 0.2, opp: 0.55, spread: 0 },
   grip: { curl: [0.8, 0.85, 0.88, 0.9], thumb: 0.55, opp: 0.75, spread: 0 },
   reach: { curl: [0.05, 0.05, 0.08, 0.12], thumb: 0.05, opp: 0.1, spread: 0.6 },
+  point: { curl: [0.0, 0.85, 0.9, 0.92], thumb: 0.6, opp: 0.7, spread: 0 },
+  thumbs: { curl: [0.9, 0.92, 0.95, 0.95], thumb: -0.3, opp: -0.2, spread: 0 },
   book: { curl: [0.04, 0.05, 0.07, 0.1], thumb: 0.45, opp: 0.75, spread: 0.15 },
 };

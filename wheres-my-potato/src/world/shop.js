@@ -5,6 +5,8 @@ import { Gerard } from '../actors/npc.js';
 import { Bubble } from '../actors/bubble.js';
 import { rng } from '../core/util.js';
 import { CLEAR } from './field.js';
+import { buildStall } from './stall.js';
+import { Hand, POSES, gloveMaterial } from '../actors/handmesh.js';
 
 // =====================================================================================
 // GÉRARD'S SHOP: wooden market stall, striped awning, shelves displaying every upgrade
@@ -95,52 +97,7 @@ export class Shop {
     this.bubble = new Bubble(scene); this._head = new THREE.Vector3();
   }
   _stall() {
-    const M = this.M, B = new Batcher(), g = new THREE.Group();
-    const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = m.receiveShadow = true; g.add(m); return m; };
-    // floor deck
-    add(boxGeo(5.2, 0.14, 3.4, 2.4), M.wood, 0, 0.07, 0.6);
-    // counter (front) with planks + top
-    add(boxGeo(4.2, 1.0, 0.6, 1.3), M.crate, 0, 0.57, -0.2);
-    add(boxGeo(4.5, 0.07, 0.8, 2.4), M.woodDark, 0, 1.1, -0.2);
-    // posts + beams
-    for (const [x, z, h] of [[-2.45, -0.9, 3.0], [2.45, -0.9, 3.0], [-2.45, 2.2, 3.3], [2.45, 2.2, 3.3]]) add(boxGeo(0.16, h, 0.16, 1), M.woodDark, x, h / 2, z);
-    add(boxGeo(5.1, 0.16, 0.16, 2), M.woodDark, 0, 3.0, -0.9); add(boxGeo(5.1, 0.16, 0.16, 2), M.woodDark, 0, 3.3, 2.2);
-    // back wall
-    add(boxGeo(5.0, 3.2, 0.1, 2.4), M.wood, 0, 1.6, 2.28);
-    // shelves on the back wall
-    for (const y of [0.95, 1.7, 2.4]) { add(boxGeo(4.4, 0.05, 0.42, 1.3), M.woodDark, 0, y, 2.02); for (const x of [-2.0, 0, 2.0]) add(boxGeo(0.04, 0.12, 0.38, 1), M.metal, x, y - 0.07, 2.02); }
-    B.addTree(g, { cast: true }); B.build(this.group);
-    // striped awning (a curved canvas)
-    const stripes = canvasTex(textCanvas(512, 64, (x, w, h) => { for (let k = 0; k < 10; k++) { x.fillStyle = k % 2 ? '#f3ead6' : '#b8322a'; x.fillRect(k * w / 10, 0, w / 10, h); } }), true);
-    const aw = new THREE.PlaneGeometry(5.6, 3.6, 24, 12); const p = aw.attributes.position;
-    for (let i = 0; i < p.count; i++) { const y = p.getY(i); p.setZ(i, Math.sin((y / 3.6 + 0.5) * Math.PI) * 0.18); }
-    aw.computeVertexNormals();
-    const awm = new THREE.Mesh(aw, new THREE.MeshStandardMaterial({ map: stripes, side: THREE.DoubleSide, roughness: 0.85 }));
-    awm.position.set(0, 3.3, 0.55); awm.rotation.x = -Math.PI / 2 - 0.12; awm.castShadow = true; this.group.add(awm);
-    // scalloped valance
-    const val = canvasTex(textCanvas(512, 64, (x, w, h) => { x.clearRect(0, 0, w, h); for (let k = 0; k < 10; k++) { x.fillStyle = k % 2 ? '#f3ead6' : '#b8322a'; x.beginPath(); x.moveTo(k * w / 10, 0); x.lineTo((k + 1) * w / 10, 0); x.lineTo((k + 1) * w / 10, h * 0.5); x.arc((k + 0.5) * w / 10, h * 0.5, w / 20, 0, Math.PI); x.fill(); } }), true);
-    const vm = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 0.45), new THREE.MeshStandardMaterial({ map: val, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }));
-    vm.position.set(0, 2.88, -1.25); vm.castShadow = true; this.group.add(vm); this.valance = vm;
-    // hanging sign
-    const sign = canvasTex(textCanvas(768, 256, (x, w, h) => {
-      x.fillStyle = '#2c1a0e'; x.fillRect(0, 0, w, h); x.fillStyle = '#4a2c16'; x.fillRect(10, 10, w - 20, h - 20);
-      x.fillStyle = '#f6d78a'; x.textAlign = 'center'; x.font = '900 86px Georgia'; x.fillText('CHEZ GÉRARD', w / 2, 112);
-      x.font = 'italic 700 40px Georgia'; x.fillStyle = '#f3ead6'; x.fillText('Outils · Améliorations · Conseils', w / 2, 180);
-      x.font = '28px Georgia'; x.fillText('— depuis 1987 —', w / 2, 225);
-    }), true);
-    const sg = new THREE.Group(); sg.position.set(0, 3.95, -0.95); this.group.add(sg); this.sign = sg;
-    const sm = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.86), new THREE.MeshStandardMaterial({ map: sign, roughness: 0.6 })); sm.position.y = -0.1; sm.rotation.y = Math.PI; sg.add(sm);
-    const sb = new THREE.Mesh(boxGeo(2.7, 0.95, 0.06, 1), M.woodDark); sb.position.set(0, -0.1, 0.035); sb.castShadow = true; sg.add(sb);
-    for (const x of [-1.1, 1.1]) { const ch = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.5, 4), M.metal); ch.position.set(x, 0.55, 0); sg.add(ch); }
-    // chalkboard price list (redrawn when prices change)
-    this.chalkCanvas = textCanvas(512, 640, () => {}); this.chalkTex = canvasTex(this.chalkCanvas, true);
-    const cb = new THREE.Group(); cb.position.set(3.1, 0, -1.2); cb.rotation.y = -0.4; this.group.add(cb);
-    const board = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.25), new THREE.MeshStandardMaterial({ map: this.chalkTex, roughness: 0.95 })); board.position.set(0, 1.15, -0.03); board.rotation.set(-0.18, Math.PI, 0); cb.add(board);
-    for (const [x, rz] of [[-0.45, 0.18], [0.45, -0.18]]) { const leg = new THREE.Mesh(boxGeo(0.05, 1.9, 0.05, 1), M.woodDark); leg.position.set(x, 0.95, 0.12); leg.rotation.set(-0.18, 0, rz * 0.2); cb.add(leg); }
-    // bell on the counter
-    const bell = new THREE.Mesh(new THREE.LatheGeometry([[0, 0.08], [0.03, 0.075], [0.06, 0.03], [0.065, 0]].map(p => new THREE.Vector2(...p)), 20), M.brass); bell.position.set(-1.3, 1.135, -0.35); this.group.add(bell); this.bell = bell;
-    // cash box & a crate of golden potatoes for show
-    const cash = new THREE.Mesh(boxGeo(0.4, 0.18, 0.3, 1), M.paintGreen); cash.position.set(1.3, 1.22, -0.15); cash.castShadow = true; this.group.add(cash);
+    buildStall(this);
     this.colliders.push({ min: new THREE.Vector3(SHOP.x - 2.6, 0, SHOP.z - 0.6), max: new THREE.Vector3(SHOP.x + 2.6, 2, SHOP.z + 2.4) }, { x: SHOP.x + 3.1, z: SHOP.z - 1.2, r: 0.45 });
     this._displays();
   }
@@ -149,7 +106,7 @@ export class Shop {
     const M = this.M, r = rng(4);
     const place = (id, obj, x, y) => { obj.position.set(x, y, 2.0); obj.rotation.y = Math.PI + (r() - 0.5) * 0.3; this.group.add(obj); this.displays[id] = obj; };
     place('bucket', makeBucket(M, 1), -1.5, 0.98);
-    const glove = new THREE.Group(); for (const s of [-1, 1]) { const gl = makeGlove(M); gl.position.x = s * 0.09; gl.rotation.z = s * 0.3; glove.add(gl); } place('gloves', glove, -0.4, 1.73);
+    const glove = new THREE.Group(); const gm = gloveMaterial(); for (const s of [-1, 1]) { const h = new Hand(s, gm); h.apply(POSES.relaxed); h.group.rotation.set(-Math.PI / 2 + 0.2, 0, s * 0.25); h.group.position.set(s * 0.08, 0.05, 0); h.group.scale.setScalar(1.1); glove.add(h.group); } place('gloves', glove, -0.4, 1.73);
     const rake = new THREE.Group(); const h = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1.1, 8), M.wood); h.rotation.z = 1.2; h.position.y = 0.2; rake.add(h); const hd = new THREE.Mesh(boxGeo(0.06, 0.05, 0.45, 1), M.paintRed); hd.position.set(0.5, 0.0, 0); rake.add(hd); place('magnet', rake, 1.2, 1.73);
     const boots = new THREE.Group(); for (const s of [-1, 1]) { const b = new THREE.Mesh(new THREE.LatheGeometry([[0, 0], [0.06, 0], [0.065, 0.2], [0.06, 0.28], [0, 0.28]].map(p => new THREE.Vector2(...p)), 14), M.leather); b.position.x = s * 0.08; boots.add(b); const t = new THREE.Mesh(boxGeo(0.1, 0.08, 0.18, 1), M.leather); t.position.set(s * 0.08, 0.04, 0.08); boots.add(t); } place('boots', boots, 1.6, 0.98);
     const motor = new THREE.Group(); const mb = new THREE.Mesh(boxGeo(0.4, 0.3, 0.3, 1), M.paintYellow); mb.position.y = 0.15; motor.add(mb); for (let k = 0; k < 5; k++) { const fin = new THREE.Mesh(boxGeo(0.42, 0.02, 0.32, 1), M.metal); fin.position.y = 0.04 + k * 0.06; motor.add(fin); } place('motor', motor, 0.2, 0.98);
@@ -180,6 +137,7 @@ export class Shop {
     if (camera) { this.npc.head.getWorldPosition(this._head); this._head.y += 0.25; this.bubble.update(dt, this._head, camera); }
     this.sign.rotation.x = Math.sin(t * 1.3) * 0.025; this.sign.rotation.z = Math.sin(t * 0.9) * 0.015;
     this.valance.rotation.x = Math.sin(t * 1.7) * 0.04;
+    if (this.lantern) { const n = this.night || 0, f = 0.85 + Math.sin(t * 13) * 0.08 + Math.sin(t * 7.3) * 0.07; this.lantern.light.intensity = n * 4 * f; this.lantern.flame.material.emissiveIntensity = n * 3 * f; }
     for (const id in this.displays) this.displays[id].position.y += Math.sin(t * 2 + id.length) * 0.0;
   }
 }

@@ -409,6 +409,7 @@ class Game {
     this.machine.update(dt, this.dyn, this.t);
     this.dyn.update(dt, { belt: this.machine.belt });
     this.machine.setCount(this.stats.jar);
+    this.shop.night = this.field.night;
     this.shop.update(dt, this.camera.position, audio.voiceAmp(), this.t, this.camera);
     this.fx.update(dt);
     audio.setListener(this.camera); audio.setMotor(this.machine.speed, Math.min(1, this.machine.queue / 20));

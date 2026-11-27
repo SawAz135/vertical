@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { boxGeo, Batcher } from './build.js';
 import { ST } from './dynpotatoes.js';
 import { canvasTex, textCanvas } from '../gfx/textures.js';
+import { woodMaterial, rbox, woodTint, Kit } from '../gfx/woodkit.js';
 import { TAU, clamp, rng } from '../core/util.js';
 import { CLEAR } from './field.js';
 import { JarFill } from './proc.js';
@@ -54,28 +55,58 @@ export class Machine {
   // ---------- bin + paddle wheel ----------
   _bin() {
     const M = this.M, g = new THREE.Group(), b = BIN, B = new Batcher();
-    const add = (w, h, d, x, y, z, mat = M.crate) => { const m = new THREE.Mesh(boxGeo(w, h, d, mat.userData.tile), mat); m.position.set(b.x + x, y, b.z + z); m.castShadow = m.receiveShadow = true; B.addMesh(m); this.boxes.push({ min: new THREE.Vector3(b.x + x - w / 2, y - h / 2, b.z + z - d / 2), max: new THREE.Vector3(b.x + x + w / 2, y + h / 2, b.z + z + d / 2), kind: 'wood' }); };
-    // wooden deck the bin stands on, laid over the potato sea
-    const deck = new THREE.Mesh(boxGeo(4.6, 0.16, 4.2, M.wood.userData.tile), M.wood); deck.position.set(b.x + 0.7, 0.02, b.z); deck.receiveShadow = true; B.addMesh(deck);
+    const add = (w, h, d, x, y, z) => { this.boxes.push({ min: new THREE.Vector3(b.x + x - w / 2, y - h / 2, b.z + z - d / 2), max: new THREE.Vector3(b.x + x + w / 2, y + h / 2, b.z + z + d / 2), kind: 'wood' }); };
     add(b.w + 0.2, b.floor, b.d + 0.2, 0, b.floor / 2 + 0.1, 0);
     add(b.w + 0.2, b.h, b.t, 0, b.h / 2, -b.d / 2 - b.t / 2); add(b.w + 0.2, b.h, b.t, 0, b.h / 2, b.d / 2 + b.t / 2);
     add(b.t, b.h, b.d, -b.w / 2 - b.t / 2, b.h / 2, 0); add(b.t, b.h, b.d, b.w / 2 + b.t / 2, b.h / 2, 0);
-    // corner posts + painted sign
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const p = new THREE.Mesh(boxGeo(0.12, b.h + 0.1, 0.12, 1), M.woodDark); p.position.set(b.x + sx * (b.w / 2 + 0.06), (b.h + 0.1) / 2, b.z + sz * (b.d / 2 + 0.06)); p.castShadow = true; B.addMesh(p); }
-    const sign = canvasTex(textCanvas(512, 160, (x, w, h) => {
-      x.fillStyle = '#f2e3c2'; x.fillRect(0, 0, w, h); x.strokeStyle = '#6b3a1a'; x.lineWidth = 10; x.strokeRect(6, 6, w - 12, h - 12);
-      x.fillStyle = '#6b3a1a'; x.font = '900 64px Georgia'; x.textAlign = 'center'; x.fillText('LE BAC', w / 2, 80); x.font = 'italic 700 30px Georgia'; x.fillText('versez vos patates ici ↓', w / 2, 128);
-    }), true);
-    const sm = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.34), new THREE.MeshStandardMaterial({ map: sign, roughness: 0.8 }));
-    sm.position.set(b.x - b.w / 2 - b.t - 0.01, b.h + 0.28, b.z); sm.rotation.y = -Math.PI / 2; this.scene.add(sm);
-    const post = new THREE.Mesh(boxGeo(0.06, 0.4, 0.06, 1), M.woodDark); post.position.set(b.x - b.w / 2 - b.t, b.h + 0.1, b.z); B.addMesh(post);
-    B.build(this.scene);
+    this._binVisual();
     this.colliders.push({ min: new THREE.Vector3(b.x - b.w / 2 - 0.15, 0, b.z - b.d / 2 - 0.15), max: new THREE.Vector3(b.x + b.w / 2 + 0.15, b.h, b.z + b.d / 2 + 0.15) });
     // paddle wheel that lifts potatoes from the bin onto the belt
     const wheel = new THREE.Group(); wheel.position.set(b.x + b.w / 2 - 0.05, 0.75, b.z);
     const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.7, 12).rotateX(Math.PI / 2), M.paintGrey); wheel.add(hub);
     for (let k = 0; k < 6; k++) { const p = new THREE.Group(); p.rotation.z = k * TAU / 6; const blade = new THREE.Mesh(boxGeo(0.04, 0.42, 0.62, 1), M.paintRed); blade.position.y = 0.25; blade.castShadow = true; p.add(blade); wheel.add(p); }
     this.scene.add(wheel); this.wheel = wheel;
+  }
+
+  _binVisual() {
+    const b = BIN, r = rng(14), K = new Kit(), oak = woodMaterial('oak'), dark = woodMaterial('dark', { knots: 1 }), wea = woodMaterial('weathered', { knots: 3 });
+    const iron = new THREE.MeshStandardMaterial({ color: 0x34302c, roughness: 0.5, metalness: 0.85 });
+    const X = b.x, Z = b.z;
+    // deck of boards (with gaps) on sleepers, laid over the potato sea
+    for (let k = 0; k < 17; k++) K.add(rbox(4.6, 0.05, 0.235, 0.008, woodTint(r)), wea, X + 0.7 + (r() - 0.5) * 0.05, 0.075, Z - 2.0 + k * 0.25);
+    for (const dx of [-1.4, 0.7, 2.8]) K.add(rbox(0.12, 0.08, 4.3, 0.008, woodTint(r)), dark, X + dx, 0.02, Z);
+    // bin walls: horizontal boards, inner floor
+    const W2 = b.w / 2 + b.t / 2, D2 = b.d / 2 + b.t / 2, n = 4, bh = b.h / n;
+    for (let k = 0; k < n; k++) {
+      const y = bh * (k + 0.5) + 0.02;
+      K.add(rbox(b.w + 0.2, bh - 0.012, b.t, 0.01, woodTint(r)), oak, X, y, Z - D2); K.add(rbox(b.w + 0.2, bh - 0.012, b.t, 0.01, woodTint(r)), oak, X, y, Z + D2);
+      K.add(rbox(b.t, bh - 0.012, b.d, 0.01, woodTint(r)), oak, X - W2, y, Z); K.add(rbox(b.t, bh - 0.012, b.d, 0.01, woodTint(r)), oak, X + W2, y, Z);
+    }
+    for (let k = 0; k < 7; k++) K.add(rbox(b.w, 0.04, b.d / 7 - 0.01, 0.006, woodTint(r)), dark, X, b.floor + 0.08, Z - b.d / 2 + (k + 0.5) * b.d / 7);
+    // chunky corner posts + top rim
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) K.add(rbox(0.12, b.h + 0.12, 0.12, 0.02, woodTint(r)), dark, X + sx * (b.w / 2 + 0.07), (b.h + 0.12) / 2, Z + sz * (b.d / 2 + 0.07));
+    for (const sz of [-1, 1]) K.add(rbox(b.w + 0.34, 0.05, 0.14, 0.015, woodTint(r)), dark, X, b.h + 0.03, Z + sz * (b.d / 2 + 0.07));
+    for (const sx of [-1, 1]) K.add(rbox(0.14, 0.05, b.d + 0.06, 0.015, woodTint(r)), dark, X + sx * (b.w / 2 + 0.07), b.h + 0.03, Z);
+    // sign board on a post
+    K.add(rbox(0.07, 1.25, 0.07, 0.01, woodTint(r)), dark, X - W2 - 0.06, 0.62, Z - 0.6);
+    K.build(this.scene);
+    // iron corner brackets + bolts
+    const I = new Kit();
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (const y of [0.18, b.h - 0.12]) {
+      I.add(rbox(0.2, 0.06, 0.008, 0.003), iron, X + sx * (b.w / 2 + 0.02), y, Z + sz * (b.d / 2 + b.t + 0.01));
+      I.add(rbox(0.008, 0.06, 0.2, 0.003), iron, X + sx * (b.w / 2 + b.t + 0.01), y, Z + sz * (b.d / 2 + 0.02));
+      for (const o of [-0.06, 0.06]) I.add(new THREE.SphereGeometry(0.012, 8, 6), iron, X + sx * (b.w / 2 + 0.02) + o, y, Z + sz * (b.d / 2 + b.t + 0.016));
+    }
+    I.build(this.scene);
+    const sign = canvasTex(textCanvas(512, 200, (x, w, h) => {
+      const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#f4e6c6'); g.addColorStop(1, '#e2cfa4'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+      x.strokeStyle = '#6b3a1a'; x.lineWidth = 10; x.strokeRect(8, 8, w - 16, h - 16);
+      x.fillStyle = '#6b3a1a'; x.font = '64px Marker, cursive'; x.textAlign = 'center'; x.fillText('LE BAC', w / 2, 92); x.font = 'italic 700 30px Georgia'; x.fillText('versez vos patates ici ↓', w / 2, 150);
+    }), true);
+    const board = new THREE.Group(); board.position.set(X - W2 - 0.06, 1.26, Z - 0.6); board.rotation.y = -Math.PI / 2; this.scene.add(board);
+    const bm = new THREE.Mesh(rbox(1.12, 0.42, 0.04, 0.012), dark); board.add(bm);
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(1.06, 0.38), new THREE.MeshStandardMaterial({ map: sign, roughness: 0.8 })); face.position.z = 0.021; board.add(face);
+    board.traverse(o => { if (o.isMesh) o.castShadow = true; });
   }
 
   // ---------- path ----------
@@ -99,12 +130,29 @@ export class Machine {
     const frame = new THREE.Group(); orient(frame);
     const belt = new THREE.Mesh(new THREE.BoxGeometry(len + 0.6, 0.05, 0.62), new THREE.MeshStandardMaterial({ map: tex, color: 0x333333, roughness: 0.75 })); belt.receiveShadow = belt.castShadow = true; frame.add(belt);
     this.scene.add(frame);
+    const red = new THREE.MeshStandardMaterial({ color: 0xc8231a, roughness: 0.38, metalness: 0.45 });
+    const steel = new THREE.MeshStandardMaterial({ color: 0x9aa2a8, roughness: 0.35, metalness: 0.9 });
     const rails = new THREE.Group(); orient(rails);
-    for (const sz of [-1, 1]) { const r1 = new THREE.Mesh(boxGeo(len + 0.6, 0.22, 0.05, 1), M.paintRed); r1.position.set(0, 0.06, sz * 0.34); r1.castShadow = true; rails.add(r1); }
+    for (const sz of [-1, 1]) {
+      const web = new THREE.Mesh(rbox(len + 0.6, 0.24, 0.02, 0.006), red); web.position.set(0, 0.04, sz * 0.355); rails.add(web);
+      for (const fy of [-0.08, 0.16]) { const fl = new THREE.Mesh(rbox(len + 0.6, 0.016, 0.07, 0.004), red); fl.position.set(0, fy, sz * 0.33); rails.add(fl); }
+      for (let x = -len / 2; x < len / 2; x += 0.5) { const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.012, 6).rotateX(Math.PI / 2), steel); bolt.position.set(x, 0.04, sz * 0.368); rails.add(bolt); }
+    }
+    for (let x = -len / 2 - 0.25; x <= len / 2 + 0.25; x += 0.3) { const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.66, 12).rotateX(Math.PI / 2), steel); roller.position.set(x, -0.045, 0); rails.add(roller); }
+    rails.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     B.addTree(rails, { cast: true });
-    for (let s = 0.5; s < len; s += 1.6) {
+    for (let s = 0.4; s < len; s += 1.5) {
       const p = P0.clone().addScaledVector(dir, s), side = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
-      for (const sz of [-1, 1]) { const q = p.clone().addScaledVector(side, sz * 0.36), h = q.y; const leg = new THREE.Mesh(boxGeo(0.08, h, 0.08, 1), M.paintRed); leg.position.set(q.x, h / 2, q.z); leg.castShadow = true; B.addMesh(leg); }
+      const feet = [];
+      for (const sz of [-1, 1]) {
+        const q = p.clone().addScaledVector(side, sz * 0.36), h = q.y - 0.08;
+        const leg = new THREE.Mesh(rbox(0.07, h, 0.07, 0.008), red); leg.position.set(q.x, h / 2 + 0.06, q.z); B.addMesh(leg);
+        const foot = new THREE.Mesh(rbox(0.2, 0.02, 0.2, 0.004), steel); foot.position.set(q.x, 0.07, q.z); B.addMesh(foot);
+        feet.push(q);
+      }
+      // cross brace between the two legs
+      const a = feet[0], c = feet[1], hh = Math.min(a.y, c.y) * 0.5 + 0.06, mid2 = a.clone().add(c).multiplyScalar(0.5);
+      const br = new THREE.Mesh(rbox(0.04, 0.04, 0.72, 0.006), steel); br.position.set(mid2.x, hh, mid2.z); br.lookAt(c.x, hh, c.z); B.addMesh(br);
     }
     B.build(this.scene);
     this.cleatGap = 0.55; const n = Math.ceil(len / this.cleatGap) + 1;
@@ -130,6 +178,9 @@ export class Machine {
     belt.receiveShadow = true; belt.castShadow = true; this.scene.add(belt);
     const railMat = new THREE.MeshStandardMaterial({ color: 0xd8261c, roughness: 0.35, metalness: 0.4, side: THREE.DoubleSide });
     for (const r of [RH - W, RH + W]) { const rail = new THREE.Mesh(ribbon(r, r, -0.05, 0.22, 1), railMat); rail.castShadow = true; this.scene.add(rail); }
+    // tubular guard rail on the outside edge, with posts
+    const helix = new THREE.Curve(); helix.getPoint = (t, out = new THREE.Vector3()) => { const a = TH0 + t * TAU * TURNS; return out.set(Math.cos(a) * (RH + W + 0.02), Y0 + t * (Y1 - Y0) + 0.42, Math.sin(a) * (RH + W + 0.02)); };
+    const guard = new THREE.Mesh(new THREE.TubeGeometry(helix, TURNS * 160, 0.028, 8, false), new THREE.MeshStandardMaterial({ color: 0xe8e6e0, roughness: 0.25, metalness: 0.9 })); guard.castShadow = true; this.scene.add(guard);
     const under = new THREE.Mesh(ribbon(RH - W, RH + W, -0.12, -0.12, 1), new THREE.MeshStandardMaterial({ color: 0x8a1a14, roughness: 0.5, metalness: 0.5, side: THREE.DoubleSide })); this.scene.add(under);
     // brackets bolting the spiral to the glass, every 15 degrees
     const B = new Batcher(); const steps = TURNS * 24;
@@ -137,6 +188,7 @@ export class Machine {
       const t = k / steps, a = TH0 + t * TAU * TURNS, y = Y0 + t * (Y1 - Y0) - 0.2, r0 = JAR.R + JAR.th, L = RH + W - r0;
       const m = new THREE.Mesh(boxGeo(L, 0.08, 0.1, 1), M.paintGrey); m.position.set(Math.cos(a) * (r0 + L / 2), y, Math.sin(a) * (r0 + L / 2)); m.rotation.y = -a; B.addMesh(m);
       const brace = new THREE.Mesh(boxGeo(0.06, 0.7, 0.06, 1), M.paintGrey); brace.position.set(Math.cos(a) * (r0 + 0.25), y - 0.35, Math.sin(a) * (r0 + 0.25)); B.addMesh(brace);
+      if (k % 2 === 0) { const post = new THREE.Mesh(boxGeo(0.03, 0.44, 0.03, 1), M.chrome); post.position.set(Math.cos(a) * (RH + W + 0.02), y + 0.2 + 0.2, Math.sin(a) * (RH + W + 0.02)); B.addMesh(post); }
     }
     B.build(this.scene);
     this.spiralCleats = new THREE.InstancedMesh(new THREE.BoxGeometry(0.04, 0.05, W * 2 - 0.06), new THREE.MeshStandardMaterial({ color: 0x48484c, roughness: 0.6 }), 260);

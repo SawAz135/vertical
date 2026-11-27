@@ -13,7 +13,7 @@ const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _d = new THREE.Vector
 
 export function makeVacuum(M) {
   const g = new THREE.Group();
-  const body = new THREE.MeshStandardMaterial({ color: 0xffb81c, roughness: 0.35, metalness: 0.2 });
+  const body = new THREE.MeshPhysicalMaterial({ color: 0xffb81c, roughness: 0.32, metalness: 0.05, clearcoat: 1, clearcoatRoughness: 0.12 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x222428, roughness: 0.5, metalness: 0.4 });
   const glass = new THREE.MeshStandardMaterial({ color: 0xcfefff, transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.1, depthWrite: false });
   const glow = new THREE.MeshStandardMaterial({ color: 0x002020, emissive: 0x30fff0, emissiveIntensity: 2.2 });
@@ -38,7 +38,7 @@ export function makeVacuum(M) {
 export function makeCannon(M) {
   const g = new THREE.Group();
   const metal = new THREE.MeshStandardMaterial({ color: 0x6a7480, roughness: 0.3, metalness: 0.9 });
-  const red = new THREE.MeshStandardMaterial({ color: 0xd8261c, roughness: 0.3, metalness: 0.3 });
+  const red = new THREE.MeshPhysicalMaterial({ color: 0xd8261c, roughness: 0.3, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.1 });
   const wood = M.woodDark, brass = M.brass;
   const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.62, 22, 1, true).rotateX(Math.PI / 2), metal); barrel.position.z = -0.25; g.add(barrel);
   const bore = new THREE.Mesh(new THREE.CircleGeometry(0.05, 20), new THREE.MeshStandardMaterial({ color: 0x050505 })); bore.position.z = -0.559; bore.rotation.y = Math.PI; g.add(bore);
@@ -162,15 +162,15 @@ export class Gadgets {
     if (tool !== 'cannon') this.dots.count = 0;
     if (tool === 'vacuum') {
       const shake = this.sucking ? (Math.random() - 0.5) * 0.006 : 0;
-      this.vac.position.set(0.18 + lagX + sw + shake, -0.22 + swY + lagY - swap + shake, -0.42);
-      this.vac.rotation.set(0.04 - lagY * 0.5, -0.06, sw * 2);
+      this.vac.position.set(0.25 + lagX + sw + shake, -0.25 + swY + lagY - swap + shake, -0.52);
+      this.vac.rotation.set(0.07 - lagY * 0.5, 0.22, sw * 2 - 0.12); // held low on the right, its side in view
       this.spin += dt * (this.sucking ? 40 : 2); this.vac.userData.fan.rotation.z = this.spin;
       this.vac.userData.ring.material.emissiveIntensity = 1.2 + this.sucking * 3 + Math.sin(this.spin * 0.3) * 0.3;
       R.target.copy(this.vac.position).add(_v.set(0, -0.1, 0.1)); L.target.copy(this.vac.position).add(_v.set(-0.1, -0.02, -0.22));
     } else if (tool === 'cannon') {
       const r = this.recoil;
-      this.can.position.set(0.16 + lagX + sw, -0.2 + swY + lagY - swap + r * 0.03, -0.4 + r * 0.09);
-      this.can.rotation.set(0.05 + r * 0.25 - lagY * 0.5, -0.05, sw * 2);
+      this.can.position.set(0.23 + lagX + sw, -0.23 + swY + lagY - swap + r * 0.03, -0.5 + r * 0.09);
+      this.can.rotation.set(0.06 + r * 0.25 - lagY * 0.5, 0.17, sw * 2 - 0.1);
       this.can.userData.needle.rotation.z = -0.8 + (1 - Math.min(1, this.fireT * 6)) * 1.6;
       R.target.copy(this.can.position).add(_v.set(0, -0.12, 0.13)); L.target.copy(this.can.position).add(_v.set(-0.05, -0.06, -0.25));
     }
