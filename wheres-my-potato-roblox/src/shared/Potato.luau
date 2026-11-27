@@ -34,8 +34,15 @@ function Potato.cell(ix: number, iz: number, layer: number?)
 end
 
 -- the 3D model: an ellipsoid with a slight random tilt (SpecialMesh sphere = smooth, cheap)
+Potato.meshFactory = nil :: ((number) -> BasePart?)? -- set when the sculpted meshes are available
 function Potato.make(variety: number, size: number, rnd: number?): BasePart
 	local r = rnd or 0.5
+	local mp = Potato.meshFactory and Potato.meshFactory(r)
+	if mp then
+		mp.Size = Vector3.new(Config.POTATO.Len * size * (1.05 + r * 0.25), 0.78 * size, 0.98 * size)
+		mp.Color = Potato.color(variety, r); mp.CastShadow = false
+		return mp
+	end
 	local p = Instance.new("Part")
 	p.Name = "Potato"
 	p.Size = Vector3.new(Config.POTATO.Len * size * (1.05 + r * 0.25), 0.78 * size, 0.98 * size)

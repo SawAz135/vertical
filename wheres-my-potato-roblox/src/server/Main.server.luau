@@ -10,6 +10,10 @@ Net.setupServer()
 local world = Instance.new("Folder"); world.Name = "World"; world.Parent = workspace
 local ready = Instance.new("BoolValue"); ready.Name = "WorldReady"; ready.Value = false; ready.Parent = ReplicatedStorage
 
+-- sculpted potato meshes (EditableMesh) for every potato built by the server, if available
+local PotatoMesh = require(ReplicatedStorage.Shared.PotatoMesh)
+local Potato = require(ReplicatedStorage.Shared.Potato)
+if PotatoMesh.build() then Potato.meshFactory = PotatoMesh.make end
 local Terrain = require(script.Parent.World.Terrain)
 local Structures = require(script.Parent.World.Structures)
 local ShopBuild = require(script.Parent.World.Shop)

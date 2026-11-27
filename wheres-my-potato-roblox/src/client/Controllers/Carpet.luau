@@ -9,6 +9,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Potato = require(ReplicatedStorage.Shared.Potato)
 local Land = require(ReplicatedStorage.Shared.Land)
 local State = require(script.Parent.State)
+local PM = require(game:GetService("ReplicatedStorage").Shared.PotatoMesh)
 
 local Carpet = {}
 local S = Potato.S
@@ -17,7 +18,8 @@ local folder = Instance.new("Folder"); folder.Name = "PotatoCarpet"; folder.Pare
 Carpet.folder = folder
 
 local R = Config.POTATO.Radius.PC
-local pool: { BasePart } = {}
+local pools: { [number]: { BasePart } } = {} -- per mesh variant
+local partVar: { [BasePart]: number } = {}
 local live: { [number]: BasePart } = {} -- key → part
 Carpet.keyOf = {} :: { [BasePart]: number }
 local cx0, cz0 = math.huge, math.huge
@@ -25,20 +27,29 @@ local pending: { number } = {} -- keys to (re)place
 local growing: { [BasePart]: number } = {}
 local rayParams = RaycastParams.new(); rayParams.FilterType = Enum.RaycastFilterType.Include; rayParams.FilterDescendantsInstances = { workspace.Terrain }
 
-local function newPart(): BasePart
-	local p = table.remove(pool)
+-- a potato part of mesh variant v (real sculpted mesh when available, else smooth ellipsoid)
+local function newPart(v: number): BasePart
+	local pool = pools[v]
+	local p = pool and table.remove(pool)
 	if p then return p end
-	p = Potato.make(1, 1, 0.5)
+	p = PM.make((v - 1) / 8) or Potato.make(1, 1, 0.5)
 	p.Anchored = true; p.CanCollide = false; p.CanTouch = false; p.CastShadow = false
+	partVar[p] = v
 	p.Parent = folder
 	return p
 end
-local function hidePart(p: BasePart)
+local function recycle(p: BasePart)
 	p.CFrame = CFrame.new(0, -500, 0)
+	local v = partVar[p] or 1
+	pools[v] = pools[v] or {}
+	table.insert(pools[v], p)
+end
+local function hidePart(p: BasePart)
 	Carpet.keyOf[p] = nil
 	growing[p] = nil
-	table.insert(pool, p)
+	recycle(p)
 end
+local function variantOf(r: number): number return math.floor(r * 7.999) + 1 end
 
 -- surface under a dug area: follow the real (carved) terrain
 local function nearDug(ix: number, iz: number): boolean
@@ -61,7 +72,9 @@ local function place(key: number, parts: { BasePart }, cfs: { CFrame })
 		local hit = workspace:Raycast(Vector3.new(x, y + 8, z), Vector3.new(0, -24, 0), rayParams)
 		if hit then y = math.min(y, hit.Position.Y) end
 	end
-	if not p then p = newPart(); live[key] = p; Carpet.keyOf[p] = key end
+	local v = variantOf(r5)
+	if p and partVar[p] ~= v then live[key] = nil; hidePart(p); p = nil end
+	if not p then p = newPart(v); live[key] = p; Carpet.keyOf[p] = key end
 	local want = Vector3.new(Config.POTATO.Len * size * (1.05 + r6 * 0.25), 0.78 * size, 0.98 * size)
 	if p.Size ~= want then p.Size = want end
 	local col = Potato.color(variety, r6)
@@ -93,8 +106,8 @@ function Carpet.setRadius(r: number) R = r; cx0 = math.huge end
 -- beyond the pickable carpet, rings of bigger and sparser potatoes cover every dune up to the
 -- horizon (world-locked cells per ring, recycled pools, rebuilt only when you cross a cell)
 local RINGS = {
-	PC = { { sp = 2.1, k = 2.35, r1 = 80 }, { sp = 4.2, k = 4.7, r1 = 180 }, { sp = 9, k = 10, r1 = 430 } },
-	Mobile = { { sp = 2.1, k = 2.35, r1 = 60 }, { sp = 4.2, k = 4.7, r1 = 130 }, { sp = 9, k = 10, r1 = 260 } },
+	PC = { { sp = 2.1, k = 2.35, r1 = 80 }, { sp = 4.2, k = 4.7, r1 = 180 }, { sp = 9, k = 10, r1 = 430 }, { sp = 20, k = 22, r1 = 1000 } },
+	Mobile = { { sp = 2.1, k = 2.35, r1 = 60 }, { sp = 4.2, k = 4.7, r1 = 130 }, { sp = 9, k = 10, r1 = 300 }, { sp = 24, k = 26, r1 = 900 } },
 }
 local rings = {}
 local function clearZone(x: number, z: number): boolean
@@ -107,14 +120,17 @@ local function buildRings(mobile: boolean)
 	local r0 = R - 1
 	for i, L in list do
 		rings[i] = { sp = L.sp, k = L.k, r0 = r0, r1 = L.r1, live = {}, pool = {}, cx = math.huge, cz = math.huge, todo = {}, salt = i * 101 }
+		if L.sp >= 20 then rings[i].mountains = true end
 		r0 = L.r1 - L.sp
 	end
 end
-local function ringPart(ring): BasePart
-	local p = table.remove(ring.pool)
+local function ringPart(ring, v: number): BasePart
+	local pool = ring.pool[v]
+	local p = pool and table.remove(pool)
 	if p then return p end
-	p = Potato.make(1, 1, 0.5)
+	p = PM.make((v - 1) / 8) or Potato.make(1, 1, 0.5)
 	p.Anchored = true; p.CanCollide = false; p.CanTouch = false; p.CanQuery = false; p.CastShadow = false
+	partVar[p] = v
 	p.Parent = folder
 	return p
 end
@@ -129,7 +145,12 @@ local function ringRebuild(ring, pos: Vector3)
 		local d2 = (dx * sp) ^ 2 + (dz * sp) ^ 2
 		if d2 <= ring.r1 * ring.r1 and d2 >= ring.r0 * ring.r0 then want[Potato.key(cx + dx, cz + dz)] = true end
 	end end
-	for key, p in ring.live do if not want[key] then ring.live[key] = nil; if p then p.CFrame = CFrame.new(0, -500, 0); table.insert(ring.pool, p) end end end
+	for key, p in ring.live do
+		if not want[key] then
+			ring.live[key] = nil
+			if p then p.CFrame = CFrame.new(0, -500, 0); local v = partVar[p] or 1; ring.pool[v] = ring.pool[v] or {}; table.insert(ring.pool[v], p) end
+		end
+	end
 	for key in want do if ring.live[key] == nil then table.insert(ring.todo, key) end end
 end
 local function ringStep(ring, budget: number, parts, cfs)
@@ -144,7 +165,7 @@ local function ringStep(ring, budget: number, parts, cfs)
 		local x, z = (ix + 0.5 + (r1 - 0.5) * 0.6) * ring.sp, (iz + 0.5 + (r2 - 0.5) * 0.6) * ring.sp
 		if clearZone(x, z) then ring.live[key] = false :: any; continue end
 		local size = (0.85 + r3 * 0.35) * ring.k
-		local p = ringPart(ring)
+		local p = ringPart(ring, variantOf(r5))
 		ring.live[key] = p
 		p.Size = Vector3.new(Config.POTATO.Len * size * (1.05 + r6 * 0.25), 0.78 * size, 0.98 * size)
 		p.Color = Potato.color(if r4 < 0.72 then 1 else 2, r6)
@@ -179,6 +200,7 @@ local function rebuild(pos: Vector3)
 end
 
 function Carpet.start()
+	if #PM.templates == 0 then PM.build() end
 	buildRings(R < Config.POTATO.Radius.PC)
 	RunService:BindToRenderStep("WMP_Carpet", Enum.RenderPriority.Camera.Value + 2, function()
 		local cam = workspace.CurrentCamera
@@ -202,9 +224,10 @@ function Carpet.start()
 		for p, t0 in growing do
 			local k = (os.clock() - t0) / 0.45
 			local m = p:FindFirstChildOfClass("SpecialMesh") :: SpecialMesh?
-			if m then
-				if k >= 1 then m.Scale = Vector3.one; growing[p] = nil
-				else local s = 1 + 2.4 * (k - 1) ^ 3 + 1.4 * (k - 1) ^ 2; m.Scale = Vector3.one * math.max(0.05, s) end
+			if k >= 1 then if m then m.Scale = Vector3.one end; growing[p] = nil
+			else
+				local sc = 1 + 2.4 * (k - 1) ^ 3 + 1.4 * (k - 1) ^ 2
+				if m then m.Scale = Vector3.one * math.max(0.05, sc) else growing[p] = nil end
 			end
 		end
 	end)

@@ -14,6 +14,7 @@ local Land = require(ReplicatedStorage.Shared.Land)
 local Easing = require(ReplicatedStorage.Shared.Util.Easing)
 
 local Sound = require(script.Parent.Sound)
+local PM = require(game:GetService("ReplicatedStorage").Shared.PotatoMesh)
 
 local Fx = {}
 local folder = Instance.new("Folder"); folder.Name = "ClientFx"; folder.Parent = workspace
@@ -36,7 +37,10 @@ end
 -- ---------------------------------------------------------------- flying potato (ground → hand)
 local flying = {}
 function Fx.flyToHand(from: CFrame, variety: number, size: number, target: () -> Vector3, dur: number?)
-	local p = Potato.make(variety, size, rnd:NextNumber())
+	local r = rnd:NextNumber()
+	local p = PM.make(r) or Potato.make(variety, size, r)
+	p.Size = Vector3.new(1.3 * size * (1.05 + r * 0.25), 0.78 * size, 0.98 * size); p.Color = Potato.color(variety, r)
+	if variety == 6 then p.Material = Enum.Material.Metal; p.Reflectance = 0.15 end
 	p.Anchored = true; p.CanCollide = false; p.CanQuery = false; p.CFrame = from; p.Parent = folder
 	table.insert(flying, { p = p, from = from.Position, t = 0, dur = dur or 0.28, target = target, spin = Vector3.new(rnd:NextNumber(-12, 12), rnd:NextNumber(-12, 12), rnd:NextNumber(-12, 12)) })
 end
@@ -49,7 +53,8 @@ RunService.RenderStepped:Connect(function(dt)
 		local to = f.target()
 		local pos = f.from:Lerp(to, e) + Vector3.new(0, math.sin(k * math.pi) * 2.2, 0)
 		local m = f.p:FindFirstChildOfClass("SpecialMesh") :: SpecialMesh?
-		if m then local s = 1 - 0.55 * e; m.Scale = Vector3.new(s * (1 + 0.2 * math.sin(k * 9)), s, s) end
+		if m then local s = 1 - 0.55 * e; m.Scale = Vector3.new(s * (1 + 0.2 * math.sin(k * 9)), s, s)
+		else f.base = f.base or f.p.Size; local s = 1 - 0.55 * e; f.p.Size = f.base * Vector3.new(s * (1 + 0.2 * math.sin(k * 9)), s, s) end
 		f.p.CFrame = CFrame.new(pos) * CFrame.Angles(f.spin.X * f.t, f.spin.Y * f.t, f.spin.Z * f.t)
 		if k >= 1 then f.p:Destroy(); table.remove(flying, i) end
 	end
