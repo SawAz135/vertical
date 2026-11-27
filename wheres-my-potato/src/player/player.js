@@ -5,7 +5,8 @@ import { clamp, damp, lerp } from '../core/util.js';
 import { ground, inField } from '../world/field.js';
 import { ST } from '../world/dynpotatoes.js';
 import { BIN } from '../world/machine.js';
-import { SHOP, makeBucket, makeGlove } from '../world/shop.js';
+import { SHOP, makeBucket } from '../world/shop.js';
+import { Hand, POSES, skinMaterial, gloveMaterial } from '../actors/handmesh.js';
 import { audio } from '../audio/audio.js';
 import { Gadgets } from './gadgets.js';
 
@@ -50,27 +51,12 @@ export class Player {
       const up = new THREE.Mesh(new THREE.CapsuleGeometry(0.042, 0.28, 4, 12), sleeve), fo = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.26, 4, 12), sleeve);
       const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.009, 6, 14), sleeve); cuff.geometry.rotateX(Math.PI / 2);
       const hand = new THREE.Group();
-      const bare = new THREE.Group();
-      // rounded palm + 4 two-segment fingers curled around + thumb
-      const palm = new THREE.Mesh(new THREE.SphereGeometry(0.045, 14, 10), skin); palm.scale.set(0.95, 0.42, 1.1); palm.position.z = -0.025; bare.add(palm);
-      const knuckle = new THREE.Mesh(new THREE.CapsuleGeometry(0.016, 0.055, 4, 8), skin); knuckle.rotation.z = Math.PI / 2; knuckle.position.set(0, 0.002, -0.068); bare.add(knuckle);
-      for (let f = 0; f < 4; f++) {
-        const fx = -0.027 + f * 0.018, len = [0.032, 0.036, 0.034, 0.027][f];
-        const p1 = new THREE.Group(); p1.position.set(fx, 0, -0.072); p1.rotation.x = -0.55; bare.add(p1);
-        const s1 = new THREE.Mesh(new THREE.CapsuleGeometry(0.0085, len, 3, 8), skin); s1.rotation.x = Math.PI / 2; s1.position.z = -len / 2; p1.add(s1);
-        const p2 = new THREE.Group(); p2.position.z = -len; p2.rotation.x = -0.6; p1.add(p2);
-        const s2 = new THREE.Mesh(new THREE.CapsuleGeometry(0.0078, len * 0.75, 3, 8), skin); s2.rotation.x = Math.PI / 2; s2.position.z = -len * 0.37; p2.add(s2);
-        const nail = new THREE.Mesh(new THREE.SphereGeometry(0.006, 6, 4), new THREE.MeshStandardMaterial({ color: 0xf3d2c0, roughness: 0.3 })); nail.scale.set(1, 0.4, 1.3); nail.position.set(0, 0.006, -len * 0.62); p2.add(nail);
-      }
-      const tb = new THREE.Group(); tb.position.set(-side * 0.04, -0.004, -0.02); tb.rotation.set(-0.3, side * 0.6, side * 0.9); bare.add(tb);
-      const t1 = new THREE.Mesh(new THREE.CapsuleGeometry(0.011, 0.03, 3, 8), skin); t1.rotation.x = Math.PI / 2; t1.position.z = -0.02; tb.add(t1);
-      const t2 = new THREE.Mesh(new THREE.CapsuleGeometry(0.0095, 0.022, 3, 8), skin); t2.rotation.x = Math.PI / 2 + 0.4; t2.position.set(0, 0, -0.05); tb.add(t2);
-      const wrist = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.03, 4, 10), skin); wrist.rotation.x = Math.PI / 2; wrist.position.z = 0.02; wrist.scale.x = 1.2; bare.add(wrist);
-      hand.add(bare);
-      const glove = makeGlove(M); glove.rotation.x = -Math.PI / 2; glove.scale.setScalar(0.95); glove.visible = false; hand.add(glove);
-      
+      // sculpted, rigged hand (skin or work glove), posed per action
+      const rig = new Hand(side, side < 0 ? this.skinL || (this.skinL = skinMaterial()) : this.skinR || (this.skinR = skinMaterial()));
+      rig.group.scale.setScalar(1.02); hand.add(rig.group);
+      const bare = rig.group, glove = { visible: false };
       vm.add(up, fo, cuff, hand);
-      return { side, up, fo, cuff, hand, bare, glove, target: new THREE.Vector3(side * 0.25, -0.6, -0.3), shoulder: new THREE.Vector3(side * 0.24, -0.38, 0.12), elbow: new THREE.Vector3() };
+      return { side, up, fo, cuff, hand, bare, glove, rig, target: new THREE.Vector3(side * 0.25, -0.6, -0.3), shoulder: new THREE.Vector3(side * 0.24, -0.38, 0.12), elbow: new THREE.Vector3() };
     });
     this.bucketTier = -1;
   }
@@ -380,7 +366,7 @@ export class Player {
     const tier = this.tool === 'bucket' ? this.g.level('bucket') : 0;
     this._setBucketModel(tier);
     if (this.tool !== 'vacuum' && this.tool !== 'cannon') this.gad.animate(dt, this.tool, this.arms);
-    const gloves = this.g.level('gloves') > 0; this.arms.forEach(a => { a.glove.visible = gloves; a.bare.visible = !gloves; });
+    const gloves = this.g.level('gloves') > 0; if (gloves !== this._gl) { this._gl = gloves; this.gloveMat = this.gloveMat || gloveMaterial(); this.arms.forEach(a => a.rig.setMaterial(gloves ? this.gloveMat : a.side < 0 ? this.skinL : this.skinR)); }
     const hs = Math.hypot(this.vel.x, this.vel.z), walk = clamp(hs / 4, 0, 1.4) * settings.v.headBob;
     const sw = Math.sin(this.stepPhase) * 0.02 * walk, swY = Math.abs(Math.cos(this.stepPhase)) * 0.015 * walk;
     const lagX = clamp(this.lookLagX, -0.2, 0.2) * 0.3, lagY = clamp(this.lookLagY, -0.2, 0.2) * 0.3;
@@ -406,6 +392,12 @@ export class Player {
       Rt.target.set(0.11 + lagX + sw + reach * 0.05, baseY + swY - swap + lagY + breathe - reach * 0.3 + dump * 0.1 + thr * 0.25, baseZ - reach * 0.25 - dump * 0.15 - thr * 0.25);
       if (!carrying) { L.target.x -= 0.14; Rt.target.x += 0.14; }
     }
+    if (this.book) { // reading: both hands hold the 3D book
+      for (const a of this.arms) { this.book.grip(a.side, a.target, a.hand.quaternion); this._solveArm(a); a.rig.blend(POSES.book, 1 - Math.exp(-dt * 10)); }
+      if (this.bucketObj) this.bucketObj.visible = false; this.gad.vac.visible = this.gad.can.visible = false;
+      return;
+    }
+    if (this.bucketObj) this.bucketObj.visible = true;
     for (const a of this.arms) {
       this._solveArm(a);
       // palms up when carrying, otherwise relaxed
@@ -413,6 +405,10 @@ export class Player {
       a.hand.rotation.set(cup ? 0.15 : -0.6, a.side * (cup ? -0.25 : 0.2), a.side * (cup ? 0.35 : 0.1));
       if (this.tool === 'bucket' && a === Rt) a.hand.rotation.set(0.1, 0, Math.PI / 2 * a.side);
       if (this.tool === 'vacuum' || this.tool === 'cannon') a.hand.rotation.set(a === Rt ? 0.5 : -0.2, 0, a.side * (a === Rt ? 1.4 : 0.4));
+      // fingers: cup when carrying, grip on handles, open while reaching, relaxed otherwise
+      const pose = this.tool === 'vacuum' || this.tool === 'cannon' || (this.tool === 'bucket' && (a === Rt || this.bucketTier >= 3)) ? POSES.grip
+        : cup ? POSES.cup : A.reach > 0.05 && a === Rt ? POSES.reach : POSES.relaxed;
+      a.rig.blend(pose, 1 - Math.exp(-dt * 12));
     }
   }
 }

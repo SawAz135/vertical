@@ -16,6 +16,7 @@ import { DynPotatoes, ST } from './world/dynpotatoes.js';
 import { Machine, JAR, BIN } from './world/machine.js';
 import { Shop, itemById, LINES, pick, SHOP } from './world/shop.js';
 import { VARIETIES } from './world/potatoes.js';
+import { Book3D } from './ui/book3d.js';
 import { Player } from './player/player.js';
 import { audio } from './audio/audio.js';
 import { UI } from './ui/ui.js';
@@ -90,6 +91,7 @@ class Game {
     this.colliders = [...this.field.colliders, ...this.machine.colliders, ...this.shop.colliders];
     this.bounds = this.field.bounds;
     this.player = new Player(this, this.camera);
+    this.book3d = new Book3D(this);
     this.night = new NightEvents(this);
     this.dyn.onDetach = j => { const F = this.field; F.db.state[j] = 1; F.regrow.push({ i: j, at: F.time + F.regrowDelay() }); };
     this.dyn.onRestore = i => { const j = this.dyn.fieldId[i], d = this.dyn.db; this.field.restore(j, d.px[i], d.py[i] - d.radius(i) * 0.35, d.pz[i], d.quat(i, new THREE.Quaternion())); this.dyn.free(i); };
@@ -283,7 +285,6 @@ class Game {
   menuAction(a) {
     if (a === 'play') this.startPlay();
     else if (a === 'new') this.ui.panel('Nouvelle partie ?', '<div style="text-align:center">Ta progression, ton argent et le bocal seront remis à zéro.</div>', [['Oui, tout recommencer', () => { this.ui.closePanel(); this._newGame(); this.hasSave = false; this.startPlay(); }, true], ['Annuler', () => this.ui.closePanel()]]);
-    else if (a === 'book') this.ui.book.open();
     else if (a === 'settings') this.ui.panel('Réglages', this.ui.settingsBody(), [['Retour', () => this.ui.closePanel(), true]]);
     else if (a === 'mp') this.ui.mpPanel({
       host: async o => { const code = await this.coop.host(o); if (code) { this.coop.lastName = o.name; this.ui.closePanel(); net.stopList(); this.startPlay(); setTimeout(() => this.ui.toast(`👥 Session ${code} créée — partage le code !`), 1500); } return code; },
@@ -304,15 +305,27 @@ class Game {
       this.ui.hideMenu(); this.ui.showHud(); this.state = 'play';
       this.player.enabled = true; this.player.vm.visible = true; input.wantLock = !isTouch(); input.clear();
       this.ui.fade(false);
-      if (!isTouch()) input.lock();
       const first = !this.hasSave && this.stats.picked === 0;
+      if (!isTouch() && !first) input.lock();
       this._save();
-      setTimeout(() => {
-        if (first) { this.say('Bienvenue ! Ramasse les patates du désert et verse-les dans le bac, au pied du bocal. Le livre du menu explique tout !', 'wave', true); this.ui.toast('🥔 Ramasse des patates dans le désert !'); }
-        else this.say('greet', 'wave');
-        this.lastGreet = this.t;
-      }, 700);
+      if (first) { this.readBook(() => this._welcome(true)); return; }
+      this._welcome(false);
     }, 650);
+  }
+  // the tutorial: a real book appears in the player's hands; play resumes when it is closed
+  readBook(after) {
+    this.state = 'book'; this.player.enabled = false; input.wantLock = false; input.unlock(); this.ui.hideHud();
+    this.book3d.show(() => {
+      this.state = 'play'; this.ui.showHud(); this.player.enabled = true; input.wantLock = !isTouch(); input.clear(); if (!isTouch()) input.lock();
+      after?.();
+    });
+  }
+  _welcome(first) {
+    setTimeout(() => {
+      if (first) { this.say('Bienvenue ! Ramasse les patates du désert et verse-les dans le bac, au pied du bocal. Bonne récolte !', 'wave', true); this.ui.toast('🥔 Ramasse des patates dans le désert !'); }
+      else this.say('greet', 'wave');
+      this.lastGreet = this.t;
+    }, 700);
   }
   pause() {
     if (this.state !== 'play') return;
@@ -320,7 +333,7 @@ class Game {
     this.ui.panel('Pause', `<div style="text-align:center;opacity:.85">🥔 ${this.stats.jar.toLocaleString('fr-FR')} dans le bocal · ${this.stats.picked.toLocaleString('fr-FR')} ramassées · ✨ ${this.stats.gold} dorées</div>`, [
       ['Reprendre', () => this.resume(), true],
       ...(net.active ? [['📋 Copier le lien d’invitation', () => { navigator.clipboard?.writeText(this.coop.inviteLink()).then(() => this.ui.toast('Lien copié !'), () => this.ui.toast(this.coop.inviteLink())); }], ['🚪 Quitter la session', () => { this.ui.closePanel(); this.coop.leave().then(() => { this.state = 'play'; this.pause(); }); }]] : []),
-      ['Tutoriel', () => { this.ui.closePanel(); this.ui.book.open(); }],
+      ['📖 Relire le manuel', () => { this.ui.closePanel(); this.readBook(); }],
       ['Succès & Patatothèque', () => this.ui.panel('Succès & Patatothèque', this.ach.panelHtml(), [['Retour', () => { this.state = 'play'; this.pause(); }, true]])],
       ['Réglages', () => this.ui.panel('Réglages', this.ui.settingsBody(), [['Retour', () => { this.state = 'play'; this.pause(); }, true]])],
       ['Menu principal', () => { this._save(); this.ui.fade(true); setTimeout(() => { this.toMenu(); this.ui.fade(false); }, 600); }],
@@ -386,6 +399,7 @@ class Game {
       if (this.state === 'play') { this.stats.time += dt; this._gerardAI(dt); this.ach.update(dt); }
       if (this.state === 'cine') this._saleCine(dt);
     }
+    this.book3d.update(dt, this.t);
     // clock: 1 in-game hour = 45 s by day, nights pass 3x faster
     const h = this.stats.hour, night = h >= 20.5 || h < 5.5, golden = h >= 15.5 && h < 19.5;
     this.stats.hour = (h + dt / (golden ? 110 : 55) * (night ? 3 : 1)) % 24; this.field.setTime(this.stats.hour); this.night.update(dt); this.coop.update(dt);

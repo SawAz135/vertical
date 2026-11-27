@@ -294,3 +294,12 @@ body.touch .players { top: auto; bottom: calc(96px + var(--safe-b)); left: calc(
 .bubble { top: calc(78px + var(--safe-t)) !important; }
 body.touch .goal { font-size: 12px; min-width: 0; max-width: 46vw; padding: 5px 10px 6px; }
 body.touch .bubble { top: calc(62px + var(--safe-t)) !important; }
+
+/* 3D book: page-turn hint under the open book */
+.book3d-hint { position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30; display: flex; gap: 18px; align-items: center;
+  padding: 9px 18px; border-radius: 999px; background: rgba(30,18,10,.62); backdrop-filter: blur(6px); color: #fbe8c4; font: 600 13px Fred, system-ui, sans-serif; letter-spacing: .02em;
+  box-shadow: 0 6px 24px rgba(0,0,0,.35); pointer-events: none; transition: opacity .4s; white-space: nowrap; }
+.book3d-hint b { font-family: Marker, cursive; font-size: 15px; color: #ffd27a; }
+.book3d-hint:empty { opacity: 0; }
+.book3d-hint.hidden { opacity: 0; }
+@media (max-width: 560px) { .book3d-hint { font-size: 11px; gap: 10px; padding: 7px 12px; } }

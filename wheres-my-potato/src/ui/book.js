@@ -7,7 +7,7 @@ import { rng } from '../core/util.js';
 // =====================================================================================
 
 // ---------- ink sketch helpers ----------
-class Ink {
+export class Ink {
   constructor(w, h, seed) { this.c = document.createElement('canvas'); this.c.width = w; this.c.height = h; this.x = this.c.getContext('2d'); this.r = rng(seed); this.w = w; this.h = h; this.x.lineCap = this.x.lineJoin = 'round'; }
   jit(a = 1.2) { return (this.r() - 0.5) * a * 2; }
   // watercolour wash: several translucent offset blobs
@@ -67,7 +67,7 @@ class Ink {
     this.ellipse(cx, cy - h / 2 - 8 * s, w0 * 0.98, 46 * s, 2, 0, Math.PI, Math.PI * 2);
     for (let k = 0; k < fill; k++) this.potato(cx - w0 * 0.6 + (k % 4) * w0 * 0.4, cy - h / 2 - 6 * s - Math.floor(k / 4) * 14 * s, 0.42 * s, this.r() * 2);
   }
-  done() { return this.c.toDataURL('image/png'); }
+  done() { return Ink.raw ? this.c : this.c.toDataURL('image/png'); }
 }
 
 // ---------- illustrations ----------
@@ -216,4 +216,11 @@ export class Book {
     [...this.dots.children].forEach((d, i) => d.classList.toggle('on', i === this.cur));
     this.prevB.disabled = this.cur === 0; this.nextB.disabled = this.cur === this.leaves.length;
   }
+}
+
+// raw canvases of the illustrations (used by the 3D book)
+export function artCanvases() {
+  Ink.raw = true;
+  try { return { cover: artCover(), pick: artPick(), bucket: artBucket(), bin: artBin(), jar: artJar(), shop: artShop() }; }
+  finally { Ink.raw = false; }
 }
