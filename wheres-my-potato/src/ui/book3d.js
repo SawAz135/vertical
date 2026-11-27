@@ -17,7 +17,8 @@ import { rng, clamp, isTouch } from '../core/util.js';
 // watercolour illustrations, hand-lettered titles.
 // =====================================================================================
 
-const W = 0.2, H = 0.272, PW = 1024, PH = Math.round(1024 * H / W); // page size (m) + canvas
+const W = 0.2, H = 0.272, PW = 1024, PH = Math.round(1024 * H / W); // layout units
+const CW = 896, CH = Math.round(CW * H / W), CK = CW / PW;              // actual canvas (lighter on GPU memory) // page size (m) + canvas
 const SEG = 36; // leaf columns
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 const easeOut = t => 1 - Math.pow(1 - t, 3);
@@ -135,7 +136,7 @@ export class Book3D {
     ];
   }
   _paint(p, idx) {
-    const c = document.createElement('canvas'); c.width = PW; c.height = PH; const x = c.getContext('2d');
+    const c = document.createElement('canvas'); c.width = CW; c.height = CH; const x = c.getContext('2d'); x.scale(CK, CK);
     const side = idx % 2 === 0 ? -1 : 1; // even pages on the left
     paper(x, side, 100 + idx * 17);
     if (p.plate) { // inside cover: marbled endpaper + ex-libris plate
@@ -163,6 +164,12 @@ export class Book3D {
     if (p.sign) { x.textAlign = 'right'; x.font = '56px Marker, cursive'; x.fillStyle = '#6b3a1a'; x.fillText(p.sign, PW - 140, Math.min(PH - 170, end + 110)); x.textAlign = 'left'; }
     return c;
   }
+  _pageTex(i) {
+    if (i < 0 || i >= this.pageCv.length) return null;
+    let t = this.texCache.get(i); if (!t) { t = this._tex(this.pageCv[i]); this.texCache.set(i, t); }
+    return t;
+  }
+  _trimTex(keep) { for (const [i, t] of this.texCache) if (!keep.includes(i)) { t.dispose(); this.texCache.delete(i); } }
   _tex(canvas, flip = false) {
     const t = new THREE.CanvasTexture(canvas); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
     if (flip) { t.wrapS = THREE.RepeatWrapping; t.repeat.x = -1; t.offset.x = 1; }
@@ -186,7 +193,9 @@ export class Book3D {
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
   }
   _build() {
-    const pages = this._pages(); this.pageCv = pages.map((p, i) => this._paint(p, i)); this.tex = this.pageCv.map(c => this._tex(c)); this.texFlip = this.pageCv.map(c => this._tex(c, true));
+    const pages = this._pages(); this.pageCv = pages.map((p, i) => this._paint(p, i)); this.texCache = new Map();
+    // GPU textures are created only for the pages on screen and released afterwards (phones have little GPU memory)
+    const self = this; this.tex = new Proxy([], { get: (t, k) => typeof k === 'string' && /^\d+$/.test(k) ? self._pageTex(+k) : t[k] }); this.texFlip = this.tex;
     this.spreads = Math.ceil(pages.length / 2); // spread k shows pages 2k (left) and 2k+1 (right)
     const R = this.root;
     const leather = new THREE.MeshStandardMaterial({ map: this._coverTex(), roughness: 0.62, metalness: 0.05 });
@@ -216,6 +225,8 @@ export class Book3D {
     // the turning leaf (front = right page, back = next left page)
     const lg = new THREE.PlaneGeometry(W, H, SEG, 6); lg.translate(W / 2, 0, 0); this.leafBase = lg.attributes.position.array.slice();
     this.leafFront = new THREE.Mesh(lg, pageMat(null)); this.leafBack = new THREE.Mesh(lg, pageMat(null)); this.leafBack.material.side = THREE.BackSide;
+    this.leafBack.material.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_MAP\nvMapUv.x = 1.0 - vMapUv.x;\n#endif\n#ifdef USE_EMISSIVEMAP\nvEmissiveMapUv.x = 1.0 - vEmissiveMapUv.x;\n#endif'); };
+    this.leafBack.material.customProgramCacheKey = () => 'wmp-leafback';
     this.leaf = new THREE.Group(); this.leaf.add(this.leafFront, this.leafBack); this.leaf.visible = false; this.leaf.position.z = 0.0016; R.add(this.leaf);
     // soft shadow the leaf throws on the pages below
     const sc = document.createElement('canvas'); sc.width = 256; sc.height = 4; { const x = sc.getContext('2d'); const gr = x.createLinearGradient(0, 0, 256, 0); gr.addColorStop(0, 'rgba(0,0,0,0.75)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 256, 4); }
@@ -237,6 +248,7 @@ export class Book3D {
   }
   _map(m, t) { m.map = m.emissiveMap = t || null; m.needsUpdate = true; }
   _setSpread(k) {
+    this._trimTex([2 * k - 2, 2 * k - 1, 2 * k, 2 * k + 1, 2 * k + 2, 2 * k + 3]);
     const L = this.tex[2 * k], Rt = this.tex[2 * k + 1];
     this._map(this.left.top.material, L); this._map(this.right.top.material, Rt);
     this.left.top.material.needsUpdate = this.right.top.material.needsUpdate = true;
@@ -311,6 +323,7 @@ export class Book3D {
   _finish() {
     this.open = false; this.root.visible = false; this.lamp.intensity = 0; this.hint.classList.add('hidden');
     removeEventListener('pointerdown', this._onDown, true); this.g.player.book = null;
+    this._trimTex([]); // free all page textures until the book is opened again
     const cb = this.onDone; this.onDone = null; cb?.();
   }
   // where each hand holds the book (camera space): wrist position + hand orientation.

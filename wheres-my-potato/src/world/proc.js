@@ -168,7 +168,7 @@ export class PotatoCarpet {
     this.near = heightTex(ground, 64, 513); this.far = heightTex(ground, 440, 881);
     this.levels = [];
     for (let l = 0; l < levels; l++) {
-      const s = S0 * 2 ** l, layers = l === 0 ? 1 : 2;
+      const s = S0 * 2 ** l, layers = l === 0 ? 1 : l <= (q.carpet2 ?? 6) ? 2 : 1; // far rings: one layer is enough (phones)
       const U = {
         uCam: { value: new THREE.Vector3() }, uS: { value: s }, uSP: { value: s / 2 }, uN: { value: N }, uLvl: { value: l }, uLayers: { value: layers },
         uRmax: { value: 430 }, uD1: { value: Math.max(7, N * 0.07) },
@@ -181,12 +181,12 @@ export class PotatoCarpet {
       const geo = potatoGeo(l === 0 ? 1 : 0); geo.instanceCount = N * N * layers;
       const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.receiveShadow = true; mesh.castShadow = false;
       mesh.matrixAutoUpdate = false; mesh.renderOrder = -1;
-      scene.add(mesh); this.levels.push({ mesh, U });
+      scene.add(mesh); this.levels.push({ mesh, U, l, layers });
       if (l === 0) { // the layer underneath, staggered half a cell: fills every gap at your feet (light mesh, mostly hidden)
         const U2 = Object.assign({}, U, { uL0: { value: 1 } });
         const g2 = potatoGeo(0); g2.instanceCount = N * N;
         const m2 = new THREE.Mesh(g2, procMaterial('carpet', CARPET_GLSL, U2, false)); m2.frustumCulled = false; m2.receiveShadow = true; m2.matrixAutoUpdate = false; m2.renderOrder = -1;
-        scene.add(m2); this.levels.push({ mesh: m2, U: U2 });
+        scene.add(m2); this.levels.push({ mesh: m2, U: U2, l: 0, layers: 1, under: true });
       }
     }
     this.count = this.levels.reduce((s, l) => s + l.mesh.geometry.instanceCount, 0);
@@ -208,6 +208,14 @@ vec3 objectNormal = normalize(vec3(fH(fp - vec2(e, 0.0)) - fH(fp + vec2(e, 0.0))
     this.floor = new THREE.Mesh(fg, fm); this.floor.receiveShadow = true; this.floor.frustumCulled = false; this.floor.renderOrder = -2; scene.add(this.floor);
   }
   update(camPos) { for (const l of this.levels) l.U.uCam.value.copy(camPos); }
+  // live quality change: grid size and number of layers per ring (no buffers to rebuild)
+  setQuality(q) {
+    const N = q.carpet || 220;
+    for (const L of this.levels) {
+      const layers = L.under ? 1 : L.l === 0 ? 1 : L.l <= (q.carpet2 ?? 6) ? 2 : 1;
+      L.U.uN.value = N; L.U.uD1.value = Math.max(7, N * 0.07); L.mesh.geometry.instanceCount = N * N * layers;
+    }
+  }
 }
 
 // ------------------------------------------------------------------------------------

@@ -2,10 +2,10 @@ import { storage, Emitter, isTouch } from './util.js';
 
 // Quality presets (applied in main.js / field.js). Field potato count scales with quality.
 export const QUALITY = {
-  low:    { carpet: 150, pixelRatio: 1.0, shadows: false, shadowMap: 1024, bloom: false, potatoRadius: 22, nearLod: 7,  field: 30000, grass: 1500, jarMax: 6500, antialias: false },
-  medium: { carpet: 190, pixelRatio: 1.5, shadows: true,  shadowMap: 1024, bloom: true,  potatoRadius: 32, nearLod: 10, field: 50000, grass: 3500, jarMax: 8000, antialias: true },
-  high:   { carpet: 230, pixelRatio: 1.5, shadows: true,  shadowMap: 2048, bloom: true,  potatoRadius: 45, nearLod: 14, field: 80000, grass: 7000, jarMax: 9000, antialias: true },
-  ultra:  { carpet: 280, pixelRatio: 2.0, shadows: true,  shadowMap: 4096, bloom: true,  potatoRadius: 70, nearLod: 20, field: 120000, grass: 12000, jarMax: 11000, antialias: true },
+  low:    { carpet: 104, carpet2: 1, pixelRatio: 1.0, shadows: false, shadowMap: 1024, bloom: false, potatoRadius: 22, nearLod: 7,  field: 30000, grass: 1500, jarMax: 6500, antialias: false },
+  medium: { carpet: 136, carpet2: 2, pixelRatio: 1.5, shadows: true,  shadowMap: 1024, bloom: true,  potatoRadius: 32, nearLod: 10, field: 50000, grass: 3500, jarMax: 8000, antialias: true },
+  high:   { carpet: 210, carpet2: 4, pixelRatio: 1.5, shadows: true,  shadowMap: 2048, bloom: true,  potatoRadius: 45, nearLod: 14, field: 80000, grass: 7000, jarMax: 9000, antialias: true },
+  ultra:  { carpet: 270, carpet2: 6, pixelRatio: 2.0, shadows: true,  shadowMap: 4096, bloom: true,  potatoRadius: 70, nearLod: 20, field: 120000, grass: 12000, jarMax: 11000, antialias: true },
 };
 
 const DEFAULTS = {

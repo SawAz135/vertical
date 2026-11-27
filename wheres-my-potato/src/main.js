@@ -60,6 +60,13 @@ class Game {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(settings.v.fov, innerWidth / innerHeight, 0.05, 900); this.scene.add(this.camera);
     this._resize(); addEventListener('resize', () => this._resize());
+    // the GPU driver can drop the context (phones under memory pressure): recover and lighten the load
+    r.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); this.ctxLost = true; }, false);
+    r.domElement.addEventListener('webglcontextrestored', () => {
+      this.ctxLost = false; const order = ['ultra', 'high', 'medium', 'low'], k = order.indexOf(settings.v.quality);
+      this.renderScale = Math.min(this.renderScale || 1, 0.75); this._resize();
+      if (k >= 0 && k < order.length - 1) { settings.set('quality', order[k + 1]); this.ui?.toast('⚙️ Qualité réduite pour rester fluide sur cet appareil'); }
+    }, false);
     this.ui.progress(0.05, 'Chargement des polices…');
     try { await Promise.race([Promise.all(['230px Marker', '52px Fred', '40px Luck'].map(f => document.fonts.load(f))), new Promise(r => setTimeout(r, 2500))]); } catch { /* fonts optional */ }
     this.ui.progress(0.08, 'Peinture des textures…'); await tick();
@@ -144,6 +151,7 @@ class Game {
     this.renderer.shadowMap.enabled = q.shadows; this.field.sun.castShadow = q.shadows;
     if (this.field.sun.shadow.mapSize.x !== q.shadowMap) { this.field.sun.shadow.mapSize.set(q.shadowMap, q.shadowMap); this.field.sun.shadow.map?.dispose(); this.field.sun.shadow.map = null; }
     this.field.q = Object.assign({}, this.field.q, { potatoRadius: q.potatoRadius, nearLod: q.nearLod, shadows: q.shadows });
+    this.field.carpet?.setQuality(q);
     this.scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => (m.needsUpdate = true)); });
     this._resize();
   }
@@ -428,6 +436,7 @@ class Game {
     if (!this.bookSharp) this._adaptive(dt);
     this._update(dt);
     this.grade.uniforms.uTime.value = this.t % 100;
+    if (this.ctxLost) return;
     if (this.bookSnapIn > 0 && --this.bookSnapIn === 0) this._bookSnap();
     if (this.bookSharp) this._renderBook(); else this.composer.render();
   }
