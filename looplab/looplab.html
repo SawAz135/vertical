@@ -2276,8 +2276,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     { id: "lightning", name: "\xC9clairs", def: false },
     { id: "shock", name: "Ondes de choc", def: true },
     { id: "sparks", name: "\xC9tincelles", def: true },
-    { id: "flash", name: "Flash", def: false },
-    { id: "shake", name: "Secousses", def: false },
+    { id: "flash", name: "Flash", def: true },
+    { id: "shake", name: "Secousses", def: true },
     { id: "glitch", name: "Glitch", def: false }
   ];
   var themeById = (id) => THEMES.find((t) => t.id === id) || THEMES[0];
@@ -3084,6 +3084,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       if (patch.effects) S.effects = cfg.effects;
       if (patch.trails != null) S.trails = cfg.trails;
       if (patch.text) S.hookText = hookFor(cfg, S);
+      if (patch.react != null) S.react = cfg.react;
     }
     /** Advance by `dtv` seconds of video time. */
     advance(dtv) {
@@ -3130,6 +3131,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         S.justDropped = true;
       } else S.justDropped = false;
       S.tpl.update(S, dt, dtv);
+      this.musicFx(dtv);
       S.fx.update(dt);
       const c = S.cam, k = Math.min(1, dtv * c.ease);
       c.x += (c.tx - c.x) * k;
@@ -3143,6 +3145,52 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       S.counterPunch = Math.max(0, S.counterPunch - dtv * 5);
       if (S.winner) S.winner.t += dtv;
     }
+    /** Music reaction layer shared by every template: build-up, freeze, drop blast, beat pulses. */
+    musicFx(dtv) {
+      const S = this.S, k = S.react;
+      S.camPunch *= Math.exp(-dtv * 9);
+      S.pulse *= Math.exp(-dtv * 7);
+      if (k <= 0) {
+        S.buildU = 0;
+        return;
+      }
+      if (S.kick) {
+        S.pulse = 1;
+        S.camPunch = Math.max(S.camPunch, (S.dropped ? 0.05 : 0.018) * k);
+        if (S.dropped) {
+          S.hookPunch = Math.max(S.hookPunch, 0.45 * k);
+          S.bgRings.push({ r: 30, col: S.col(S.ki), a: 1 });
+          if (S.bgRings.length > 12) S.bgRings.shift();
+        }
+      }
+      if (S.downbeat && S.dropped) S.trauma = Math.min(1, S.trauma + 0.12 * k);
+      const build = Math.min((S.song.bar || 2) * 2, S.dropT * 0.6);
+      S.buildU = S.dropped ? 0 : clamp((S.vt - (S.dropT - build)) / Math.max(0.1, build), 0, 1);
+      if (S.buildU > 0) S.trauma = Math.max(S.trauma, S.buildU * S.buildU * 0.22 * k);
+      if (!S.dropped && !S.preFrozen && S.dropT - S.vt < 0.2 && S.dropT > 1) {
+        S.preFrozen = true;
+        S.tsTarget = 0.25;
+        S.slowT = 0.2;
+      }
+      if (S.justDropped) {
+        const cx = S.cam.x, cy = S.cam.y;
+        S.ts = 1;
+        S.tsTarget = 1;
+        S.slowT = 0;
+        S.flash(0.85 * k, lighten(S.col(0), 0.5));
+        S.glitch(k);
+        S.shake(0.75 * k);
+        S.camPunch = 0.16 * k;
+        for (let i = 0; i < 3; i++) S.fx.shock(cx, cy, S.col(i), 520 + i * 260, 0.7 + i * 0.15, 16 - i * 3);
+        S.fx.rays(cx, cy, lighten(S.col(1), 0.3), 1.6, 22, 1100);
+        S.punchHook();
+      }
+      for (const r of S.bgRings) {
+        r.r += dtv * (380 + r.r * 1.4);
+        r.a -= dtv * 0.9;
+      }
+      S.bgRings = S.bgRings.filter((r) => r.a > 0);
+    }
     render() {
       const S = this.S, g = this.g;
       g.setTransform(this.scale, 0, 0, this.scale, 0, 0);
@@ -3154,6 +3202,23 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       bg.addColorStop(1, th.bg[1]);
       g.fillStyle = bg;
       g.fillRect(0, 0, W, H);
+      if (S.react > 0) {
+        const pk = S.pulse * S.react * (S.dropped ? 1 : 0.5);
+        if (pk > 0.02) {
+          const rg = g.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, H * 0.75);
+          rg.addColorStop(0, alpha(S.col(S.ki), (S.theme.dark ? 0.28 : 0.14) * pk));
+          rg.addColorStop(1, alpha(S.col(S.ki + 1), 0));
+          g.fillStyle = rg;
+          g.fillRect(0, 0, W, H);
+        }
+        for (const r of S.bgRings) {
+          g.strokeStyle = alpha(r.col, 0.35 * r.a * S.react);
+          g.lineWidth = 3 + 10 * r.a;
+          g.beginPath();
+          g.arc(W / 2, H / 2, r.r, 0, TAU);
+          g.stroke();
+        }
+      }
       if (S.tpl.background) S.tpl.background(S, g);
       g.save();
       const c = S.cam;
@@ -3162,7 +3227,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const sy = sh * 26 * (Math.cos(S.vt * 63) + Math.sin(S.vt * 29) * 0.5);
       g.translate(W / 2 + sx, H / 2 + sy);
       g.rotate(c.rot + sh * 0.03 * Math.sin(S.vt * 50));
-      g.scale(c.zoom, c.zoom);
+      const zk = c.zoom * (1 + S.camPunch + S.buildU * 0.07 * S.react);
+      g.scale(zk, zk);
       g.translate(-c.x, -c.y);
       S.tpl.draw(S, g);
       S.fx.draw(g);
@@ -3281,7 +3347,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     post(g) {
       const S = this.S;
       const cv = this.canvas;
-      const bk = S.glowK * S.theme.glowBoost * (this.quality === "low" ? 0.6 : 1);
+      const bk = S.glowK * S.theme.glowBoost * (this.quality === "low" ? 0.6 : 1) * (1 + S.pulse * 0.7 * S.react);
       if (S.theme.dark && bk > 0.02) {
         const b1 = this.bloomC, b1g = b1.getContext("2d");
         b1g.globalCompositeOperation = "copy";
@@ -3336,7 +3402,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         vg.fillStyle = rg;
         vg.fillRect(0, 0, 180, 320);
       }
-      g.globalAlpha = S.theme.dark ? 0.9 : 0.25;
+      g.globalAlpha = Math.min(1, (S.theme.dark ? 0.9 : 0.25) + S.buildU * 0.5 * S.react);
       g.drawImage(this.vign, 0, 0, W, H);
       g.globalAlpha = S.theme.dark ? 0.05 : 0.035;
       const ox = S.frame * 37 % 256, oy = S.frame * 91 % 256;
@@ -3441,6 +3507,12 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       this.lastSfx = {};
       this.sfxWin = [];
       this.images = cfg.images || {};
+      this.react = cfg.react ?? 1;
+      this.pulse = 0;
+      this.camPunch = 0;
+      this.buildU = 0;
+      this.bgRings = [];
+      this.preFrozen = false;
     }
     get progress() {
       return this.vt / this.dur;
@@ -4593,10 +4665,22 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     }
     return { dropT: rf / 20, length: x.length / sr };
   }
-  function analyzeTrack(buffer, dur, dropFrac = 0.5) {
+  var dropCache = /* @__PURE__ */ new WeakMap();
+  function detectDrop(buffer) {
+    let d = dropCache.get(buffer);
+    if (!d) {
+      d = findDrop(mono(buffer), buffer.sampleRate);
+      dropCache.set(buffer, d);
+    }
+    return d.dropT;
+  }
+  function analyzeTrack(buffer, dur, dropFrac = 0.5, dropOverride = null) {
     const sr = buffer.sampleRate;
     const x = mono(buffer);
-    const { dropT: dropTrack, length } = findDrop(x, sr);
+    const det = dropCache.get(buffer) || findDrop(x, sr);
+    dropCache.set(buffer, det);
+    const length = x.length / sr;
+    const dropTrack = dropOverride != null ? Math.min(length - 0.5, Math.max(0, dropOverride)) : det.dropT;
     let wantDrop = dur * dropFrac;
     let offset = dropTrack - wantDrop;
     if (offset < 0) {
@@ -5026,6 +5110,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       this.onPeg = null;
       this.maxV = o.maxV ?? 4e3;
       this.bounds = o.bounds || null;
+      this.ccd = !!o.ccd;
     }
     add(b) {
       this.bodies.push(b);
@@ -5044,6 +5129,16 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       if (this.bodies.some((b) => !b.alive)) this.bodies = this.bodies.filter((b) => b.alive);
     }
     step(dt) {
+      let maxK = 0;
+      for (const b of this.bodies) if (b.alive && !b.static) maxK = Math.max(maxK, Math.hypot(b.vx, b.vy) * dt / Math.max(3, b.r * 0.6));
+      const n = this.ccd ? Math.min(4, Math.max(1, Math.ceil(maxK))) : 1;
+      for (const b of this.bodies) {
+        b.press = 0;
+        b.contacts = 0;
+      }
+      for (let i = 0; i < n; i++) this.step1(dt / n);
+    }
+    step1(dt) {
       const B = this.bodies;
       const dd = Math.exp(-this.damp * dt);
       for (const b of B) {
@@ -5059,8 +5154,6 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         b.x += b.vx * dt;
         b.y += b.vy * dt;
         b.ang += b.spin * dt;
-        b.press = 0;
-        b.contacts = 0;
       }
       for (let it = 0; it < this.iter; it++) {
         this.collideBodies(it === 0);
@@ -5297,6 +5390,14 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         b.y += b.vy * dt;
         b.vx *= 0.995;
         b.vy *= 0.995;
+        if (b.x < b.r || b.x > W2 - b.r) {
+          b.vx = -b.vx;
+          b.x = Math.min(W2 - b.r, Math.max(b.r, b.x));
+        }
+        if (b.y < 200 || b.y > H2 - b.r) {
+          b.vy = -b.vy;
+          b.y = Math.min(H2 - b.r, Math.max(200, b.y));
+        }
         const ang = S.freeT * 3.2;
         const tx2 = S.cx + Math.cos(ang) * 210, ty = S.cy + Math.sin(ang) * 210;
         b.vx += (tx2 - b.x) * dt * 18;
@@ -5347,6 +5448,9 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           if (!inGap) budget = Math.min(budget, Math.ceil(deficit * 0.2));
         }
         if (broke > 0) {
+          const ux = dx / d, uy = dy / d;
+          b.x = S.cx + ux * (R - b.r - 1);
+          b.y = S.cy + uy * (R - b.r - 1);
           S.lastBreak = S.vt;
           const col = this.ringCol(S, S.k);
           S.fx.burst(S.cx + Math.cos(a) * R, S.cy + Math.sin(a) * R, col, Math.min(40, 8 + broke), 520, { grav: 0 });
@@ -5767,6 +5871,15 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         S.dropX += (S.dropTX - S.dropX) * Math.min(1, dt * 7);
       }
       w.step(dt);
+      const live = w.bodies.filter((b) => b.alive && !b.data.m && !b.static);
+      for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {
+        const a = live[i], b = live[j];
+        if (a.data.lv !== b.data.lv || a.data.lv >= S.L - 1 || a.data.m || b.data.m) continue;
+        if (Math.hypot(a.x - b.x, a.y - b.y) < a.r + b.r + 2) {
+          a.data.m = b.data.m = 1;
+          S.mergeQueue.push([a, b]);
+        }
+      }
       for (const [a, b] of S.mergeQueue) {
         if (!a.alive || !b.alive) continue;
         a.alive = b.alive = false;
@@ -6799,7 +6912,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         if (S.focus) {
           S.focus.t += dt;
           const f = S.focus.e;
-          S.camTo(lerp(S.cx, f.x, 0.5), lerp(S.cy, Math.min(f.y, H4 - 200), 0.5), 1.35, 5);
+          S.camTo(lerp(S.cx, f.x, 0.25), lerp(S.cy, Math.min(f.y, H4 - 200), 0.25), 1.12, 5);
           if (S.focus.t > 1.4) {
             S.focus = null;
             S.camTo(W4 / 2, H4 / 2, 1, 3);
@@ -7631,7 +7744,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     init(S) {
       const n = S.opts.count || 6;
       S.ents = entries(S, n);
-      const w = S.world = new World({ g: 900, iter: 3, damp: 0.35, maxV: 900 });
+      const w = S.world = new World({ g: 900, iter: 3, damp: 0.35, maxV: 900, ccd: true });
       w.bounds = { x0: 40, x1: W4 - 40, e: 0.5 };
       const r = S.rng;
       const L = S.L = Math.max(2600, (S.dur - 3) * 260);
@@ -7716,13 +7829,18 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         }
       }
       for (const p of S.pegs) p.hit = Math.max(0, (p.hit || 0) - dt * 3);
-      const target = clamp(lead + 120, H4 / 2, S.finishY + 100);
+      const racing = S.ents.filter((e) => !e.done).map((e) => e.body.y);
+      const last = racing.length ? Math.min(...racing) : lead;
+      const spread = Math.max(0, Math.min(lead, S.finishY) - last);
+      const zt = clamp((H4 - 420) / (spread + 260), 0.55, 1);
+      S.camZ = (S.camZ || 1) + (zt - (S.camZ || 1)) * Math.min(1, dt * 2.5);
+      const target = clamp((Math.min(lead, S.finishY + 100) + last) / 2 + 60, H4 / 2, S.finishY + 100);
       S.camY += (target - S.camY) * Math.min(1, dt * 4);
-      S.camTo(W4 / 2, S.camY, 1, 50);
+      S.camTo(W4 / 2, S.camY, S.camZ, 50);
       S.camSnap();
     },
     draw(S, g) {
-      const top = S.camY - H4 / 2 - 50, bot = S.camY + H4 / 2 + 50;
+      const vz = S.camZ || 1, top = S.camY - H4 / 2 / vz - 50, bot = S.camY + H4 / 2 / vz + 50;
       g.strokeStyle = alpha(S.theme.fg, 0.25);
       g.lineWidth = 6;
       g.beginPath();
@@ -8184,8 +8302,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
             b.bounced = true;
             b.x = s.bar.x;
             b.y = s.bar.y - 30;
-            b.vy = -Math.abs(b.vy) * 0.55;
-            b.vx *= 0.5;
+            b.vy = -Math.abs(b.vy) * 0.45;
+            b.vx = (W5 / 2 - b.x) * 0.9;
             s.bar.hit = 1;
             S.noteMidi(s.m + 12, 0.5, "xylo");
             S.fx.burst(b.x, b.y, s.col, 8, 280, { grav: 500, shards: false });
@@ -8197,6 +8315,11 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           b.y += b.vy * dt;
         }
         b.trail.push(b.x, b.y);
+      }
+      for (const b of S.balls) if (b.bounced && b.y > 1075 && !b.caught) {
+        b.caught = true;
+        b.life = 0;
+        S.fx.burst(b.x, 1075, b.s.col, 5, 160, { grav: 400, shards: false });
       }
       S.balls = S.balls.filter((b) => b.life > 0 && b.y < H5 + 50);
       for (const bar of S.bars) bar.hit = Math.max(0, bar.hit - dt * 3);
@@ -8499,7 +8622,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     },
     update(S, dt) {
       S.spawnT -= dt;
-      if (S.spawnT <= 0) {
+      const tail = S.marbles.reduce((m, x) => Math.min(m, x.x - x.r), 1e9);
+      if (S.spawnT <= 0 && tail > 20) {
         S.spawnT = 0.62;
         S.marbles.push({ x: -40, r: 30, col: S.col(S.spawnN = (S.spawnN || 0) + 1), y: S.trough - 30 - 60, vy: 0, cool: 0 });
       }
@@ -8516,8 +8640,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           m.dead = true;
           if (m.r > 10) {
             const r2 = m.r / Math.SQRT2;
-            S.marbles.push({ x: m.x - r2 * 0.6, r: r2, col: m.col, y: S.trough - r2 - 40, vy: -320, cool: 0.4 });
-            S.marbles.push({ x: m.x + r2 * 1.4, r: r2, col: m.col, y: S.trough - r2 - 40, vy: -420, cool: 0.4 });
+            S.marbles.push({ x: m.x + r2 * 0.3, r: r2, col: m.col, y: S.trough - r2 - 40, vy: -320, cool: 0.4 });
+            S.marbles.push({ x: m.x + r2 * 2.4, r: r2, col: m.col, y: S.trough - r2 - 40, vy: -420, cool: 0.4 });
             crushFx(S, m.x, S.trough - 6, m.col, m.r / 30);
           } else crushFx(S, m.x, S.trough - 4, m.col, 0.4);
           S.note(q.i * 2, 0.5, "marimba");
@@ -8536,11 +8660,12 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         }
       }
       S.marbles = S.marbles.filter((m) => !m.dead && m.x < W6 + 50);
-      S.marbles.sort((a, b) => b.x - a.x);
+      S.marbles.sort((a, b) => a.x - b.x);
       for (let i = 1; i < S.marbles.length; i++) {
         const a = S.marbles[i - 1], b = S.marbles[i];
-        b.x = Math.min(b.x, a.x - a.r - b.r - 3);
+        b.x = Math.max(b.x, a.x + a.r + b.r + 3);
       }
+      S.marbles = S.marbles.filter((m) => m.x < W6 + 50);
       if (S.justDropped) {
         S.punchHook();
         S.flash(0.4, "#ffffff");
@@ -8861,7 +8986,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
           const lat = Math.abs((b.x - fx) * -ny + (b.y - fy) * nx);
           if (along > -b.r * 0.3 && along < b.r + 10 && lat < 70) {
             const dWall = S.R - Math.hypot(b.x - S.cx, b.y - S.cy);
-            if (b.press > b.r * 0.25 || dWall < b.r * 1.3) {
+            if (b.press > b.r * 0.06 || b.contacts >= 2 || dWall < b.r * 1.3) {
               if (split(S, w, b, p.a + Math.PI / 2, 300)) S.fx.shock(b.x, b.y, b.col, 90, 0.3, 4);
             }
           }
@@ -9499,6 +9624,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         w.add(b);
       });
       const tw = 74, gap = (W7 - 80 - C * tw) / Math.max(1, C - 1);
+      for (let i = 0; i < 360; i++) w.step(1 / 120);
       S.tubes = Array.from({ length: C }, (_, c) => ({ x: 40 + tw / 2 + c * (tw + gap), n: 0, glow: 0 }));
       S.tubeTop = 820;
       S.tubeBot = 1190;
@@ -9676,7 +9802,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     hook: "Le hasard dessine toujours la m\xEAme forme",
     init(S) {
       const rows = S.opts.rows || 13;
-      const w = S.world = new World({ g: 1500, iter: 3, damp: 0.25, maxV: 1800 });
+      const w = S.world = new World({ g: 1500, iter: 3, damp: 0.25, maxV: 1800, ccd: true });
       S.total = S.opts.count || 300;
       const top = 300, spacing = Math.min(46, 560 / rows);
       S.pegs = [];
@@ -9701,6 +9827,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       w.addSeg(new Seg(S.bx0 - 6, S.binTop - 200, S.bx0 - 6, 1200, { th: 4 }));
       w.addSeg(new Seg(S.bx0 + nb * bw + 6, S.binTop - 200, S.bx0 + nb * bw + 6, 1200, { th: 4 }));
       S.mr = Math.max(4, Math.min(8, bw * 0.2 * Math.sqrt(300 / S.total)));
+      w.bounds = { x0: S.bx0 - 12, x1: S.bx0 + nb * bw + 12, e: 0.35 };
       S.spawned = 0;
       S.pegNoteT = 0;
       w.onPeg = (b, p, imp) => {
@@ -10141,6 +10268,9 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       res: 720,
       fps: 30,
       watermark: false,
+      react: 1,
+      dropAt: null,
+      trackDrop: null,
       seed: 1 + Math.floor(Math.random() * 99999)
     };
   }
@@ -10148,7 +10278,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     const d = defaults(tpl);
     const s = store.get("tpl:" + tpl.id, null);
     if (!s) return d;
-    return { ...d, ...s, opts: { ...d.opts, ...s.opts || {} }, music: { ...d.music, ...s.music || {}, mode: s.music?.mode === "track" ? "gen" : s.music?.mode || "gen" }, text: { ...d.text, ...s.text || {} }, mix: { ...d.mix, ...s.mix || {}, hitMode: "synth" }, effects: { ...d.effects, ...s.effects || {} }, entries: (s.entries || d.entries).map((e) => ({ ...e, img: null })) };
+    return { ...d, ...s, opts: { ...d.opts, ...s.opts || {} }, music: { ...d.music, ...s.music || {}, mode: s.music?.mode === "track" ? "gen" : s.music?.mode || "gen" }, text: { ...d.text, ...s.text || {} }, mix: { ...d.mix, ...s.mix || {}, hitMode: "synth" }, trackDrop: null, effects: { ...d.effects, ...s.effects || {} }, entries: (s.entries || d.entries).map((e) => ({ ...e, img: null })) };
   }
   function saveSettings(tpl, st) {
     const { entries: entries2, ...rest } = st;
@@ -10156,11 +10286,11 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   }
   var assets = { images: {}, entryImgs: {}, track: null, hit: null };
   function buildSong(tpl, st) {
-    const frac = tpl.dropAt || 0.5;
+    const frac = st.dropAt ?? tpl.dropAt ?? 0.5;
     if (st.music.mode === "track" && assets.track) {
-      const key = `${assets.track.name}|${st.dur}|${frac}`;
+      const key = `${assets.track.name}|${st.dur}|${frac}|${st.trackDrop}`;
       if (assets.track.songKey !== key) {
-        assets.track.song = analyzeTrack(assets.track.buffer, st.dur, frac);
+        assets.track.song = analyzeTrack(assets.track.buffer, st.dur, frac, st.trackDrop ?? null);
         assets.track.songKey = key;
       }
       return assets.track.song;
@@ -10194,6 +10324,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       watermark: st.watermark,
       fps: st.fps,
       audio: audioOf({ ...st, _noHits: !!tpl.noHits }),
+      react: st.react ?? 1,
       customEntries: true
     };
   }
@@ -10587,9 +10718,32 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       const k = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
       preview.seek(k * st.dur);
     };
+    let dragDrop = false;
     tl.onpointerdown = (ev) => {
       tl.setPointerCapture(ev.pointerId);
-      scrub(ev);
+      const r = tl.getBoundingClientRect(), mk = $(".drop", tl).getBoundingClientRect();
+      dragDrop = Math.abs(ev.clientX - (mk.left + mk.width / 2)) < 16;
+      if (!dragDrop) scrub(ev);
+      else tl.onpointermove = (e2) => {
+        const k = Math.min(0.92, Math.max(0.08, (e2.clientX - r.left) / r.width));
+        $(".drop", tl).style.left = `${k * 100}%`;
+        tl._k = k;
+      };
+    };
+    tl.onpointerup = () => {
+      tl.onpointermove = null;
+      if (dragDrop && tl._k != null) {
+        setDrop(tl._k);
+        tl._k = null;
+      }
+      dragDrop = false;
+    };
+    const setDrop = (k) => {
+      st.dropAt = Math.round(k * 100) / 100;
+      commit(true);
+      syncDropUI();
+    };
+    let syncDropUI = () => {
     };
     let commitT = 0;
     const reload = () => {
@@ -10745,6 +10899,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     <div class="musicinfo" id="minfo"></div></section>`);
     const minfo = $("#minfo", pMus);
     const describeMusic = () => {
+      syncDropUI();
       const song = preview.cfg?.song;
       if (st.music.mode === "gen") minfo.innerHTML = `Bande-son originale g\xE9n\xE9r\xE9e pour ta vid\xE9o \xB7 <b>${song?.bpm || "\u2026"} BPM</b> \xB7 drop \xE0 <b>${song ? fmtT(song.dropT) : "\u2026"}</b> <button class="btn" id="mnew" style="padding:6px 10px;margin-left:6px;font-size:12px">\u{1F3B2} Autre m\xE9lodie</button>`;
       else if (st.music.mode === "track") minfo.innerHTML = assets.track ? `\u{1F3A7} <b>${esc(assets.track.name)}</b><br>Drop d\xE9tect\xE9 et cal\xE9 \xE0 <b>${song ? fmtT(song.dropT) : "\u2026"}</b> de la vid\xE9o (extrait \xE0 partir de ${song ? fmtT(song.bufOffset || 0) : "\u2026"}) \xB7 ~${song?.bpm || "\u2026"} BPM` : "Choisis un fichier son ou vid\xE9o (MP3, M4A, MP4, MOV, WAV, AAC, OGG, FLAC\u2026). Le son est extrait, tout reste sur ton appareil.";
@@ -10765,6 +10920,48 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       setTimeout(showHit);
       return true;
     });
+    const dropEl = h(`<div style="margin-top:12px">
+    <div class="row" style="margin-top:0"><label>Moment du drop dans la vid\xE9o</label><span class="slider-v" id="dpv"></span></div>
+    <input type="range" id="dp" min="0.08" max="0.92" step="0.01">
+    <div class="sub">Tout se synchronise dessus : mont\xE9e, ralenti juste avant, explosion au drop. Tu peux aussi glisser le rep\xE8re DROP sur la timeline.</div>
+    <div id="tdrop"><div class="row"><label>Le drop de ma musique est \xE0</label><span class="slider-v" id="tdv"></span></div>
+    <input type="range" id="td" min="0" max="300" step="0.1">
+    <div class="seg" style="margin-top:8px"><button id="tdauto">\u21BA Drop d\xE9tect\xE9 automatiquement</button></div></div></div>`);
+    const dp = $("#dp", dropEl), td = $("#td", dropEl);
+    syncDropUI = () => {
+      const k = st.dropAt ?? tpl.dropAt ?? 0.5;
+      dp.value = k;
+      $("#dpv", dropEl).textContent = fmtT(k * st.dur);
+      const showT = st.music.mode === "track" && assets.track;
+      $("#tdrop", dropEl).style.display = showT ? "" : "none";
+      if (showT) {
+        const det = detectDrop(assets.track.buffer);
+        td.max = Math.floor(assets.track.buffer.duration * 10) / 10;
+        const v = st.trackDrop ?? det;
+        td.value = v;
+        $("#tdv", dropEl).textContent = fmtT(v);
+        $("#tdauto", dropEl).classList.toggle("on", st.trackDrop == null);
+        $("#tdauto", dropEl).textContent = `\u21BA Auto (d\xE9tect\xE9 \xE0 ${fmtT(det)})`;
+      }
+    };
+    dp.oninput = () => {
+      $("#dpv", dropEl).textContent = fmtT(+dp.value * st.dur);
+    };
+    dp.onchange = () => setDrop(+dp.value);
+    td.oninput = () => {
+      $("#tdv", dropEl).textContent = fmtT(+td.value);
+    };
+    td.onchange = () => {
+      st.trackDrop = +td.value;
+      commit(true);
+      syncDropUI();
+    };
+    $("#tdauto", dropEl).onclick = () => {
+      st.trackDrop = null;
+      commit(true);
+      syncDropUI();
+    };
+    pMus.append(dropEl);
     const hitEl = h(`<div id="hitopts" style="margin-top:12px">
     <div class="olabel">Lecture de ma musique</div><div class="seg" id="mplay"></div>
     <div id="hitmore"><div class="olabel">Dur\xE9e jou\xE9e par impact</div><div class="seg" id="mhold"></div>
@@ -10888,7 +11085,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       commit(false, { text: st.text });
     };
     panels.append(pTxt);
-    const pFx = h('<section class="panel"><h3 class="display">Effets</h3><div class="fx"></div><div class="row"><label>Tra\xEEn\xE9e derri\xE8re les balles</label><button class="tog" id="ttrail"></button></div></section>');
+    const pFx = h('<section class="panel"><h3 class="display">Effets</h3><div class="olabel">R\xE9action \xE0 la musique</div><div class="seg" id="react" style="margin-bottom:12px"></div><div class="fx"></div><div class="row"><label>Tra\xEEn\xE9e derri\xE8re les balles</label><button class="tog" id="ttrail"></button></div></section>');
     for (const f of EFFECTS) {
       const b = h(`<button class="${st.effects[f.id] ? "on" : ""}">${esc(f.name)}</button>`);
       b.onclick = () => {
@@ -10898,6 +11095,10 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       };
       $(".fx", pFx).append(b);
     }
+    segInto($("#react", pFx), [[1, "\u{1F525} Explosive"], [0.5, "Douce"], [0, "Aucune"]], st.react ?? 1, (v) => {
+      st.react = v;
+      commit(false, { react: v });
+    });
     const tt = $("#ttrail", pFx);
     tt.classList.toggle("on", st.trails);
     tt.onclick = () => {

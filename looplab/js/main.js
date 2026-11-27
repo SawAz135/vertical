@@ -3,7 +3,7 @@ import { Engine, W, H, DEFAULT_ENTRIES } from './core/engine.js';
 import { THEMES, MATERIALS, GLOWS, EFFECTS } from './core/themes.js';
 import { drawBall } from './core/materials.js';
 import { composeSong, silentSong, SongPlayer } from './core/music.js';
-import { analyzeTrack, decodeFile } from './core/analysis.js';
+import { analyzeTrack, decodeFile, detectDrop } from './core/analysis.js';
 import { Synth, hitCursorAt } from './core/synth.js';
 import { exportVideo, probeExport } from './core/export.js';
 import { TEMPLATES, TOP, CATEGORIES } from './templates/index.js';
@@ -35,7 +35,7 @@ function defaults(tpl) {
     text: { mode: 'auto', custom: '', counter: true },
     effects: Object.fromEntries(EFFECTS.map((e) => [e.id, e.def])),
     mix: { music: 1, sfx: 1, hitMode: 'synth' },
-    trails: true, dur: 20, res: 720, fps: 30, watermark: false,
+    trails: true, dur: 20, res: 720, fps: 30, watermark: false, react: 1, dropAt: null, trackDrop: null,
     seed: 1 + Math.floor(Math.random() * 99999),
   };
 }
@@ -43,7 +43,7 @@ function loadSettings(tpl) {
   const d = defaults(tpl);
   const s = store.get('tpl:' + tpl.id, null);
   if (!s) return d;
-  return { ...d, ...s, opts: { ...d.opts, ...(s.opts || {}) }, music: { ...d.music, ...(s.music || {}), mode: s.music?.mode === 'track' ? 'gen' : s.music?.mode || 'gen' }, text: { ...d.text, ...(s.text || {}) }, mix: { ...d.mix, ...(s.mix || {}), hitMode: 'synth' }, effects: { ...d.effects, ...(s.effects || {}) }, entries: (s.entries || d.entries).map((e) => ({ ...e, img: null })) };
+  return { ...d, ...s, opts: { ...d.opts, ...(s.opts || {}) }, music: { ...d.music, ...(s.music || {}), mode: s.music?.mode === 'track' ? 'gen' : s.music?.mode || 'gen' }, text: { ...d.text, ...(s.text || {}) }, mix: { ...d.mix, ...(s.mix || {}), hitMode: 'synth' }, trackDrop: null, effects: { ...d.effects, ...(s.effects || {}) }, entries: (s.entries || d.entries).map((e) => ({ ...e, img: null })) };
 }
 function saveSettings(tpl, st) {
   const { entries, ...rest } = st;
@@ -54,10 +54,10 @@ function saveSettings(tpl, st) {
 const assets = { images: {}, entryImgs: {}, track: null, hit: null };
 
 function buildSong(tpl, st) {
-  const frac = tpl.dropAt || 0.5;
+  const frac = st.dropAt ?? tpl.dropAt ?? 0.5;
   if (st.music.mode === 'track' && assets.track) {
-    const key = `${assets.track.name}|${st.dur}|${frac}`;
-    if (assets.track.songKey !== key) { assets.track.song = analyzeTrack(assets.track.buffer, st.dur, frac); assets.track.songKey = key; }
+    const key = `${assets.track.name}|${st.dur}|${frac}|${st.trackDrop}`;
+    if (assets.track.songKey !== key) { assets.track.song = analyzeTrack(assets.track.buffer, st.dur, frac, st.trackDrop ?? null); assets.track.songKey = key; }
     return assets.track.song;
   }
   if (st.music.mode === 'none') return silentSong(st.dur, frac);
@@ -76,7 +76,7 @@ function engineCfg(tpl, st, size) {
     tpl, opts: st.opts, seed: st.seed, dur: st.dur, theme: st.theme, mat: st.mat, glow: st.glow,
     effects: st.effects, trails: st.trails, text: st.text, song: buildSong(tpl, st), size,
     entries: st.entries.map((e) => ({ ...e, img: assets.entryImgs[e._id] || null })),
-    images: assets.images, watermark: st.watermark, fps: st.fps, audio: audioOf({ ...st, _noHits: !!tpl.noHits }),
+    images: assets.images, watermark: st.watermark, fps: st.fps, audio: audioOf({ ...st, _noHits: !!tpl.noHits }), react: st.react ?? 1,
     customEntries: true,
   };
 }
@@ -367,7 +367,21 @@ function editorPage(tpl) {
     const k = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
     preview.seek(k * st.dur);
   };
-  tl.onpointerdown = (ev) => { tl.setPointerCapture(ev.pointerId); scrub(ev); };
+  let dragDrop = false;
+  tl.onpointerdown = (ev) => {
+    tl.setPointerCapture(ev.pointerId);
+    const r = tl.getBoundingClientRect(), mk = $('.drop', tl).getBoundingClientRect();
+    dragDrop = Math.abs(ev.clientX - (mk.left + mk.width / 2)) < 16;
+    if (!dragDrop) scrub(ev);
+    else tl.onpointermove = (e2) => { const k = Math.min(0.92, Math.max(0.08, (e2.clientX - r.left) / r.width)); $('.drop', tl).style.left = `${k * 100}%`; tl._k = k; };
+  };
+  tl.onpointerup = () => {
+    tl.onpointermove = null;
+    if (dragDrop && tl._k != null) { setDrop(tl._k); tl._k = null; }
+    dragDrop = false;
+  };
+  const setDrop = (k) => { st.dropAt = Math.round(k * 100) / 100; commit(true); syncDropUI(); };
+  let syncDropUI = () => {};
 
   let commitT = 0;
   const reload = () => { fontsReady.then(() => { preview.load(engineCfg(tpl, st, null)); setPlayUI(); describeMusic(); }); };
@@ -478,6 +492,7 @@ function editorPage(tpl) {
     <div class="musicinfo" id="minfo"></div></section>`);
   const minfo = $('#minfo', pMus);
   const describeMusic = () => {
+    syncDropUI();
     const song = preview.cfg?.song;
     if (st.music.mode === 'gen') minfo.innerHTML = `Bande-son originale générée pour ta vidéo · <b>${song?.bpm || '…'} BPM</b> · drop à <b>${song ? fmtT(song.dropT) : '…'}</b> <button class="btn" id="mnew" style="padding:6px 10px;margin-left:6px;font-size:12px">🎲 Autre mélodie</button>`;
     else if (st.music.mode === 'track') minfo.innerHTML = assets.track ? `🎧 <b>${esc(assets.track.name)}</b><br>Drop détecté et calé à <b>${song ? fmtT(song.dropT) : '…'}</b> de la vidéo (extrait à partir de ${song ? fmtT(song.bufOffset || 0) : '…'}) · ~${song?.bpm || '…'} BPM` : 'Choisis un fichier son ou vidéo (MP3, M4A, MP4, MOV, WAV, AAC, OGG, FLAC…). Le son est extrait, tout reste sur ton appareil.';
@@ -489,6 +504,35 @@ function editorPage(tpl) {
     if (v === 'track') { $('#mfile', pMus).click(); if (!assets.track) return false; }
     st.music.mode = v; commit(true); setTimeout(showHit); return true;
   });
+  // ---- the drop, chosen by the user ----
+  const dropEl = h(`<div style="margin-top:12px">
+    <div class="row" style="margin-top:0"><label>Moment du drop dans la vidéo</label><span class="slider-v" id="dpv"></span></div>
+    <input type="range" id="dp" min="0.08" max="0.92" step="0.01">
+    <div class="sub">Tout se synchronise dessus : montée, ralenti juste avant, explosion au drop. Tu peux aussi glisser le repère DROP sur la timeline.</div>
+    <div id="tdrop"><div class="row"><label>Le drop de ma musique est à</label><span class="slider-v" id="tdv"></span></div>
+    <input type="range" id="td" min="0" max="300" step="0.1">
+    <div class="seg" style="margin-top:8px"><button id="tdauto">↺ Drop détecté automatiquement</button></div></div></div>`);
+  const dp = $('#dp', dropEl), td = $('#td', dropEl);
+  syncDropUI = () => {
+    const k = st.dropAt ?? tpl.dropAt ?? 0.5;
+    dp.value = k; $('#dpv', dropEl).textContent = fmtT(k * st.dur);
+    const showT = st.music.mode === 'track' && assets.track;
+    $('#tdrop', dropEl).style.display = showT ? '' : 'none';
+    if (showT) {
+      const det = detectDrop(assets.track.buffer);
+      td.max = Math.floor(assets.track.buffer.duration * 10) / 10;
+      const v = st.trackDrop ?? det;
+      td.value = v; $('#tdv', dropEl).textContent = fmtT(v);
+      $('#tdauto', dropEl).classList.toggle('on', st.trackDrop == null);
+      $('#tdauto', dropEl).textContent = `↺ Auto (détecté à ${fmtT(det)})`;
+    }
+  };
+  dp.oninput = () => { $('#dpv', dropEl).textContent = fmtT(+dp.value * st.dur); };
+  dp.onchange = () => setDrop(+dp.value);
+  td.oninput = () => { $('#tdv', dropEl).textContent = fmtT(+td.value); };
+  td.onchange = () => { st.trackDrop = +td.value; commit(true); syncDropUI(); };
+  $('#tdauto', dropEl).onclick = () => { st.trackDrop = null; commit(true); syncDropUI(); };
+  pMus.append(dropEl);
   // ---- how the user's track is played ----
   const hitEl = h(`<div id="hitopts" style="margin-top:12px">
     <div class="olabel">Lecture de ma musique</div><div class="seg" id="mplay"></div>
@@ -571,12 +615,13 @@ function editorPage(tpl) {
   $('#tcount', pTxt).onclick = (ev) => { st.text = { ...st.text, counter: !st.text.counter }; ev.currentTarget.classList.toggle('on', st.text.counter); commit(false, { text: st.text }); };
   panels.append(pTxt);
   // ---- effects ----
-  const pFx = h('<section class="panel"><h3 class="display">Effets</h3><div class="fx"></div><div class="row"><label>Traînée derrière les balles</label><button class="tog" id="ttrail"></button></div></section>');
+  const pFx = h('<section class="panel"><h3 class="display">Effets</h3><div class="olabel">Réaction à la musique</div><div class="seg" id="react" style="margin-bottom:12px"></div><div class="fx"></div><div class="row"><label>Traînée derrière les balles</label><button class="tog" id="ttrail"></button></div></section>');
   for (const f of EFFECTS) {
     const b = h(`<button class="${st.effects[f.id] ? 'on' : ''}">${esc(f.name)}</button>`);
     b.onclick = () => { st.effects = { ...st.effects, [f.id]: !st.effects[f.id] }; b.classList.toggle('on', st.effects[f.id]); commit(false, { effects: st.effects }); };
     $('.fx', pFx).append(b);
   }
+  segInto($('#react', pFx), [[1, '🔥 Explosive'], [0.5, 'Douce'], [0, 'Aucune']], st.react ?? 1, (v) => { st.react = v; commit(false, { react: v }); });
   const tt = $('#ttrail', pFx); tt.classList.toggle('on', st.trails);
   tt.onclick = () => { st.trails = !st.trails; tt.classList.toggle('on', st.trails); commit(false, { trails: st.trails }); };
   panels.append(pFx);

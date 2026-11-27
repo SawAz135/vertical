@@ -36,6 +36,8 @@ export const colorSort = {
     });
     // tubes
     const tw = 74, gap = (W - 80 - C * tw) / Math.max(1, C - 1);
+    // let the marbles settle in the hopper before the video starts
+    for (let i = 0; i < 360; i++) w.step(1 / 120);
     S.tubes = Array.from({ length: C }, (_, c) => ({ x: 40 + tw / 2 + c * (tw + gap), n: 0, glow: 0 }));
     S.tubeTop = 820; S.tubeBot = 1190; S.tw = tw;
     S.car = { x: W / 2, tx: W / 2, ball: null, state: 'wait', t: 0 };
@@ -164,7 +166,7 @@ export const plinko = {
   hook: 'Le hasard dessine toujours la même forme',
   init(S) {
     const rows = S.opts.rows || 13;
-    const w = (S.world = new World({ g: 1500, iter: 3, damp: 0.25, maxV: 1800 }));
+    const w = (S.world = new World({ g: 1500, iter: 3, damp: 0.25, maxV: 1800, ccd: true }));
     S.total = S.opts.count || 300;
     const top = 300, spacing = Math.min(46, 560 / rows);
     S.pegs = [];
@@ -190,6 +192,8 @@ export const plinko = {
     w.addSeg(new Seg(S.bx0 - 6, S.binTop - 200, S.bx0 - 6, 1200, { th: 4 }));
     w.addSeg(new Seg(S.bx0 + nb * bw + 6, S.binTop - 200, S.bx0 + nb * bw + 6, 1200, { th: 4 }));
     S.mr = Math.max(4, Math.min(8, bw * 0.2 * Math.sqrt(300 / S.total)));
+    // side walls for the whole board: no marble can leave the machine
+    w.bounds = { x0: S.bx0 - 12, x1: S.bx0 + nb * bw + 12, e: 0.35 };
     S.spawned = 0;
     S.pegNoteT = 0;
     w.onPeg = (b, p, imp) => {

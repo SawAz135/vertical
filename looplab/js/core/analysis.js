@@ -84,10 +84,21 @@ function findDrop(x, sr) {
 /**
  * @returns song-like object used by the engine (same shape as composeSong()).
  */
-export function analyzeTrack(buffer, dur, dropFrac = 0.5) {
+const dropCache = new WeakMap();
+/** Detected drop of a track (seconds), cached per buffer. */
+export function detectDrop(buffer) {
+  let d = dropCache.get(buffer);
+  if (!d) { d = findDrop(mono(buffer), buffer.sampleRate); dropCache.set(buffer, d); }
+  return d.dropT;
+}
+
+export function analyzeTrack(buffer, dur, dropFrac = 0.5, dropOverride = null) {
   const sr = buffer.sampleRate;
   const x = mono(buffer);
-  const { dropT: dropTrack, length } = findDrop(x, sr);
+  const det = dropCache.get(buffer) || findDrop(x, sr);
+  dropCache.set(buffer, det);
+  const length = x.length / sr;
+  const dropTrack = dropOverride != null ? Math.min(length - 0.5, Math.max(0, dropOverride)) : det.dropT;
   let wantDrop = dur * dropFrac;
   let offset = dropTrack - wantDrop;
   if (offset < 0) { offset = 0; wantDrop = dropTrack; }

@@ -40,8 +40,8 @@ export const EFFECTS = [
   { id: 'lightning', name: 'Éclairs', def: false },
   { id: 'shock', name: 'Ondes de choc', def: true },
   { id: 'sparks', name: 'Étincelles', def: true },
-  { id: 'flash', name: 'Flash', def: false },
-  { id: 'shake', name: 'Secousses', def: false },
+  { id: 'flash', name: 'Flash', def: true },
+  { id: 'shake', name: 'Secousses', def: true },
   { id: 'glitch', name: 'Glitch', def: false },
 ];
 

@@ -80,6 +80,7 @@ export class Engine {
     if (patch.effects) S.effects = cfg.effects;
     if (patch.trails != null) S.trails = cfg.trails;
     if (patch.text) S.hookText = hookFor(cfg, S);
+    if (patch.react != null) S.react = cfg.react;
   }
 
   /** Advance by `dtv` seconds of video time. */
@@ -112,6 +113,7 @@ export class Engine {
     while (S.di < song.downbeats.length && song.downbeats[S.di] <= S.vt) { if (song.downbeats[S.di] > pvt) S.downbeat = true; S.di++; }
     if (!S.dropped && S.vt >= S.dropT) { S.dropped = true; S.justDropped = true; } else S.justDropped = false;
     S.tpl.update(S, dt, dtv);
+    this.musicFx(dtv);
     S.fx.update(dt);
     // camera smoothing
     const c = S.cam, k = Math.min(1, dtv * c.ease);
@@ -125,6 +127,43 @@ export class Engine {
     if (S.winner) S.winner.t += dtv;
   }
 
+  /** Music reaction layer shared by every template: build-up, freeze, drop blast, beat pulses. */
+  musicFx(dtv) {
+    const S = this.S, k = S.react;
+    S.camPunch *= Math.exp(-dtv * 9);
+    S.pulse *= Math.exp(-dtv * 7);
+    if (k <= 0) { S.buildU = 0; return; }
+    if (S.kick) {
+      S.pulse = 1;
+      S.camPunch = Math.max(S.camPunch, (S.dropped ? 0.05 : 0.018) * k);
+      if (S.dropped) {
+        S.hookPunch = Math.max(S.hookPunch, 0.45 * k);
+        S.bgRings.push({ r: 30, col: S.col(S.ki), a: 1 });
+        if (S.bgRings.length > 12) S.bgRings.shift();
+      }
+    }
+    if (S.downbeat && S.dropped) S.trauma = Math.min(1, S.trauma + 0.12 * k);
+    // build-up: tension grows during the last bars before the drop
+    const build = Math.min((S.song.bar || 2) * 2, S.dropT * 0.6);
+    S.buildU = S.dropped ? 0 : clamp((S.vt - (S.dropT - build)) / Math.max(0.1, build), 0, 1);
+    if (S.buildU > 0) S.trauma = Math.max(S.trauma, S.buildU * S.buildU * 0.22 * k);
+    // a breath of slow motion right before the drop…
+    if (!S.dropped && !S.preFrozen && S.dropT - S.vt < 0.2 && S.dropT > 1) { S.preFrozen = true; S.tsTarget = 0.25; S.slowT = 0.2; }
+    // …then everything explodes on it
+    if (S.justDropped) {
+      const cx = S.cam.x, cy = S.cam.y;
+      S.ts = 1; S.tsTarget = 1; S.slowT = 0;
+      S.flash(0.85 * k, lighten(S.col(0), 0.5));
+      S.glitch(k); S.shake(0.75 * k);
+      S.camPunch = 0.16 * k;
+      for (let i = 0; i < 3; i++) S.fx.shock(cx, cy, S.col(i), 520 + i * 260, 0.7 + i * 0.15, 16 - i * 3);
+      S.fx.rays(cx, cy, lighten(S.col(1), 0.3), 1.6, 22, 1100);
+      S.punchHook();
+    }
+    for (const r of S.bgRings) { r.r += dtv * (380 + r.r * 1.4); r.a -= dtv * 0.9; }
+    S.bgRings = S.bgRings.filter((r) => r.a > 0);
+  }
+
   render() {
     const S = this.S, g = this.g;
     g.setTransform(this.scale, 0, 0, this.scale, 0, 0);
@@ -134,6 +173,21 @@ export class Engine {
     const bg = g.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, th.bg[0]); bg.addColorStop(1, th.bg[1]);
     g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    // beat glow + drop rings behind everything
+    if (S.react > 0) {
+      const pk = S.pulse * S.react * (S.dropped ? 1 : 0.5);
+      if (pk > 0.02) {
+        const rg = g.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, H * 0.75);
+        rg.addColorStop(0, alpha(S.col(S.ki), (S.theme.dark ? 0.28 : 0.14) * pk));
+        rg.addColorStop(1, alpha(S.col(S.ki + 1), 0));
+        g.fillStyle = rg; g.fillRect(0, 0, W, H);
+      }
+      for (const r of S.bgRings) {
+        g.strokeStyle = alpha(r.col, 0.35 * r.a * S.react);
+        g.lineWidth = 3 + 10 * r.a;
+        g.beginPath(); g.arc(W / 2, H / 2, r.r, 0, TAU); g.stroke();
+      }
+    }
     if (S.tpl.background) S.tpl.background(S, g);
     // world
     g.save();
@@ -143,7 +197,8 @@ export class Engine {
     const sy = sh * 26 * (Math.cos(S.vt * 63) + Math.sin(S.vt * 29) * 0.5);
     g.translate(W / 2 + sx, H / 2 + sy);
     g.rotate(c.rot + sh * 0.03 * Math.sin(S.vt * 50));
-    g.scale(c.zoom, c.zoom);
+    const zk = c.zoom * (1 + S.camPunch + S.buildU * 0.07 * S.react);
+    g.scale(zk, zk);
     g.translate(-c.x, -c.y);
     S.tpl.draw(S, g);
     S.fx.draw(g);
@@ -261,7 +316,7 @@ export class Engine {
     const S = this.S;
     const cv = this.canvas;
     // bloom: downsample + additive upscale (cheap, works everywhere)
-    const bk = S.glowK * S.theme.glowBoost * (this.quality === 'low' ? 0.6 : 1);
+    const bk = S.glowK * S.theme.glowBoost * (this.quality === 'low' ? 0.6 : 1) * (1 + S.pulse * 0.7 * S.react);
     if (S.theme.dark && bk > 0.02) {
       const b1 = this.bloomC, b1g = b1.getContext('2d');
       b1g.globalCompositeOperation = 'copy';
@@ -316,7 +371,7 @@ export class Engine {
       rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(0,0,0,0.55)');
       vg.fillStyle = rg; vg.fillRect(0, 0, 180, 320);
     }
-    g.globalAlpha = S.theme.dark ? 0.9 : 0.25;
+    g.globalAlpha = Math.min(1, (S.theme.dark ? 0.9 : 0.25) + S.buildU * 0.5 * S.react);
     g.drawImage(this.vign, 0, 0, W, H);
     // grain
     g.globalAlpha = S.theme.dark ? 0.05 : 0.035;
@@ -403,6 +458,8 @@ export class Scene {
     this.lastSfx = {};
     this.sfxWin = [];
     this.images = cfg.images || {};
+    this.react = cfg.react ?? 1;
+    this.pulse = 0; this.camPunch = 0; this.buildU = 0; this.bgRings = []; this.preFrozen = false;
   }
   get progress() { return this.vt / this.dur; }
   col(i) { i = Math.floor(i) || 0; return this.cols[((i % this.cols.length) + this.cols.length) % this.cols.length]; }

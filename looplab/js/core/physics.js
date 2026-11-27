@@ -53,6 +53,7 @@ export class World {
     this.onPeg = null; // (body, peg, imp)
     this.maxV = o.maxV ?? 4000;
     this.bounds = o.bounds || null; // {x0,y0,x1,y1,e}
+    this.ccd = !!o.ccd; // sub-step fast bodies (anti-tunnelling)
   }
   add(b) { this.bodies.push(b); return b; }
   addSeg(s) { this.segs.push(s); return s; }
@@ -60,6 +61,14 @@ export class World {
   clean() { if (this.bodies.some((b) => !b.alive)) this.bodies = this.bodies.filter((b) => b.alive); }
 
   step(dt) {
+    // split the step when something moves fast compared with its size (no tunnelling)
+    let maxK = 0;
+    for (const b of this.bodies) if (b.alive && !b.static) maxK = Math.max(maxK, (Math.hypot(b.vx, b.vy) * dt) / Math.max(3, b.r * 0.6));
+    const n = this.ccd ? Math.min(4, Math.max(1, Math.ceil(maxK))) : 1;
+    for (const b of this.bodies) { b.press = 0; b.contacts = 0; } // squeeze is measured over the whole step
+    for (let i = 0; i < n; i++) this.step1(dt / n);
+  }
+  step1(dt) {
     const B = this.bodies;
     const dd = Math.exp(-this.damp * dt);
     for (const b of B) {
@@ -70,7 +79,6 @@ export class World {
       if (sp > this.maxV) { b.vx *= this.maxV / sp; b.vy *= this.maxV / sp; }
       b.x += b.vx * dt; b.y += b.vy * dt;
       b.ang += b.spin * dt;
-      b.press = 0; b.contacts = 0;
     }
     for (let it = 0; it < this.iter; it++) {
       this.collideBodies(it === 0);

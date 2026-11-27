@@ -44,6 +44,9 @@ export const rings3000 = {
       S.freeT += dt;
       b.x += b.vx * dt; b.y += b.vy * dt;
       b.vx *= 0.995; b.vy *= 0.995;
+      // keep the victory lap on screen
+      if (b.x < b.r || b.x > W - b.r) { b.vx = -b.vx; b.x = Math.min(W - b.r, Math.max(b.r, b.x)); }
+      if (b.y < 200 || b.y > H - b.r) { b.vy = -b.vy; b.y = Math.min(H - b.r, Math.max(200, b.y)); }
       // after escaping, the ball orbits the screen centre in a victory lap
       const ang = S.freeT * 3.2;
       const tx = S.cx + Math.cos(ang) * 210, ty = S.cy + Math.sin(ang) * 210;
@@ -90,6 +93,9 @@ export const rings3000 = {
         if (!inGap) budget = Math.min(budget, Math.ceil(deficit * 0.2));
       }
       if (broke > 0) {
+        // the ball stays in the (new) innermost cage, which slides in around it
+        const ux = dx / d, uy = dy / d;
+        b.x = S.cx + ux * (R - b.r - 1); b.y = S.cy + uy * (R - b.r - 1);
         S.lastBreak = S.vt;
         const col = this.ringCol(S, S.k);
         S.fx.burst(S.cx + Math.cos(a) * R, S.cy + Math.sin(a) * R, col, Math.min(40, 8 + broke), 520, { grav: 0 });
@@ -458,6 +464,13 @@ export const fusion = {
       S.dropX += (S.dropTX - S.dropX) * Math.min(1, dt * 7);
     }
     w.step(dt);
+    // same-level pieces that touch merge, even when resting against each other
+    const live = w.bodies.filter((b) => b.alive && !b.data.m && !b.static);
+    for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {
+      const a = live[i], b = live[j];
+      if (a.data.lv !== b.data.lv || a.data.lv >= S.L - 1 || a.data.m || b.data.m) continue;
+      if (Math.hypot(a.x - b.x, a.y - b.y) < a.r + b.r + 2) { a.data.m = b.data.m = 1; S.mergeQueue.push([a, b]); }
+    }
     // resolve merges after the physics step
     for (const [a, b] of S.mergeQueue) {
       if (!a.alive || !b.alive) continue;

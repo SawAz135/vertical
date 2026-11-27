@@ -179,7 +179,8 @@ export const stampMill = {
   },
   update(S, dt) {
     S.spawnT -= dt;
-    if (S.spawnT <= 0) {
+    const tail = S.marbles.reduce((m, x) => Math.min(m, x.x - x.r), 1e9);
+    if (S.spawnT <= 0 && tail > 20) {
       S.spawnT = 0.62;
       S.marbles.push({ x: -40, r: 30, col: S.col(S.spawnN = (S.spawnN || 0) + 1), y: S.trough - 30 - 60, vy: 0, cool: 0 });
     }
@@ -198,8 +199,8 @@ export const stampMill = {
         if (m.r > 10) {
           // split into two smaller pieces that keep flowing to the next hammer
           const r2 = m.r / Math.SQRT2;
-          S.marbles.push({ x: m.x - r2 * 0.6, r: r2, col: m.col, y: S.trough - r2 - 40, vy: -320, cool: 0.4 });
-          S.marbles.push({ x: m.x + r2 * 1.4, r: r2, col: m.col, y: S.trough - r2 - 40, vy: -420, cool: 0.4 });
+          S.marbles.push({ x: m.x + r2 * 0.3, r: r2, col: m.col, y: S.trough - r2 - 40, vy: -320, cool: 0.4 });
+          S.marbles.push({ x: m.x + r2 * 2.4, r: r2, col: m.col, y: S.trough - r2 - 40, vy: -420, cool: 0.4 });
           crushFx(S, m.x, S.trough - 6, m.col, m.r / 30);
         } else crushFx(S, m.x, S.trough - 4, m.col, 0.4);
         S.note(q.i * 2, 0.5, 'marimba');
@@ -215,11 +216,12 @@ export const stampMill = {
     }
     S.marbles = S.marbles.filter((m) => !m.dead && m.x < W + 50);
     // single-file queue: marbles never overlap on the trough
-    S.marbles.sort((a, b) => b.x - a.x);
+    S.marbles.sort((a, b) => a.x - b.x);
     for (let i = 1; i < S.marbles.length; i++) {
       const a = S.marbles[i - 1], b = S.marbles[i];
-      b.x = Math.min(b.x, a.x - a.r - b.r - 3);
+      b.x = Math.max(b.x, a.x + a.r + b.r + 3); // the queue only ever pushes forward
     }
+    S.marbles = S.marbles.filter((m) => m.x < W + 50);
     if (S.justDropped) { S.punchHook(); S.flash(0.4, '#ffffff'); S.shake(0.5); }
   },
   draw(S, g) {
@@ -453,7 +455,7 @@ export const pistonStar = {
         const lat = Math.abs((b.x - fx) * -ny + (b.y - fy) * nx);
         if (along > -b.r * 0.3 && along < b.r + 10 && lat < 70) {
           const dWall = S.R - Math.hypot(b.x - S.cx, b.y - S.cy);
-          if (b.press > b.r * 0.25 || dWall < b.r * 1.3) {
+          if (b.press > b.r * 0.06 || b.contacts >= 2 || dWall < b.r * 1.3) {
             if (split(S, w, b, p.a + Math.PI / 2, 300)) S.fx.shock(b.x, b.y, b.col, 90, 0.3, 4);
           }
         }

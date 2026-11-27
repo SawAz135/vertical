@@ -181,7 +181,7 @@ function makeThreads(cfg) {
       if (S.focus) {
         S.focus.t += dt;
         const f = S.focus.e;
-        S.camTo(lerp(S.cx, f.x, 0.5), lerp(S.cy, Math.min(f.y, H - 200), 0.5), 1.35, 5);
+        S.camTo(lerp(S.cx, f.x, 0.25), lerp(S.cy, Math.min(f.y, H - 200), 0.25), 1.12, 5);
         if (S.focus.t > 1.4) { S.focus = null; S.camTo(W / 2, H / 2, 1, 3); }
       }
       const left = ents.filter((e) => !e.falling && !e.out);
@@ -806,7 +806,7 @@ export const colorRace = {
   init(S) {
     const n = S.opts.count || 6;
     S.ents = entries(S, n);
-    const w = (S.world = new World({ g: 900, iter: 3, damp: 0.35, maxV: 900 }));
+    const w = (S.world = new World({ g: 900, iter: 3, damp: 0.35, maxV: 900, ccd: true }));
     w.bounds = { x0: 40, x1: W - 40, e: 0.5 };
     const r = S.rng;
     // course length scales with the video duration
@@ -872,13 +872,19 @@ export const colorRace = {
     }
     for (const p of S.pegs) p.hit = Math.max(0, (p.hit || 0) - dt * 3);
     // camera follows the leader (look-ahead)
-    const target = clamp(lead + 120, H / 2, S.finishY + 100);
+    // frame the whole pack: centre between leader and last, zoom out when it stretches
+    const racing = S.ents.filter((e) => !e.done).map((e) => e.body.y);
+    const last = racing.length ? Math.min(...racing) : lead;
+    const spread = Math.max(0, Math.min(lead, S.finishY) - last);
+    const zt = clamp((H - 420) / (spread + 260), 0.55, 1);
+    S.camZ = (S.camZ || 1) + (zt - (S.camZ || 1)) * Math.min(1, dt * 2.5);
+    const target = clamp((Math.min(lead, S.finishY + 100) + last) / 2 + 60, H / 2, S.finishY + 100);
     S.camY += (target - S.camY) * Math.min(1, dt * 4);
-    S.camTo(W / 2, S.camY, 1, 50);
+    S.camTo(W / 2, S.camY, S.camZ, 50);
     S.camSnap();
   },
   draw(S, g) {
-    const top = S.camY - H / 2 - 50, bot = S.camY + H / 2 + 50;
+    const vz = S.camZ || 1, top = S.camY - H / 2 / vz - 50, bot = S.camY + H / 2 / vz + 50;
     // side rails with distance marks
     g.strokeStyle = alpha(S.theme.fg, 0.25); g.lineWidth = 6;
     g.beginPath(); g.moveTo(40, top); g.lineTo(40, bot); g.moveTo(W - 40, top); g.lineTo(W - 40, bot); g.stroke();

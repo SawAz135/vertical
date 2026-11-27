@@ -335,7 +335,7 @@ export const marbleMachine = {
         if (S.vt >= s.tHit) {
           b.bounced = true;
           b.x = s.bar.x; b.y = s.bar.y - 30;
-          b.vy = -Math.abs(b.vy) * 0.55; b.vx *= 0.5;
+          b.vy = -Math.abs(b.vy) * 0.45; b.vx = (W / 2 - b.x) * 0.9; // drops toward the catch tray
           s.bar.hit = 1;
           S.noteMidi(s.m + 12, 0.5, 'xylo');
           S.fx.burst(b.x, b.y, s.col, 8, 280, { grav: 500, shards: false });
@@ -346,6 +346,7 @@ export const marbleMachine = {
       }
       b.trail.push(b.x, b.y);
     }
+    for (const b of S.balls) if (b.bounced && b.y > 1075 && !b.caught) { b.caught = true; b.life = 0; S.fx.burst(b.x, 1075, b.s.col, 5, 160, { grav: 400, shards: false }); }
     S.balls = S.balls.filter((b) => b.life > 0 && b.y < H + 50);
     for (const bar of S.bars) bar.hit = Math.max(0, bar.hit - dt * 3);
     if (S.justDropped) { S.flash(0.4, S.col(0)); S.punchHook(); }
