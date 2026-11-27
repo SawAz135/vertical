@@ -9,8 +9,11 @@
 <meta name="apple-mobile-web-app-title" content="Roblox Push">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com; img-src 'self' data: blob: https://avatars.githubusercontent.com; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
+<meta http-equiv="Cache-Control" content="no-cache">
 <title>Roblox Push</title>
 <link rel="icon" href="data:,">
+<script>/* light mode on iPhone/iPad and small-memory devices: Safari kills tabs that use too much GPU memory */
+(function(){try{var ua=navigator.userAgent,ios=/iPhone|iPad|iPod/.test(ua)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1),low=navigator.deviceMemory&&navigator.deviceMemory<=4,force=localStorage.getItem("rp2.fx");if(force==="\"full\""){return}if(ios||low||force==="\"lite\"")document.documentElement.classList.add("lite")}catch(e){}})();</script>
 <style>
 :root{
   --bg:#05040c; --glass:rgba(20,16,40,.55);
@@ -557,6 +560,12 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 .slide[data-s="3"] .hero{margin-bottom:14px}
 .slide[data-s="3"] .hero .big{font-size:30px;margin-top:0}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition-duration:.01s!important}}
+html.lite .glass,html.lite [class*="sheet"],html.lite .toast,html.lite #toast{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+html.lite .glass{background:rgba(20,16,40,.92)!important}
+html.lite *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+html.lite .orb .plasma{filter:none!important;mix-blend-mode:normal!important;animation-duration:24s!important;opacity:.45!important}
+html.lite #neb{display:none!important}
+html.lite body{background:radial-gradient(120% 70% at 30% 0%,#2a1a5e 0%,#120c2e 45%,#05040c 100%) fixed!important}
 </style>
 </head>
 <body>
@@ -828,10 +837,11 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ---------- storage (try/catch; the Roblox key is never stored) ---------- */
 const SYNCED = new Set(['games', 'hist', 'luau', 'game']);
+const PackMemo = { v: undefined };
 const Store = {
-  get(k, d) { try { const v = localStorage.getItem('rp2.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v, quiet) { try { localStorage.setItem('rp2.' + k, JSON.stringify(v)); } catch {} if (!quiet && SYNCED.has(k) && typeof Account !== 'undefined') Account.schedule(); },
-  clear() { try { Object.keys(localStorage).filter((k) => k.startsWith('rp2.')).forEach((k) => localStorage.removeItem(k)); } catch {} },
+  get(k, d) { if (k === 'pendingPack' && PackMemo.v !== undefined) return PackMemo.v ?? d; try { const v = localStorage.getItem('rp2.' + k), o = v == null ? null : JSON.parse(v); if (k === 'pendingPack') PackMemo.v = o; return o == null ? d : o; } catch { return d; } },
+  set(k, v, quiet) { if (k === 'pendingPack') PackMemo.v = v ?? null; try { localStorage.setItem('rp2.' + k, JSON.stringify(v)); } catch {} if (!quiet && SYNCED.has(k) && typeof Account !== 'undefined') Account.schedule(); },
+  clear() { PackMemo.v = undefined; try { Object.keys(localStorage).filter((k) => k.startsWith('rp2.')).forEach((k) => localStorage.removeItem(k)); } catch {} },
 };
 const S = { token: Store.get('token', ''), repo: Store.get('repo', ''), user: Store.get('user', null), keyAt: null,
   game: Store.get('game', null), file: null, mode: 'Published', luau: Store.get('luau', { on: false, src: '' }), busy: false };
@@ -1220,16 +1230,17 @@ $('gReset').addEventListener('click', async () => {
       const tree = await gh('GET', `/repos/${S.repo}/git/trees/${commit.tree.sha}?recursive=1`);
       const keep = tree.tree.filter((t) => t.type === 'blob' && !t.path.startsWith(String(g.place) + '/'));
       removed = tree.tree.filter((t) => t.type === 'blob').length - keep.length;
-      if (removed && !keep.length) await gh('DELETE', `/repos/${S.repo}/git/refs/heads/roblox-push-store`); // nothing left: GitHub refuses an empty tree, drop the store branch (the robot recreates it)
-      else if (removed) {
-        const nt = await gh('POST', `/repos/${S.repo}/git/trees`, { tree: keep.map((t) => ({ path: t.path, mode: t.mode, type: 'blob', sha: t.sha })) });
+      if (removed && !keep.length) await gh('DELETE', `/repos/${S.repo}/git/refs/heads/roblox-push-store`); // nothing left: drop the store branch (the robot recreates it)
+      else if (removed) { // GitHub's own way to delete files: base_tree + sha null
+        const gone = tree.tree.filter((t) => t.type === 'blob' && t.path.startsWith(String(g.place) + '/'));
+        const nt = await gh('POST', `/repos/${S.repo}/git/trees`, { base_tree: commit.tree.sha, tree: gone.map((t) => ({ path: t.path, mode: '100644', type: 'blob', sha: null })) });
         const nc = await gh('POST', `/repos/${S.repo}/git/commits`, { message: `roblox-push reset ${g.place}`, tree: nt.sha, parents: [ref.object.sha] });
         await gh('PATCH', `/repos/${S.repo}/git/refs/heads/roblox-push-store`, { sha: nc.sha, force: true });
       }
     }
     upsertGame({ place: g.place, packs: [] }); Store.set('pendingPack', null);
     renderGame(); toast(removed ? `🧹 Réinitialisé (${removed} fichier${removed > 1 ? 's' : ''} effacé${removed > 1 ? 's' : ''}) : publie ton nouveau .zip` : '🧹 Rien à effacer : publie ton nouveau .zip', 4200);
-  } catch (e) { toast('Réinitialisation impossible : ' + (e.message || e), 4200); }
+  } catch (e) { toast(`Réinitialisation impossible (${e.status || '?'}) : ${e.message || e}`, 6000); console.warn('reset', e); }
 });
 $('gRemove').addEventListener('click', () => {
   if (!confirm(`Retirer « ${S.game.name || S.game.place} » de la liste ? Le jeu reste sur Roblox.`)) return;
@@ -1713,7 +1724,7 @@ $('logout').addEventListener('click', () => { if (!confirm('Oublier le jeton et 
 
 /* ---------- FX: WebGL nebula background (low-res, ~30 fps, paused when hidden) ---------- */
 const Neb = (() => {
-  const c = $('neb'); const gl = !reduced && c.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power' });
+  const c = $('neb'); const gl = !reduced && !document.documentElement.classList.contains('lite') && c.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power' });
   if (!gl) { c.style.display = 'none'; return { boost() {} }; }
   const vs = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
   const fs = `precision mediump float;uniform vec2 r;uniform float t;uniform float b;
