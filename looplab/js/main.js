@@ -35,7 +35,7 @@ function defaults(tpl) {
     text: { mode: 'auto', custom: '', counter: true },
     effects: Object.fromEntries(EFFECTS.map((e) => [e.id, e.def])),
     mix: { music: 1, sfx: 1, hitMode: 'synth' },
-    trails: true, dur: 20, res: 720, fps: 30, watermark: false, react: 1, dropAt: null, trackDrop: null,
+    trails: true, dur: 20, res: 720, fps: 30, watermark: false, react: 1, noDrop: false, dropAt: null, trackDrop: null,
     seed: 1 + Math.floor(Math.random() * 99999),
   };
 }
@@ -54,6 +54,11 @@ function saveSettings(tpl, st) {
 const assets = { images: {}, entryImgs: {}, track: null, hit: null };
 
 function buildSong(tpl, st) {
+  if (st.noDrop) {
+    // no drop: the music grooves from the start, the simulation paces itself on the whole video
+    const s = buildSong(tpl, { ...st, noDrop: false, dropAt: 0 });
+    return { ...s, dropT: st.dur - 0.15, noDrop: true };
+  }
   const frac = st.dropAt ?? tpl.dropAt ?? 0.5;
   if (st.music.mode === 'track' && assets.track) {
     const key = `${assets.track.name}|${st.dur}|${frac}|${st.trackDrop}`;
@@ -76,7 +81,7 @@ function engineCfg(tpl, st, size) {
     tpl, opts: st.opts, seed: st.seed, dur: st.dur, theme: st.theme, mat: st.mat, glow: st.glow,
     effects: st.effects, trails: st.trails, text: st.text, song: buildSong(tpl, st), size,
     entries: st.entries.map((e) => ({ ...e, img: assets.entryImgs[e._id] || null })),
-    images: assets.images, watermark: st.watermark, fps: st.fps, audio: audioOf({ ...st, _noHits: !!tpl.noHits }), react: st.react ?? 1,
+    images: assets.images, watermark: st.watermark, fps: st.fps, audio: audioOf({ ...st, _noHits: !!tpl.noHits }), react: st.react ?? 1, noDrop: !!st.noDrop,
     customEntries: true,
   };
 }
@@ -494,8 +499,8 @@ function editorPage(tpl) {
   const describeMusic = () => {
     syncDropUI();
     const song = preview.cfg?.song;
-    if (st.music.mode === 'gen') minfo.innerHTML = `Bande-son originale générée pour ta vidéo · <b>${song?.bpm || '…'} BPM</b> · drop à <b>${song ? fmtT(song.dropT) : '…'}</b> <button class="btn" id="mnew" style="padding:6px 10px;margin-left:6px;font-size:12px">🎲 Autre mélodie</button>`;
-    else if (st.music.mode === 'track') minfo.innerHTML = assets.track ? `🎧 <b>${esc(assets.track.name)}</b><br>Drop détecté et calé à <b>${song ? fmtT(song.dropT) : '…'}</b> de la vidéo (extrait à partir de ${song ? fmtT(song.bufOffset || 0) : '…'}) · ~${song?.bpm || '…'} BPM` : 'Choisis un fichier son ou vidéo (MP3, M4A, MP4, MOV, WAV, AAC, OGG, FLAC…). Le son est extrait, tout reste sur ton appareil.';
+    if (st.music.mode === 'gen') minfo.innerHTML = `Bande-son originale générée pour ta vidéo · <b>${song?.bpm || '…'} BPM</b> · ${st.noDrop ? '<b>sans drop</b>' : `drop à <b>${song ? fmtT(song.dropT) : '…'}</b>`} <button class="btn" id="mnew" style="padding:6px 10px;margin-left:6px;font-size:12px">🎲 Autre mélodie</button>`;
+    else if (st.music.mode === 'track') minfo.innerHTML = assets.track ? `🎧 <b>${esc(assets.track.name)}</b><br>${st.noDrop ? '<b>Sans drop</b> : la vidéo démarre sur la partie la plus énergique' : `Drop calé à <b>${song ? fmtT(song.dropT) : '…'}</b> de la vidéo`} (extrait à partir de ${song ? fmtT(song.bufOffset || 0) : '…'}) · ~${song?.bpm || '…'} BPM` : 'Choisis un fichier son ou vidéo (MP3, M4A, MP4, MOV, WAV, AAC, OGG, FLAC…). Le son est extrait, tout reste sur ton appareil.';
     else minfo.innerHTML = 'Pas de musique : seuls les effets sonores de la simulation sont gardés.';
     const nb = $('#mnew', minfo);
     if (nb) nb.onclick = () => { st.music.seed = 1 + Math.floor(Math.random() * 9999); commit(true); };
@@ -506,14 +511,21 @@ function editorPage(tpl) {
   });
   // ---- the drop, chosen by the user ----
   const dropEl = h(`<div style="margin-top:12px">
+    <div class="olabel">Drop</div><div class="seg" id="dmode" style="margin-bottom:10px"></div>
+    <div id="dopts">
     <div class="row" style="margin-top:0"><label>Moment du drop dans la vidéo</label><span class="slider-v" id="dpv"></span></div>
     <input type="range" id="dp" min="0.08" max="0.92" step="0.01">
     <div class="sub">Tout se synchronise dessus : montée, ralenti juste avant, explosion au drop. Tu peux aussi glisser le repère DROP sur la timeline.</div>
     <div id="tdrop"><div class="row"><label>Le drop de ma musique est à</label><span class="slider-v" id="tdv"></span></div>
     <input type="range" id="td" min="0" max="300" step="0.1">
-    <div class="seg" style="margin-top:8px"><button id="tdauto">↺ Drop détecté automatiquement</button></div></div></div>`);
+    <div class="seg" style="margin-top:8px"><button id="tdauto">↺ Drop détecté automatiquement</button></div></div></div>
+    <div class="sub" id="nodropsub">Aucun drop : la musique groove du début à la fin, les effets suivent le rythme sans grosse explosion.</div></div>`);
+  segInto($('#dmode', dropEl), [['drop', '💥 Avec drop'], ['none', 'Aucun drop']], st.noDrop ? 'none' : 'drop', (v) => { st.noDrop = v === 'none'; commit(true); syncDropUI(); });
   const dp = $('#dp', dropEl), td = $('#td', dropEl);
   syncDropUI = () => {
+    $('#dopts', dropEl).style.display = st.noDrop ? 'none' : '';
+    $('#nodropsub', dropEl).style.display = st.noDrop ? '' : 'none';
+    $('.drop', tl).style.display = st.noDrop ? 'none' : '';
     const k = st.dropAt ?? tpl.dropAt ?? 0.5;
     dp.value = k; $('#dpv', dropEl).textContent = fmtT(k * st.dur);
     const showT = st.music.mode === 'track' && assets.track;

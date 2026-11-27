@@ -133,15 +133,17 @@ export class Engine {
     S.camPunch *= Math.exp(-dtv * 9);
     S.pulse *= Math.exp(-dtv * 7);
     if (k <= 0) { S.buildU = 0; return; }
+    const hype = S.dropped || S.noDrop;
     if (S.kick) {
       S.pulse = 1;
-      S.camPunch = Math.max(S.camPunch, (S.dropped ? 0.05 : 0.018) * k);
-      if (S.dropped) {
+      S.camPunch = Math.max(S.camPunch, (hype ? (S.noDrop ? 0.03 : 0.05) : 0.018) * k);
+      if (hype) {
         S.hookPunch = Math.max(S.hookPunch, 0.45 * k);
         S.bgRings.push({ r: 30, col: S.col(S.ki), a: 1 });
         if (S.bgRings.length > 12) S.bgRings.shift();
       }
     }
+    if (S.noDrop) { S.buildU = 0; for (const r of S.bgRings) { r.r += dtv * (380 + r.r * 1.4); r.a -= dtv * 0.9; } S.bgRings = S.bgRings.filter((r) => r.a > 0); return; }
     if (S.downbeat && S.dropped) S.trauma = Math.min(1, S.trauma + 0.12 * k);
     // build-up: tension grows during the last bars before the drop
     const build = Math.min((S.song.bar || 2) * 2, S.dropT * 0.6);
@@ -175,7 +177,7 @@ export class Engine {
     g.fillStyle = bg; g.fillRect(0, 0, W, H);
     // beat glow + drop rings behind everything
     if (S.react > 0) {
-      const pk = S.pulse * S.react * (S.dropped ? 1 : 0.5);
+      const pk = S.pulse * S.react * (S.dropped || S.noDrop ? 1 : 0.5);
       if (pk > 0.02) {
         const rg = g.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, H * 0.75);
         rg.addColorStop(0, alpha(S.col(S.ki), (S.theme.dark ? 0.28 : 0.14) * pk));
@@ -459,6 +461,7 @@ export class Scene {
     this.sfxWin = [];
     this.images = cfg.images || {};
     this.react = cfg.react ?? 1;
+    this.noDrop = !!cfg.noDrop;
     this.pulse = 0; this.camPunch = 0; this.buildU = 0; this.bgRings = []; this.preFrozen = false;
   }
   get progress() { return this.vt / this.dur; }

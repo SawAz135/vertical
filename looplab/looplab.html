@@ -3154,14 +3154,24 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
         S.buildU = 0;
         return;
       }
+      const hype = S.dropped || S.noDrop;
       if (S.kick) {
         S.pulse = 1;
-        S.camPunch = Math.max(S.camPunch, (S.dropped ? 0.05 : 0.018) * k);
-        if (S.dropped) {
+        S.camPunch = Math.max(S.camPunch, (hype ? S.noDrop ? 0.03 : 0.05 : 0.018) * k);
+        if (hype) {
           S.hookPunch = Math.max(S.hookPunch, 0.45 * k);
           S.bgRings.push({ r: 30, col: S.col(S.ki), a: 1 });
           if (S.bgRings.length > 12) S.bgRings.shift();
         }
+      }
+      if (S.noDrop) {
+        S.buildU = 0;
+        for (const r of S.bgRings) {
+          r.r += dtv * (380 + r.r * 1.4);
+          r.a -= dtv * 0.9;
+        }
+        S.bgRings = S.bgRings.filter((r) => r.a > 0);
+        return;
       }
       if (S.downbeat && S.dropped) S.trauma = Math.min(1, S.trauma + 0.12 * k);
       const build = Math.min((S.song.bar || 2) * 2, S.dropT * 0.6);
@@ -3203,7 +3213,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       g.fillStyle = bg;
       g.fillRect(0, 0, W, H);
       if (S.react > 0) {
-        const pk = S.pulse * S.react * (S.dropped ? 1 : 0.5);
+        const pk = S.pulse * S.react * (S.dropped || S.noDrop ? 1 : 0.5);
         if (pk > 0.02) {
           const rg = g.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, H * 0.75);
           rg.addColorStop(0, alpha(S.col(S.ki), (S.theme.dark ? 0.28 : 0.14) * pk));
@@ -3508,6 +3518,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       this.sfxWin = [];
       this.images = cfg.images || {};
       this.react = cfg.react ?? 1;
+      this.noDrop = !!cfg.noDrop;
       this.pulse = 0;
       this.camPunch = 0;
       this.buildU = 0;
@@ -10269,6 +10280,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       fps: 30,
       watermark: false,
       react: 1,
+      noDrop: false,
       dropAt: null,
       trackDrop: null,
       seed: 1 + Math.floor(Math.random() * 99999)
@@ -10286,6 +10298,10 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
   }
   var assets = { images: {}, entryImgs: {}, track: null, hit: null };
   function buildSong(tpl, st) {
+    if (st.noDrop) {
+      const s = buildSong(tpl, { ...st, noDrop: false, dropAt: 0 });
+      return { ...s, dropT: st.dur - 0.15, noDrop: true };
+    }
     const frac = st.dropAt ?? tpl.dropAt ?? 0.5;
     if (st.music.mode === "track" && assets.track) {
       const key = `${assets.track.name}|${st.dur}|${frac}|${st.trackDrop}`;
@@ -10325,6 +10341,7 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       fps: st.fps,
       audio: audioOf({ ...st, _noHits: !!tpl.noHits }),
       react: st.react ?? 1,
+      noDrop: !!st.noDrop,
       customEntries: true
     };
   }
@@ -10901,8 +10918,8 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
     const describeMusic = () => {
       syncDropUI();
       const song = preview.cfg?.song;
-      if (st.music.mode === "gen") minfo.innerHTML = `Bande-son originale g\xE9n\xE9r\xE9e pour ta vid\xE9o \xB7 <b>${song?.bpm || "\u2026"} BPM</b> \xB7 drop \xE0 <b>${song ? fmtT(song.dropT) : "\u2026"}</b> <button class="btn" id="mnew" style="padding:6px 10px;margin-left:6px;font-size:12px">\u{1F3B2} Autre m\xE9lodie</button>`;
-      else if (st.music.mode === "track") minfo.innerHTML = assets.track ? `\u{1F3A7} <b>${esc(assets.track.name)}</b><br>Drop d\xE9tect\xE9 et cal\xE9 \xE0 <b>${song ? fmtT(song.dropT) : "\u2026"}</b> de la vid\xE9o (extrait \xE0 partir de ${song ? fmtT(song.bufOffset || 0) : "\u2026"}) \xB7 ~${song?.bpm || "\u2026"} BPM` : "Choisis un fichier son ou vid\xE9o (MP3, M4A, MP4, MOV, WAV, AAC, OGG, FLAC\u2026). Le son est extrait, tout reste sur ton appareil.";
+      if (st.music.mode === "gen") minfo.innerHTML = `Bande-son originale g\xE9n\xE9r\xE9e pour ta vid\xE9o \xB7 <b>${song?.bpm || "\u2026"} BPM</b> \xB7 ${st.noDrop ? "<b>sans drop</b>" : `drop \xE0 <b>${song ? fmtT(song.dropT) : "\u2026"}</b>`} <button class="btn" id="mnew" style="padding:6px 10px;margin-left:6px;font-size:12px">\u{1F3B2} Autre m\xE9lodie</button>`;
+      else if (st.music.mode === "track") minfo.innerHTML = assets.track ? `\u{1F3A7} <b>${esc(assets.track.name)}</b><br>${st.noDrop ? "<b>Sans drop</b> : la vid\xE9o d\xE9marre sur la partie la plus \xE9nergique" : `Drop cal\xE9 \xE0 <b>${song ? fmtT(song.dropT) : "\u2026"}</b> de la vid\xE9o`} (extrait \xE0 partir de ${song ? fmtT(song.bufOffset || 0) : "\u2026"}) \xB7 ~${song?.bpm || "\u2026"} BPM` : "Choisis un fichier son ou vid\xE9o (MP3, M4A, MP4, MOV, WAV, AAC, OGG, FLAC\u2026). Le son est extrait, tout reste sur ton appareil.";
       else minfo.innerHTML = "Pas de musique : seuls les effets sonores de la simulation sont gard\xE9s.";
       const nb = $("#mnew", minfo);
       if (nb) nb.onclick = () => {
@@ -10921,14 +10938,25 @@ if (typeof module === "object" && typeof module.exports === "object") Object.ass
       return true;
     });
     const dropEl = h(`<div style="margin-top:12px">
+    <div class="olabel">Drop</div><div class="seg" id="dmode" style="margin-bottom:10px"></div>
+    <div id="dopts">
     <div class="row" style="margin-top:0"><label>Moment du drop dans la vid\xE9o</label><span class="slider-v" id="dpv"></span></div>
     <input type="range" id="dp" min="0.08" max="0.92" step="0.01">
     <div class="sub">Tout se synchronise dessus : mont\xE9e, ralenti juste avant, explosion au drop. Tu peux aussi glisser le rep\xE8re DROP sur la timeline.</div>
     <div id="tdrop"><div class="row"><label>Le drop de ma musique est \xE0</label><span class="slider-v" id="tdv"></span></div>
     <input type="range" id="td" min="0" max="300" step="0.1">
-    <div class="seg" style="margin-top:8px"><button id="tdauto">\u21BA Drop d\xE9tect\xE9 automatiquement</button></div></div></div>`);
+    <div class="seg" style="margin-top:8px"><button id="tdauto">\u21BA Drop d\xE9tect\xE9 automatiquement</button></div></div></div>
+    <div class="sub" id="nodropsub">Aucun drop : la musique groove du d\xE9but \xE0 la fin, les effets suivent le rythme sans grosse explosion.</div></div>`);
+    segInto($("#dmode", dropEl), [["drop", "\u{1F4A5} Avec drop"], ["none", "Aucun drop"]], st.noDrop ? "none" : "drop", (v) => {
+      st.noDrop = v === "none";
+      commit(true);
+      syncDropUI();
+    });
     const dp = $("#dp", dropEl), td = $("#td", dropEl);
     syncDropUI = () => {
+      $("#dopts", dropEl).style.display = st.noDrop ? "none" : "";
+      $("#nodropsub", dropEl).style.display = st.noDrop ? "" : "none";
+      $(".drop", tl).style.display = st.noDrop ? "none" : "";
       const k = st.dropAt ?? tpl.dropAt ?? 0.5;
       dp.value = k;
       $("#dpv", dropEl).textContent = fmtT(k * st.dur);
