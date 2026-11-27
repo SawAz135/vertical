@@ -39,6 +39,7 @@ local function body(variety: number, owner: number, pos: Vector3): BasePart
 	p.Parent = folder
 	pcall(function() p:SetNetworkOwner(nil) end)
 	if variety == 6 then p.Material = Enum.Material.Metal; p.Reflectance = 0.15 end
+	Potato.tagSkin(p, math.random())
 	return p
 end
 

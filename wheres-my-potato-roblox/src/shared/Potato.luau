@@ -2,6 +2,7 @@
      A cell (ix, iz) of the grid always holds the same potato (shape, tint, jitter) on
      every machine, so the server only has to tell clients which cells were dug. ]]
 local Config = require(script.Parent.Config)
+local CollectionService = game:GetService("CollectionService")
 local Potato = {}
 
 local S = Config.POTATO.Spacing
@@ -51,7 +52,14 @@ function Potato.make(variety: number, size: number, rnd: number?): BasePart
 	p.TopSurface = Enum.SurfaceType.Smooth; p.BottomSurface = Enum.SurfaceType.Smooth
 	p.CastShadow = false
 	local m = Instance.new("SpecialMesh"); m.MeshType = Enum.MeshType.Sphere; m.Parent = p
+	Potato.tagSkin(p, r)
 	return p
+end
+-- server potatoes are plain ellipsoids (EditableMesh content never replicates); every client
+-- dresses the tagged ones with its own sculpted mesh (client/Controllers/Skin)
+function Potato.tagSkin(p: BasePart, r: number)
+	p:SetAttribute("r", r)
+	CollectionService:AddTag(p, "PotatoSkin")
 end
 function Potato.color(variety: number, r: number): Color3
 	local base = Config.VARIETIES[variety].color

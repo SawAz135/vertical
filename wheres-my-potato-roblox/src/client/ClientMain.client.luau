@@ -19,6 +19,7 @@ local Fx = require(C.Fx)
 local Sound = require(C.Sound)
 local Book = require(C.Book)
 local GerardAnim = require(C.GerardAnim)
+local Skin = require(C.Skin)
 local HUD = require(script.Parent.UI.HUD)
 local Shop = require(script.Parent.UI.ShopUI)
 local Menu = require(script.Parent.UI.Menu)
@@ -75,7 +76,9 @@ Net.event("Say").OnClientEvent:Connect(function(text, gesture) GerardAnim.say(te
 Net.event("Star").OnClientEvent:Connect(function() Sound.play("Star", 1) end)
 Net.event("Session").OnClientEvent:Connect(function(s)
 	if s.teleporting ~= nil then
-		Menu.loading(s.teleporting)
+		State.teleporting = s.teleporting
+		if s.teleporting then Menu.status("Création de ton serveur perso…") end
+		Menu.loading(s.teleporting or State.mode == "boot")
 	end
 	if s.invite ~= nil then
 		local ok, err = pcall(function()
@@ -124,14 +127,41 @@ RunService.RenderStepped:Connect(function(dt)
 end)
 
 -- ---------------------------------------------------------------- boot
-local ready = ReplicatedStorage:WaitForChild("WorldReady") :: BoolValue
-GerardAnim.start()
-Carpet.start()
-VM.start()
-Interact.start()
-Sound.ambience()
-while not ready.Value do ready.Changed:Wait() end
-while not State.data do task.wait(0.1) end
+-- every controller starts in isolation: one failing never blocks the game
+local function start(name: string, fn: () -> ())
+	local ok, err = pcall(fn)
+	if not ok then warn("[WMP] " .. name, err); HUD.toast(name .. " : " .. tostring(err), "warn") end
+end
+start("Skin", Skin.start)
+start("Gérard", GerardAnim.start)
+start("Patates", Carpet.start)
+start("Mains", VM.start)
+start("Actions", Interact.start)
+start("Sons", Sound.ambience)
+
+-- server diagnostics on screen
+task.spawn(function()
+	local ev = ReplicatedStorage:WaitForChild("ServerErrors", 30) :: StringValue?
+	if not ev then Menu.errors("Le serveur ne répond pas (script serveur arrêté ?)"); return end
+	Menu.errors(ev.Value)
+	ev.Changed:Connect(function() Menu.errors(ev.Value) end)
+end)
+
+Menu.status("Le désert de patates se prépare…")
+local ready = ReplicatedStorage:WaitForChild("WorldReady", 30) :: BoolValue?
+local t0 = os.clock()
+while not (ready and ready.Value) and os.clock() - t0 < 40 do
+	task.wait(0.25)
+	Menu.status(string.format("Le désert de patates se prépare… %ds", math.floor(os.clock() - t0)))
+	ready = ready or ReplicatedStorage:FindFirstChild("WorldReady") :: BoolValue?
+end
+Menu.status("Chargement de ta sauvegarde…")
+t0 = os.clock()
+while not State.data do
+	task.wait(0.25)
+	if os.clock() - t0 > 15 then Menu.status("Sauvegarde lente… (Roblox DataStore) " .. math.floor(os.clock() - t0) .. "s") end
+end
+while State.teleporting do task.wait(0.2) end -- the airlock is sending us to our own server
 Net.event("Ready"):FireServer()
 State.mode = "menu"
 Menu.title(function()

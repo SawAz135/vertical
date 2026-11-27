@@ -12,5 +12,6 @@ local State = {
 	Changed = Signal.new(),
 	FieldChanged = Signal.new(), -- (keys)
 	isMobile = false,
+	teleporting = false,
 }
 return State

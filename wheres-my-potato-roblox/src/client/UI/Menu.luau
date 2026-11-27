@@ -17,6 +17,20 @@ local gui = UI.ScreenGui("Titre", 20, { Menu = false })
 local fade = UI.new("Frame", { Name = "Fondu", BackgroundColor3 = RGB(20, 12, 6), Size = UDim2.fromScale(1, 1), ZIndex = 50 }, gui)
 local loadT = UI.Text(fade, "Le désert de patates se prépare…", { Size = UDim2.fromOffset(600, 40), Position = UDim2.fromScale(0.5, 0.56), Max = 28, Font = "Gotham", ZIndex = 51 })
 local loadP = UI.Text(fade, "🥔", { Size = UDim2.fromOffset(90, 90), Position = UDim2.fromScale(0.5, 0.44), Max = 80, ZIndex = 51, Thickness = 0 })
+-- the loading screen must be on screen from the very first frame (it hides the desert being built)
+gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+fade.BackgroundTransparency = 0
+-- diagnostics: server build errors are shown on screen (top of the screen, above everything)
+local errBox = UI.new("TextLabel", { Name = "Erreurs", BackgroundColor3 = RGB(60, 10, 10), BackgroundTransparency = 0.15, TextColor3 = RGB(255, 220, 210),
+	Font = Enum.Font.Code, TextSize = 13, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
+	Size = UDim2.new(1, -24, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Position = UDim2.fromOffset(12, 12), ZIndex = 200, Visible = false, Text = "" }, gui)
+UI.new("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6) }, errBox)
+UI.new("UICorner", { CornerRadius = UDim.new(0, 8) }, errBox)
+function Menu.status(text: string) loadT.Text = text end
+function Menu.errors(text: string)
+	errBox.Text = "⚠ Erreur serveur (fais une capture et envoie-la) :\n" .. text
+	errBox.Visible = text ~= ""
+end
 
 local box = UI.new("Frame", { Name = "Logo", BackgroundTransparency = 1, Size = UDim2.fromOffset(640, 420), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.46), Visible = false }, gui)
 local sc = UI.new("UIScale", { Name = "WindowScale" }, box)
@@ -43,7 +57,6 @@ function Menu.loading(show: boolean)
 end
 
 function Menu.title(onPlay: () -> ())
-	gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	cam.CameraType = Enum.CameraType.Scriptable
 	orbit = true
 	RunService:BindToRenderStep("WMP_Menu", Enum.RenderPriority.Camera.Value + 1, function(dt)

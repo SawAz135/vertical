@@ -14,6 +14,7 @@ local Net = require(ReplicatedStorage.Shared.Net)
 local Session = {}
 Session.ownerId = 0 -- whose jar this server is
 Session.code = nil -- access code of this reserved server (for invites)
+Session.onFallback = nil :: ((Player) -> ())?
 Session.reserved = game.PrivateServerId ~= "" and game.PrivateServerOwnerId == 0
 
 local function tpData(p: Player)
@@ -64,6 +65,14 @@ function Session.invitePayload(p: Player): string?
 	if not Session.code then return nil end
 	return HttpService:JSONEncode({ code = Session.code, owner = Session.ownerId })
 end
+
+-- a teleport that fails after TeleportAsync returned: the player simply plays here
+TeleportService.TeleportInitFailed:Connect(function(p, result, msg)
+	warn("[WMP] teleport init failed:", result, msg)
+	if Session.ownerId == 0 then Session.ownerId = p.UserId end
+	Net.event("Session"):FireClient(p, { teleporting = false })
+	if Session.onFallback then Session.onFallback(p) end
+end)
 
 Players.PlayerRemoving:Connect(function(p)
 	if p.UserId == Session.ownerId and #Players:GetPlayers() > 1 then
