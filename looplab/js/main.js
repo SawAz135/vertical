@@ -34,6 +34,7 @@ function defaults(tpl) {
     music: { mode: 'gen', seed: 1 + Math.floor(Math.random() * 9999) },
     text: { mode: 'auto', custom: '', counter: true },
     effects: Object.fromEntries(EFFECTS.map((e) => [e.id, e.def])),
+    mix: { music: 1, sfx: 1, hitMode: 'synth' },
     trails: true, dur: 20, res: 720, fps: 30, watermark: false,
     seed: 1 + Math.floor(Math.random() * 99999),
   };
@@ -42,7 +43,7 @@ function loadSettings(tpl) {
   const d = defaults(tpl);
   const s = store.get('tpl:' + tpl.id, null);
   if (!s) return d;
-  return { ...d, ...s, opts: { ...d.opts, ...(s.opts || {}) }, music: { ...d.music, ...(s.music || {}), mode: s.music?.mode === 'track' ? 'gen' : s.music?.mode || 'gen' }, text: { ...d.text, ...(s.text || {}) }, effects: { ...d.effects, ...(s.effects || {}) }, entries: (s.entries || d.entries).map((e) => ({ ...e, img: null })) };
+  return { ...d, ...s, opts: { ...d.opts, ...(s.opts || {}) }, music: { ...d.music, ...(s.music || {}), mode: s.music?.mode === 'track' ? 'gen' : s.music?.mode || 'gen' }, text: { ...d.text, ...(s.text || {}) }, mix: { ...d.mix, ...(s.mix || {}), hitMode: 'synth' }, effects: { ...d.effects, ...(s.effects || {}) }, entries: (s.entries || d.entries).map((e) => ({ ...e, img: null })) };
 }
 function saveSettings(tpl, st) {
   const { entries, ...rest } = st;
@@ -50,7 +51,7 @@ function saveSettings(tpl, st) {
 }
 
 // runtime-only assets (photos, tracks) per template
-const assets = { images: {}, entryImgs: {}, track: null };
+const assets = { images: {}, entryImgs: {}, track: null, hit: null };
 
 function buildSong(tpl, st) {
   const frac = tpl.dropAt || 0.5;
@@ -62,12 +63,18 @@ function buildSong(tpl, st) {
   if (st.music.mode === 'none') return silentSong(st.dur, frac);
   return composeSong(st.music.seed, st.dur, { dropFrac: frac });
 }
+function audioOf(st) {
+  const mix = st.mix || { music: 1, sfx: 1, hitMode: 'synth' };
+  const custom = mix.hitMode !== 'synth' && assets.hit ? assets.hit.buffer : null;
+  return { music: mix.music, sfx: mix.sfx, custom, customMode: mix.hitMode === 'replace' ? 'replace' : 'mix' };
+}
+const AUDIO_ACCEPT = 'audio/*,video/*,.mp3,.m4a,.mp4,.m4v,.mov,.wav,.aac,.ogg,.oga,.opus,.flac,.webm,.caf,.aif,.aiff,.amr,.3gp';
 function engineCfg(tpl, st, size) {
   return {
     tpl, opts: st.opts, seed: st.seed, dur: st.dur, theme: st.theme, mat: st.mat, glow: st.glow,
     effects: st.effects, trails: st.trails, text: st.text, song: buildSong(tpl, st), size,
     entries: st.entries.map((e) => ({ ...e, img: assets.entryImgs[e._id] || null })),
-    images: assets.images, watermark: st.watermark, fps: st.fps,
+    images: assets.images, watermark: st.watermark, fps: st.fps, audio: audioOf(st),
     customEntries: true,
   };
 }
@@ -100,6 +107,7 @@ class Preview {
     this.restartAudio();
     this.emit();
   }
+  setAudio(a) { this.cfg.audio = a; this.engine.cfg.audio = a; if (this.synth) this.synth.setAudio(a); }
   hot(patch) { this.engine.hot(patch); this.cfg = this.engine.cfg; if (!this.playing) this.engine.render(); }
   emit() { this.onTime?.(this.engine.S.vt, this.cfg.dur, this.cfg.song.dropT); }
   seek(t, silent = false) {
@@ -116,7 +124,7 @@ class Preview {
     if (this.synth) { this.synth.stopAll(); this.synth = null; }
     if (!this.playing) return;
     const ctx = getCtx();
-    this.synth = new Synth(ctx, ctx.destination);
+    this.synth = new Synth(ctx, ctx.destination, this.cfg.audio || {});
     this.synth.master.gain.value = this.muted ? 0 : 0.72;
     const song = this.cfg.song;
     this.player = new SongPlayer(this.synth, song, song.buffer || null, song.bufOffset || 0);
@@ -462,13 +470,13 @@ function editorPage(tpl) {
   }
   // ---- music ----
   const pMus = h(`<section class="panel"><h3 class="display">Musique</h3><div class="seg" id="mmode"></div>
-    <input class="filein" id="mfile" type="file" accept="audio/*">
+    <input class="filein" id="mfile" type="file" accept="${AUDIO_ACCEPT}">
     <div class="musicinfo" id="minfo"></div></section>`);
   const minfo = $('#minfo', pMus);
   const describeMusic = () => {
     const song = preview.cfg?.song;
     if (st.music.mode === 'gen') minfo.innerHTML = `Bande-son originale générée pour ta vidéo · <b>${song?.bpm || '…'} BPM</b> · drop à <b>${song ? fmtT(song.dropT) : '…'}</b> <button class="btn" id="mnew" style="padding:6px 10px;margin-left:6px;font-size:12px">🎲 Autre mélodie</button>`;
-    else if (st.music.mode === 'track') minfo.innerHTML = assets.track ? `🎧 <b>${esc(assets.track.name)}</b><br>Drop détecté et calé à <b>${song ? fmtT(song.dropT) : '…'}</b> de la vidéo (extrait à partir de ${song ? fmtT(song.bufOffset || 0) : '…'}) · ~${song?.bpm || '…'} BPM` : 'Choisis un fichier audio (MP3, M4A, WAV…). Il reste sur ton appareil.';
+    else if (st.music.mode === 'track') minfo.innerHTML = assets.track ? `🎧 <b>${esc(assets.track.name)}</b><br>Drop détecté et calé à <b>${song ? fmtT(song.dropT) : '…'}</b> de la vidéo (extrait à partir de ${song ? fmtT(song.bufOffset || 0) : '…'}) · ~${song?.bpm || '…'} BPM` : 'Choisis un fichier son ou vidéo (MP3, M4A, MP4, MOV, WAV, AAC, OGG, FLAC…). Le son est extrait, tout reste sur ton appareil.';
     else minfo.innerHTML = 'Pas de musique : seuls les effets sonores de la simulation sont gardés.';
     const nb = $('#mnew', minfo);
     if (nb) nb.onclick = () => { st.music.seed = 1 + Math.floor(Math.random() * 9999); commit(true); };
@@ -479,15 +487,51 @@ function editorPage(tpl) {
   });
   $('#mfile', pMus).onchange = async (ev) => {
     const f = ev.target.files[0]; if (!f) return;
-    minfo.innerHTML = 'Analyse de la musique… (tempo, drop, notes)';
+    minfo.innerHTML = 'Extraction et analyse du son… (tempo, drop, notes)';
     try {
       const buffer = await decodeFile(getCtx(), f);
       assets.track = { name: f.name, buffer };
       st.music.mode = 'track';
       $('#mmode', pMus).querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === 'track'));
       commit(true);
-    } catch (e) { minfo.innerHTML = '<span class="err">Impossible de lire ce fichier audio.</span>'; }
+    } catch (e) { minfo.innerHTML = '<span class="err">Ce navigateur ne sait pas lire le son de ce fichier. Essaie MP3, M4A, MP4 ou WAV.</span>'; }
   };
+  // ---- mix & custom impact sounds ----
+  const mixEl = h(`<div>
+    <div class="row"><label>Volume musique</label><span class="slider-v" id="vmv">${Math.round(st.mix.music * 100)} %</span></div>
+    <input type="range" id="vm" min="0" max="1.5" step="0.05" value="${st.mix.music}">
+    <div class="row"><label>Volume des effets sonores</label><span class="slider-v" id="vsv">${Math.round(st.mix.sfx * 100)} %</span></div>
+    <input type="range" id="vs" min="0" max="1.5" step="0.05" value="${st.mix.sfx}">
+    <div class="olabel">Sons d’impact (rebonds, cassures, fusions…)</div><div class="seg" id="hmode"></div>
+    <input class="filein" id="hfile" type="file" accept="${AUDIO_ACCEPT}">
+    <div class="sub" id="hinfo"></div></div>`);
+  const pushAudio = () => { saveSettings(tpl, st); preview.setAudio(audioOf(st)); };
+  const vm = $('#vm', mixEl), vs = $('#vs', mixEl);
+  vm.oninput = () => { st.mix = { ...st.mix, music: +vm.value }; $('#vmv', mixEl).textContent = `${Math.round(vm.value * 100)} %`; pushAudio(); };
+  vs.oninput = () => { st.mix = { ...st.mix, sfx: +vs.value }; $('#vsv', mixEl).textContent = `${Math.round(vs.value * 100)} %`; pushAudio(); };
+  const hinfo = $('#hinfo', mixEl);
+  const descHit = () => {
+    hinfo.textContent = st.mix.hitMode === 'synth' ? 'Sons synthétisés, accordés sur la musique.'
+      : `🔊 ${assets.hit ? assets.hit.name : ''} · rejoué à chaque impact, à la bonne hauteur de note${st.mix.hitMode === 'mix' ? ', mélangé aux sons d’origine' : ''}.`;
+  };
+  let pendingHit = null;
+  segInto($('#hmode', mixEl), [['synth', 'Synthé'], ['mix', 'Mon son + synthé'], ['replace', 'Mon son seul']], 'synth', (v) => {
+    if (v !== 'synth' && !assets.hit) { pendingHit = v; $('#hfile', mixEl).click(); return false; }
+    st.mix = { ...st.mix, hitMode: v }; pushAudio(); descHit(); return true;
+  });
+  $('#hfile', mixEl).onchange = async (ev) => {
+    const f = ev.target.files[0]; if (!f) return;
+    try {
+      const buffer = await decodeFile(getCtx(), f);
+      assets.hit = { name: f.name, buffer };
+      st.mix = { ...st.mix, hitMode: pendingHit || 'mix' };
+      $('#hmode', mixEl).querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === st.mix.hitMode));
+      pushAudio(); descHit();
+    } catch (e) { hinfo.innerHTML = '<span class="err">Impossible de lire ce son.</span>'; }
+  };
+  if (assets.hit && st.mix.hitMode !== 'synth') $('#hmode', mixEl).querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === st.mix.hitMode));
+  descHit();
+  pMus.append(mixEl);
   panels.append(pMus);
   // ---- text ----
   const pTxt = h(`<section class="panel"><h3 class="display">Texte</h3><div class="seg" id="tmode"></div>

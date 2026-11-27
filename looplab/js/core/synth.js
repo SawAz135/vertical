@@ -13,11 +13,14 @@ function noiseBuf(ctx) {
   noiseBuffers.set(ctx, b);
   return b;
 }
+const HITS = new Set(['note', 'pop', 'shatter', 'crush', 'clank', 'snap', 'tick', 'thud', 'zap']);
 export const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
 export class Synth {
-  constructor(ctx, out) {
+  /** o: { music, sfx (volume multipliers), custom (AudioBuffer for hits), customMode: 'mix' | 'replace' } */
+  constructor(ctx, out, o = {}) {
     this.ctx = ctx;
+    this.o = o;
     this.master = ctx.createGain();
     this.master.gain.value = 0.72;
     const comp = ctx.createDynamicsCompressor();
@@ -25,8 +28,8 @@ export class Synth {
     comp.attack.value = 0.004; comp.release.value = 0.18;
     this.master.connect(comp);
     comp.connect(out || ctx.destination);
-    this.music = ctx.createGain(); this.music.gain.value = 0.62; this.music.connect(this.master);
-    this.sfx = ctx.createGain(); this.sfx.gain.value = 0.75; this.sfx.connect(this.master);
+    this.music = ctx.createGain(); this.music.gain.value = 0.62 * (o.music ?? 1); this.music.connect(this.master);
+    this.sfx = ctx.createGain(); this.sfx.gain.value = 0.75 * (o.sfx ?? 1); this.sfx.connect(this.master);
     // shared reverb send for space
     this.verb = ctx.createConvolver();
     this.verb.buffer = this.makeImpulse(1.8);
@@ -321,8 +324,34 @@ export class Synth {
   }
 
   /** Plays one recorded sound event at absolute time `when`. */
+  /** Live volume / custom sound changes. */
+  setAudio(o) {
+    this.o = o;
+    this.music.gain.value = 0.62 * (o.music ?? 1);
+    this.sfx.gain.value = 0.75 * (o.sfx ?? 1);
+  }
+  /** The user's own impact sound, pitched like the synth note it replaces. */
+  playCustom(when, ev) {
+    const p = ev.p || {};
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.o.custom;
+    let rate = 1;
+    if (ev.n === 'note' && p.m) rate = Math.pow(2, (p.m - 72) / 12);
+    else if (p.pitch) rate = p.pitch;
+    src.playbackRate.value = Math.min(2.5, Math.max(0.4, rate));
+    const g = this.gain(this.sfx, Math.min(1.2, (p.v ?? 0.7) * 0.9));
+    g.connect(this.verbIn);
+    src.connect(g);
+    src.start(when);
+    src.stop(when + Math.min(2, this.o.custom.duration / src.playbackRate.value) + 0.05);
+    this.track(src);
+  }
   play(ev, when) {
     const p = ev.p || {};
+    if (this.o.custom && HITS.has(ev.n)) {
+      this.playCustom(when, ev);
+      if (this.o.customMode === 'replace') return;
+    }
     switch (ev.n) {
       case 'note': return this.note(when, p.m, p.v ?? 0.8, p.tb || 'bell', p.d || 0.9);
       case 'pop': return this.pop(when, p.v ?? 0.8, p.pitch || 1);

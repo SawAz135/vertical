@@ -50,7 +50,7 @@ export async function renderAudio(cfg, events) {
   const len = Math.ceil(dur * SR);
   const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
   const oac = new OAC(2, len, SR);
-  const s = new Synth(oac, oac.destination);
+  const s = new Synth(oac, oac.destination, cfg.audio || {});
   if (cfg.song.kind !== 'none' || cfg.song.buffer) {
     const p = new SongPlayer(s, cfg.song, cfg.song.buffer || null, cfg.song.bufOffset || 0);
     p.start(0, 0);
@@ -154,7 +154,7 @@ async function exportRecorder(cfg, probe, o) {
   const ctx = new AC({ sampleRate: SR });
   await ctx.resume();
   const dest = ctx.createMediaStreamDestination();
-  const synth = new Synth(ctx, dest);
+  const synth = new Synth(ctx, dest, cfg.audio || {});
   const player = new SongPlayer(synth, cfg.song, cfg.song.buffer || null, cfg.song.bufOffset || 0);
   eng.onSfx = (ev) => synth.play(ev, ctx.currentTime + 0.02);
   const stream = canvas.captureStream(fps);
