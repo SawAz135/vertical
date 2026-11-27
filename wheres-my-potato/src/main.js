@@ -81,7 +81,7 @@ class Game {
     this.ui.progress(0.7, 'Gérard enfile sa casquette…'); await tick();
     this.field.onTake = j => {
       this.coop.onTake(j);
-      if (!this.stats.digHint && this.state === 'play' && (this.stats.picked = (this.stats.picked || 0) + 1) >= 4) { this.stats.digHint = 1; this.say('Dessus, il n’y a que des dorées. Mais si tu creuses toujours au même endroit, tu tomberas sur des violettes : rares, et 25 fois plus chères !', 'point', true); }
+      if (!this.stats.digHint && this.state === 'play' && (this._pk = (this._pk || 0) + 1) >= 4) { this.stats.digHint = 1; this.say('Dessus, il n’y a que des dorées. Mais si tu creuses toujours au même endroit, tu tomberas sur des violettes : rares, et 25 fois plus chères !', 'point', true); }
     };
     this.field.onPurple = () => {
       this.stats.purple = (this.stats.purple || 0) + 1;

@@ -151,7 +151,7 @@ export class FieldWorld {
     g.computeVertexNormals();
     // support surface under the pile: no texture at all, only the deep shadow between the
     // potatoes — everything visible above it is the real 3D potato carpet
-    const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.2, 0.135, 0.075), roughness: 1 });
+    const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.42, 0.29, 0.13), roughness: 1 }); // shadowed potato tone, never reads as a hole
     this.seaMat = mat;
     const sea = new THREE.Mesh(g, mat); sea.receiveShadow = true; this.scene.add(sea); this.sea = sea;
     this.carpet = new PotatoCarpet(this.scene, (x, z) => ground(x, z), this.q, this.jarClear || { x: 0, z: 0, r: 7.5 });

@@ -124,20 +124,20 @@ function heightTex(fn, half, n) {
 }
 
 const CARPET_GLSL = /* glsl */`
-uniform vec3 uCam; uniform float uS, uSP, uN, uLvl, uLayers, uRmax, uD1;
+uniform vec3 uCam; uniform float uS, uSP, uN, uLvl, uLayers, uRmax, uD1, uL0;
 uniform sampler2D uHN, uHF; uniform vec3 uHNI, uHFI; // half extent, texel count
 uniform vec4 uJarC; // x, z, radius (no potatoes inside the jar plinth)
 float wmpHgtT(sampler2D t, vec3 I, vec2 p){ vec2 uv = (p + I.x) / (2.0 * I.x); uv = (uv * (I.y - 1.0) + 0.5) / I.y; return texture(t, uv).r; }
 float wmpHgt(vec2 p){ vec2 a = abs(p); return max(a.x, a.y) < uHNI.x - 1.0 ? wmpHgtT(uHN, uHNI, p) : wmpHgtT(uHF, uHFI, p); }
 bool wmpPlace(out vec3 P, out float S, out vec4 R, out float AO){
-  float id = float(gl_InstanceID), NN = uN * uN, layer = 0.0;
+  float id = float(gl_InstanceID), NN = uN * uN, layer = uL0;
   if (id >= NN) { layer = 1.0; id -= NN; }
   vec2 cc = floor(uCam.xz / uS);
   vec2 cell = cc + vec2(mod(id, uN), floor(id / uN)) - uN * 0.5;
   float k = layer * 3.0 + uLvl * 7.0;
   R = vec4(wmpH2(cell, k + 0.11), wmpH2(cell, k + 1.37), wmpH2(cell, k + 2.71), wmpH2(cell, k + 4.13));
   vec2 jit = vec2(wmpH2(cell, k + 5.9), wmpH2(cell, k + 6.7)) - 0.5;
-  vec2 wp = (cell + 0.5 + layer * 0.5 + jit * 0.85) * uS;
+  vec2 wp = (cell + 0.5 + layer * 0.5 + jit * 0.55) * uS; // gentle jitter: no clumps, no holes
   S = 1.0; AO = 1.0; P = vec3(0.0);
   // the finer ring already covers this cell
   if (uLvl > 0.5) { vec2 c2 = floor(wp / uSP) - floor(uCam.xz / uSP); if (all(greaterThanEqual(c2, vec2(-uN * 0.5))) && all(lessThan(c2, vec2(uN * 0.5)))) return false; }
@@ -145,7 +145,7 @@ bool wmpPlace(out vec3 P, out float S, out vec4 R, out float AO){
   if (dist > uRmax) return false;
   if (length(wp - uJarC.xy) < uJarC.z) return false;
   float grow = max(1.0, dist / uD1);
-  S = (0.8 + R.y * 0.42) * grow * (1.0 - layer * 0.06);
+  S = (0.95 + R.y * 0.35) * grow * (1.0 - layer * 0.04);
   float h = wmpHgt(wp);
   P = vec3(wp.x, h + ${R0.toFixed(4)} * S * (0.34 - layer * 0.62) + (R.z - 0.5) * 0.02 * grow, wp.y);
   // cheap frustum rejection before any deformation work
@@ -160,7 +160,7 @@ bool wmpPlace(out vec3 P, out float S, out vec4 R, out float AO){
 
 export class PotatoCarpet {
   constructor(scene, ground, q, jar) {
-    const N = q.carpet || 220, levels = 7, S0 = 0.105;
+    const N = q.carpet || 220, levels = 7, S0 = 0.1;
     this.near = heightTex(ground, 64, 513); this.far = heightTex(ground, 440, 881);
     this.levels = [];
     for (let l = 0; l < levels; l++) {
@@ -171,11 +171,18 @@ export class PotatoCarpet {
         uHN: { value: this.near }, uHF: { value: this.far }, uHNI: { value: new THREE.Vector3(64, 513, 0) }, uHFI: { value: new THREE.Vector3(440, 881, 0) },
         uJarC: { value: new THREE.Vector4(jar.x, jar.z, jar.r, 0) },
       };
+      U.uL0 = { value: 0 };
       const mat = procMaterial('carpet', CARPET_GLSL, U, l === 0);
       const geo = potatoGeo(l === 0 ? 1 : 0); geo.instanceCount = N * N * layers;
       const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.receiveShadow = true; mesh.castShadow = false;
       mesh.matrixAutoUpdate = false; mesh.renderOrder = -1;
       scene.add(mesh); this.levels.push({ mesh, U });
+      if (l === 0) { // the layer underneath, staggered half a cell: fills every gap at your feet (light mesh, mostly hidden)
+        const U2 = Object.assign({}, U, { uL0: { value: 1 } });
+        const g2 = potatoGeo(0); g2.instanceCount = N * N;
+        const m2 = new THREE.Mesh(g2, procMaterial('carpet', CARPET_GLSL, U2, false)); m2.frustumCulled = false; m2.receiveShadow = true; m2.matrixAutoUpdate = false; m2.renderOrder = -1;
+        scene.add(m2); this.levels.push({ mesh: m2, U: U2 });
+      }
     }
     this.count = this.levels.reduce((s, l) => s + l.mesh.geometry.instanceCount, 0);
   }

@@ -303,3 +303,25 @@ body.touch .bubble { top: calc(62px + var(--safe-t)) !important; }
 .book3d-hint:empty { opacity: 0; }
 .book3d-hint.hidden { opacity: 0; }
 @media (max-width: 560px) { .book3d-hint { font-size: 11px; gap: 10px; padding: 7px 12px; } }
+
+/* ---------- simplified HUD ---------- */
+.jar-meter, .carry, .goal { display: none !important; }
+.left { position: absolute; left: 50%; top: calc(12px + var(--safe-t)); transform: translateX(-50%); text-align: center; pointer-events: none;
+  text-shadow: 0 2px 0 rgba(0,0,0,.45), 0 0 18px rgba(0,0,0,.35); }
+.left-k { font: 700 11px Fred, system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; opacity: .8; }
+.left-n { font-family: 'Luck', 'Fred', sans-serif; font-size: clamp(26px, 4.6vw, 44px); line-height: 1.05; color: #fff4dc; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.left-n.tick { animation: leftTick .35s cubic-bezier(.3,1.6,.5,1); }
+@keyframes leftTick { 0% { transform: scale(1.06); color: #ffd25a; } 100% { transform: scale(1); } }
+.left-p { font: 700 12px Fred, system-ui, sans-serif; color: #ffd27a; opacity: .92; }
+body.touch .left-n { font-size: 24px; } body.touch .left-k { font-size: 9px; } body.touch .left-p { font-size: 10px; max-width: 52vw; margin: 0 auto; }
+.tools { gap: 8px; }
+.tool { width: 52px; height: 52px; padding: 0; justify-content: center; font-size: 24px; border-radius: 50%; }
+.tool.locked { display: none; }
+.tool i { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font: 700 12px Fred, sans-serif; font-style: normal; white-space: nowrap; color: #fff4dc; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+.tool.full { box-shadow: 0 0 0 2px #ff8a3a, 0 0 18px rgba(255,138,58,.6); }
+.tool.full i { color: #ffb36a; }
+.tools.solo { left: 50%; transform: translateX(-50%); }
+body.touch .tools.solo { left: calc(26px + var(--safe-l)); transform: scale(.85); }
+.tool b, .tool span { display: none; }
+.left { padding: 6px 18px 7px; border-radius: 18px; background: linear-gradient(180deg, rgba(30,18,8,.62), rgba(20,12,5,.5)); box-shadow: 0 6px 20px rgba(0,0,0,.25); backdrop-filter: blur(4px); }
+body.touch .left { padding: 4px 12px 5px; }

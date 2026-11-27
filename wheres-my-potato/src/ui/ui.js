@@ -59,8 +59,8 @@ export class UI {
 
   // ---------------- HUD ----------------
   _hud() {
-    this.h = { money: $('.money-val'), gain: $('.money-gain'), jarFill: $('.jm-fill'), jarCount: $('.jm-count'), jarGlass: $('.jm-glass'), cross: $('.cross'), prompt: $('.prompt'),
-      carry: $('.carry'), carryFill: $('.carry-fill'), carryTxt: $('.carry-txt'), carryIco: $('.carry-ico'), tools: document.querySelectorAll('.tool'), toasts: $('.toasts'),
+    this.h = { money: $('.money-val'), gain: $('.money-gain'), cross: $('.cross'), prompt: $('.prompt'),
+      tools: document.querySelectorAll('.tool'), toolsBox: $('.tools'), toasts: $('.toasts'),
       bubble: $('.bubble'), bubbleTxt: $('.bubble-txt'), banner: $('.banner'), fps: $('.fps'), floaters: $('.floaters') };
     this.h.tools.forEach(t => t.addEventListener('click', () => this.g.player.setTool(t.dataset.tool)));
     $('.hud-pause').addEventListener('click', () => this.g.pause());
@@ -75,14 +75,12 @@ export class UI {
     if (Math.abs(diff) > 0.5) { this.moneyShown += diff * Math.min(1, dt * 8) + Math.sign(diff) * Math.min(Math.abs(diff), dt * 3); h.money.textContent = Math.round(this.moneyShown).toLocaleString('fr-FR'); }
     else if (this.moneyShown !== g.money) { this.moneyShown = g.money; h.money.textContent = Math.round(g.money).toLocaleString('fr-FR'); }
     this.gainT -= dt; if (this.gainT <= 0 && this.gainAcc > 0) { h.gain.textContent = `+${Math.round(this.gainAcc)} ₣`; h.gain.classList.remove('show'); void h.gain.offsetWidth; h.gain.classList.add('show'); h.money.classList.add('bump'); setTimeout(() => h.money.classList.remove('bump'), 120); this.gainAcc = 0; this.gainT = 0.5; }
-    // jar
-    const fr = g.machine.fillRatio(g.dyn);
-    h.jarFill.style.height = `${clamp(fr, 0, 1) * 100}%`; h.jarCount.textContent = g.stats.jar.toLocaleString('fr-FR'); h.jarGlass.classList.toggle('full', fr >= 0.98);
-    // carry
+    // carried count shown on the active tool only (no separate bar)
     const T = p.tool, cap = T === 'bucket' ? p.bucketCap() : T === 'vacuum' ? p.gad.tankCap() : T === 'cannon' ? Math.max(1, p.carried()) : p.handCap();
     const n = T === 'bucket' ? p.bucket.length : T === 'vacuum' ? p.tank.length : T === 'cannon' ? p.carried() : p.hands.length;
-    h.carryIco.textContent = { hands: '✋', bucket: '🪣', vacuum: '🌀', cannon: '💥' }[T]; h.carryTxt.textContent = `${n} / ${cap}`; h.carryFill.style.width = `${cap ? n / cap * 100 : 0}%`; h.carry.classList.toggle('full', n >= cap && cap > 0);
-    h.tools.forEach(t => { t.classList.toggle('on', t.dataset.tool === p.tool); t.classList.toggle('locked', !p.unlocked(t.dataset.tool)); });
+    let unlocked = 0;
+    h.tools.forEach(t => { const on = t.dataset.tool === p.tool, un = p.unlocked(t.dataset.tool); if (un) unlocked++; t.classList.toggle('on', on); t.classList.toggle('locked', !un); const b = t.querySelector('i'); const txt = on ? `${n}/${cap}` : ''; if (b.textContent !== txt) b.textContent = txt; t.classList.toggle('full', on && n >= cap && cap > 0); });
+    h.toolsBox.classList.toggle('solo', unlocked <= 1);
     // prompt + crosshair
     if (p.prompt !== this._lastPrompt) { this._lastPrompt = p.prompt; h.prompt.textContent = p.prompt; h.prompt.classList.toggle('on', !!p.prompt); }
     h.cross.classList.toggle('active', p.hoverId >= 0 || !!p.prompt);
@@ -93,19 +91,24 @@ export class UI {
     if (settings.v.showFps) h.fps.textContent = `${g.fps.toFixed(0)} ips · ${g.renderScale.toFixed(2)}x · ${g.dyn.live.length}/${g.dyn.settled.length}`; else if (h.fps.textContent) h.fps.textContent = '';
   }
   gain(v) { this.gainAcc += v; }
+  // the discouraging counter: how many potatoes are still lying in the desert
   _goal(dt) {
-    this.goalT = (this.goalT || 0) - dt; if (this.goalT > 0) return; this.goalT = 0.25;
-    const g = this.g; let best = null;
-    for (const it of ITEMS) { const nx = it.levels[g.level(it.id) + 1]; if (nx && (!best || nx.price < best.price)) best = { price: nx.price, name: nx.name, icon: it.icon }; }
-    const el = $('.goal'); if (!el) return;
-    if (!best) { el.classList.add('hidden'); return; }
-    el.classList.remove('hidden');
-    const per = 1.45 * g.mult(); // average francs per potato (variety mix) with current multipliers
-    const left = Math.max(0, Math.ceil((best.price - g.money) / per));
-    const prev = this._goalFrom ?? g.money; if (best.name !== this._goalName) { this._goalName = best.name; this._goalFrom = Math.min(g.money, best.price); }
-    const pct = clamp((g.money - this._goalFrom) / Math.max(1, best.price - this._goalFrom), 0, 1); void prev;
-    $('.goal-txt').innerHTML = left > 0 ? `🥔 Encore <b>${left.toLocaleString('fr-FR')}</b> patates pour débloquer ${best.icon} <b>${best.name}</b>` : `✅ ${best.icon} <b>${best.name}</b> disponible chez Gérard !`;
-    $('.goal-fill').style.width = `${left > 0 ? pct * 100 : 100}%`; el.classList.toggle('ready', left === 0);
+    this.goalT = (this.goalT || 0) - dt; if (this.goalT > 0) return; this.goalT = 0.2;
+    const g = this.g, TOTAL = 10_000_000_000, done = Math.min(TOTAL, (g.stats.picked || 0) + (g.stats.kicked || 0) * 0);
+    const left = TOTAL - done, pct = done / TOTAL * 100;
+    const nEl = this._ln || (this._ln = $('.left-n')), pEl = this._lp || (this._lp = $('.left-p'));
+    const txt = left.toLocaleString('fr-FR');
+    if (nEl.textContent !== txt) { nEl.textContent = txt; nEl.classList.remove('tick'); void nEl.offsetWidth; nEl.classList.add('tick'); }
+    // enough decimals to show the (tiny) first significant digits
+    const dec = pct > 0 ? Math.min(12, Math.max(2, -Math.floor(Math.log10(pct)) + 1)) : 0;
+    const pctTxt = pct > 0 ? pct.toFixed(dec).replace('.', ',') : '0';
+    const rate = done / Math.max(60, g.stats.time || 0); // potatoes per second, all-time
+    const years = rate > 0 ? left / rate / 31557600 : Infinity;
+    const yTxt = !isFinite(years) ? '' : years > 1e6 ? ` · fini dans ${Math.round(years / 1e6).toLocaleString('fr-FR')} millions d’années` : ` · fini dans ${Math.round(years).toLocaleString('fr-FR')} ans`;
+    pEl.textContent = `${pctTxt} % récolté${done > 3 ? yTxt : ''}`;
+    // an affordable upgrade is announced once (instead of a permanent goal banner)
+    let best = null; for (const it of ITEMS) { const nx = it.levels[g.level(it.id) + 1]; if (nx && (!best || nx.price < best.price)) best = { price: nx.price, name: nx.name, icon: it.icon }; }
+    if (best && g.money >= best.price && this._ready !== best.name) { this._ready = best.name; this.toast(`${best.icon} ${best.name} disponible chez Gérard !`, 'gold'); }
   }
   floater(text, pos, color) {
     if (this.floaters.length > 40) this.floaters.shift().el.remove();
