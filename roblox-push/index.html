@@ -12,6 +12,8 @@
 <meta http-equiv="Cache-Control" content="no-cache">
 <title>Roblox Push</title>
 <link rel="icon" href="data:,">
+<script>/* light mode on iPhone/iPad and small-memory devices: Safari kills tabs that use too much GPU memory */
+(function(){try{var ua=navigator.userAgent,ios=/iPhone|iPad|iPod/.test(ua)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1),low=navigator.deviceMemory&&navigator.deviceMemory<=4,force=localStorage.getItem("rp2.fx");if(force==="\"full\""){return}if(ios||low||force==="\"lite\"")document.documentElement.classList.add("lite")}catch(e){}})();</script>
 <style>
 :root{
   --bg:#05040c; --glass:rgba(20,16,40,.55);
@@ -558,6 +560,12 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 .slide[data-s="3"] .hero{margin-bottom:14px}
 .slide[data-s="3"] .hero .big{font-size:30px;margin-top:0}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition-duration:.01s!important}}
+html.lite .glass,html.lite [class*="sheet"],html.lite .toast,html.lite #toast{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+html.lite .glass{background:rgba(20,16,40,.92)!important}
+html.lite *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+html.lite .orb .plasma{filter:none!important;mix-blend-mode:normal!important;animation-duration:24s!important;opacity:.45!important}
+html.lite #neb{display:none!important}
+html.lite body{background:radial-gradient(120% 70% at 30% 0%,#2a1a5e 0%,#120c2e 45%,#05040c 100%) fixed!important}
 </style>
 </head>
 <body>
@@ -829,10 +837,11 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ---------- storage (try/catch; the Roblox key is never stored) ---------- */
 const SYNCED = new Set(['games', 'hist', 'luau', 'game']);
+const PackMemo = { v: undefined };
 const Store = {
-  get(k, d) { try { const v = localStorage.getItem('rp2.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v, quiet) { try { localStorage.setItem('rp2.' + k, JSON.stringify(v)); } catch {} if (!quiet && SYNCED.has(k) && typeof Account !== 'undefined') Account.schedule(); },
-  clear() { try { Object.keys(localStorage).filter((k) => k.startsWith('rp2.')).forEach((k) => localStorage.removeItem(k)); } catch {} },
+  get(k, d) { if (k === 'pendingPack' && PackMemo.v !== undefined) return PackMemo.v ?? d; try { const v = localStorage.getItem('rp2.' + k), o = v == null ? null : JSON.parse(v); if (k === 'pendingPack') PackMemo.v = o; return o == null ? d : o; } catch { return d; } },
+  set(k, v, quiet) { if (k === 'pendingPack') PackMemo.v = v ?? null; try { localStorage.setItem('rp2.' + k, JSON.stringify(v)); } catch {} if (!quiet && SYNCED.has(k) && typeof Account !== 'undefined') Account.schedule(); },
+  clear() { PackMemo.v = undefined; try { Object.keys(localStorage).filter((k) => k.startsWith('rp2.')).forEach((k) => localStorage.removeItem(k)); } catch {} },
 };
 const S = { token: Store.get('token', ''), repo: Store.get('repo', ''), user: Store.get('user', null), keyAt: null,
   game: Store.get('game', null), file: null, mode: 'Published', luau: Store.get('luau', { on: false, src: '' }), busy: false };
@@ -1715,7 +1724,7 @@ $('logout').addEventListener('click', () => { if (!confirm('Oublier le jeton et 
 
 /* ---------- FX: WebGL nebula background (low-res, ~30 fps, paused when hidden) ---------- */
 const Neb = (() => {
-  const c = $('neb'); const gl = !reduced && c.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power' });
+  const c = $('neb'); const gl = !reduced && !document.documentElement.classList.contains('lite') && c.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power' });
   if (!gl) { c.style.display = 'none'; return { boost() {} }; }
   const vs = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
   const fs = `precision mediump float;uniform vec2 r;uniform float t;uniform float b;
