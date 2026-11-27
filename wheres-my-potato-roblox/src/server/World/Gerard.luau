@@ -40,7 +40,7 @@ function G.build(parent: Instance, at: CFrame)
 		weldTo(root, boot, CFrame.new(s * 0.62, 0.35, -0.25))
 	end
 	-- torso (belly) on the waist joint
-	local torso = part("Torso", Vector3.new(3.3, 3.5, 2.9), PLAID, Enum.Material.Fabric, Enum.MeshType.Sphere)
+	local torso = part("Torso", Vector3.new(3.3, 3.5, 2.7), PLAID, Enum.Material.Fabric, Enum.MeshType.Sphere)
 	joint("Waist", root, torso, CFrame.new(0, 5.1, 0), CFrame.new())
 	local chest = part("Chest", Vector3.new(3.1, 1.6, 2.3), PLAID, Enum.Material.Fabric, Enum.MeshType.Sphere)
 	weldTo(torso, chest, CFrame.new(0, 1.35, 0.1))
@@ -49,7 +49,7 @@ function G.build(parent: Instance, at: CFrame)
 	-- apron (front, slightly curved: 3 panels)
 	for k = -1, 1 do
 		local ap = part("Apron", Vector3.new(1.05, 3.6, 0.12), APRON, Enum.Material.Fabric)
-		weldTo(torso, ap, CFrame.new(k * 0.98, -0.1, -1.42 + math.abs(k) * 0.22) * CFrame.Angles(0, k * 0.35, 0))
+		weldTo(torso, ap, CFrame.new(k * 1.02, -0.1, -1.72 + math.abs(k) * 0.36) * CFrame.Angles(0, k * 0.42, 0)) -- in front of the round belly
 		if k == 0 then B.surfaceText(ap, Enum.NormalId.Front, "GÉRARD", { font = Enum.Font.PermanentMarker, color = Color3.fromRGB(122, 58, 26), ppu = 60, pad = 0.05 }) end
 	end
 	local strap = part("Strap", Vector3.new(1.4, 0.18, 0.12), APRON, Enum.Material.Fabric)

@@ -89,6 +89,70 @@ function Carpet.partFor(key: number): BasePart? return live[key] end
 
 function Carpet.setRadius(r: number) R = r; cx0 = math.huge end
 
+-- ---------------------------------------------------------------- far rings: potatoes everywhere
+-- beyond the pickable carpet, rings of bigger and sparser potatoes cover every dune up to the
+-- horizon (world-locked cells per ring, recycled pools, rebuilt only when you cross a cell)
+local RINGS = {
+	PC = { { sp = 2.1, k = 2.35, r1 = 80 }, { sp = 4.2, k = 4.7, r1 = 180 }, { sp = 9, k = 10, r1 = 430 } },
+	Mobile = { { sp = 2.1, k = 2.35, r1 = 60 }, { sp = 4.2, k = 4.7, r1 = 130 }, { sp = 9, k = 10, r1 = 260 } },
+}
+local rings = {}
+local function clearZone(x: number, z: number): boolean
+	if x * x + z * z < (Config.JAR.R + 2) ^ 2 then return true end
+	for _, c in Config.CLEAR do if (x - c[1]) ^ 2 + (z - c[2]) ^ 2 < (c[3] * 0.55) ^ 2 then return true end end
+	return false
+end
+local function buildRings(mobile: boolean)
+	local list = if mobile then RINGS.Mobile else RINGS.PC
+	local r0 = R - 1
+	for i, L in list do
+		rings[i] = { sp = L.sp, k = L.k, r0 = r0, r1 = L.r1, live = {}, pool = {}, cx = math.huge, cz = math.huge, todo = {}, salt = i * 101 }
+		r0 = L.r1 - L.sp
+	end
+end
+local function ringPart(ring): BasePart
+	local p = table.remove(ring.pool)
+	if p then return p end
+	p = Potato.make(1, 1, 0.5)
+	p.Anchored = true; p.CanCollide = false; p.CanTouch = false; p.CanQuery = false; p.CastShadow = false
+	p.Parent = folder
+	return p
+end
+local function ringRebuild(ring, pos: Vector3)
+	local sp = ring.sp
+	local cx, cz = math.floor(pos.X / sp), math.floor(pos.Z / sp)
+	if math.abs(cx - ring.cx) < 2 and math.abs(cz - ring.cz) < 2 then return end
+	ring.cx, ring.cz = cx, cz
+	local n = math.ceil(ring.r1 / sp)
+	local want = {}
+	for dx = -n, n do for dz = -n, n do
+		local d2 = (dx * sp) ^ 2 + (dz * sp) ^ 2
+		if d2 <= ring.r1 * ring.r1 and d2 >= ring.r0 * ring.r0 then want[Potato.key(cx + dx, cz + dz)] = true end
+	end end
+	for key, p in ring.live do if not want[key] then ring.live[key] = nil; if p then p.CFrame = CFrame.new(0, -500, 0); table.insert(ring.pool, p) end end end
+	for key in want do if ring.live[key] == nil then table.insert(ring.todo, key) end end
+end
+local function ringStep(ring, budget: number, parts, cfs)
+	local i = 0
+	while #ring.todo > 0 and i < budget do
+		i += 1
+		local key = table.remove(ring.todo) :: number
+		if ring.live[key] ~= nil then continue end
+		local ix, iz = Potato.unkey(key)
+		local a, b = ix % 65536, iz % 65536
+		local r1, r2, r3, r4, r5, r6 = Potato.hash(a, b, ring.salt), Potato.hash(a, b, ring.salt + 1), Potato.hash(a, b, ring.salt + 2), Potato.hash(a, b, ring.salt + 3), Potato.hash(a, b, ring.salt + 4), Potato.hash(a, b, ring.salt + 5)
+		local x, z = (ix + 0.5 + (r1 - 0.5) * 0.6) * ring.sp, (iz + 0.5 + (r2 - 0.5) * 0.6) * ring.sp
+		if clearZone(x, z) then ring.live[key] = false :: any; continue end
+		local size = (0.85 + r3 * 0.35) * ring.k
+		local p = ringPart(ring)
+		ring.live[key] = p
+		p.Size = Vector3.new(Config.POTATO.Len * size * (1.05 + r6 * 0.25), 0.78 * size, 0.98 * size)
+		p.Color = Potato.color(if r4 < 0.72 then 1 else 2, r6)
+		table.insert(parts, p)
+		table.insert(cfs, CFrame.new(x, Land.height(x, z) + 0.12 * size, z) * CFrame.Angles((r6 - 0.5) * 0.5, r5 * 6.283, (r5 - 0.5) * 0.4))
+	end
+end
+
 -- rebuild the set of cells around the camera (only the difference is touched)
 local function rebuild(pos: Vector3)
 	local cx, cz = Potato.cellOf(pos.X, pos.Z)
@@ -115,9 +179,15 @@ local function rebuild(pos: Vector3)
 end
 
 function Carpet.start()
+	buildRings(R < Config.POTATO.Radius.PC)
 	RunService:BindToRenderStep("WMP_Carpet", Enum.RenderPriority.Camera.Value + 2, function()
 		local cam = workspace.CurrentCamera
 		rebuild(cam.CFrame.Position)
+		if #rings > 0 then
+			local rp, rc = {}, {}
+			for _, ring in rings do ringRebuild(ring, cam.CFrame.Position); ringStep(ring, 260, rp, rc) end
+			if #rp > 0 then workspace:BulkMoveTo(rp, rc, Enum.BulkMoveMode.FireCFrameChanged) end
+		end
 		if #pending > 0 then
 			local parts, cfs = {}, {}
 			local budget = if #pending > 2500 then 900 else 500
