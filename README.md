@@ -20,3 +20,14 @@ Installation, migration des données, chrono après changement d'app, caméra, G
 
 ## Roblox Forge · Jouer (roblox-forge/play/)
 Joue à tes jeux Forge dans le navigateur, en vertical sur iPhone : avatar R15 animé, joystick + saut, caméra, classement, chat, menu Échap, boutique, œufs, rebirth, vente, codes, combat, obby, tycoon. Mets le pack .zip (ou une carte .json) : il apparaît dans « Mes jeux ». « ▶ Jouer maintenant » dans Créer tout ouvre directement ton jeu. Solo (pas de serveur multijoueur).
+
+## LOOPLAB (looplab/)
+Générateur de vidéos verticales hypnotiques et satisfaisantes (TikTok / Shorts), 100 % dans le navigateur.
+Ouvrir `looplab/index.html` via un serveur HTTPS (ou `localhost`).
+
+- **35 simulations** en 6 catégories : vedettes (Fusion, 3 000 anneaux, Vortex), boucles hypnotiques, courses & combats (noms, drapeaux, photos), visualiseurs musicaux, écraser & trancher, physique satisfaisante.
+- **Musique** : bande-son originale générée avec montée + drop, ou ta propre musique (le drop, le tempo et les notes sont détectés et calés sur la vidéo), ou aucune.
+- **Personnalisation** : 14 designs, 9 matières, lueur, accroche, compteur, effets (éclairs, ondes de choc, étincelles, flash, secousses, glitch), traînées, options propres à chaque modèle.
+- **Export** : MP4 rendu image par image (WebCodecs + mp4-muxer, plus rapide que le temps réel), 720p/1080p, 30/60 i/s, sans filigrane. Repli MediaRecorder si le navigateur n’a pas WebCodecs.
+- **Mes vidéos** : vidéos gardées sur l’appareil (IndexedDB), partage natif sur mobile.
+- Aperçu en direct = rendu final (simulation déterministe à pas fixe).
