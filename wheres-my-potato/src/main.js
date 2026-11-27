@@ -132,8 +132,9 @@ class Game {
   }
   _resize() {
     const q = settings.q, pr = Math.min(devicePixelRatio || 1, q.pixelRatio) * this.renderScale;
-    this.renderer.setPixelRatio(pr); this.renderer.setSize(innerWidth, innerHeight);
     this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
+    if (this.bookSharp) { this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); this.renderer.setSize(innerWidth, innerHeight); return; } // keep the backdrop buffers
+    this.renderer.setPixelRatio(pr); this.renderer.setSize(innerWidth, innerHeight);
     this.composer?.setPixelRatio(pr); this.composer?.setSize(innerWidth, innerHeight);
   }
   _applyQuality() {
@@ -315,10 +316,51 @@ class Game {
   // the tutorial: a real book appears in the player's hands; play resumes when it is closed
   readBook(after) {
     this.state = 'book'; this.player.enabled = false; input.wantLock = false; input.unlock(); this.ui.hideHud();
+    this._bookMode(true);
     this.book3d.show(() => {
+      this._bookMode(false);
       this.state = 'play'; this.ui.showHud(); this.player.enabled = true; input.wantLock = !isTouch(); input.clear(); if (!isTouch()) input.lock();
       after?.();
     });
+  }
+  // Reading mode: the world is frozen into a soft backdrop (one snapshot of the full post
+  // pipeline) and only the book + hands are rendered each frame, at the device's full
+  // pixel density: razor-sharp pages and very little GPU work.
+  _bookMode(on) {
+    const r = this.renderer;
+    if (on) {
+      if (!this.bookBg) {
+        this.bookBgMat = new THREE.ShaderMaterial({ uniforms: { tMap: { value: null } }, depthTest: false, depthWrite: false,
+          vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+          fragmentShader: 'uniform sampler2D tMap; varying vec2 vUv; void main(){ vec3 c = texture2D(tMap, vUv).rgb; float v = smoothstep(1.15, 0.35, length(vUv - 0.5) * 1.6); gl_FragColor = vec4(c * mix(0.62, 0.92, v), 1.0); }' });
+        this.bookBg = new THREE.Scene(); const q = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.bookBgMat); q.frustumCulled = false; this.bookBg.add(q);
+        this.bookBgCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        // what the sharp pass needs to see: the hands/arms and the lights
+        this.player.vm.traverse(o => o.layers.enable(1));
+        this.scene.traverse(o => { if (o.isLight) o.layers.enable(1); });
+      }
+      // the snapshot is taken a few frames later, once the camera is at the player's eyes
+      this.bookSnapIn = 3;
+    } else {
+      this.bookSnapIn = 0; this.bookSharp = false; r.shadowMap.autoUpdate = true; this._resize();
+    }
+  }
+  _bookSnap() {
+    const vmv = this.player.vm.visible, bv = this.book3d.root.visible; this.player.vm.visible = false; this.book3d.root.visible = false;
+    this.composer.renderToScreen = false; this.composer.render(); this.composer.renderToScreen = true;
+    this.player.vm.visible = vmv; this.book3d.root.visible = bv;
+    this.bookBgMat.uniforms.tMap.value = this.composer.readBuffer.texture;
+    this.renderer.shadowMap.autoUpdate = false;
+    this.bookSharp = true; this._resize();
+  }
+  _renderBook() {
+    const r = this.renderer, c = this.camera, ac = r.autoClear;
+    r.setRenderTarget(null); r.autoClear = false; r.clear();
+    r.render(this.bookBg, this.bookBgCam);
+    const bg = this.scene.background; this.scene.background = null; // a colour background would clear the backdrop
+    r.clearDepth(); c.layers.set(1); r.render(this.scene, c); c.layers.set(0);
+    this.scene.background = bg;
+    r.autoClear = ac;
   }
   _welcome(first) {
     setTimeout(() => {
@@ -381,10 +423,11 @@ class Game {
   _frame() {
     const now = performance.now(); const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now;
     this.fps = damp(this.fps, 1 / Math.max(dt, 1e-3), 3, dt);
-    this._adaptive(dt);
+    if (!this.bookSharp) this._adaptive(dt);
     this._update(dt);
     this.grade.uniforms.uTime.value = this.t % 100;
-    this.composer.render();
+    if (this.bookSnapIn > 0 && --this.bookSnapIn === 0) this._bookSnap();
+    if (this.bookSharp) this._renderBook(); else this.composer.render();
   }
   // advance the simulation by `sec` seconds at 60 Hz without rendering (automated tests)
   step(sec) { for (let k = 0; k < Math.round(sec * 60); k++) this._update(1 / 60); }

@@ -109,7 +109,7 @@ export class Book3D {
   constructor(game) {
     this.g = game; this.cam = game.camera; this.open = false; this.built = false;
     this.root = new THREE.Group(); this.root.visible = false; this.cam.add(this.root);
-    this.lamp = new THREE.PointLight(0xffe2b0, 0, 1.2, 1.4); this.lamp.position.set(0.05, 0.16, 0.12); this.cam.add(this.lamp);
+    this.lamp = new THREE.PointLight(0xffe2b0, 0, 1.2, 1.4); this.lamp.layers.enable(1); this.lamp.position.set(0.05, 0.16, 0.12); this.cam.add(this.lamp);
     this.hint = document.createElement('div'); this.hint.className = 'book3d-hint hidden'; document.body.appendChild(this.hint);
     this._onDown = e => this._click(e);
     this._onKey = e => { if (!this.open || this.phase !== 'read') return; if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') this.next(); else if (e.key === 'ArrowLeft' || e.key === 'q' || e.key === 'a') this.prev(); else if (e.key === 'Escape') { e.stopPropagation(); this.close(); } };
@@ -204,7 +204,7 @@ export class Book3D {
       const board = new THREE.Mesh(new THREE.BoxGeometry(W + 0.008, H + 0.012, 0.0035), side < 0 ? [leatherIn, leatherIn, leatherIn, leatherIn, leatherIn, leather] : [leatherIn, leatherIn, leatherIn, leatherIn, leatherIn, leatherIn]);
       board.position.set(side * (W + 0.008) / 2, 0, -T - 0.0018); g.add(board);
       // page block with a gutter curve (pages dive into the spine)
-      const blk = new THREE.Mesh(new THREE.BoxGeometry(W - 0.004, H - 0.002, T), edge); blk.position.set(side * (W / 2 + 0.002), 0, -T / 2 - 0.0004); g.add(blk);
+      const blk = new THREE.Mesh(new THREE.BoxGeometry(W - 0.04, H - 0.002, T), edge); blk.position.set(side * (W / 2 + 0.018), 0, -T / 2 - 0.0016); g.add(blk); // kept clear of the gutter curve
       const top = new THREE.Mesh(this._curvedPage(side), pageMat(null)); top.position.z = 0.0002; g.add(top);
       return { g, top };
     };
@@ -216,20 +216,20 @@ export class Book3D {
     // the turning leaf (front = right page, back = next left page)
     const lg = new THREE.PlaneGeometry(W, H, SEG, 6); lg.translate(W / 2, 0, 0); this.leafBase = lg.attributes.position.array.slice();
     this.leafFront = new THREE.Mesh(lg, pageMat(null)); this.leafBack = new THREE.Mesh(lg, pageMat(null)); this.leafBack.material.side = THREE.BackSide;
-    this.leaf = new THREE.Group(); this.leaf.add(this.leafFront, this.leafBack); this.leaf.visible = false; this.leaf.position.z = 0.0006; R.add(this.leaf);
+    this.leaf = new THREE.Group(); this.leaf.add(this.leafFront, this.leafBack); this.leaf.visible = false; this.leaf.position.z = 0.0016; R.add(this.leaf);
     // soft shadow the leaf throws on the pages below
     const sc = document.createElement('canvas'); sc.width = 256; sc.height = 4; { const x = sc.getContext('2d'); const gr = x.createLinearGradient(0, 0, 256, 0); gr.addColorStop(0, 'rgba(0,0,0,0.75)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 256, 4); }
     const shT = new THREE.CanvasTexture(sc);
-    this.shadowR = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: shT, transparent: true, opacity: 0, depthWrite: false })); this.shadowR.position.set(W / 2, 0, 0.0004); R.add(this.shadowR);
-    this.shadowL = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: shT, transparent: true, opacity: 0, depthWrite: false })); this.shadowL.scale.x = -1; this.shadowL.position.set(-W / 2, 0, 0.0004); R.add(this.shadowL);
-    R.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; o.renderOrder = 60; o.material.fog = false; } });
+    this.shadowR = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: shT, transparent: true, opacity: 0, depthWrite: false })); this.shadowR.position.set(W / 2, 0, 0.0008); R.add(this.shadowR);
+    this.shadowL = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: shT, transparent: true, opacity: 0, depthWrite: false })); this.shadowL.scale.x = -1; this.shadowL.position.set(-W / 2, 0, 0.0008); R.add(this.shadowL);
+    R.traverse(o => { o.layers.set(1); if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; o.renderOrder = 60; o.material.fog = false; } });
     this.built = true;
   }
   _curvedPage(side) {
     const g = new THREE.PlaneGeometry(W, H, 24, 1); const p = g.attributes.position;
     for (let i = 0; i < p.count; i++) {
       const u = p.getX(i) + W / 2; // 0 at the spine … W at the edge
-      const z = -0.0085 * Math.exp(-u / 0.012) + 0.0016 * Math.sin(Math.min(1, u / W) * Math.PI);
+      const z = -0.0085 * Math.exp(-u / 0.012); // pages dive into the gutter; flat elsewhere so the turning leaf never intersects them
       p.setXYZ(i, side * u, p.getY(i), z);
     }
     if (side < 0) { const ix = g.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i)); }
@@ -255,7 +255,7 @@ export class Book3D {
           const a = th + lag;
           x += Math.cos(a) * du; z += Math.sin(a) * du;
         }
-        p.setXYZ(i, x, b[i * 3 + 1], z + 0.0004 * (1 - Math.abs(Math.cos(th))));
+        p.setXYZ(i, x, b[i * 3 + 1], z);
       }
     }
     p.needsUpdate = true; this.leafFront.geometry.computeVertexNormals();
